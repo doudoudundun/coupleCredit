@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">couplecredit</string>
+    <string name="head">首页</string>
+    <string name="second_page">计划</string>
+    <string name="third_page">报表</string>
+    <string name="forth_page">我</string>
+</resources>

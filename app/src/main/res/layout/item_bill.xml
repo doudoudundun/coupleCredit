@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:padding="16dp"
+    android:gravity="center_vertical"
+    android:background="@android:color/white">
+
+    <!-- 图标 -->
+    <ImageView
+        android:id="@+id/iv_category_icon"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:src="@android:drawable/ic_menu_gallery"
+        android:background="@android:drawable/btn_default"
+        android:scaleType="centerInside"
+        android:layout_marginRight="12dp" />
+
+    <!-- 中间内容区域 -->
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/tv_category_name"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="applemusic"
+            android:textSize="16sp"
+            android:textColor="#333333"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/tv_category_desc"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="大笨蛋 支出"
+            android:textSize="12sp"
+            android:textColor="#999999"
+            android:layout_marginTop="2dp" />
+
+    </LinearLayout>
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:gravity="center_vertical">
+    <!-- 金额和箭头 -->
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:id="@+id/tv_amount"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="-6"
+                android:textSize="16sp"
+                android:textColor="#333333"
+                android:textStyle="bold" />
+
+            <ImageView
+                android:layout_width="16dp"
+                android:layout_height="16dp"
+                android:src="@android:drawable/ic_media_play"
+                android:layout_marginLeft="8dp"
+                android:rotation="270" />
+
+        </LinearLayout>
+        <TextView
+            android:id="@+id/tv_date"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="07-22"
+            android:textSize="16sp"/>
+    </LinearLayout>
+
+</LinearLayout>
