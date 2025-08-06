@@ -1,5 +1,6 @@
 package com.example.couplecredit;
 //just a test
+//just two tests
 import static com.transsion.widgetslib.util.Utils.isGestureNavigationBarOn;
 
 import android.graphics.Color;
