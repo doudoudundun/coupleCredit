@@ -14,6 +14,7 @@ public class BillDatabaseHelper extends SQLiteOpenHelper {
     private static final String DATABASE_NAME = "bills.db";
     private static final int DATABASE_VERSION = 1;
     public static final String TABLE_BILLS = "bills";
+    public static final String CATEGORY_TABLE = "category";
     public static final String COLUMN_ID = "_id"; //账单ID
     public static final String USER_ID = "userId"; //用户 ID ： 1、2 ， 1为邀请人，2为被邀请人
     public static final String COLUMN_TITLE = "title";//账单备注
@@ -29,6 +30,7 @@ public class BillDatabaseHelper extends SQLiteOpenHelper {
 
     @Override
     public void onCreate(SQLiteDatabase db) {
+        //创建账单表
         db.execSQL("CREATE TABLE " + TABLE_BILLS + " ("
                 + COLUMN_ID + " INTEGER PRIMARY KEY AUTOINCREMENT, "
                 + USER_ID + " INTEGER NOT NULL, "
@@ -36,6 +38,11 @@ public class BillDatabaseHelper extends SQLiteOpenHelper {
                 + COLUMN_TYPE + " TEXT NOT NULL, "
                 + COLUMN_AMOUNT + " REAL NOT NULL, "
                 + COLUMN_DATE + " TEXT NOT NULL"
+                + ");");
+        //账单种类和账单id对照表
+        db.execSQL("CREATE TABLE " + CATEGORY_TABLE + " ("
+                + "cate_id" + " INTEGER PRIMARY KEY AUTOINCREMENT, "
+                + COLUMN_TYPE + " TEXT NOT NULL"
                 + ");");
     }
     @Override

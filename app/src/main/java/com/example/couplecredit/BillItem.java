@@ -1,5 +1,5 @@
 package com.example.couplecredit;
-
+//弃用，转用billbean
 public class BillItem {
     private String categoryName;
     private String categoryDesc;

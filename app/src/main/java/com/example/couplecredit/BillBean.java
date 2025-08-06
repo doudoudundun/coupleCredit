@@ -1,8 +1,15 @@
 package com.example.couplecredit;
-
+/**
+ * Class BillBean
+ * @author qinyang.li、biru.zhang
+ * @date 2025-08-06
+ * billitem: 账单项
+ * 账单金额：int fare , 账单日期：int year, 账单日期：int month, 账单日期：int day, 账单用户ID：int userId(1为邀请者，2为被邀请者，3为共同开支),
+ * 账单类别名称：string categoryName, 账单类别描述：string categoryDesc, 账单图标：int iconResId(和账单类别对应)
+ */
 public final class BillBean {
     //费用
-    private int fare;
+    private double fare;
     //消费日期：年
     private int year;
     //消费日期：月
@@ -13,7 +20,7 @@ public final class BillBean {
     private String categoryDesc;
     private int iconResId;
 
-    public BillBean(int fare, int year, int month, int day, int userId, String categoryName,
+    public BillBean(double fare, int year, int month, int day, int userId, String categoryName,
                     String categoryDesc, int iconResId) {
         this.fare = fare;
         this.year = year;
@@ -33,11 +40,11 @@ public final class BillBean {
         this.iconResId = iconResId;
     }
 
-    public int getFare() {
+    public double getFare() {
         return fare;
     }
 
-    public void setFare(int fare) {
+    public void setFare(double fare) {
         this.fare = fare;
     }
 

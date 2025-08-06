@@ -57,7 +57,7 @@ public class HeadFragment extends Fragment {
         LinearLayoutManager layoutManager = new LinearLayoutManager(getContext());
         layoutManager.setOrientation(LinearLayoutManager.VERTICAL);
         rvBillList.setLayoutManager(layoutManager);
-        OverScrollDecorHelper.setUpOverScroll(rvBillList, OverScrollDecorHelper.ORIENTATION_VERTICAL);
+//        OverScrollDecorHelper.setUpOverScroll(rvBillList, OverScrollDecorHelper.ORIENTATION_VERTICAL);
 
         
         // 初始化数据
@@ -75,9 +75,19 @@ public class HeadFragment extends Fragment {
     
     private void initBillData() {
         billItems = new ArrayList<>();
-//        billItems.add(new BillBean(38, 2025, 8, 5, 1,"test", "1", 1));
-        // 添加示例数据，模拟截图中的账单（只显示4个）
-
+        
+        // 添加示例数据，模拟账单记录
+        billItems.add(new BillBean(25.80, 2025, 1, 15, 1, "餐饮", "午餐聚餐", R.drawable.ic_money));
+        billItems.add(new BillBean(12.00, 2025, 1, 14, 2, "交通", "地铁出行", R.drawable.ic_report));
+        billItems.add(new BillBean(35.00, 2025, 1, 13, 3, "购物", "日用品采购", R.drawable.ic_favorite));
+        billItems.add(new BillBean(68.0, 2025, 1, 12, 1, "娱乐", "电影票", R.drawable.ic_profile));
+        billItems.add(new BillBean(45.0, 2025, 1, 11, 2, "餐饮", "咖啡", R.drawable.ic_money));
+        billItems.add(new BillBean(180.0, 2025, 1, 10, 3, "生活", "水电费", R.drawable.ic_report));
+        billItems.add(new BillBean(258.0, 2025, 1, 15, 1, "餐饮", "午餐聚餐", R.drawable.ic_money));
+        billItems.add(new BillBean(12.00, 2025, 1, 14, 2, "交通", "地铁出行", R.drawable.ic_report));
+        billItems.add(new BillBean(35.00, 2025, 1, 13, 3, "购物", "日用品采购", R.drawable.ic_favorite));
+        billItems.add(new BillBean(68.0, 2025, 1, 12, 1, "娱乐", "电影票", R.drawable.ic_profile));
+        billItems.add(new BillBean(45.0, 2025, 1, 11, 2, "餐饮", "咖啡", R.drawable.ic_money));
     }
     
     private void updateMonthTitle() {
@@ -104,7 +114,7 @@ public class HeadFragment extends Fragment {
         
         // 设置年份选择器
         yearPicker.setMinValue(2020);
-        yearPicker.setMaxValue(2030);
+        yearPicker.setMaxValue(2080);
         yearPicker.setValue(currentYear);
         
         // 设置月份选择器
