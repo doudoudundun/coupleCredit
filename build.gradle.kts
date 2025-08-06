@@ -3,3 +3,12 @@ plugins {
     alias(libs.plugins.android.application) apply false
     alias(libs.plugins.kotlin.android) apply false
 }
+
+allprojects {
+    repositories {
+        maven{ url = uri("https://artifact.transsion.com/artifactory/os-releases/")}
+        maven{ url = uri("https://artifact.transsion.com/artifactory/maven-public/") }
+        maven{ url = uri("https://artifact.transsion.com/artifactory/google/") }
+        maven{ url = uri("https://artifact.transsion.com/artifactory/Jcenter/") }
+    }
+}

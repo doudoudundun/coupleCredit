@@ -6,6 +6,7 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.Window;
+import android.widget.AdapterView;
 import android.widget.NumberPicker;
 import android.widget.TextView;
 import androidx.annotation.NonNull;
@@ -13,6 +14,9 @@ import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
+
+import com.transsion.effectengine.bounceeffect.OverScrollDecorHelper;
+
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.List;
@@ -50,19 +54,28 @@ public class HeadFragment extends Fragment {
         
         // 初始化RecyclerView
         rvBillList = view.findViewById(R.id.rv_bill_list);
-        rvBillList.setLayoutManager(new LinearLayoutManager(getContext()));
+        LinearLayoutManager layoutManager = new LinearLayoutManager(getContext());
+        layoutManager.setOrientation(LinearLayoutManager.VERTICAL);
+        rvBillList.setLayoutManager(layoutManager);
+        OverScrollDecorHelper.setUpOverScroll(rvBillList, OverScrollDecorHelper.ORIENTATION_VERTICAL);
+
         
         // 初始化数据
         initBillData();
         
         // 设置适配器
-        billAdapter = new BillAdapter(billItems);
+        billAdapter = new BillAdapter(getContext(), billItems, new AdapterView.OnItemClickListener() {
+            @Override
+            public void onItemClick(AdapterView<?> parent, View view, int position, long id){
+                // TODO: 跳转到账单详情页面
+            }
+        });
         rvBillList.setAdapter(billAdapter);
     }
     
     private void initBillData() {
         billItems = new ArrayList<>();
-        
+//        billItems.add(new BillBean(38, 2025, 8, 5, 1,"test", "1", 1));
         // 添加示例数据，模拟截图中的账单（只显示4个）
 
     }

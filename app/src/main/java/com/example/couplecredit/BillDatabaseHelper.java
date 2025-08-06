@@ -14,12 +14,12 @@ public class BillDatabaseHelper extends SQLiteOpenHelper {
     private static final String DATABASE_NAME = "bills.db";
     private static final int DATABASE_VERSION = 1;
     public static final String TABLE_BILLS = "bills";
-    public static final String COLUMN_ID = "_id";
-    public static final String USER_ID = "userId";
-    public static final String COLUMN_TITLE = "title";
-    public static final String COLUMN_TYPE = "type";
-    public static final String COLUMN_AMOUNT = "amount";
-    public static final String COLUMN_DATE = "date";
+    public static final String COLUMN_ID = "_id"; //账单ID
+    public static final String USER_ID = "userId"; //用户 ID ： 1、2 ， 1为邀请人，2为被邀请人
+    public static final String COLUMN_TITLE = "title";//账单备注
+    public static final String COLUMN_TYPE = "type";//账单类型
+    public static final String COLUMN_AMOUNT = "amount";//账单金额
+    public static final String COLUMN_DATE = "date";//账单日期 日期格式：2023-01-01
 
 
 

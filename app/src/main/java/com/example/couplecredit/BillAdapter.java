@@ -1,8 +1,10 @@
 package com.example.couplecredit;
 
+import android.content.Context;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.AdapterView;
 import android.widget.ImageView;
 import android.widget.TextView;
 import androidx.annotation.NonNull;
@@ -12,9 +14,13 @@ import java.util.List;
 public class BillAdapter extends RecyclerView.Adapter<BillAdapter.BillViewHolder> {
     
     private List<BillBean> billItems;
+    private Context context;
+    private AdapterView.OnItemClickListener mListener;
     
-    public BillAdapter(List<BillBean> billItems) {
+    public BillAdapter(Context context, List<BillBean> billItems, AdapterView.OnItemClickListener listener) {
+        this.context = context;
         this.billItems = billItems;
+        this.mListener = listener;
     }
     
     @NonNull
@@ -29,7 +35,7 @@ public class BillAdapter extends RecyclerView.Adapter<BillAdapter.BillViewHolder
         BillBean item = billItems.get(position);
         holder.tvCategoryName.setText(item.getCategoryName());
         holder.tvCategoryDesc.setText(item.getCategoryDesc());
-        holder.tvAmount.setText(item.getFare());
+        holder.tvAmount.setText(String.valueOf(item.getFare()));
         holder.ivCategoryIcon.setImageResource(item.getIconResId());
     }
     
