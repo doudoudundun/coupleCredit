@@ -81,22 +81,6 @@ public class MainActivity extends AppCompatActivity {
             return insets;
         });
 
-//        mFootOptBar.setOnItemSelectedListener(item -> {
-//            if (item.getItemId() == R.id.nav_head) {
-//                fragmentManager.showFragment(headFragment);
-//                return true;
-//            } else if (item.getItemId() == R.id.nav_plan) {
-//                showFragment(planFragment);
-//                return true;
-//            } else if (item.getItemId() == R.id.nav_report) {
-//                showFragment(reportFragment);
-//                return true;
-//            } else if (item.getItemId() == R.id.nav_my) {
-//                showFragment(myFragment);
-//                return true;
-//            }
-//            return false;
-//        });
         boolean isGestureNavigationBarOn = isGestureNavigationBarOn(this);
         //沉浸式系统方案
         if (isGestureNavigationBarOn) {
@@ -107,7 +91,7 @@ public class MainActivity extends AppCompatActivity {
             getWindow().getDecorView().setSystemUiVisibility(option);
 
             // 设置状态栏背景色
-            //getWindow().setStatusBarColor(Color.TRANSPARENT);
+            getWindow().setStatusBarColor(Color.TRANSPARENT);
 
             // 设置导航栏背景色为透明色
             getWindow().setNavigationBarColor(Color.TRANSPARENT);
