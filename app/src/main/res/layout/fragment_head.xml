@@ -50,9 +50,9 @@
             android:background="@android:color/white"
             android:paddingLeft="16dp"
             android:paddingRight="16dp"
-            android:paddingBottom="20dp"
+            android:paddingBottom="6dp"
             android:orientation="horizontal"
-            android:weightSum="3">
+            android:weightSum="2">
 
             <!-- 支出卡片 -->
             <LinearLayout
@@ -108,52 +108,13 @@
 
             </LinearLayout>
 
-            <!-- 存入卡片 -->
-            <LinearLayout
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:orientation="vertical"
-                android:gravity="center">
-
-                <TextView
-                    android:id="@+id/tv_saving_amount"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="¥ 0.00"
-                    android:textSize="18sp"
-                    android:textColor="#FF6B6B"
-                    android:textStyle="bold" />
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="存入"
-                    android:textSize="12sp"
-                    android:textColor="#999999"
-                    android:layout_marginTop="4dp" />
-
-            </LinearLayout>
-
         </LinearLayout>
-
-        <!-- 日期标题 -->
-        <TextView
-            android:id="@+id/tv_date"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="07.31"
-            android:textSize="14sp"
-            android:textColor="#999999"
-            android:padding="16dp"
-            android:background="#F5F5F5" />
-
         <!-- 账单列表 -->
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/rv_bill_list"
             android:layout_width="match_parent"
             android:layout_height="0dp"
             android:layout_weight="1"
-            android:background="@android:color/white" />
+            android:background="#F5F5F5" />
 
 </LinearLayout>

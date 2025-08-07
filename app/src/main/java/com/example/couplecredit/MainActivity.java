@@ -38,7 +38,7 @@ public class MainActivity extends AppCompatActivity {
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main), (v, insets) -> {
             androidx.core.graphics.Insets systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
             // 只设置左、上、右的padding，不设置底部padding，让底部导航栏延伸到屏幕底部
-            v.setPadding(systemBars.left, systemBars.top, systemBars.right, 0);
+            v.setPadding(systemBars.left, 0, systemBars.right, 0);
             return insets;
         });
 
@@ -76,7 +76,7 @@ public class MainActivity extends AppCompatActivity {
         ViewCompat.setOnApplyWindowInsetsListener(mFootOptBar, (v, insets) -> {
             androidx.core.graphics.Insets systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
             // 为底部导航栏添加底部padding，确保内容不被系统导航栏遮挡
-            v.setPadding(0, 0, 0, systemBars.bottom);
+            v.setPadding(-20, 0, -20, 10);
             return insets;
         });
 

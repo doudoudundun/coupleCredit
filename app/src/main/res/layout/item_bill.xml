@@ -3,9 +3,11 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="horizontal"
-    android:padding="16dp"
-    android:gravity="center_vertical"
-    android:background="@android:color/white">
+    android:paddingLeft="16dp"
+    android:paddingRight="16dp"
+    android:paddingTop="8dp"
+    android:paddingBottom="8dp"
+    android:gravity="center_vertical">
 
     <!-- 图标 -->
     <ImageView
@@ -43,41 +45,30 @@
             android:layout_marginTop="2dp" />
 
     </LinearLayout>
+    
+    <!-- 金额和箭头 -->
     <LinearLayout
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:orientation="vertical"
+        android:orientation="horizontal"
         android:gravity="center_vertical">
-    <!-- 金额和箭头 -->
-        <LinearLayout
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center_vertical">
 
-            <TextView
-                android:id="@+id/tv_amount"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="-6"
-                android:textSize="16sp"
-                android:textColor="#333333"
-                android:textStyle="bold" />
-
-            <ImageView
-                android:layout_width="16dp"
-                android:layout_height="16dp"
-                android:src="@android:drawable/ic_media_play"
-                android:layout_marginLeft="8dp"
-                android:rotation="270" />
-
-        </LinearLayout>
         <TextView
-            android:id="@+id/tv_date"
+            android:id="@+id/tv_amount"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="07-22"
-            android:textSize="16sp"/>
+            android:text="-6"
+            android:textSize="16sp"
+            android:textColor="#333333"
+            android:textStyle="bold" />
+
+        <ImageView
+            android:layout_width="16dp"
+            android:layout_height="16dp"
+            android:src="@android:drawable/ic_media_play"
+            android:layout_marginLeft="8dp"
+            android:rotation="270" />
+
     </LinearLayout>
 
 </LinearLayout>

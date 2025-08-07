@@ -19,12 +19,18 @@ import com.transsion.effectengine.bounceeffect.OverScrollDecorHelper;
 
 import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 public class HeadFragment extends Fragment {
     
     private RecyclerView rvBillList;
     private BillAdapter billAdapter;
+    private List<Object> displayItems; // 混合数据：String(日期) 和 BillBean
     private List<BillBean> billItems;
     private TextView tvMonthTitle;
     private int currentYear;
@@ -64,30 +70,77 @@ public class HeadFragment extends Fragment {
         initBillData();
         
         // 设置适配器
-        billAdapter = new BillAdapter(getContext(), billItems, new AdapterView.OnItemClickListener() {
+        displayItems = new ArrayList<>();
+        billAdapter = new BillAdapter(getContext(), displayItems, new AdapterView.OnItemClickListener() {
             @Override
             public void onItemClick(AdapterView<?> parent, View view, int position, long id){
                 // TODO: 跳转到账单详情页面
             }
         });
         rvBillList.setAdapter(billAdapter);
+        processAndDisplayData();
     }
     
     private void initBillData() {
         billItems = new ArrayList<>();
         
         // 添加示例数据，模拟账单记录
-        billItems.add(new BillBean(25.80, 2025, 1, 15, 1, "餐饮", "午餐聚餐", R.drawable.ic_money));
-        billItems.add(new BillBean(12.00, 2025, 1, 14, 2, "交通", "地铁出行", R.drawable.ic_report));
-        billItems.add(new BillBean(35.00, 2025, 1, 13, 3, "购物", "日用品采购", R.drawable.ic_favorite));
-        billItems.add(new BillBean(68.0, 2025, 1, 12, 1, "娱乐", "电影票", R.drawable.ic_profile));
-        billItems.add(new BillBean(45.0, 2025, 1, 11, 2, "餐饮", "咖啡", R.drawable.ic_money));
-        billItems.add(new BillBean(180.0, 2025, 1, 10, 3, "生活", "水电费", R.drawable.ic_report));
-        billItems.add(new BillBean(258.0, 2025, 1, 15, 1, "餐饮", "午餐聚餐", R.drawable.ic_money));
-        billItems.add(new BillBean(12.00, 2025, 1, 14, 2, "交通", "地铁出行", R.drawable.ic_report));
-        billItems.add(new BillBean(35.00, 2025, 1, 13, 3, "购物", "日用品采购", R.drawable.ic_favorite));
-        billItems.add(new BillBean(68.0, 2025, 1, 12, 1, "娱乐", "电影票", R.drawable.ic_profile));
-        billItems.add(new BillBean(45.0, 2025, 1, 11, 2, "餐饮", "咖啡", R.drawable.ic_money));
+        billItems.add(new BillBean(25.80, 2025, 8, 15, 1, "餐饮", "午餐聚餐", R.drawable.ic_money));
+        billItems.add(new BillBean(12.00, 2025, 8, 14, 2, "交通", "地铁出行", R.drawable.ic_report));
+        billItems.add(new BillBean(35.00, 2025, 8, 13, 3, "购物", "日用品采购", R.drawable.ic_favorite));
+        billItems.add(new BillBean(68.0, 2025, 8, 12, 1, "娱乐", "电影票", R.drawable.ic_profile));
+        billItems.add(new BillBean(45.0, 2025, 8, 11, 2, "餐饮", "咖啡", R.drawable.ic_money));
+        billItems.add(new BillBean(180.0, 2025, 8, 10, 3, "生活", "水电费", R.drawable.ic_report));
+        billItems.add(new BillBean(258.0, 2025, 8, 15, 1, "餐饮", "午餐聚餐", R.drawable.ic_money));
+        billItems.add(new BillBean(12.00, 2025, 8, 14, 2, "交通", "地铁出行", R.drawable.ic_report));
+        billItems.add(new BillBean(35.00, 2025, 8, 13, 3, "购物", "日用品采购", R.drawable.ic_favorite));
+        billItems.add(new BillBean(68.0, 2025, 8, 12, 1, "娱乐", "电影票", R.drawable.ic_profile));
+        billItems.add(new BillBean(45.0, 2025, 8, 11, 2, "餐饮", "咖啡", R.drawable.ic_money));
+        billItems.add(new BillBean(180.0, 2025, 7, 10, 3, "生活", "水电费", R.drawable.ic_report));
+    }
+    
+    private void processAndDisplayData() {
+        displayItems.clear();
+        
+        // 按日期倒序排序
+        Collections.sort(billItems, new Comparator<BillBean>() {
+            @Override
+            public int compare(BillBean b1, BillBean b2) {
+                // 先按年份倒序
+                if (b1.getYear() != b2.getYear()) {
+                    return Integer.compare(b2.getYear(), b1.getYear());
+                }
+                // 再按月份倒序
+                if (b1.getMonth() != b2.getMonth()) {
+                    return Integer.compare(b2.getMonth(), b1.getMonth());
+                }
+                // 最后按日期倒序
+                if (b1.getDay() != b2.getDay()) {
+                    return Integer.compare(b2.getDay(), b1.getDay());
+                }
+                // 同一天内按种类名首字母排序
+                return b1.getCategoryName().compareToIgnoreCase(b2.getCategoryName());
+            }
+        });
+        
+        // 按日期分组
+        Map<String, List<BillBean>> dateGroups = new LinkedHashMap<>();
+        for (BillBean bill : billItems) {
+            String dateKey = String.format("%02d.%02d", bill.getMonth(), bill.getDay());
+            if (!dateGroups.containsKey(dateKey)) {
+                dateGroups.put(dateKey, new ArrayList<>());
+            }
+            dateGroups.get(dateKey).add(bill);
+        }
+        
+        // 将分组数据添加到displayItems
+        for (Map.Entry<String, List<BillBean>> entry : dateGroups.entrySet()) {
+            Map<String, List<BillBean>> dateGroup = new HashMap<>();
+            dateGroup.put(entry.getKey(), entry.getValue());
+            displayItems.add(dateGroup);
+        }
+        
+        billAdapter.notifyDataSetChanged();
     }
     
     private void updateMonthTitle() {
@@ -96,8 +149,8 @@ public class HeadFragment extends Fragment {
     }
     
     private String getMonthText(int month) {
-        String[] months = {"一月", "二月", "三月", "四月", "五月", "六月", 
-                          "七月", "八月", "九月", "十月", "十一月", "十二月"};
+        String[] months = {"1月", "2月", "3月", "4月", "5月", "6月",
+                          "7月", "8月", "9月", "10月", "11月", "12月"};
         return months[month - 1];
     }
     

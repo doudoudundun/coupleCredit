@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:layout_margin="8dp"
+    android:background="@drawable/items_bg"
+    android:elevation="1dp">
+
+    <!-- 日期头部 -->
+    <TextView
+        android:id="@+id/tv_date_header"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="08.07"
+        android:textSize="14sp"
+        android:textColor="#666666"
+        android:textStyle="bold"
+        android:padding="16dp"
+        android:paddingBottom="8dp" />
+
+    <!-- 账单列表容器 -->
+    <LinearLayout
+        android:id="@+id/ll_bills_container"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical" />
+
+</LinearLayout>
