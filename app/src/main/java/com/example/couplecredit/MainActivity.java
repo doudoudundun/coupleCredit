@@ -24,6 +24,8 @@ public class MainActivity extends AppCompatActivity {
 
     private FragmentManager fragmentManager;
     private HeadFragment headFragment;
+
+    private AddBillFragment addBillFragment;
     private PlanFragment planFragment;
     private ReportFragment reportFragment;
     private MyFragment myFragment;
@@ -46,6 +48,7 @@ public class MainActivity extends AppCompatActivity {
         // 初始化Fragment管理器和Fragment实例
         fragmentManager = getSupportFragmentManager();
         headFragment = new HeadFragment();
+        addBillFragment = new AddBillFragment();
         planFragment = new PlanFragment();
         reportFragment = new ReportFragment();
         myFragment = new MyFragment();
@@ -64,7 +67,7 @@ public class MainActivity extends AppCompatActivity {
                         if (index == 0) {
                             showFragment(headFragment);
                         } else if (index == 1) {
-                            showFragment(planFragment);
+                            showFragment(addBillFragment);
                         } else if (index == 2) {
                             showFragment(reportFragment);
                         } else if (index == 3) {
