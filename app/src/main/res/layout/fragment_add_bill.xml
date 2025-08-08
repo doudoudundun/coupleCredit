@@ -1,0 +1,450 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="#F5F5F5">
+
+
+    <!-- 标题栏 -->
+    <RelativeLayout
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:background="@android:color/white">
+
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_centerInParent="true"
+            android:text="记账"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:textColor="#333333" />
+
+    </RelativeLayout>
+
+    <!-- 支出/收入切换 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:background="@android:color/white">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:paddingTop="16dp"
+            android:paddingBottom="8dp">
+
+            <TextView
+                android:id="@+id/tv_expense"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="支出"
+                android:textSize="16sp"
+                android:textColor="#333333"
+                android:textStyle="bold"
+                android:gravity="center"
+                android:padding="8dp" />
+
+            <TextView
+                android:id="@+id/tv_income"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="收入"
+                android:textSize="16sp"
+                android:textColor="#999999"
+                android:gravity="center"
+                android:padding="8dp" />
+
+        </LinearLayout>
+
+        <!-- 下划线指示器 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <View
+                android:id="@+id/indicator_expense"
+                android:layout_width="0dp"
+                android:layout_height="3dp"
+                android:layout_weight="1"
+                android:background="#FFB347"
+                android:layout_marginStart="40dp"
+                android:layout_marginEnd="40dp" />
+
+            <View
+                android:id="@+id/indicator_income"
+                android:layout_width="0dp"
+                android:layout_height="3dp"
+                android:layout_weight="1"
+                android:background="@android:color/transparent"
+                android:layout_marginStart="40dp"
+                android:layout_marginEnd="40dp" />
+
+        </LinearLayout>
+
+    </LinearLayout>
+
+    <!-- 分类选择区域 -->
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:background="@android:color/white">
+
+        <GridLayout
+            android:id="@+id/grid_categories"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:columnCount="5"
+            android:padding="8dp">
+
+            <!-- 使用可复用的分类项布局 -->
+            <include layout="@layout/item_category" android:id="@+id/category_food" />
+            <include layout="@layout/item_category" android:id="@+id/category_drink" />
+            <include layout="@layout/item_category" android:id="@+id/category_fruit" />
+            <include layout="@layout/item_category" android:id="@+id/category_shopping" />
+            <include layout="@layout/item_category" android:id="@+id/category_transport" />
+            <include layout="@layout/item_category" android:id="@+id/category_hotel" />
+            <include layout="@layout/item_category" android:id="@+id/category_daily" />
+            <include layout="@layout/item_category" android:id="@+id/category_study" />
+            <include layout="@layout/item_category" android:id="@+id/category_entertainment" />
+            <include layout="@layout/item_category" android:id="@+id/category_cosmetic" />
+            <include layout="@layout/item_category" android:id="@+id/category_travel" />
+            <include layout="@layout/item_category" android:id="@+id/category_medical" />
+            <include layout="@layout/item_category" android:id="@+id/category_member" />
+            <include layout="@layout/item_category" android:id="@+id/category_communication" />
+            <include layout="@layout/item_category" android:id="@+id/category_social" />
+            <include layout="@layout/item_category" android:id="@+id/category_investment" />
+            <include layout="@layout/item_category" android:id="@+id/category_parenting" />
+            <include layout="@layout/item_category" android:id="@+id/category_pet" />
+            <include layout="@layout/item_category" android:id="@+id/category_decoration" />
+            <include layout="@layout/item_category" android:id="@+id/category_other" />
+
+        </GridLayout>
+
+    </ScrollView>
+
+    <!-- 底部操作区域 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:background="@android:color/white">
+
+        <!-- 日期和账单归属选择 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:padding="6dp"
+            android:gravity="center_vertical">
+
+            <!-- 日期选择 -->
+            <TextView
+                android:id="@+id/tv_date"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="8月6日"
+                android:textSize="14sp"
+                android:textColor="@android:color/white"
+                android:background="#FF9500"
+                android:padding="8dp"
+                android:layout_marginEnd="8dp" />
+
+            <!-- 图片按钮 -->
+            <TextView
+                android:id="@+id/tv_photo"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="图片"
+                android:textSize="14sp"
+                android:textColor="#666666"
+                android:background="#E0E0E0"
+                android:padding="8dp"
+                android:layout_marginEnd="8dp" />
+
+            <!-- 自己按钮 -->
+            <TextView
+                android:id="@+id/tv_self"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="自己"
+                android:textSize="14sp"
+                android:textColor="@android:color/white"
+                android:background="#FF9500"
+                android:padding="8dp"
+                android:layout_marginEnd="8dp" />
+
+            <!-- 对方按钮 -->
+            <TextView
+                android:id="@+id/tv_partner"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="对方"
+                android:textSize="14sp"
+                android:textColor="#666666"
+                android:background="#E0E0E0"
+                android:padding="8dp"
+                android:layout_marginEnd="8dp" />
+
+            <!-- 共同按钮 -->
+            <TextView
+                android:id="@+id/tv_shared"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="共同"
+                android:textSize="14sp"
+                android:textColor="#666666"
+                android:background="#E0E0E0"
+                android:padding="8dp" />
+
+        </LinearLayout>
+
+        <!-- 金额显示和备注输入 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:padding="8dp"
+            android:gravity="center_vertical">
+
+            <EditText
+                android:id="@+id/et_note"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:hint="点击输入备注"
+                android:textSize="16sp"
+                android:textColor="#666666"
+                android:textColorHint="#999999"
+                android:background="@null"
+                android:padding="6dp" />
+
+            <TextView
+                android:id="@+id/tv_amount_display"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="¥0.00"
+                android:textSize="24sp"
+                android:textColor="#FF9500"
+                android:textStyle="bold" />
+
+        </LinearLayout>
+
+        <!-- 数字键盘 -->
+        <GridLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:columnCount="4"
+            android:rowCount="4"
+            android:background="#F0F0F0">
+
+            <!-- 第一行 -->
+            <TextView
+                android:id="@+id/key_1"
+                android:layout_width="0dp"
+                android:layout_height="60dp"
+                android:layout_columnWeight="1"
+                android:text="1"
+                android:textSize="20sp"
+                android:textColor="#333333"
+                android:gravity="center"
+                android:background="@android:color/white"
+                android:layout_margin="1dp" />
+
+            <TextView
+                android:id="@+id/key_2"
+                android:layout_width="0dp"
+                android:layout_height="60dp"
+                android:layout_columnWeight="1"
+                android:text="2"
+                android:textSize="20sp"
+                android:textColor="#333333"
+                android:gravity="center"
+                android:background="@android:color/white"
+                android:layout_margin="1dp" />
+
+            <TextView
+                android:id="@+id/key_3"
+                android:layout_width="0dp"
+                android:layout_height="60dp"
+                android:layout_columnWeight="1"
+                android:text="3"
+                android:textSize="20sp"
+                android:textColor="#333333"
+                android:gravity="center"
+                android:background="@android:color/white"
+                android:layout_margin="1dp" />
+
+            <TextView
+                android:id="@+id/key_delete"
+                android:layout_width="0dp"
+                android:layout_height="60dp"
+                android:layout_columnWeight="1"
+                android:text="⌫"
+                android:textSize="20sp"
+                android:textColor="#333333"
+                android:gravity="center"
+                android:background="@android:color/white"
+                android:layout_margin="1dp" />
+
+            <!-- 第二行 -->
+            <TextView
+                android:id="@+id/key_4"
+                android:layout_width="0dp"
+                android:layout_height="60dp"
+                android:layout_columnWeight="1"
+                android:text="4"
+                android:textSize="20sp"
+                android:textColor="#333333"
+                android:gravity="center"
+                android:background="@android:color/white"
+                android:layout_margin="1dp" />
+
+            <TextView
+                android:id="@+id/key_5"
+                android:layout_width="0dp"
+                android:layout_height="60dp"
+                android:layout_columnWeight="1"
+                android:text="5"
+                android:textSize="20sp"
+                android:textColor="#333333"
+                android:gravity="center"
+                android:background="@android:color/white"
+                android:layout_margin="1dp" />
+
+            <TextView
+                android:id="@+id/key_6"
+                android:layout_width="0dp"
+                android:layout_height="60dp"
+                android:layout_columnWeight="1"
+                android:text="6"
+                android:textSize="20sp"
+                android:textColor="#333333"
+                android:gravity="center"
+                android:background="@android:color/white"
+                android:layout_margin="1dp" />
+
+            <TextView
+                android:id="@+id/key_plus"
+                android:layout_width="0dp"
+                android:layout_height="60dp"
+                android:layout_columnWeight="1"
+                android:text="+"
+                android:textSize="20sp"
+                android:textColor="#333333"
+                android:gravity="center"
+                android:background="@android:color/white"
+                android:layout_margin="1dp" />
+
+            <!-- 第三行 -->
+            <TextView
+                android:id="@+id/key_7"
+                android:layout_width="0dp"
+                android:layout_height="60dp"
+                android:layout_columnWeight="1"
+                android:text="7"
+                android:textSize="20sp"
+                android:textColor="#333333"
+                android:gravity="center"
+                android:background="@android:color/white"
+                android:layout_margin="1dp" />
+
+            <TextView
+                android:id="@+id/key_8"
+                android:layout_width="0dp"
+                android:layout_height="60dp"
+                android:layout_columnWeight="1"
+                android:text="8"
+                android:textSize="20sp"
+                android:textColor="#333333"
+                android:gravity="center"
+                android:background="@android:color/white"
+                android:layout_margin="1dp" />
+
+            <TextView
+                android:id="@+id/key_9"
+                android:layout_width="0dp"
+                android:layout_height="60dp"
+                android:layout_columnWeight="1"
+                android:text="9"
+                android:textSize="20sp"
+                android:textColor="#333333"
+                android:gravity="center"
+                android:background="@android:color/white"
+                android:layout_margin="1dp" />
+
+            <TextView
+                android:id="@+id/key_minus"
+                android:layout_width="0dp"
+                android:layout_height="60dp"
+                android:layout_columnWeight="1"
+                android:text="-"
+                android:textSize="20sp"
+                android:textColor="#333333"
+                android:gravity="center"
+                android:background="@android:color/white"
+                android:layout_margin="1dp" />
+
+            <!-- 第四行 -->
+            <TextView
+                android:id="@+id/key_again"
+                android:layout_width="0dp"
+                android:layout_height="60dp"
+                android:layout_columnWeight="1"
+                android:text="再记"
+                android:textSize="16sp"
+                android:textColor="#333333"
+                android:gravity="center"
+                android:background="@android:color/white"
+                android:layout_margin="1dp" />
+
+            <TextView
+                android:id="@+id/key_0"
+                android:layout_width="0dp"
+                android:layout_height="60dp"
+                android:layout_columnWeight="1"
+                android:text="0"
+                android:textSize="20sp"
+                android:textColor="#333333"
+                android:gravity="center"
+                android:background="@android:color/white"
+                android:layout_margin="1dp" />
+
+            <TextView
+                android:id="@+id/key_dot"
+                android:layout_width="0dp"
+                android:layout_height="60dp"
+                android:layout_columnWeight="1"
+                android:text="."
+                android:textSize="20sp"
+                android:textColor="#333333"
+                android:gravity="center"
+                android:background="@android:color/white"
+                android:layout_margin="1dp" />
+
+            <TextView
+                android:id="@+id/key_save"
+                android:layout_width="0dp"
+                android:layout_height="60dp"
+                android:layout_columnWeight="1"
+                android:text="保存"
+                android:textSize="16sp"
+                android:textColor="@android:color/white"
+                android:gravity="center"
+                android:background="#07C160"
+                android:layout_margin="1dp" />
+
+        </GridLayout>
+
+    </LinearLayout>
+
+</LinearLayout>
