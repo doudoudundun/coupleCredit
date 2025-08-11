@@ -6,7 +6,7 @@
         android:title="@string/head" />
 
     <item
-        android:id="@+id/nav_plan"
+        android:id="@+id/nav_addbill"
         android:icon="@drawable/ic_favorite"
         android:title="@string/second_page" />
 

@@ -1,4 +1,5 @@
 package com.example.couplecredit;
+
 import static com.transsion.widgetslib.util.Utils.isGestureNavigationBarOn;
 
 import android.graphics.Color;
@@ -16,13 +17,14 @@ import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentManager;
 import androidx.fragment.app.FragmentTransaction;
 
-import com.google.android.material.bottomnavigation.BottomNavigationView;
 import com.transsion.widgetslib.widget.FootOperationBar;
 
 public class MainActivity extends AppCompatActivity {
 
     private FragmentManager fragmentManager;
     private HeadFragment headFragment;
+
+    private AddBillFragment addBillFragment;
     private PlanFragment planFragment;
     private ReportFragment reportFragment;
     private MyFragment myFragment;
@@ -39,13 +41,14 @@ public class MainActivity extends AppCompatActivity {
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main), (v, insets) -> {
             androidx.core.graphics.Insets systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
             // 只设置左、上、右的padding，不设置底部padding，让底部导航栏延伸到屏幕底部
-            v.setPadding(systemBars.left, 0, systemBars.right, 0);
+            v.setPadding(systemBars.left, systemBars.top, systemBars.right, 0);
             return insets;
         });
 
         // 初始化Fragment管理器和Fragment实例
         fragmentManager = getSupportFragmentManager();
         headFragment = new HeadFragment();
+        addBillFragment = new AddBillFragment();
         planFragment = new PlanFragment();
         reportFragment = new ReportFragment();
         myFragment = new MyFragment();
@@ -64,7 +67,7 @@ public class MainActivity extends AppCompatActivity {
                         if (index == 0) {
                             showFragment(headFragment);
                         } else if (index == 1) {
-                            showFragment(planFragment);
+                            showFragment(addBillFragment);
                         } else if (index == 2) {
                             showFragment(reportFragment);
                         } else if (index == 3) {
@@ -77,7 +80,7 @@ public class MainActivity extends AppCompatActivity {
         ViewCompat.setOnApplyWindowInsetsListener(mFootOptBar, (v, insets) -> {
             androidx.core.graphics.Insets systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
             // 为底部导航栏添加底部padding，确保内容不被系统导航栏遮挡
-            v.setPadding(-20, 0, -20, 10);
+            v.setPadding(0, 0, 0, systemBars.bottom);
             return insets;
         });
 
