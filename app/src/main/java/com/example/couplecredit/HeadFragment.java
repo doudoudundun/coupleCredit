@@ -2,6 +2,7 @@ package com.example.couplecredit;
 
 import android.app.Dialog;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -12,10 +13,12 @@ import android.widget.TextView;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
+import androidx.fragment.app.FragmentManager;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.transsion.effectengine.bounceeffect.OverScrollDecorHelper;
+import com.transsion.widgetslib.widget.OSSegmentedTab;
 
 import java.util.ArrayList;
 import java.util.Calendar;
@@ -28,13 +31,16 @@ import java.util.Map;
 
 public class HeadFragment extends Fragment {
     
-    private RecyclerView rvBillList;
-    private BillAdapter billAdapter;
-    private List<Object> displayItems; // 混合数据：String(日期) 和 BillBean
-    private List<BillBean> billItems;
-    private TextView tvMonthTitle;
-    private int currentYear;
-    private int currentMonth;
+    private FragmentManager fragmentManager;
+    private Fragment ClassicFragment;
+    private Fragment ChatFragment;
+    private OSSegmentedTab segmentedTab;
+    private List<String> currentTabs = new ArrayList<>();
+
+//    // 模式常量
+//    private static final int MODE_CLASSIC = 0;
+//    private static final int MODE_CHAT = 1;
+//    private int currentMode = MODE_CLASSIC;
     
     @Nullable
     @Override
@@ -45,150 +51,39 @@ public class HeadFragment extends Fragment {
     @Override
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
+        segmentedTab = view.findViewById(R.id.segmented_tab);
+        fragmentManager = getChildFragmentManager();
+        ClassicFragment = new ClassicModelFragment();
+        ChatFragment = new ChatModelFragment();
+        fragmentManager.beginTransaction().add(R.id.fg_change, ClassicFragment).commit();
+//
+//        tvClassicMode = view.findViewById(R.id.tv_classic_mode);
+//        tvChatMode = view.findViewById(R.id.tv_chat_mode);
         
-        // 初始化当前日期
-        Calendar calendar = Calendar.getInstance();
-        currentYear = calendar.get(Calendar.YEAR);
-        currentMonth = calendar.get(Calendar.MONTH) + 1; // Calendar.MONTH从0开始
-        
-        // 初始化视图
-        tvMonthTitle = view.findViewById(R.id.tv_month_title);
-        updateMonthTitle();
-        
-        // 设置月份标题点击事件
-        tvMonthTitle.setOnClickListener(v -> showDatePickerDialog());
-        
-        // 初始化RecyclerView
-        rvBillList = view.findViewById(R.id.rv_bill_list);
-        LinearLayoutManager layoutManager = new LinearLayoutManager(getContext());
-        layoutManager.setOrientation(LinearLayoutManager.VERTICAL);
-        rvBillList.setLayoutManager(layoutManager);
-//        OverScrollDecorHelper.setUpOverScroll(rvBillList, OverScrollDecorHelper.ORIENTATION_VERTICAL);
+        // 只在第一次创建时添加tabs
+        if (currentTabs.isEmpty()) {
+            currentTabs.add("经典模式");
+            currentTabs.add("聊天模式");
+        }
+        // 设置分段按钮点击事件
+        setupSegmentedTab();
+    }
+    private void setupSegmentedTab() {
+        segmentedTab.addTabs(currentTabs);
 
-        
-        // 初始化数据
-        initBillData();
-        
-        // 设置适配器
-        displayItems = new ArrayList<>();
-        billAdapter = new BillAdapter(getContext(), displayItems, new AdapterView.OnItemClickListener() {
+        // 设置选中监听
+        segmentedTab.setOnTabSelectedListener(new OSSegmentedTab.OnTabSelectedListener() {
             @Override
-            public void onItemClick(AdapterView<?> parent, View view, int position, long id){
-                // TODO: 跳转到账单详情页面
+            public void onTabSelected(int position) {
+                if (position == 0) {
+                    fragmentManager.beginTransaction().replace(R.id.fg_change, ClassicFragment).commit();
+                } else if (position == 1) {
+                    fragmentManager.beginTransaction().replace(R.id.fg_change, ChatFragment).commit();
+                }
             }
         });
-        rvBillList.setAdapter(billAdapter);
-        processAndDisplayData();
     }
-    
-    private void initBillData() {
-        billItems = new ArrayList<>();
-        
-        // 添加示例数据，模拟账单记录
-        billItems.add(new BillBean(25.80, 2025, 8, 15, 1, "餐饮", "午餐聚餐", R.drawable.ic_money));
-        billItems.add(new BillBean(12.00, 2025, 8, 14, 2, "交通", "地铁出行", R.drawable.ic_report));
-        billItems.add(new BillBean(35.00, 2025, 8, 13, 3, "购物", "日用品采购", R.drawable.ic_favorite));
-        billItems.add(new BillBean(68.0, 2025, 8, 12, 1, "娱乐", "电影票", R.drawable.ic_profile));
-        billItems.add(new BillBean(45.0, 2025, 8, 11, 2, "餐饮", "咖啡", R.drawable.ic_money));
-        billItems.add(new BillBean(180.0, 2025, 8, 10, 3, "生活", "水电费", R.drawable.ic_report));
-        billItems.add(new BillBean(258.0, 2025, 8, 15, 1, "餐饮", "午餐聚餐", R.drawable.ic_money));
-        billItems.add(new BillBean(12.00, 2025, 8, 14, 2, "交通", "地铁出行", R.drawable.ic_report));
-        billItems.add(new BillBean(35.00, 2025, 8, 13, 3, "购物", "日用品采购", R.drawable.ic_favorite));
-        billItems.add(new BillBean(68.0, 2025, 8, 12, 1, "娱乐", "电影票", R.drawable.ic_profile));
-        billItems.add(new BillBean(45.0, 2025, 8, 11, 2, "餐饮", "咖啡", R.drawable.ic_money));
-        billItems.add(new BillBean(180.0, 2025, 7, 10, 3, "生活", "水电费", R.drawable.ic_report));
-    }
-    
-    private void processAndDisplayData() {
-        displayItems.clear();
-        
-        // 按日期倒序排序
-        Collections.sort(billItems, new Comparator<BillBean>() {
-            @Override
-            public int compare(BillBean b1, BillBean b2) {
-                // 先按年份倒序
-                if (b1.getYear() != b2.getYear()) {
-                    return Integer.compare(b2.getYear(), b1.getYear());
-                }
-                // 再按月份倒序
-                if (b1.getMonth() != b2.getMonth()) {
-                    return Integer.compare(b2.getMonth(), b1.getMonth());
-                }
-                // 最后按日期倒序
-                if (b1.getDay() != b2.getDay()) {
-                    return Integer.compare(b2.getDay(), b1.getDay());
-                }
-                // 同一天内按种类名首字母排序
-                return b1.getCategoryName().compareToIgnoreCase(b2.getCategoryName());
-            }
-        });
-        
-        // 按日期分组
-        Map<String, List<BillBean>> dateGroups = new LinkedHashMap<>();
-        for (BillBean bill : billItems) {
-            String dateKey = String.format("%02d.%02d", bill.getMonth(), bill.getDay());
-            if (!dateGroups.containsKey(dateKey)) {
-                dateGroups.put(dateKey, new ArrayList<>());
-            }
-            dateGroups.get(dateKey).add(bill);
-        }
-        
-        // 将分组数据添加到displayItems
-        for (Map.Entry<String, List<BillBean>> entry : dateGroups.entrySet()) {
-            Map<String, List<BillBean>> dateGroup = new HashMap<>();
-            dateGroup.put(entry.getKey(), entry.getValue());
-            displayItems.add(dateGroup);
-        }
-        
-        billAdapter.notifyDataSetChanged();
-    }
-    
-    private void updateMonthTitle() {
-        String monthText = getMonthText(currentMonth);
-        tvMonthTitle.setText("我们的" + monthText + " >");
-    }
-    
-    private String getMonthText(int month) {
-        String[] months = {"1月", "2月", "3月", "4月", "5月", "6月",
-                          "7月", "8月", "9月", "10月", "11月", "12月"};
-        return months[month - 1];
-    }
-    
-    private void showDatePickerDialog() {
-        Dialog dialog = new Dialog(getContext());
-        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
-        dialog.setContentView(R.layout.dialog_date_picker);
-        
-        // 获取对话框中的控件
-        NumberPicker yearPicker = dialog.findViewById(R.id.np_year);
-        NumberPicker monthPicker = dialog.findViewById(R.id.np_month);
-        TextView tvCancel = dialog.findViewById(R.id.tv_cancel);
-        TextView tvConfirm = dialog.findViewById(R.id.tv_confirm);
-        
-        // 设置年份选择器
-        yearPicker.setMinValue(2020);
-        yearPicker.setMaxValue(2080);
-        yearPicker.setValue(currentYear);
-        
-        // 设置月份选择器
-        String[] monthDisplayValues = {"01", "02", "03", "04", "05", "06", 
-                                      "07", "08", "09", "10", "11", "12"};
-        monthPicker.setMinValue(1);
-        monthPicker.setMaxValue(12);
-        monthPicker.setDisplayedValues(monthDisplayValues);
-        monthPicker.setValue(currentMonth);
-        
-        // 取消按钮
-        tvCancel.setOnClickListener(v -> dialog.dismiss());
-        
-        // 确认按钮
-        tvConfirm.setOnClickListener(v -> {
-            currentYear = yearPicker.getValue();
-            currentMonth = monthPicker.getValue();
-            updateMonthTitle();
-            dialog.dismiss();
-        });
-        
-        dialog.show();
-    }
+
+
+
 }
