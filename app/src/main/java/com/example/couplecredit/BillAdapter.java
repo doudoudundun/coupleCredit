@@ -80,11 +80,11 @@ public class BillAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
                 tvMoney.setText(String.format("%.2f", bill.getFare()));
                 tvRemark.setText(bill.getCategoryDesc());
                 
-                // 设置颜色（根据用户ID判断支出/收入）
-                if (bill.getUserId() == 1 || bill.getUserId() == 2) {
+                // 设置颜色（根据收入支出类型判断）
+                if (bill.getIncomeType() == 0) { // 支出
                     tvMoney.setTextColor(context.getResources().getColor(android.R.color.holo_red_dark));
                     tvMoney.setText("-" + String.format("%.2f", bill.getFare()));
-                } else {
+                } else { // 收入
                     tvMoney.setTextColor(context.getResources().getColor(android.R.color.holo_green_dark));
                     tvMoney.setText("+" + String.format("%.2f", bill.getFare()));
                 }

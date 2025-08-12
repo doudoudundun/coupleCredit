@@ -19,9 +19,10 @@ public final class BillBean {
     private String categoryName;
     private String categoryDesc;
     private int iconResId;
+    private int incomeType; // 0=支出，1=收入
 
     public BillBean(double fare, int year, int month, int day, int userId, String categoryName,
-                    String categoryDesc, int iconResId) {
+                    String categoryDesc, int iconResId, int incomeType) {
         this.fare = fare;
         this.year = year;
         this.month = month;
@@ -30,6 +31,7 @@ public final class BillBean {
         this.categoryName = categoryName;
         this.categoryDesc = categoryDesc;
         this.iconResId = iconResId;
+        this.incomeType = incomeType;
     }
 
     public int getIconResId() {
@@ -94,5 +96,13 @@ public final class BillBean {
 
     public void setCategoryDesc(String categoryDesc) {
         this.categoryDesc = categoryDesc;
+    }
+
+    public int getIncomeType() {
+        return incomeType;
+    }
+
+    public void setIncomeType(int incomeType) {
+        this.incomeType = incomeType;
     }
 }

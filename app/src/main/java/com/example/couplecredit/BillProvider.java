@@ -51,13 +51,19 @@ public class BillProvider extends ContentProvider {
     @Override
     public Uri insert(Uri uri, ContentValues values) {
         SQLiteDatabase db = mDbHelper.getWritableDatabase();
-        long id = db.insert(BillDatabaseHelper.TABLE_BILLS, null, values);
-        if (id > 0){
-            Uri newUri = ContentUris.withAppendedId(BillProvider.CONTENT_URI, id);
-            getContext().getContentResolver().notifyChange(newUri, null);//通知数据已改变
-            return newUri;
+        long id;
+        switch (mUriMatcher.match(uri)) {
+            case BILLS:
+                id = db.insert(BillDatabaseHelper.TABLE_BILLS, null, values);
+                if (id > 0){
+                    Uri newUri = ContentUris.withAppendedId(BillProvider.CONTENT_URI, id);
+                    getContext().getContentResolver().notifyChange(newUri, null);//通知数据已改变
+                    return newUri;
+                }
+                throw new SQLException("Failed to insert row into " + uri);
+            default:
+                throw new IllegalArgumentException("Unknown URI: " + uri);
         }
-        throw new SQLException("Failed to insert row into " + uri);
     }
     @Override
     public int delete(Uri uri, String selection, String[] selectionArgs) {

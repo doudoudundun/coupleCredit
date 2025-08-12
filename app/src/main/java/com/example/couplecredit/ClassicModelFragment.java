@@ -1,6 +1,8 @@
 package com.example.couplecredit;
 
 import android.app.Dialog;
+import android.database.Cursor;
+import android.net.Uri;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.LayoutInflater;
@@ -32,10 +34,13 @@ public class ClassicModelFragment extends Fragment {
     private List<Object> displayItems; // 混合数据：String(日期) 和 BillBean
     private List<BillBean> billItems;
     private TextView tvMonthTitle;
-//    private TextView tvClassicMode;
-//    private TextView tvChatMode;
     private int currentYear;
     private int currentMonth;
+    private TextView tvExpenseAmount;
+    private TextView tvIncomeAmount;
+
+
+    //private BillProvider billProvider;
 
     @Nullable
     @Override
@@ -51,10 +56,15 @@ public class ClassicModelFragment extends Fragment {
         Calendar calendar = Calendar.getInstance();
         currentYear = calendar.get(Calendar.YEAR);
         currentMonth = calendar.get(Calendar.MONTH) + 1; // Calendar.MONTH从0开始
+        //String beParser = currentYear + "-" + (currentMonth < 10 ? "0" + currentMonth : currentMonth);
 
         // 初始化视图
         tvMonthTitle = view.findViewById(R.id.tv_month_title);
         rvBillList = view.findViewById(R.id.rv_bill_list);
+        tvExpenseAmount = view.findViewById(R.id.tv_expense_amount);
+        tvIncomeAmount = view.findViewById(R.id.tv_income_amount);
+        //统计收入和支出
+
         updateMonthTitle();
         tvMonthTitle.setOnClickListener(v -> showDatePickerDialog());
 
@@ -76,23 +86,125 @@ public class ClassicModelFragment extends Fragment {
         });
         rvBillList.setAdapter(billAdapter);
         processAndDisplayData();
+        sumAmounts();
     }
     private void initBillData() {
         billItems = new ArrayList<>();
+        
+        // 从数据库读取账单数据
+        firstLoadBills();
+    }
+    private void loadBillData(int year, int month) {
+        billItems.clear();
+        String monthPattern = String.format("%04d-%02d-%%", year, month);
+        Cursor cursor = getContext().getContentResolver().query(
+                Uri.parse(BillProvider.CONTENT_URI + "/bills"),
+                null,
+                BillDatabaseHelper.COLUMN_DATE + " LIKE ?",
+                new String[]{monthPattern},
+                BillDatabaseHelper.COLUMN_DATE + " DESC"
+        );
 
-        // 添加示例数据，模拟账单记录
-        billItems.add(new BillBean(25.80, 2025, 8, 15, 1, "餐饮", "午餐聚餐", R.drawable.ic_money));
-        billItems.add(new BillBean(12.00, 2025, 8, 14, 2, "交通", "地铁出行", R.drawable.ic_report));
-        billItems.add(new BillBean(35.00, 2025, 8, 13, 3, "购物", "日用品采购", R.drawable.ic_favorite));
-        billItems.add(new BillBean(68.0, 2025, 8, 12, 1, "娱乐", "电影票", R.drawable.ic_profile));
-        billItems.add(new BillBean(45.0, 2025, 8, 11, 2, "餐饮", "咖啡", R.drawable.ic_money));
-        billItems.add(new BillBean(180.0, 2025, 8, 10, 3, "生活", "水电费", R.drawable.ic_report));
-        billItems.add(new BillBean(258.0, 2025, 8, 15, 1, "餐饮", "午餐聚餐", R.drawable.ic_money));
-        billItems.add(new BillBean(12.00, 2025, 8, 14, 2, "交通", "地铁出行", R.drawable.ic_report));
-        billItems.add(new BillBean(35.00, 2025, 8, 13, 3, "购物", "日用品采购", R.drawable.ic_favorite));
-        billItems.add(new BillBean(68.0, 2025, 8, 12, 1, "娱乐", "电影票", R.drawable.ic_profile));
-        billItems.add(new BillBean(45.0, 2025, 8, 11, 2, "餐饮", "咖啡", R.drawable.ic_money));
-        billItems.add(new BillBean(180.0, 2025, 7, 10, 3, "生活", "水电费", R.drawable.ic_report));
+        if (cursor != null && cursor.moveToFirst()) {
+            do {
+                double amount = cursor.getDouble(cursor.getColumnIndexOrThrow(BillDatabaseHelper.COLUMN_AMOUNT));
+                String dateStr = cursor.getString(cursor.getColumnIndexOrThrow(BillDatabaseHelper.COLUMN_DATE));
+                int userId = cursor.getInt(cursor.getColumnIndexOrThrow(BillDatabaseHelper.USER_ID));
+                String type = cursor.getString(cursor.getColumnIndexOrThrow(BillDatabaseHelper.COLUMN_TYPE));
+                String title = cursor.getString(cursor.getColumnIndexOrThrow(BillDatabaseHelper.COLUMN_TITLE));
+                int incomeType = cursor.getInt(cursor.getColumnIndexOrThrow(BillDatabaseHelper.COLUMN_INCOME_TYPE));
+
+                // 解析日期字符串 (格式: 2025-08-15)
+                String[] dateParts = dateStr.split("-");
+                int cur_year = Integer.parseInt(dateParts[0]);
+                int cur_month = Integer.parseInt(dateParts[1]);
+                int day = Integer.parseInt(dateParts[2]);
+
+                // 根据类型设置图标
+                int iconResId = getIconForCategory(type);
+
+                billItems.add(new BillBean(amount, cur_year, cur_month, day, userId, type, title, iconResId, incomeType));
+            } while (cursor.moveToNext());
+            cursor.close();
+        }
+    }
+    private void firstLoadBills() {
+        // 先检查数据库是否为空，如果为空则插入示例数据
+        checkAndInsertSampleData();
+        
+        // 获取当前年月
+        Calendar calendar = Calendar.getInstance();
+        currentYear = calendar.get(Calendar.YEAR);
+        currentMonth = calendar.get(Calendar.MONTH) + 1; // Calendar.MONTH 从0开始
+        
+        loadBillData(currentYear, currentMonth);
+    }
+    
+    private void checkAndInsertSampleData() {
+        // 检查数据库是否为空
+        Cursor cursor = getContext().getContentResolver().query(
+            Uri.parse(BillProvider.CONTENT_URI + "/bills"),
+            new String[]{"COUNT(*) as count"},
+            null,
+            null,
+            null
+        );
+        
+        boolean isEmpty = true;
+        if (cursor != null && cursor.moveToFirst()) {
+            int count = cursor.getInt(0);
+            isEmpty = (count == 0);
+            cursor.close();
+        }
+        
+        // 如果数据库为空，插入示例数据
+        if (isEmpty) {
+            insertSampleData();
+        }
+    }
+    
+    private void insertSampleData() {
+        // 插入示例账单数据
+        insertBill(1, "午餐聚餐", "餐饮", 25.80, "2025-08-15", 0); // 支出
+        insertBill(2, "地铁出行", "交通", 12.00, "2025-08-14", 0); // 支出
+        insertBill(3, "日用品采购", "购物", 35.50, "2025-08-13", 0); // 支出
+        insertBill(1, "电影票", "娱乐", 68.0, "2025-08-12", 0); // 支出
+        insertBill(2, "咖啡", "餐饮", 45.0, "2025-08-11", 0); // 支出
+        insertBill(3, "工资收入", "收入", 5000.0, "2025-08-10", 1); // 收入
+        insertBill(1, "午餐聚餐", "餐饮", 258.0, "2025-08-15", 0); // 支出
+        insertBill(2, "地铁出行", "交通", 12.00, "2025-08-14", 0); // 支出
+        insertBill(3, "兼职收入", "收入", 800.0, "2025-08-13", 1); // 收入
+        insertBill(1, "电影票", "娱乐", 68.0, "2025-08-12", 0); // 支出
+        insertBill(2, "咖啡", "餐饮", 45.0, "2025-08-11", 0); // 支出
+        insertBill(3, "水电费", "生活", 180.0, "2025-07-10", 0); // 支出
+    }
+    
+    private void insertBill(int userId, String title, String type, double amount, String date, int incomeType) {
+        android.content.ContentValues values = new android.content.ContentValues();
+        values.put(BillDatabaseHelper.USER_ID, userId);
+        values.put(BillDatabaseHelper.COLUMN_TITLE, title);
+        values.put(BillDatabaseHelper.COLUMN_TYPE, type);
+        values.put(BillDatabaseHelper.COLUMN_AMOUNT, amount);
+        values.put(BillDatabaseHelper.COLUMN_DATE, date);
+        values.put(BillDatabaseHelper.COLUMN_INCOME_TYPE, incomeType);
+        
+        getContext().getContentResolver().insert(Uri.parse(BillProvider.CONTENT_URI + "/bills"), values);
+    }
+    
+    private int getIconForCategory(String category) {
+        switch (category) {
+            case "餐饮":
+                return R.drawable.ic_money;
+            case "交通":
+            case "生活":
+                return R.drawable.ic_report;
+            case "购物":
+                return R.drawable.ic_favorite;
+            case "娱乐":
+                return R.drawable.ic_profile;
+            default:
+                return R.drawable.ic_money;
+        }
     }
     private void processAndDisplayData() {
         displayItems.clear();
@@ -136,7 +248,19 @@ public class ClassicModelFragment extends Fragment {
             }
             billAdapter.notifyDataSetChanged();
     }
-
+    private void sumAmounts() {
+        double totalIncome = 0;
+        double totalExpense = 0;
+        for (BillBean bill : billItems) {
+            if (bill.getIncomeType() == 1) {
+                totalIncome += bill.getFare();
+            } else {
+                totalExpense += bill.getFare();
+            }
+        }
+        tvIncomeAmount.setText("￥ " + String.format("%.2f", totalIncome));
+        tvExpenseAmount.setText("￥ " + String.format("%.2f", totalExpense));
+    }
     private void updateMonthTitle() {
         String monthText = getMonthText(currentMonth);
         if (monthText != null) {
@@ -183,6 +307,10 @@ public class ClassicModelFragment extends Fragment {
             currentYear = yearPicker.getValue();
             currentMonth = monthPicker.getValue();
             updateMonthTitle();
+            //更新recyclerView显示
+            loadBillData(currentYear,currentMonth);
+            processAndDisplayData();
+            sumAmounts();
             dialog.dismiss();
         });
 
