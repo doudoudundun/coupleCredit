@@ -639,18 +639,57 @@ public class AddBillFragment extends Fragment {
                 Toast.makeText(getContext(), "金额必须大于0", Toast.LENGTH_SHORT).show();
                 return;
             }
+            // 格式化日期为 yyyy-MM-dd 格式
+            SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault());
+            String dateString = dateFormat.format(selectedDate.getTime());
             
-            // 这里可以添加保存账单到数据库的逻辑
-            Toast.makeText(getContext(), 
-                String.format("账单保存成功！\n类型：%s\n金额：%.2f\n分类：%s\n归属：%s\n备注：%s", 
-                    billType, amount, selectedCategory, billOwner, note.isEmpty() ? "无" : note), 
-                Toast.LENGTH_LONG).show();
+            // 确定收入类型：支出为0，收入为1
+            int incomeType = isExpense ? 0 : 1;
+            
+            // 使用实际用户输入的数据插入账单
+            Utils.insertBill(getContext(), Utils.getUserId(billOwner), 
+                note.isEmpty() ? selectedCategory : note, // 如果没有备注就用分类作为标题
+                selectedCategory, 
+                amount, 
+                dateString, 
+                incomeType);
+            
+//            // 显示保存成功提示
+//            Toast.makeText(getContext(),
+//                String.format("账单保存成功！\n类型：%s\n金额：%.2f\n分类：%s\n归属：%s\n备注：%s",
+//                    billType, amount, selectedCategory, billOwner, note.isEmpty() ? "无" : note),
+//                Toast.LENGTH_LONG).show();
+            
+            // 通知首页刷新数据
+            notifyHomePageRefresh();
             
             // 清空输入
             clearInputs();
             
         } catch (NumberFormatException e) {
             Toast.makeText(getContext(), "请输入有效的金额", Toast.LENGTH_SHORT).show();
+        }
+    }
+    
+    // 通知首页刷新数据
+    private void notifyHomePageRefresh() {
+        if (getActivity() instanceof MainActivity) {
+            MainActivity mainActivity = (MainActivity) getActivity();
+            // 获取HeadFragment实例
+            Fragment headFragment = mainActivity.getSupportFragmentManager().findFragmentByTag("HeadFragment");
+            if (headFragment == null) {
+                // 如果通过tag找不到，尝试通过已知的fragment实例获取
+                headFragment = mainActivity.getHeadFragment();
+            }
+            
+            if (headFragment instanceof HeadFragment) {
+                HeadFragment head = (HeadFragment) headFragment;
+                // 获取当前显示的ClassicModelFragment并刷新数据
+                ClassicModelFragment classicFragment = head.getClassicFragment();
+                if (classicFragment != null) {
+                    classicFragment.refreshBillData();
+                }
+            }
         }
     }
     

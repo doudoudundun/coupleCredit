@@ -28,6 +28,7 @@ public class MainActivity extends AppCompatActivity {
     private ReportFragment reportFragment;
     private MyFragment myFragment;
     private FootOperationBar mFootOptBar;
+    private Fragment currentFragment;
 
 
 
@@ -52,7 +53,9 @@ public class MainActivity extends AppCompatActivity {
         myFragment = new MyFragment();
 
         // 默认显示首页Fragment
+//        currentFragment = headFragment;
         showFragment(headFragment);
+
         mFootOptBar = (FootOperationBar) findViewById(R.id.bottom_nav);
         mFootOptBar.inflateMenu(R.menu.bottom_nav_menu);
         //mFootOptBar.setLandscape(isFootOperationLandscape());
@@ -119,10 +122,29 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    private void showFragment (Fragment fragment){
+    private void showFragment(Fragment fragment) {
         FragmentTransaction transaction = fragmentManager.beginTransaction();
-        transaction.replace(R.id.fragment_container, fragment);
+        
+        // 隐藏当前Fragment
+        if (currentFragment != null) {
+            transaction.hide(currentFragment);
+        }
+        
+        // 如果Fragment还没有添加到容器中，则添加它
+        if (!fragment.isAdded()) {
+            transaction.add(R.id.fragment_container, fragment);
+        } else {
+            // 如果已经添加，则显示它
+            transaction.show(fragment);
+        }
+        
+        currentFragment = fragment;
         transaction.commit();
+    }
+    
+    // 提供获取HeadFragment的方法
+    public HeadFragment getHeadFragment() {
+        return headFragment;
     }
 
 }

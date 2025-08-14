@@ -1,6 +1,8 @@
 package com.example.couplecredit;
 
 import android.app.Dialog;
+import android.content.Context;
+import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.LayoutInflater;
@@ -35,7 +37,27 @@ public class HeadFragment extends Fragment {
     private Fragment ClassicFragment;
     private Fragment ChatFragment;
     private OSSegmentedTab segmentedTab;
+    private boolean isClassicMode = true;
     private List<String> currentTabs = new ArrayList<>();
+    private SharedPreferences sharedPreferences;
+    private static final String PREFS_NAME = "HeadFragmentPrefs";
+    private static final String KEY_IS_CLASSIC_MODE = "isClassicMode";
+    private OSSegmentedTab.OnTabSelectedListener onTabSelectedListener = new OSSegmentedTab.OnTabSelectedListener() {
+        @Override
+        public void onTabSelected(int position) {
+            if (position == 0) {
+                fragmentManager.beginTransaction().replace(R.id.fg_change, ClassicFragment).commit();
+                isClassicMode = true;
+                // 添加保存状态到SharedPreferences
+                saveMode(true);
+            } else if (position == 1) {
+                fragmentManager.beginTransaction().replace(R.id.fg_change, ChatFragment).commit();
+                isClassicMode = false;
+                // 添加保存状态到SharedPreferences
+                saveMode(false);
+            }
+        }
+    };
 
 //    // 模式常量
 //    private static final int MODE_CLASSIC = 0;
@@ -51,37 +73,52 @@ public class HeadFragment extends Fragment {
     @Override
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
+        
+        // 初始化SharedPreferences
+        sharedPreferences = getActivity().getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        
+        // 从SharedPreferences读取保存的模式状态
+        isClassicMode = sharedPreferences.getBoolean(KEY_IS_CLASSIC_MODE, true);
+        Log.d("HeadFragment", "读取保存的模式状态: " + isClassicMode);
+        
         segmentedTab = view.findViewById(R.id.segmented_tab);
         fragmentManager = getChildFragmentManager();
         ClassicFragment = new ClassicModelFragment();
         ChatFragment = new ChatModelFragment();
-        fragmentManager.beginTransaction().add(R.id.fg_change, ClassicFragment).commit();
-//
-//        tvClassicMode = view.findViewById(R.id.tv_classic_mode);
-//        tvChatMode = view.findViewById(R.id.tv_chat_mode);
         
         // 只在第一次创建时添加tabs
         if (currentTabs.isEmpty()) {
             currentTabs.add("经典模式");
             currentTabs.add("聊天模式");
         }
+        
         // 设置分段按钮点击事件
         setupSegmentedTab();
+        
+        // 根据保存的状态显示对应的Fragment，直接切换Fragment而不触发保存
+        if (isClassicMode) {
+            fragmentManager.beginTransaction().replace(R.id.fg_change, ClassicFragment).commit();
+        } else {
+            fragmentManager.beginTransaction().replace(R.id.fg_change, ChatFragment).commit();
+        }
     }
     private void setupSegmentedTab() {
         segmentedTab.addTabs(currentTabs);
 
         // 设置选中监听
-        segmentedTab.setOnTabSelectedListener(new OSSegmentedTab.OnTabSelectedListener() {
-            @Override
-            public void onTabSelected(int position) {
-                if (position == 0) {
-                    fragmentManager.beginTransaction().replace(R.id.fg_change, ClassicFragment).commit();
-                } else if (position == 1) {
-                    fragmentManager.beginTransaction().replace(R.id.fg_change, ChatFragment).commit();
-                }
-            }
-        });
+        segmentedTab.setOnTabSelectedListener(onTabSelectedListener);
+    }
+    
+    private void saveMode(boolean isClassic) {
+        SharedPreferences.Editor editor = sharedPreferences.edit();
+        editor.putBoolean(KEY_IS_CLASSIC_MODE, isClassic);
+        editor.apply();
+        Log.d("HeadFragment", "保存模式状态: " + isClassic);
+    }
+    
+    // 提供获取ClassicModelFragment的方法
+    public ClassicModelFragment getClassicFragment() {
+        return (ClassicModelFragment) ClassicFragment;
     }
 
 
