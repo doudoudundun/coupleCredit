@@ -1,5 +1,10 @@
 package com.example.couplecredit;
 
+// 添加缺少的 import 语句
+import android.content.Context;
+import android.content.SharedPreferences;
+import android.graphics.drawable.Drawable;
+import android.net.Uri;
 import android.os.Bundle;
 import android.text.TextUtils;
 import android.view.LayoutInflater;
@@ -59,15 +64,52 @@ public class ChatModelFragment extends Fragment {
     /**
      * 视图创建完成后的初始化工作
      */
+    // 删除 @Override 注解，因为这是一个私有方法，不是重写父类方法
+    private void applyChatBackground() {
+        // 获取聊天设置的SharedPreferences
+        SharedPreferences prefs = getActivity().getSharedPreferences("chat_settings", Context.MODE_PRIVATE);
+        
+        // 检查是否有自定义背景URI
+        String backgroundUri = prefs.getString("chat_background_uri", null);
+        if (backgroundUri != null) {
+            try {
+                // 尝试从URI创建Drawable
+                Uri uri = Uri.parse(backgroundUri);
+                Drawable drawable = Drawable.createFromStream(
+                    getActivity().getContentResolver().openInputStream(uri), null);
+                if (drawable != null) {
+                    // 应用自定义背景
+                    rvChatMessages.setBackground(drawable);
+                    return;
+                }
+            } catch (Exception e) {
+                // 如果自定义背景加载失败，记录错误并继续使用预设背景
+                e.printStackTrace();
+            }
+        }
+        
+        // 使用预设背景
+        int backgroundResId = prefs.getInt("chat_background", -1);
+        if (backgroundResId != -1) {
+            // 应用预设背景资源
+            rvChatMessages.setBackgroundResource(backgroundResId);
+        }
+        // 如果没有设置任何背景，保持默认背景
+    }
+    
+    // 在onViewCreated方法中调用applyChatBackground()方法
     @Override
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
         
-        initViews(view);        // 初始化UI组件
-        initData();             // 初始化数据
-        setupRecyclerView();    // 设置消息列表
-        setupListeners();       // 设置事件监听器
-        setupBackPressedHandler(); // 设置返回键处理
+        initViews(view);
+        initData();
+        setupRecyclerView();
+        setupListeners();
+        setupBackPressedHandler();
+        
+        // 应用用户设置的聊天背景
+        applyChatBackground();
     }
     
     /**
