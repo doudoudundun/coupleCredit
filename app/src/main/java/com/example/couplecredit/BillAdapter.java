@@ -20,9 +20,14 @@ public class BillAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
     
     private List<Object> items; // 混合数据：Map<String, List<BillBean>>(日期组) 
     private Context context;
-    private AdapterView.OnItemClickListener mListener;
+    private OnItemClickListener mListener;
     
-    public BillAdapter(Context context, List<Object> items, AdapterView.OnItemClickListener listener) {
+    // 定义RecyclerView专用的点击监听器接口
+    public interface OnItemClickListener {
+        void onItemClick(View view, int position, BillBean bill);
+    }
+    
+    public BillAdapter(Context context, List<Object> items, OnItemClickListener listener) {
         this.context = context;
         this.items = items;
         this.mListener = listener;
@@ -45,10 +50,8 @@ public class BillAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         if (viewType == TYPE_DATE_HEADER) {
             View view = LayoutInflater.from(context).inflate(R.layout.item_date_header, parent, false);
             return new DateHeaderViewHolder(view);
-        } else {
-            View view = LayoutInflater.from(context).inflate(R.layout.item_chat_bill, parent, false);
-            return new BillViewHolder(view);
         }
+        return null;
     }
 
     @Override
@@ -89,28 +92,15 @@ public class BillAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
                     tvMoney.setText("+" + String.format("%.2f", bill.getFare()));
                 }
                 
+                // 为动态添加的账单项设置点击监听器
+                final BillBean finalBill = bill;
+                billView.setOnClickListener(v -> {
+                    if (mListener != null) {
+                        mListener.onItemClick(v, position, finalBill);
+                    }
+                });
+                
                 dateHolder.llBillsContainer.addView(billView);
-            }
-        } else if (holder instanceof BillViewHolder) {
-            // 聊天模式下的单个账单项
-            BillViewHolder billHolder = (BillViewHolder) holder;
-            BillBean bill = (BillBean) items.get(position);
-            
-            billHolder.tvKind.setText(bill.getCategoryName());
-            billHolder.tvMoney.setText(String.format("%.2f", bill.getFare()));
-            billHolder.tvRemark.setText(bill.getCategoryDesc());
-            
-            // 设置时间显示（格式：MM.dd，由于BillBean没有具体时间，显示日期）
-            String timeStr = String.format("%02d.%02d", bill.getMonth(), bill.getDay());
-            billHolder.tvTime.setText(timeStr);
-            
-            // 设置颜色（根据用户ID判断支出/收入）
-            if (bill.getUserId() == 1 || bill.getUserId() == 2) {
-                billHolder.tvMoney.setTextColor(context.getResources().getColor(android.R.color.holo_red_dark));
-                billHolder.tvMoney.setText("-" + String.format("%.2f", bill.getFare()));
-            } else {
-                billHolder.tvMoney.setTextColor(context.getResources().getColor(android.R.color.holo_green_dark));
-                billHolder.tvMoney.setText("+" + String.format("%.2f", bill.getFare()));
             }
         }
     }
@@ -132,18 +122,5 @@ public class BillAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
     }
     
     // 账单项ViewHolder（用于聊天模式）
-    static class BillViewHolder extends RecyclerView.ViewHolder {
-        TextView tvKind;
-        TextView tvMoney;
-        TextView tvRemark;
-        TextView tvTime;
-        
-        public BillViewHolder(@NonNull View itemView) {
-            super(itemView);
-            tvKind = itemView.findViewById(R.id.tv_kind);
-            tvMoney = itemView.findViewById(R.id.tv_money);
-            tvRemark = itemView.findViewById(R.id.tv_remark);
-            tvTime = itemView.findViewById(R.id.tv_time);
-        }
-    }
+
 }

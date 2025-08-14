@@ -9,7 +9,7 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.Window;
-import android.widget.AdapterView;
+
 import android.widget.NumberPicker;
 import android.widget.TextView;
 
@@ -18,6 +18,8 @@ import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
+
+import com.transsion.widgetslib.dialog.PromptDialog;
 
 import java.util.ArrayList;
 import java.util.Calendar;
@@ -38,6 +40,7 @@ public class ClassicModelFragment extends Fragment {
     private int currentMonth;
     private TextView tvExpenseAmount;
     private TextView tvIncomeAmount;
+    private PromptDialog mDialog;
 
 
     //private BillProvider billProvider;
@@ -78,10 +81,16 @@ public class ClassicModelFragment extends Fragment {
 
         // 设置适配器
         displayItems = new ArrayList<>();
-        billAdapter = new BillAdapter(getContext(), displayItems, new AdapterView.OnItemClickListener() {
+        billAdapter = new BillAdapter(getContext(), displayItems, new BillAdapter.OnItemClickListener() {
             @Override
-            public void onItemClick(AdapterView<?> parent, View view, int position, long id){
+            public void onItemClick(View view, int position, BillBean bill) {
                 // TODO: 跳转到账单详情页面
+                mDialog = new PromptDialog.Builder(getContext())
+                        .setTitle("账单详情")
+                        .setView(R.layout.dialog_layout)
+                        .setPositiveButton("确定", null)
+                        .setNegativeButton("取消", (dialog, which) -> dialog.dismiss())
+                        .show();
             }
         });
         rvBillList.setAdapter(billAdapter);
@@ -191,18 +200,6 @@ public class ClassicModelFragment extends Fragment {
         Utils.insertBill(getContext(),2, "咖啡", "餐饮", 45.0, "2025-08-11", "00:00:00", 0); // 支出
         Utils.insertBill(getContext(),3, "水电费", "生活", 180.0, "2025-07-10", "00:00:00", 0); // 支出
     }
-    
-//    private void insertBill(int userId, String title, String type, double amount, String date, int incomeType) {
-//        android.content.ContentValues values = new android.content.ContentValues();
-//        values.put(BillDatabaseHelper.USER_ID, userId);
-//        values.put(BillDatabaseHelper.COLUMN_TITLE, title);
-//        values.put(BillDatabaseHelper.COLUMN_TYPE, type);
-//        values.put(BillDatabaseHelper.COLUMN_AMOUNT, amount);
-//        values.put(BillDatabaseHelper.COLUMN_DATE, date);
-//        values.put(BillDatabaseHelper.COLUMN_INCOME_TYPE, incomeType);
-//
-//        getContext().getContentResolver().insert(Uri.parse(BillProvider.CONTENT_URI + "/bills"), values);
-//    }
     
     private int getIconForCategory(String category) {
         switch (category) {
