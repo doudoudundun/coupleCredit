@@ -2,6 +2,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <!-- 权限声明应该在<application>标签外部 -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+
     <application
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
@@ -24,6 +27,11 @@
             android:name=".BillProvider"
             android:authorities="com.example.couplecredit.billprovider"
             android:exported="false" />
+        <!-- ChatBackgroundActivity声明 -->
+        <activity
+            android:name=".ChatBackgroundActivity"
+            android:label="设置聊天背景"
+            android:parentActivityName=".MainActivity" />
     </application>
 
 </manifest>
