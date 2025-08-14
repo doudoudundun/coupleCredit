@@ -43,47 +43,6 @@
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />
-    <!-- 悬浮的模式切换按钮 -->
-<!--    <LinearLayout-->
-<!--        android:id="@+id/ll_mode_switch"-->
-<!--        android:layout_width="match_parent"-->
-<!--        android:layout_height="36dp"-->
-<!--        android:layout_alignParentTop="true"-->
-<!--        android:layout_centerHorizontal="true"-->
-<!--        android:layout_marginTop="0dp"-->
-<!--        android:background="@drawable/segment_background"-->
-<!--        android:orientation="horizontal"-->
-<!--        android:padding="2dp"-->
-<!--        android:elevation="8dp">-->
 
-<!--        <TextView-->
-<!--            android:id="@+id/tv_classic_mode"-->
-<!--            android:layout_width="0dp"-->
-<!--            android:layout_weight="1"-->
-<!--            android:layout_height="match_parent"-->
-<!--            android:text="经典模式"-->
-<!--            android:textSize="12sp"-->
-<!--            android:textColor="@color/segment_text_selector"-->
-<!--            android:background="@drawable/segment_button_selector"-->
-<!--            android:gravity="center"-->
-<!--            android:clickable="true"-->
-<!--            android:focusable="true"-->
-<!--            android:layout_marginRight="1dp" />-->
-
-<!--        <TextView-->
-<!--            android:id="@+id/tv_chat_mode"-->
-<!--            android:layout_width="0dp"-->
-<!--            android:layout_weight="1"-->
-<!--            android:layout_height="match_parent"-->
-<!--            android:text="聊天模式"-->
-<!--            android:textSize="12sp"-->
-<!--            android:textColor="@color/segment_text_selector"-->
-<!--            android:background="@drawable/segment_button_selector"-->
-<!--            android:gravity="center"-->
-<!--            android:clickable="true"-->
-<!--            android:focusable="true"-->
-<!--            android:layout_marginLeft="1dp" />-->
-
-<!--    </LinearLayout>-->
 
 </androidx.constraintlayout.widget.ConstraintLayout>

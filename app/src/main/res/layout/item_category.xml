@@ -6,9 +6,8 @@
     android:layout_columnWeight="1"
     android:orientation="vertical"
     android:gravity="center"
-    android:paddingTop="16dp"
-    android:paddingStart="16dp"
-    android:paddingEnd="16dp"
+    android:minWidth="40dp"
+    android:padding="9dp"
     android:background="?android:attr/selectableItemBackground">
 
     <FrameLayout

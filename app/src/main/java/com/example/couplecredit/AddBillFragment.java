@@ -1,6 +1,7 @@
 package com.example.couplecredit;
 
 import android.Manifest;
+import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.app.DatePickerDialog;
 import android.content.Intent;
@@ -28,6 +29,9 @@ import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import androidx.fragment.app.Fragment;
 
+import com.transsion.widgetslib.widget.tablayout.OSTabLayout;
+import com.transsion.widgetslib.widget.tablayout.TabLayout;
+
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.Locale;
@@ -41,9 +45,12 @@ public class AddBillFragment extends Fragment {
     private TextView tvAmountDisplay;
     private EditText etNote;
     private TextView tvDate, tvPhoto, tvSelf, tvPartner, tvShared;
-    private View indicatorExpense, indicatorIncome;
+//    private View indicatorExpense, indicatorIncome;
     private GridLayout gridCategories;
-    
+
+    private TabLayout mTabLayout;
+    private OSTabLayout mOsTabLayout;
+
     private String selectedCategory = "";
     private String billType = "支出"; // 默认支出
     private String billOwner = "自己"; // 默认自己
@@ -75,10 +82,16 @@ public class AddBillFragment extends Fragment {
 
     private void initViews(View view) {
         // 支出/收入切换
-        tvExpense = view.findViewById(R.id.tv_expense);
-        tvIncome = view.findViewById(R.id.tv_income);
-        indicatorExpense = view.findViewById(R.id.indicator_expense);
-        indicatorIncome = view.findViewById(R.id.indicator_income);
+        mOsTabLayout = view.findViewById(R.id.slide_tab);
+        mOsTabLayout.setMinimumHeight(40);
+        mTabLayout = mOsTabLayout.getTabLayout();
+        mTabLayout.addTab(mTabLayout.newTab().setText("支出"));
+        mTabLayout.addTab(mTabLayout.newTab().setText("收入"));
+        //mTabLayout.setTabTextColors(getColor(R.color.os_red_basic_color), R.color.os_text_primary_hios);
+
+
+//        indicatorExpense = view.findViewById(R.id.indicator_expense);
+//        indicatorIncome = view.findViewById(R.id.indicator_income);
         
         // 分类选择区域
         gridCategories = view.findViewById(R.id.grid_categories);
@@ -103,8 +116,30 @@ public class AddBillFragment extends Fragment {
 
     private void setupListeners() {
         // 支出/收入切换
-        tvExpense.setOnClickListener(v -> switchToExpense());
-        tvIncome.setOnClickListener(v -> switchToIncome());
+        mTabLayout.setOnTabSelectedListener(new TabLayout.OnTabSelectedListener() {
+            @Override
+            public void onTabSelected(TabLayout.Tab tab) {
+                tab.getPosition();
+                switch (tab.getPosition()) {
+                    case 0:
+                        switchToExpense();
+                        break;
+                    case 1:
+                        switchToIncome();
+                        break;
+                }
+            }
+
+            @Override
+            public void onTabUnselected(TabLayout.Tab tab) {
+
+            }
+
+            @Override
+            public void onTabReselected(TabLayout.Tab tab) {
+
+            }
+        });
         
         // 日期选择
         tvDate.setOnClickListener(v -> showDatePicker());
@@ -121,17 +156,6 @@ public class AddBillFragment extends Fragment {
     private void switchToExpense() {
         isExpense = true;
         billType = "支出";
-        tvExpense.setTextColor(getResources().getColor(android.R.color.holo_red_light));
-        tvExpense.setTextSize(16);
-        tvExpense.setTypeface(null, Typeface.BOLD); // 支出字体加粗
-        tvIncome.setTextColor(getResources().getColor(android.R.color.darker_gray));
-        tvIncome.setTextSize(16);
-        tvIncome.setTypeface(null, Typeface.NORMAL); // 收入字体不加粗
-        
-        // 显示支出指示器，隐藏收入指示器
-        indicatorExpense.setVisibility(View.VISIBLE);
-        indicatorIncome.setVisibility(View.INVISIBLE);
-        
         // 显示支出分类
         showExpenseCategories();
         updateAmountDisplay();
@@ -140,19 +164,6 @@ public class AddBillFragment extends Fragment {
     private void switchToIncome() {
         isExpense = false;
         billType = "收入";
-        tvIncome.setTextColor(getResources().getColor(android.R.color.holo_green_light));
-        tvIncome.setTextSize(16);
-        tvIncome.setTypeface(null, Typeface.BOLD); // 收入字体加粗
-        tvExpense.setTextColor(getResources().getColor(android.R.color.darker_gray));
-        tvExpense.setTextSize(16);
-        tvExpense.setTypeface(null, Typeface.NORMAL); // 支出字体不加粗
-        
-        // 显示收入指示器，隐藏支出指示器
-        indicatorIncome.setVisibility(View.VISIBLE);
-        indicatorIncome.setBackgroundColor(getResources().getColor(android.R.color.holo_orange_light));
-        indicatorExpense.setVisibility(View.INVISIBLE);
-        
-        // 显示收入分类
         showIncomeCategories();
         updateAmountDisplay();
     }
@@ -562,6 +573,7 @@ public class AddBillFragment extends Fragment {
         }
     }
 
+    @SuppressLint("ResourceType")
     private void resetCategoryBackgrounds(View rootView) {
         try {
             Log.d("AddBillFragment", "resetCategoryBackgrounds called");
