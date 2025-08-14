@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 本人发送的消息布局（右侧） -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="8dp">
+
+    <!-- 消息主容器 -->
+    <LinearLayout
+        android:id="@+id/message_container"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical|end">
+
+        <!-- 消息互动按钮组 -->
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginEnd="8dp">
+
+            <!-- 点赞按钮 -->
+            <ImageView
+                android:id="@+id/iv_like"
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:src="@drawable/ic_favorite"
+                android:background="@drawable/circle_bg_pink"
+                android:padding="4dp"
+                android:layout_marginEnd="8dp"
+                android:clickable="true"
+                android:focusable="true" />
+
+            <!-- 删除这个回复按钮 -->
+            <!-- <ImageView
+                android:id="@+id/iv_reply"
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:src="@android:drawable/ic_menu_revert"
+                android:background="@drawable/circle_bg_gray"
+                android:padding="4dp"
+                android:clickable="true"
+                android:focusable="true" /> -->
+
+        </LinearLayout>
+
+        <!-- 消息内容区域 -->
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:gravity="end">
+
+            <!-- 用户名和时间戳 -->
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
+
+                <!-- 消息时间戳 -->
+                <TextView
+                    android:id="@+id/tv_timestamp"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="2025-06-27 20:30"
+                    android:textSize="12sp"
+                    android:textColor="#999999"
+                    android:layout_marginEnd="8dp" />
+
+                <!-- 用户名 -->
+                <TextView
+                    android:id="@+id/tv_username"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="我"
+                    android:textSize="14sp"
+                    android:textStyle="bold"
+                    android:textColor="#333333" />
+
+            </LinearLayout>
+
+            <!-- 消息内容文本 -->
+            <TextView
+                android:id="@+id/tv_message_content"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="今天花了50元买午餐"
+                android:textSize="16sp"
+                android:textColor="#FFFFFF"
+                android:background="@drawable/chat_bubble_right"
+                android:padding="12dp"
+                android:layout_marginTop="4dp"
+                android:layout_marginStart="60dp"
+                android:gravity="end" />
+
+        </LinearLayout>
+
+        <!-- 用户头像 -->
+        <ImageView
+            android:id="@+id/iv_avatar"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:src="@drawable/ic_profile"
+            android:background="@drawable/circle_bg_blue"
+            android:padding="8dp"
+            android:layout_marginStart="12dp" />
+
+    </LinearLayout>
+
+</LinearLayout>
