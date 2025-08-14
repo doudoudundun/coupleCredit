@@ -1,16 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:background="#F5F5F5">
+    android:background="#F5F5F5"
+    tools:context=".AddBillFragment">
 
 
     <!-- 标题栏 -->
     <RelativeLayout
         android:layout_width="match_parent"
-        android:layout_height="56dp"
+        android:layout_height="50dp"
         android:background="@android:color/white">
 
 
@@ -26,72 +28,11 @@
     </RelativeLayout>
 
     <!-- 支出/收入切换 -->
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:background="@android:color/white">
-
-        <LinearLayout
+        <com.transsion.widgetslib.widget.tablayout.OSTabLayout
+            android:id="@+id/slide_tab"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:paddingTop="16dp"
-            android:paddingBottom="8dp">
-
-            <TextView
-                android:id="@+id/tv_expense"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="支出"
-                android:textSize="16sp"
-                android:textColor="#333333"
-                android:textStyle="bold"
-                android:gravity="center"
-                android:padding="8dp" />
-
-            <TextView
-                android:id="@+id/tv_income"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="收入"
-                android:textSize="16sp"
-                android:textColor="#999999"
-                android:gravity="center"
-                android:padding="8dp" />
-
-        </LinearLayout>
-
-        <!-- 下划线指示器 -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal">
-
-            <View
-                android:id="@+id/indicator_expense"
-                android:layout_width="0dp"
-                android:layout_height="3dp"
-                android:layout_weight="1"
-                android:background="#FFB347"
-                android:layout_marginStart="40dp"
-                android:layout_marginEnd="40dp" />
-
-            <View
-                android:id="@+id/indicator_income"
-                android:layout_width="0dp"
-                android:layout_height="3dp"
-                android:layout_weight="1"
-                android:background="@android:color/transparent"
-                android:layout_marginStart="40dp"
-                android:layout_marginEnd="40dp" />
-
-        </LinearLayout>
-
-    </LinearLayout>
-
+            app:osIsFirstLevelTab="true" />
     <!-- 分类选择区域 -->
     <ScrollView
         android:layout_width="match_parent"
@@ -102,9 +43,10 @@
         <GridLayout
             android:id="@+id/grid_categories"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
+            android:layout_height="match_parent"
             android:columnCount="5"
-            android:padding="8dp">
+            android:layout_gravity="center_horizontal"
+            android:padding="12dp">
 
             <!-- 使用可复用的分类项布局 -->
             <include layout="@layout/item_category" android:id="@+id/category_food" />
@@ -153,7 +95,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="8月6日"
-                android:textSize="14sp"
+                android:textSize="12sp"
                 android:textColor="@android:color/white"
                 android:background="#FF9500"
                 android:padding="8dp"
@@ -165,7 +107,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="图片"
-                android:textSize="14sp"
+                android:textSize="12sp"
                 android:textColor="#666666"
                 android:background="#E0E0E0"
                 android:padding="8dp"
@@ -177,7 +119,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="自己"
-                android:textSize="14sp"
+                android:textSize="12sp"
                 android:textColor="@android:color/white"
                 android:background="#FF9500"
                 android:padding="8dp"
@@ -189,7 +131,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="对方"
-                android:textSize="14sp"
+                android:textSize="12sp"
                 android:textColor="#666666"
                 android:background="#E0E0E0"
                 android:padding="8dp"
@@ -201,7 +143,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="共同"
-                android:textSize="14sp"
+                android:textSize="12sp"
                 android:textColor="#666666"
                 android:background="#E0E0E0"
                 android:padding="8dp" />
@@ -233,7 +175,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="¥0.00"
-                android:textSize="24sp"
+                android:textSize="22sp"
                 android:textColor="#FF9500"
                 android:textStyle="bold" />
 
@@ -251,7 +193,7 @@
             <TextView
                 android:id="@+id/key_1"
                 android:layout_width="0dp"
-                android:layout_height="60dp"
+                android:layout_height="45dp"
                 android:layout_columnWeight="1"
                 android:text="1"
                 android:textSize="20sp"
@@ -263,7 +205,7 @@
             <TextView
                 android:id="@+id/key_2"
                 android:layout_width="0dp"
-                android:layout_height="60dp"
+                android:layout_height="45dp"
                 android:layout_columnWeight="1"
                 android:text="2"
                 android:textSize="20sp"
@@ -275,7 +217,7 @@
             <TextView
                 android:id="@+id/key_3"
                 android:layout_width="0dp"
-                android:layout_height="60dp"
+                android:layout_height="45dp"
                 android:layout_columnWeight="1"
                 android:text="3"
                 android:textSize="20sp"
@@ -287,7 +229,7 @@
             <TextView
                 android:id="@+id/key_delete"
                 android:layout_width="0dp"
-                android:layout_height="60dp"
+                android:layout_height="45dp"
                 android:layout_columnWeight="1"
                 android:text="⌫"
                 android:textSize="20sp"
@@ -300,7 +242,7 @@
             <TextView
                 android:id="@+id/key_4"
                 android:layout_width="0dp"
-                android:layout_height="60dp"
+                android:layout_height="45dp"
                 android:layout_columnWeight="1"
                 android:text="4"
                 android:textSize="20sp"
@@ -312,7 +254,7 @@
             <TextView
                 android:id="@+id/key_5"
                 android:layout_width="0dp"
-                android:layout_height="60dp"
+                android:layout_height="45dp"
                 android:layout_columnWeight="1"
                 android:text="5"
                 android:textSize="20sp"
@@ -324,7 +266,7 @@
             <TextView
                 android:id="@+id/key_6"
                 android:layout_width="0dp"
-                android:layout_height="60dp"
+                android:layout_height="45dp"
                 android:layout_columnWeight="1"
                 android:text="6"
                 android:textSize="20sp"
@@ -336,7 +278,7 @@
             <TextView
                 android:id="@+id/key_plus"
                 android:layout_width="0dp"
-                android:layout_height="60dp"
+                android:layout_height="45dp"
                 android:layout_columnWeight="1"
                 android:text="+"
                 android:textSize="20sp"
@@ -349,7 +291,7 @@
             <TextView
                 android:id="@+id/key_7"
                 android:layout_width="0dp"
-                android:layout_height="60dp"
+                android:layout_height="45dp"
                 android:layout_columnWeight="1"
                 android:text="7"
                 android:textSize="20sp"
@@ -361,7 +303,7 @@
             <TextView
                 android:id="@+id/key_8"
                 android:layout_width="0dp"
-                android:layout_height="60dp"
+                android:layout_height="45dp"
                 android:layout_columnWeight="1"
                 android:text="8"
                 android:textSize="20sp"
@@ -373,7 +315,7 @@
             <TextView
                 android:id="@+id/key_9"
                 android:layout_width="0dp"
-                android:layout_height="60dp"
+                android:layout_height="45dp"
                 android:layout_columnWeight="1"
                 android:text="9"
                 android:textSize="20sp"
@@ -385,7 +327,7 @@
             <TextView
                 android:id="@+id/key_minus"
                 android:layout_width="0dp"
-                android:layout_height="60dp"
+                android:layout_height="45dp"
                 android:layout_columnWeight="1"
                 android:text="-"
                 android:textSize="20sp"
@@ -398,7 +340,7 @@
             <TextView
                 android:id="@+id/key_again"
                 android:layout_width="0dp"
-                android:layout_height="60dp"
+                android:layout_height="50dp"
                 android:layout_columnWeight="1"
                 android:text="再记"
                 android:textSize="16sp"
@@ -410,7 +352,7 @@
             <TextView
                 android:id="@+id/key_0"
                 android:layout_width="0dp"
-                android:layout_height="60dp"
+                android:layout_height="50dp"
                 android:layout_columnWeight="1"
                 android:text="0"
                 android:textSize="20sp"
@@ -422,7 +364,7 @@
             <TextView
                 android:id="@+id/key_dot"
                 android:layout_width="0dp"
-                android:layout_height="60dp"
+                android:layout_height="50dp"
                 android:layout_columnWeight="1"
                 android:text="."
                 android:textSize="20sp"
@@ -434,7 +376,7 @@
             <TextView
                 android:id="@+id/key_save"
                 android:layout_width="0dp"
-                android:layout_height="60dp"
+                android:layout_height="50dp"
                 android:layout_columnWeight="1"
                 android:text="保存"
                 android:textSize="16sp"

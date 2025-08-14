@@ -1,6 +1,7 @@
 package com.example.couplecredit;
 
 import android.Manifest;
+import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.app.DatePickerDialog;
 import android.content.Intent;
@@ -28,8 +29,12 @@ import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import androidx.fragment.app.Fragment;
 
+import com.transsion.widgetslib.widget.tablayout.OSTabLayout;
+import com.transsion.widgetslib.widget.tablayout.TabLayout;
+
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
+import java.util.Date;
 import java.util.Locale;
 
 public class AddBillFragment extends Fragment {
@@ -41,9 +46,12 @@ public class AddBillFragment extends Fragment {
     private TextView tvAmountDisplay;
     private EditText etNote;
     private TextView tvDate, tvPhoto, tvSelf, tvPartner, tvShared;
-    private View indicatorExpense, indicatorIncome;
+//    private View indicatorExpense, indicatorIncome;
     private GridLayout gridCategories;
-    
+
+    private TabLayout mTabLayout;
+    private OSTabLayout mOsTabLayout;
+
     private String selectedCategory = "";
     private String billType = "支出"; // 默认支出
     private String billOwner = "自己"; // 默认自己
@@ -75,10 +83,16 @@ public class AddBillFragment extends Fragment {
 
     private void initViews(View view) {
         // 支出/收入切换
-        tvExpense = view.findViewById(R.id.tv_expense);
-        tvIncome = view.findViewById(R.id.tv_income);
-        indicatorExpense = view.findViewById(R.id.indicator_expense);
-        indicatorIncome = view.findViewById(R.id.indicator_income);
+        mOsTabLayout = view.findViewById(R.id.slide_tab);
+        mOsTabLayout.setMinimumHeight(40);
+        mTabLayout = mOsTabLayout.getTabLayout();
+        mTabLayout.addTab(mTabLayout.newTab().setText("支出"));
+        mTabLayout.addTab(mTabLayout.newTab().setText("收入"));
+        //mTabLayout.setTabTextColors(getColor(R.color.os_red_basic_color), R.color.os_text_primary_hios);
+
+
+//        indicatorExpense = view.findViewById(R.id.indicator_expense);
+//        indicatorIncome = view.findViewById(R.id.indicator_income);
         
         // 分类选择区域
         gridCategories = view.findViewById(R.id.grid_categories);
@@ -103,8 +117,30 @@ public class AddBillFragment extends Fragment {
 
     private void setupListeners() {
         // 支出/收入切换
-        tvExpense.setOnClickListener(v -> switchToExpense());
-        tvIncome.setOnClickListener(v -> switchToIncome());
+        mTabLayout.setOnTabSelectedListener(new TabLayout.OnTabSelectedListener() {
+            @Override
+            public void onTabSelected(TabLayout.Tab tab) {
+                tab.getPosition();
+                switch (tab.getPosition()) {
+                    case 0:
+                        switchToExpense();
+                        break;
+                    case 1:
+                        switchToIncome();
+                        break;
+                }
+            }
+
+            @Override
+            public void onTabUnselected(TabLayout.Tab tab) {
+
+            }
+
+            @Override
+            public void onTabReselected(TabLayout.Tab tab) {
+
+            }
+        });
         
         // 日期选择
         tvDate.setOnClickListener(v -> showDatePicker());
@@ -121,17 +157,6 @@ public class AddBillFragment extends Fragment {
     private void switchToExpense() {
         isExpense = true;
         billType = "支出";
-        tvExpense.setTextColor(getResources().getColor(android.R.color.holo_red_light));
-        tvExpense.setTextSize(16);
-        tvExpense.setTypeface(null, Typeface.BOLD); // 支出字体加粗
-        tvIncome.setTextColor(getResources().getColor(android.R.color.darker_gray));
-        tvIncome.setTextSize(16);
-        tvIncome.setTypeface(null, Typeface.NORMAL); // 收入字体不加粗
-        
-        // 显示支出指示器，隐藏收入指示器
-        indicatorExpense.setVisibility(View.VISIBLE);
-        indicatorIncome.setVisibility(View.INVISIBLE);
-        
         // 显示支出分类
         showExpenseCategories();
         updateAmountDisplay();
@@ -140,19 +165,6 @@ public class AddBillFragment extends Fragment {
     private void switchToIncome() {
         isExpense = false;
         billType = "收入";
-        tvIncome.setTextColor(getResources().getColor(android.R.color.holo_green_light));
-        tvIncome.setTextSize(16);
-        tvIncome.setTypeface(null, Typeface.BOLD); // 收入字体加粗
-        tvExpense.setTextColor(getResources().getColor(android.R.color.darker_gray));
-        tvExpense.setTextSize(16);
-        tvExpense.setTypeface(null, Typeface.NORMAL); // 支出字体不加粗
-        
-        // 显示收入指示器，隐藏支出指示器
-        indicatorIncome.setVisibility(View.VISIBLE);
-        indicatorIncome.setBackgroundColor(getResources().getColor(android.R.color.holo_orange_light));
-        indicatorExpense.setVisibility(View.INVISIBLE);
-        
-        // 显示收入分类
         showIncomeCategories();
         updateAmountDisplay();
     }
@@ -562,6 +574,7 @@ public class AddBillFragment extends Fragment {
         }
     }
 
+    @SuppressLint("ResourceType")
     private void resetCategoryBackgrounds(View rootView) {
         try {
             Log.d("AddBillFragment", "resetCategoryBackgrounds called");
@@ -627,18 +640,65 @@ public class AddBillFragment extends Fragment {
                 Toast.makeText(getContext(), "金额必须大于0", Toast.LENGTH_SHORT).show();
                 return;
             }
+            // 格式化日期为 yyyy-MM-dd 格式
+            SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault());
+            String dateString = dateFormat.format(selectedDate.getTime());
             
-            // 这里可以添加保存账单到数据库的逻辑
-            Toast.makeText(getContext(), 
-                String.format("账单保存成功！\n类型：%s\n金额：%.2f\n分类：%s\n归属：%s\n备注：%s", 
-                    billType, amount, selectedCategory, billOwner, note.isEmpty() ? "无" : note), 
-                Toast.LENGTH_LONG).show();
+            // 格式化当前时间为 HH:mm:ss 格式
+            SimpleDateFormat timeFormat = new SimpleDateFormat("HH:mm:ss", Locale.getDefault());
+            String timeString = timeFormat.format(new Date());
+            if(selectedDate != Calendar.getInstance()){
+                timeString = "23:59:59";
+            }
+            
+            // 确定收入类型：支出为0，收入为1
+            int incomeType = isExpense ? 0 : 1;
+            
+            // 使用实际用户输入的数据插入账单
+            Utils.insertBill(getContext(), Utils.getUserId(billOwner), 
+                note.isEmpty() ? selectedCategory : note, // 如果没有备注就用分类作为标题
+                selectedCategory, 
+                amount, 
+                dateString, 
+                timeString,
+                incomeType);
+            
+//            // 显示保存成功提示
+//            Toast.makeText(getContext(),
+//                String.format("账单保存成功！\n类型：%s\n金额：%.2f\n分类：%s\n归属：%s\n备注：%s",
+//                    billType, amount, selectedCategory, billOwner, note.isEmpty() ? "无" : note),
+//                Toast.LENGTH_LONG).show();
+            
+            // 通知首页刷新数据
+            notifyHomePageRefresh();
             
             // 清空输入
             clearInputs();
             
         } catch (NumberFormatException e) {
             Toast.makeText(getContext(), "请输入有效的金额", Toast.LENGTH_SHORT).show();
+        }
+    }
+    
+    // 通知首页刷新数据
+    private void notifyHomePageRefresh() {
+        if (getActivity() instanceof MainActivity) {
+            MainActivity mainActivity = (MainActivity) getActivity();
+            // 获取HeadFragment实例
+            Fragment headFragment = mainActivity.getSupportFragmentManager().findFragmentByTag("HeadFragment");
+            if (headFragment == null) {
+                // 如果通过tag找不到，尝试通过已知的fragment实例获取
+                headFragment = mainActivity.getHeadFragment();
+            }
+            
+            if (headFragment instanceof HeadFragment) {
+                HeadFragment head = (HeadFragment) headFragment;
+                // 获取当前显示的ClassicModelFragment并刷新数据
+                ClassicModelFragment classicFragment = head.getClassicFragment();
+                if (classicFragment != null) {
+                    classicFragment.refreshBillData();
+                }
+            }
         }
     }
     

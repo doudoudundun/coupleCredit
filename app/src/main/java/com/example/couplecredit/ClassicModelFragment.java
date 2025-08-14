@@ -109,6 +109,7 @@ public class ClassicModelFragment extends Fragment {
             do {
                 double amount = cursor.getDouble(cursor.getColumnIndexOrThrow(BillDatabaseHelper.COLUMN_AMOUNT));
                 String dateStr = cursor.getString(cursor.getColumnIndexOrThrow(BillDatabaseHelper.COLUMN_DATE));
+                String timeStr = cursor.getString(cursor.getColumnIndexOrThrow(BillDatabaseHelper.COLUMN_TIME));
                 int userId = cursor.getInt(cursor.getColumnIndexOrThrow(BillDatabaseHelper.USER_ID));
                 String type = cursor.getString(cursor.getColumnIndexOrThrow(BillDatabaseHelper.COLUMN_TYPE));
                 String title = cursor.getString(cursor.getColumnIndexOrThrow(BillDatabaseHelper.COLUMN_TITLE));
@@ -123,7 +124,7 @@ public class ClassicModelFragment extends Fragment {
                 // 根据类型设置图标
                 int iconResId = getIconForCategory(type);
 
-                billItems.add(new BillBean(amount, cur_year, cur_month, day, userId, type, title, iconResId, incomeType));
+                billItems.add(new BillBean(amount, cur_year, cur_month, day, userId, type, title, iconResId, incomeType, timeStr));
             } while (cursor.moveToNext());
             cursor.close();
         }
@@ -138,6 +139,18 @@ public class ClassicModelFragment extends Fragment {
         currentMonth = calendar.get(Calendar.MONTH) + 1; // Calendar.MONTH 从0开始
         
         loadBillData(currentYear, currentMonth);
+    }
+    
+    // 公共方法：刷新当前月份的账单数据
+    public void refreshBillData() {
+        if (getContext() != null) {
+            loadBillData(currentYear, currentMonth);
+            processAndDisplayData();
+            sumAmounts();
+            if (billAdapter != null) {
+                billAdapter.notifyDataSetChanged();
+            }
+        }
     }
     
     private void checkAndInsertSampleData() {
@@ -165,31 +178,31 @@ public class ClassicModelFragment extends Fragment {
     
     private void insertSampleData() {
         // 插入示例账单数据
-        insertBill(1, "午餐聚餐", "餐饮", 25.80, "2025-08-15", 0); // 支出
-        insertBill(2, "地铁出行", "交通", 12.00, "2025-08-14", 0); // 支出
-        insertBill(3, "日用品采购", "购物", 35.50, "2025-08-13", 0); // 支出
-        insertBill(1, "电影票", "娱乐", 68.0, "2025-08-12", 0); // 支出
-        insertBill(2, "咖啡", "餐饮", 45.0, "2025-08-11", 0); // 支出
-        insertBill(3, "工资收入", "收入", 5000.0, "2025-08-10", 1); // 收入
-        insertBill(1, "午餐聚餐", "餐饮", 258.0, "2025-08-15", 0); // 支出
-        insertBill(2, "地铁出行", "交通", 12.00, "2025-08-14", 0); // 支出
-        insertBill(3, "兼职收入", "收入", 800.0, "2025-08-13", 1); // 收入
-        insertBill(1, "电影票", "娱乐", 68.0, "2025-08-12", 0); // 支出
-        insertBill(2, "咖啡", "餐饮", 45.0, "2025-08-11", 0); // 支出
-        insertBill(3, "水电费", "生活", 180.0, "2025-07-10", 0); // 支出
+        Utils.insertBill(getContext(),1, "午餐聚餐", "餐饮", 25.80, "2025-08-15", "00:00:00", 0); // 支出
+        Utils.insertBill(getContext(),2, "地铁出行", "交通", 12.00, "2025-08-14", "00:00:00", 0); // 支出
+        Utils.insertBill(getContext(),3, "日用品采购", "购物", 35.50, "2025-08-13", "00:00:00", 0); // 支出
+        Utils.insertBill(getContext(),1, "电影票", "娱乐", 68.0, "2025-08-12", "00:00:00", 0); // 支出
+        Utils.insertBill(getContext(),2, "咖啡", "餐饮", 45.0, "2025-08-11", "00:00:00", 0); // 支出
+        Utils.insertBill(getContext(),3, "工资收入", "收入", 5000.0, "2025-08-10", "00:00:00", 1); // 收入
+        Utils.insertBill(getContext(),1, "午餐聚餐", "餐饮", 258.0, "2025-08-15", "00:00:00", 0); // 支出
+        Utils.insertBill(getContext(),2, "地铁出行", "交通", 12.00, "2025-08-14", "00:00:00", 0); // 支出
+        Utils.insertBill(getContext(),3, "兼职收入", "收入", 800.0, "2025-08-13", "00:00:00", 1); // 收入
+        Utils.insertBill(getContext(),1, "电影票", "娱乐", 68.0, "2025-08-12", "00:00:00", 0); // 支出
+        Utils.insertBill(getContext(),2, "咖啡", "餐饮", 45.0, "2025-08-11", "00:00:00", 0); // 支出
+        Utils.insertBill(getContext(),3, "水电费", "生活", 180.0, "2025-07-10", "00:00:00", 0); // 支出
     }
     
-    private void insertBill(int userId, String title, String type, double amount, String date, int incomeType) {
-        android.content.ContentValues values = new android.content.ContentValues();
-        values.put(BillDatabaseHelper.USER_ID, userId);
-        values.put(BillDatabaseHelper.COLUMN_TITLE, title);
-        values.put(BillDatabaseHelper.COLUMN_TYPE, type);
-        values.put(BillDatabaseHelper.COLUMN_AMOUNT, amount);
-        values.put(BillDatabaseHelper.COLUMN_DATE, date);
-        values.put(BillDatabaseHelper.COLUMN_INCOME_TYPE, incomeType);
-        
-        getContext().getContentResolver().insert(Uri.parse(BillProvider.CONTENT_URI + "/bills"), values);
-    }
+//    private void insertBill(int userId, String title, String type, double amount, String date, int incomeType) {
+//        android.content.ContentValues values = new android.content.ContentValues();
+//        values.put(BillDatabaseHelper.USER_ID, userId);
+//        values.put(BillDatabaseHelper.COLUMN_TITLE, title);
+//        values.put(BillDatabaseHelper.COLUMN_TYPE, type);
+//        values.put(BillDatabaseHelper.COLUMN_AMOUNT, amount);
+//        values.put(BillDatabaseHelper.COLUMN_DATE, date);
+//        values.put(BillDatabaseHelper.COLUMN_INCOME_TYPE, incomeType);
+//
+//        getContext().getContentResolver().insert(Uri.parse(BillProvider.CONTENT_URI + "/bills"), values);
+//    }
     
     private int getIconForCategory(String category) {
         switch (category) {
@@ -221,11 +234,15 @@ public class ClassicModelFragment extends Fragment {
                     if (b1.getMonth() != b2.getMonth()) {
                         return Integer.compare(b2.getMonth(), b1.getMonth());
                     }
-                    // 最后按日期倒序
+                    // 再按日期倒序
                     if (b1.getDay() != b2.getDay()) {
                         return Integer.compare(b2.getDay(), b1.getDay());
                     }
-                    // 同一天内按种类名首字母排序
+                    // 日期相同时按时间倒序排列
+                    if (!b1.getTime().equals(b2.getTime())) {
+                        return b2.getTime().compareTo(b1.getTime());
+                    }
+                    // 时间相同时按种类名首字母排序
                     return b1.getCategoryName().compareToIgnoreCase(b2.getCategoryName());
                 }
             });
