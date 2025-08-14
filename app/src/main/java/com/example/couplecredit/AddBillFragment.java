@@ -34,6 +34,7 @@ import com.transsion.widgetslib.widget.tablayout.TabLayout;
 
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
+import java.util.Date;
 import java.util.Locale;
 
 public class AddBillFragment extends Fragment {
@@ -643,6 +644,13 @@ public class AddBillFragment extends Fragment {
             SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault());
             String dateString = dateFormat.format(selectedDate.getTime());
             
+            // 格式化当前时间为 HH:mm:ss 格式
+            SimpleDateFormat timeFormat = new SimpleDateFormat("HH:mm:ss", Locale.getDefault());
+            String timeString = timeFormat.format(new Date());
+            if(selectedDate != Calendar.getInstance()){
+                timeString = "23:59:59";
+            }
+            
             // 确定收入类型：支出为0，收入为1
             int incomeType = isExpense ? 0 : 1;
             
@@ -652,6 +660,7 @@ public class AddBillFragment extends Fragment {
                 selectedCategory, 
                 amount, 
                 dateString, 
+                timeString,
                 incomeType);
             
 //            // 显示保存成功提示

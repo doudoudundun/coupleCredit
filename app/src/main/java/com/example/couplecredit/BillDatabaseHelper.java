@@ -12,7 +12,7 @@ import androidx.annotation.Nullable;
 
 public class BillDatabaseHelper extends SQLiteOpenHelper {
     private static final String DATABASE_NAME = "bills.db";
-    private static final int DATABASE_VERSION = 2;
+    private static final int DATABASE_VERSION = 3;
     public static final String TABLE_BILLS = "bills";
     public static final String CATEGORY_TABLE = "category";
     public static final String COLUMN_ID = "_id"; //账单ID
@@ -21,6 +21,7 @@ public class BillDatabaseHelper extends SQLiteOpenHelper {
     public static final String COLUMN_TYPE = "type";//账单类型
     public static final String COLUMN_AMOUNT = "amount";//账单金额
     public static final String COLUMN_DATE = "date";//账单日期 日期格式：2023-01-01
+    public static final String COLUMN_TIME = "time";//账单时间 时间格式：HH:mm:ss
     public static final String COLUMN_INCOME_TYPE = "income_type";//收入支出类型：0=支出，1=收入
 
 
@@ -39,6 +40,7 @@ public class BillDatabaseHelper extends SQLiteOpenHelper {
                 + COLUMN_TYPE + " TEXT NOT NULL, "
                 + COLUMN_AMOUNT + " REAL NOT NULL, "
                 + COLUMN_DATE + " TEXT NOT NULL, "
+                + COLUMN_TIME + " TEXT NOT NULL DEFAULT '00:00:00', "
                 + COLUMN_INCOME_TYPE + " INTEGER NOT NULL DEFAULT 0"
                 + ");");
         //账单种类和账单id对照表
@@ -54,6 +56,10 @@ public class BillDatabaseHelper extends SQLiteOpenHelper {
         if (oldVersion < 2) {
             // 添加收入支出类型字段
             db.execSQL("ALTER TABLE " + TABLE_BILLS + " ADD COLUMN " + COLUMN_INCOME_TYPE + " INTEGER NOT NULL DEFAULT 0");
+        }
+        if (oldVersion < 3) {
+            // 添加时间字段，默认值为00:00:00
+            db.execSQL("ALTER TABLE " + TABLE_BILLS + " ADD COLUMN " + COLUMN_TIME + " TEXT NOT NULL DEFAULT '00:00:00'");
         }
     }
 }
