@@ -12,6 +12,7 @@
         android:layout_height="match_parent"
         android:scaleType="centerCrop"
         android:background="@drawable/items_bg"
-        android:foreground="?android:attr/selectableItemBackground" />
+        android:foreground="?android:attr/selectableItemBackground"
+        android:contentDescription="@null"/>
 
 </FrameLayout>
