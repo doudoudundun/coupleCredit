@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:background="@drawable/toast_background"
+    android:elevation="8dp"
+    android:padding="16dp"
+    android:layout_margin="16dp">
+
+    <!-- Toast图标 -->
+    <ImageView
+        android:id="@+id/iv_toast_icon"
+        android:layout_width="24dp"
+        android:layout_height="24dp"
+        android:layout_marginEnd="12dp"
+        android:src="@drawable/ic_favorite"
+        android:visibility="gone" />
+
+    <!-- Toast文本 -->
+    <TextView
+        android:id="@+id/tv_toast_message"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="这是自定义Toast消息"
+        android:textColor="#333333"
+        android:textSize="14sp"
+        android:maxLines="3"
+        android:ellipsize="end" />
+
+</LinearLayout>

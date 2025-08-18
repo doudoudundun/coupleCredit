@@ -28,4 +28,30 @@ public final class Utils {
             return 3;
         }
     }
+
+    public static int deleteBill(Context context, BillBean bill) {
+        String selection = BillDatabaseHelper.USER_ID + "=? AND " +
+                          BillDatabaseHelper.COLUMN_TYPE + "=? AND " +
+                          BillDatabaseHelper.COLUMN_AMOUNT + "=? AND " +
+                          BillDatabaseHelper.COLUMN_DATE + "=? AND " +
+                          BillDatabaseHelper.COLUMN_TIME + "=? AND " +
+                          BillDatabaseHelper.COLUMN_INCOME_TYPE + "=?";
+        
+        String dateString = String.format("%04d-%02d-%02d", bill.getYear(), bill.getMonth(), bill.getDay());
+        
+        String[] selectionArgs = {
+            String.valueOf(bill.getUserId()),
+            bill.getCategoryName(),
+            String.valueOf(bill.getFare()),
+            dateString,
+            bill.getTime(),
+            String.valueOf(bill.getIncomeType())
+        };
+        
+        return context.getContentResolver().delete(
+            Uri.parse(BillProvider.CONTENT_URI + "/bills"),
+            selection,
+            selectionArgs
+        );
+    }
 }

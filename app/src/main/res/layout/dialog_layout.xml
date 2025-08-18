@@ -4,14 +4,26 @@
     android:layout_height="wrap_content"
     android:orientation="vertical"
     android:background="@android:color/white"
-    android:padding="5dp">
+    android:padding="10dp">
 
-    <!-- 删除按钮 -->
+    <!-- 操作按钮 -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:gravity="end"
         android:layout_marginBottom="16dp">
+        
+        <Button
+            android:id="@+id/btn_edit"
+            android:layout_width="wrap_content"
+            android:layout_height="36dp"
+            android:text="修改"
+            android:textSize="14sp" />
+            
+        <View
+            android:layout_width="0dp"
+            android:layout_height="1dp"
+            android:layout_weight="1" />
+            
         <Button
             android:id="@+id/btn_delete"
             android:layout_width="wrap_content"
@@ -96,7 +108,7 @@
                 android:textColor="#666666" />
             
             <TextView
-                android:id="@+id/tv_amount"
+                android:id="@+id/tv_fare"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="¥1.00"
@@ -127,6 +139,37 @@
                 android:textSize="16sp"
                 android:textColor="#333333" />
         </LinearLayout>
+
+    </LinearLayout>
+
+    <!-- 备注卡片 -->
+    <LinearLayout
+        android:id="@+id/ll_note_card"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:background="@drawable/rounded_card_background"
+        android:elevation="2dp"
+        android:orientation="vertical"
+        android:padding="12dp"
+        android:visibility="gone">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="备注"
+            android:textColor="#666666"
+            android:textSize="14sp" />
+
+        <TextView
+            android:id="@+id/tv_note_content"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:textColor="#333333"
+            android:textSize="16sp"
+            android:lineSpacingExtra="4dp" />
+
     </LinearLayout>
 
 </LinearLayout>

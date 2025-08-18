@@ -10,6 +10,8 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.view.Window;
 
+import android.widget.Button;
+import android.widget.LinearLayout;
 import android.widget.NumberPicker;
 import android.widget.TextView;
 
@@ -40,10 +42,10 @@ public class ClassicModelFragment extends Fragment {
     private int currentMonth;
     private TextView tvExpenseAmount;
     private TextView tvIncomeAmount;
+
     private PromptDialog mDialog;
 
 
-    //private BillProvider billProvider;
 
     @Nullable
     @Override
@@ -66,6 +68,11 @@ public class ClassicModelFragment extends Fragment {
         rvBillList = view.findViewById(R.id.rv_bill_list);
         tvExpenseAmount = view.findViewById(R.id.tv_expense_amount);
         tvIncomeAmount = view.findViewById(R.id.tv_income_amount);
+
+
+        // 移除初始化时的弹窗创建，改为在点击时创建
+
+
         //统计收入和支出
 
         updateMonthTitle();
@@ -84,13 +91,7 @@ public class ClassicModelFragment extends Fragment {
         billAdapter = new BillAdapter(getContext(), displayItems, new BillAdapter.OnItemClickListener() {
             @Override
             public void onItemClick(View view, int position, BillBean bill) {
-                // TODO: 跳转到账单详情页面
-                mDialog = new PromptDialog.Builder(getContext())
-                        .setTitle("账单详情")
-                        .setView(R.layout.dialog_layout)
-                        .setPositiveButton("确定", null)
-                        .setNegativeButton("取消", (dialog, which) -> dialog.dismiss())
-                        .show();
+                processDialog(bill);
             }
         });
         rvBillList.setAdapter(billAdapter);
@@ -133,7 +134,7 @@ public class ClassicModelFragment extends Fragment {
                 // 根据类型设置图标
                 int iconResId = getIconForCategory(type);
 
-                billItems.add(new BillBean(amount, cur_year, cur_month, day, userId, type, title, iconResId, incomeType, timeStr));
+                billItems.add(new BillBean(amount, cur_year, cur_month, day, userId, type, title, iconResId, incomeType, timeStr, title));
             } while (cursor.moveToNext());
             cursor.close();
         }
@@ -156,6 +157,7 @@ public class ClassicModelFragment extends Fragment {
             loadBillData(currentYear, currentMonth);
             processAndDisplayData();
             sumAmounts();
+            updateMonthTitle();
             if (billAdapter != null) {
                 billAdapter.notifyDataSetChanged();
             }
@@ -329,5 +331,63 @@ public class ClassicModelFragment extends Fragment {
         });
 
         dialog.show();
+    }
+
+    private void processDialog(BillBean bill){
+        double fare = bill.getFare();
+        String incomeType = bill.getIncomeType() == 1 ? "收入" : "支出";
+        String categoryName = bill.getCategoryName();
+        int day = bill.getDay();
+        int month = bill.getMonth();
+        int year = bill.getYear();
+        String date = String.format("%04d-%02d-%02d", year, month, day);
+
+        // 创建对话框
+        mDialog = new PromptDialog.Builder(getContext())
+                .setTitle("账单详情")
+                .setView(R.layout.dialog_layout)
+//                .setPositiveButton("确定", null)
+//                .setNegativeButton("取消", (dialog, which) -> dialog.dismiss())
+                .show();
+
+        // 获取对话框中的视图组件
+        TextView tvCategoryName = mDialog.findViewById(R.id.tv_category_name);
+        TextView tvDate = mDialog.findViewById(R.id.tv_date);
+        TextView tvFare = mDialog.findViewById(R.id.tv_fare);
+        Button btnDelete = mDialog.findViewById(R.id.btn_delete);
+        Button btnEdit = mDialog.findViewById(R.id.btn_edit);
+        LinearLayout llNoteCard = mDialog.findViewById(R.id.ll_note_card);
+        TextView tvNoteContent = mDialog.findViewById(R.id.tv_note_content);
+
+        // 设置数据
+        if (tvCategoryName != null) tvCategoryName.setText(incomeType + "-" + categoryName);
+        if (tvDate != null) tvDate.setText(date);
+        if (tvFare != null) tvFare.setText("￥ " + String.format("%.2f", fare));
+        
+        // 处理备注显示
+        String noteTitle = bill.getTitle();
+        if (noteTitle != null && !noteTitle.trim().isEmpty() && !noteTitle.equals(categoryName)) {
+            // 有备注且备注不等于分类名称时显示备注卡片
+            if (llNoteCard != null) llNoteCard.setVisibility(View.VISIBLE);
+            if (tvNoteContent != null) tvNoteContent.setText(noteTitle);
+        } else {
+            // 没有备注或备注等于分类名称时隐藏备注卡片
+            if (llNoteCard != null) llNoteCard.setVisibility(View.GONE);
+        }
+        if (btnDelete != null) btnDelete.setOnClickListener(v -> {
+            // 删除账单
+            int deletedRows = Utils.deleteBill(getContext(), bill);
+            if (deletedRows > 0) {
+                // 删除成功，刷新数据
+                refreshBillData();
+            }
+            mDialog.dismiss();
+        });
+        if (btnEdit != null) btnEdit.setOnClickListener(v -> {
+            // 修改账单
+            btnDelete.setVisibility(View.GONE);
+            refreshBillData();
+
+        });
     }
 }

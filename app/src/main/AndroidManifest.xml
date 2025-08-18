@@ -32,6 +32,11 @@
             android:name=".ChatBackgroundActivity"
             android:label="设置聊天背景"
             android:parentActivityName=".MainActivity" />
+        <!-- ToastDemoActivity声明 -->
+        <activity
+            android:name=".ToastDemoActivity"
+            android:label="自定义Toast演示"
+            android:parentActivityName=".MainActivity" />
     </application>
 
 </manifest>

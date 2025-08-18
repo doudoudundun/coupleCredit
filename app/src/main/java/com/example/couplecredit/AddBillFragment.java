@@ -213,7 +213,7 @@ public class AddBillFragment extends Fragment {
         if (requestCode == REQUEST_IMAGE_PICK && resultCode == Activity.RESULT_OK && data != null) {
             Uri selectedImage = data.getData();
             if (selectedImage != null) {
-                Toast.makeText(getContext(), "照片选择成功", Toast.LENGTH_SHORT).show();
+                Toast.makeText(getActivity(), "照片选择成功", Toast.LENGTH_SHORT).show();
                 // 这里可以添加显示选中照片的逻辑
             }
         }
@@ -227,7 +227,7 @@ public class AddBillFragment extends Fragment {
             if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                 selectPhoto();
             } else {
-                Toast.makeText(getContext(), "需要存储权限才能选择照片", Toast.LENGTH_SHORT).show();
+                Toast.makeText(getActivity(), "需要存储权限才能选择照片", Toast.LENGTH_SHORT).show();
             }
         }
     }
@@ -437,7 +437,7 @@ public class AddBillFragment extends Fragment {
     
     private void inputOperator(String operator) {
         // 简单实现：暂时只显示提示
-        Toast.makeText(getContext(), "运算功能待实现", Toast.LENGTH_SHORT).show();
+        Toast.makeText(getActivity(), "运算功能待实现", Toast.LENGTH_SHORT).show();
     }
     
     private void updateAmountDisplay() {
@@ -464,7 +464,7 @@ public class AddBillFragment extends Fragment {
                     selectedDate.set(Calendar.MONTH, month);
                     selectedDate.set(Calendar.DAY_OF_MONTH, dayOfMonth);
                     updateDateDisplay();
-                    Toast.makeText(getContext(), "日期已更新", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(getActivity(), "日期已更新", Toast.LENGTH_SHORT).show();
                 }
             },
             year, month, day
@@ -480,7 +480,7 @@ public class AddBillFragment extends Fragment {
         datePickerDialog.setButton(DatePickerDialog.BUTTON_NEGATIVE, "取消", 
             (dialog, which) -> {
                 dialog.dismiss();
-                Toast.makeText(getContext(), "已取消选择", Toast.LENGTH_SHORT).show();
+                Toast.makeText(getActivity(), "已取消选择", Toast.LENGTH_SHORT).show();
             });
         
         datePickerDialog.show();
@@ -625,19 +625,19 @@ public class AddBillFragment extends Fragment {
         
         // 验证输入
         if (currentAmount.toString().equals("0") || currentAmount.toString().isEmpty()) {
-            Toast.makeText(getContext(), "请输入金额", Toast.LENGTH_SHORT).show();
+            Toast.makeText(getActivity(), "请输入金额", Toast.LENGTH_SHORT).show();
             return;
         }
         
         if (selectedCategory.isEmpty()) {
-            Toast.makeText(getContext(), "请选择分类", Toast.LENGTH_SHORT).show();
+            Toast.makeText(getActivity(), "请选择分类", Toast.LENGTH_SHORT).show();
             return;
         }
         
         try {
             double amount = Double.parseDouble(currentAmount.toString());
             if (amount <= 0) {
-                Toast.makeText(getContext(), "金额必须大于0", Toast.LENGTH_SHORT).show();
+                Toast.makeText(getActivity(), "金额必须大于0", Toast.LENGTH_SHORT).show();
                 return;
             }
             // 格式化日期为 yyyy-MM-dd 格式
@@ -662,12 +662,7 @@ public class AddBillFragment extends Fragment {
                 dateString, 
                 timeString,
                 incomeType);
-            
-//            // 显示保存成功提示
-//            Toast.makeText(getContext(),
-//                String.format("账单保存成功！\n类型：%s\n金额：%.2f\n分类：%s\n归属：%s\n备注：%s",
-//                    billType, amount, selectedCategory, billOwner, note.isEmpty() ? "无" : note),
-//                Toast.LENGTH_LONG).show();
+            CustomToast.show(getActivity(), "账单保存成功"); //定制化Toast
             
             // 通知首页刷新数据
             notifyHomePageRefresh();
@@ -676,7 +671,7 @@ public class AddBillFragment extends Fragment {
             clearInputs();
             
         } catch (NumberFormatException e) {
-            Toast.makeText(getContext(), "请输入有效的金额", Toast.LENGTH_SHORT).show();
+            Toast.makeText(getActivity(), "请输入有效的金额", Toast.LENGTH_SHORT).show();
         }
     }
     
@@ -707,7 +702,7 @@ public class AddBillFragment extends Fragment {
         currentAmount = new StringBuilder("0");
         etNote.setText("");
         updateAmountDisplay();
-        Toast.makeText(getContext(), "已清空，可继续记账", Toast.LENGTH_SHORT).show();
+        Toast.makeText(getActivity(), "已清空，可继续记账", Toast.LENGTH_SHORT).show();
     }
     
     private void clearInputs() {

@@ -21,9 +21,10 @@ public final class BillBean {
     private int iconResId;
     private int incomeType; // 0=支出，1=收入
     private String time; // 时间 HH:mm:ss
+    private String title; // 备注
 
     public BillBean(double fare, int year, int month, int day, int userId, String categoryName,
-                    String categoryDesc, int iconResId, int incomeType, String time) {
+                    String categoryDesc, int iconResId, int incomeType, String time, String title) {
         this.fare = fare;
         this.year = year;
         this.month = month;
@@ -34,6 +35,7 @@ public final class BillBean {
         this.iconResId = iconResId;
         this.incomeType = incomeType;
         this.time = time;
+        this.title = title;
     }
 
     public int getIconResId() {
@@ -114,5 +116,13 @@ public final class BillBean {
 
     public void setTime(String time) {
         this.time = time;
+    }
+
+    public String getTitle() {
+        return title;
+    }
+
+    public void setTitle(String title) {
+        this.title = title;
     }
 }

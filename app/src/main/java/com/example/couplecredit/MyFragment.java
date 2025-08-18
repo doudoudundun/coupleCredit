@@ -19,6 +19,7 @@ public class MyFragment extends Fragment {
     
     // UI组件声明
     private LinearLayout llChatBackground;  // 聊天背景设置选项容器
+    private LinearLayout llToastDemo;       // Toast演示选项容器
     
     /**
      * 创建Fragment视图
@@ -49,6 +50,7 @@ public class MyFragment extends Fragment {
      */
     private void initViews(View view) {
         llChatBackground = view.findViewById(R.id.ll_chat_background);
+        llToastDemo = view.findViewById(R.id.ll_toast_demo);
     }
     
     /**
@@ -59,6 +61,13 @@ public class MyFragment extends Fragment {
         llChatBackground.setOnClickListener(v -> {
             // 启动聊天背景设置Activity
             Intent intent = new Intent(getActivity(), ChatBackgroundActivity.class);
+            startActivity(intent);
+        });
+        
+        // 设置Toast演示选项点击事件
+        llToastDemo.setOnClickListener(v -> {
+            // 启动Toast演示Activity
+            Intent intent = new Intent(getActivity(), ToastDemoActivity.class);
             startActivity(intent);
         });
     }
