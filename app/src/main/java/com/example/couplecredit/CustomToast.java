@@ -131,7 +131,7 @@ public class CustomToast {
             // 设置Toast视图和位置
             toast.setView(toastView);
             toast.setDuration(duration);
-            toast.setGravity(Gravity.BOTTOM, 0, 150);
+            toast.setGravity(Gravity.BOTTOM, 0, 250);
             
             // 显示Toast
             toast.show();

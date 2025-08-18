@@ -11,6 +11,8 @@ import android.view.ViewGroup;
 import android.view.Window;
 
 import android.widget.Button;
+import android.widget.EditText;
+import android.widget.ImageButton;
 import android.widget.LinearLayout;
 import android.widget.NumberPicker;
 import android.widget.TextView;
@@ -23,13 +25,16 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.transsion.widgetslib.dialog.PromptDialog;
 
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 public class ClassicModelFragment extends Fragment {
@@ -112,7 +117,7 @@ public class ClassicModelFragment extends Fragment {
                 null,
                 BillDatabaseHelper.COLUMN_DATE + " LIKE ?",
                 new String[]{monthPattern},
-                BillDatabaseHelper.COLUMN_DATE + " DESC"
+                BillDatabaseHelper.COLUMN_DATE + " DESC, " + BillDatabaseHelper.COLUMN_TIME + " DESC"
         );
 
         if (cursor != null && cursor.moveToFirst()) {
@@ -334,6 +339,7 @@ public class ClassicModelFragment extends Fragment {
     }
 
     private void processDialog(BillBean bill){
+
         double fare = bill.getFare();
         String incomeType = bill.getIncomeType() == 1 ? "收入" : "支出";
         String categoryName = bill.getCategoryName();
@@ -346,23 +352,33 @@ public class ClassicModelFragment extends Fragment {
         mDialog = new PromptDialog.Builder(getContext())
                 .setTitle("账单详情")
                 .setView(R.layout.dialog_layout)
-//                .setPositiveButton("确定", null)
-//                .setNegativeButton("取消", (dialog, which) -> dialog.dismiss())
                 .show();
 
         // 获取对话框中的视图组件
         TextView tvCategoryName = mDialog.findViewById(R.id.tv_category_name);
         TextView tvDate = mDialog.findViewById(R.id.tv_date);
         TextView tvFare = mDialog.findViewById(R.id.tv_fare);
+        TextView tvNoteContent = mDialog.findViewById(R.id.tv_note_content);
+        
+
+        EditText etDate = mDialog.findViewById(R.id.et_date);
+        EditText etFare = mDialog.findViewById(R.id.et_fare);
+        EditText etNoteContent = mDialog.findViewById(R.id.et_note_content);
+        
         Button btnDelete = mDialog.findViewById(R.id.btn_delete);
         Button btnEdit = mDialog.findViewById(R.id.btn_edit);
+        ImageButton btnConfirm = mDialog.findViewById(R.id.btn_confirm);
+        ImageButton btnCancel = mDialog.findViewById(R.id.btn_cancel);
         LinearLayout llNoteCard = mDialog.findViewById(R.id.ll_note_card);
-        TextView tvNoteContent = mDialog.findViewById(R.id.tv_note_content);
 
         // 设置数据
         if (tvCategoryName != null) tvCategoryName.setText(incomeType + "-" + categoryName);
         if (tvDate != null) tvDate.setText(date);
         if (tvFare != null) tvFare.setText("￥ " + String.format("%.2f", fare));
+        
+        // 设置EditText的初始值
+        if (etDate != null) etDate.setText(date);
+        if (etFare != null) etFare.setText(String.format("%.2f", fare));
         
         // 处理备注显示
         String noteTitle = bill.getTitle();
@@ -370,24 +386,130 @@ public class ClassicModelFragment extends Fragment {
             // 有备注且备注不等于分类名称时显示备注卡片
             if (llNoteCard != null) llNoteCard.setVisibility(View.VISIBLE);
             if (tvNoteContent != null) tvNoteContent.setText(noteTitle);
+            if (etNoteContent != null) etNoteContent.setText(noteTitle);
         } else {
             // 没有备注或备注等于分类名称时隐藏备注卡片
             if (llNoteCard != null) llNoteCard.setVisibility(View.GONE);
         }
         if (btnDelete != null) btnDelete.setOnClickListener(v -> {
-            // 删除账单
-            int deletedRows = Utils.deleteBill(getContext(), bill);
-            if (deletedRows > 0) {
-                // 删除成功，刷新数据
-                refreshBillData();
-            }
-            mDialog.dismiss();
+            showWarningDialog(bill);
         });
+        
         if (btnEdit != null) btnEdit.setOnClickListener(v -> {
-            // 修改账单
-            btnDelete.setVisibility(View.GONE);
-            refreshBillData();
-
+            // 进入修改模式
+            enterEditMode(tvDate, tvFare, tvNoteContent,
+                         etDate, etFare, etNoteContent,
+                         btnEdit, btnDelete, btnConfirm, btnCancel);
         });
+        
+        if (btnConfirm != null) btnConfirm.setOnClickListener(v -> {
+            // 确认修改并更新数据库
+            String currentDate = etDate.getText().toString();
+            double currentFare = Double.parseDouble(etFare.getText().toString());
+            String currentNoteContent = etNoteContent.getText().toString();
+            SimpleDateFormat timeFormat = new SimpleDateFormat("HH:mm:ss", Locale.getDefault());
+            String currentTime = timeFormat.format(new Date());
+            
+            int updatedRows = Utils.updateBill(getContext(), bill, currentDate, currentFare, currentNoteContent, currentTime);
+            if (updatedRows > 0) {
+                // 更新成功，刷新数据
+                refreshBillData();
+//                // 关闭对话框
+//                if (mDialog != null) {
+//                    mDialog.dismiss();
+//                }
+            }
+            
+            exitEditMode(tvDate, tvFare, tvNoteContent,
+                        etDate, etFare, etNoteContent,
+                        btnEdit, btnDelete, btnConfirm, btnCancel);
+        });
+        
+        if (btnCancel != null) btnCancel.setOnClickListener(v -> {
+            // 取消修改，恢复原始数据
+            if (etDate != null) etDate.setText(date);
+            if (etFare != null) etFare.setText(String.format("%.2f", fare));
+            if (etNoteContent != null) etNoteContent.setText(noteTitle != null ? noteTitle : "");
+            
+            exitEditMode(tvDate, tvFare, tvNoteContent,
+                        etDate, etFare, etNoteContent,
+                        btnEdit, btnDelete, btnConfirm, btnCancel);
+        });
+    }
+    
+    private void enterEditMode(TextView tvDate, TextView tvFare, TextView tvNoteContent,
+                              EditText etDate, EditText etFare, EditText etNoteContent,
+                              Button btnEdit, Button btnDelete, ImageButton btnConfirm, ImageButton btnCancel) {
+        // 隐藏TextView，显示EditText
+        //if (tvCategoryName != null) tvCategoryName.setVisibility(View.GONE);
+        if (tvDate != null) tvDate.setVisibility(View.GONE);
+        if (tvFare != null) tvFare.setVisibility(View.GONE);
+        if (tvNoteContent != null) tvNoteContent.setVisibility(View.GONE);
+        
+        //if (etCategoryName != null) etCategoryName.setVisibility(View.VISIBLE);
+        if (etDate != null) etDate.setVisibility(View.VISIBLE);
+        //Todo：设置日期选择器
+        if (etFare != null) etFare.setVisibility(View.VISIBLE); //只让输入数字
+        if (etNoteContent != null) etNoteContent.setVisibility(View.VISIBLE);
+        
+        // 隐藏修改和删除按钮，显示确认和取消按钮
+        if (btnEdit != null) btnEdit.setVisibility(View.GONE);
+        if (btnDelete != null) btnDelete.setVisibility(View.GONE);
+        if (btnConfirm != null) btnConfirm.setVisibility(View.VISIBLE);
+        if (btnCancel != null) btnCancel.setVisibility(View.VISIBLE);
+        mDialog.setTitle("修改账单");
+    }
+    
+    private void exitEditMode(TextView tvDate, TextView tvFare, TextView tvNoteContent,
+                             EditText etDate, EditText etFare, EditText etNoteContent,
+                             Button btnEdit, Button btnDelete, ImageButton btnConfirm, ImageButton btnCancel) {
+        // 更新TextView的内容为EditText中的值
+
+        if (tvDate != null && etDate != null) {
+            tvDate.setText(etDate.getText().toString());
+        }
+        if (tvFare != null && etFare != null) {
+            tvFare.setText("￥ " + etFare.getText().toString());
+        }
+        if (tvNoteContent != null && etNoteContent != null) {
+            tvNoteContent.setText(etNoteContent.getText().toString());
+        }
+        
+        // 显示TextView，隐藏EditText
+
+        if (tvDate != null) tvDate.setVisibility(View.VISIBLE);
+        if (tvFare != null) tvFare.setVisibility(View.VISIBLE);
+        if (tvNoteContent != null) tvNoteContent.setVisibility(View.VISIBLE);
+        
+
+        if (etDate != null) etDate.setVisibility(View.GONE);
+        if (etFare != null) etFare.setVisibility(View.GONE);
+        if (etNoteContent != null) etNoteContent.setVisibility(View.GONE);
+        
+        // 显示修改和删除按钮，隐藏确认和取消按钮
+        if (btnEdit != null) btnEdit.setVisibility(View.VISIBLE);
+        if (btnDelete != null) btnDelete.setVisibility(View.VISIBLE);
+        if (btnConfirm != null) btnConfirm.setVisibility(View.GONE);
+        if (btnCancel != null) btnCancel.setVisibility(View.GONE);
+        mDialog.setTitle("账单详情");
+    }
+    
+    private void showWarningDialog(BillBean bill) {
+        new PromptDialog.Builder(getContext())
+                .setTitle("删除账单（此举不可逆）")
+                .setPositiveButton("确定", (dialog, which) ->{
+                    int deletedRows = Utils.deleteBill(getContext(), bill);
+                    if (deletedRows > 0) {
+                        // 删除成功，刷新数据
+                        refreshBillData();
+                        // 关闭主对话框
+                        if (mDialog != null) {
+                            mDialog.dismiss();
+                        }
+                    }
+                    dialog.dismiss();
+                })
+                .setNegativeButton("取消", (dialog, which) -> dialog.dismiss())
+                .show();
     }
 }

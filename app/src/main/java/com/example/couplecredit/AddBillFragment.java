@@ -625,19 +625,19 @@ public class AddBillFragment extends Fragment {
         
         // 验证输入
         if (currentAmount.toString().equals("0") || currentAmount.toString().isEmpty()) {
-            Toast.makeText(getActivity(), "请输入金额", Toast.LENGTH_SHORT).show();
+            CustomToast.show(getActivity(), "请输入金额");
             return;
         }
         
         if (selectedCategory.isEmpty()) {
-            Toast.makeText(getActivity(), "请选择分类", Toast.LENGTH_SHORT).show();
+            CustomToast.show(getActivity(), "请选择分类");
             return;
         }
         
         try {
             double amount = Double.parseDouble(currentAmount.toString());
             if (amount <= 0) {
-                Toast.makeText(getActivity(), "金额必须大于0", Toast.LENGTH_SHORT).show();
+                CustomToast.show(getActivity(), "金额必须大于0");
                 return;
             }
             // 格式化日期为 yyyy-MM-dd 格式

@@ -54,4 +54,39 @@ public final class Utils {
             selectionArgs
         );
     }
+    
+    public static int updateBill(Context context, BillBean bill, String newDate, double newFare, String newNoteContent, String newTime) {
+        // 构建WHERE条件，用于定位要更新的账单
+        String selection = BillDatabaseHelper.USER_ID + "=? AND " +
+                          BillDatabaseHelper.COLUMN_TYPE + "=? AND " +
+                          BillDatabaseHelper.COLUMN_AMOUNT + "=? AND " +
+                          BillDatabaseHelper.COLUMN_DATE + "=? AND " +
+                          BillDatabaseHelper.COLUMN_TIME + "=? AND " +
+                          BillDatabaseHelper.COLUMN_INCOME_TYPE + "=?";
+        
+        String originalDateString = String.format("%04d-%02d-%02d", bill.getYear(), bill.getMonth(), bill.getDay());
+        
+        String[] selectionArgs = {
+            String.valueOf(bill.getUserId()),
+            bill.getCategoryName(),
+            String.valueOf(bill.getFare()),
+            originalDateString,
+            bill.getTime(),
+            String.valueOf(bill.getIncomeType())
+        };
+        
+        // 构建要更新的值
+        android.content.ContentValues values = new android.content.ContentValues();
+        values.put(BillDatabaseHelper.COLUMN_DATE, newDate);
+        values.put(BillDatabaseHelper.COLUMN_AMOUNT, newFare);
+        values.put(BillDatabaseHelper.COLUMN_TITLE, newNoteContent);
+        values.put(BillDatabaseHelper.COLUMN_TIME, newTime);
+        
+        return context.getContentResolver().update(
+            Uri.parse(BillProvider.CONTENT_URI + "/bills"),
+            values,
+            selection,
+            selectionArgs
+        );
+    }
 }

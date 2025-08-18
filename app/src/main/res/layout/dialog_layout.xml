@@ -30,6 +30,30 @@
             android:layout_height="36dp"
             android:text="删除"
             android:textSize="14sp" />
+            
+        <!-- 确认和取消图标按钮，初始隐藏 -->
+        <ImageButton
+            android:id="@+id/btn_confirm"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:layout_marginEnd="8dp"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:src="@drawable/ic_confirm"
+            android:scaleType="fitCenter"
+            android:padding="2dp"
+            android:visibility="gone"
+            android:contentDescription="确认" />
+            
+        <ImageButton
+            android:id="@+id/btn_cancel"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:src="@drawable/ic_cancel"
+            android:scaleType="fitCenter"
+            android:padding="2dp"
+            android:visibility="gone"
+            android:contentDescription="取消" />
     </LinearLayout>
 
     <!-- 分类卡片 -->
@@ -115,6 +139,18 @@
                 android:textSize="18sp"
                 android:textColor="#2196F3"
                 android:textStyle="bold" />
+                
+            <EditText
+                android:id="@+id/et_fare"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="1.00"
+                android:textSize="18sp"
+                android:textColor="#2196F3"
+                android:textStyle="bold"
+                android:background="@android:color/transparent"
+                android:inputType="numberDecimal"
+                android:visibility="gone" />
         </LinearLayout>
 
         <!-- 日期 -->
@@ -138,6 +174,17 @@
                 android:text="2025-08-14"
                 android:textSize="16sp"
                 android:textColor="#333333" />
+                
+            <EditText
+                android:id="@+id/et_date"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="2025-08-14"
+                android:textSize="16sp"
+                android:textColor="#333333"
+                android:background="@android:color/transparent"
+                android:inputType="date"
+                android:visibility="gone" />
         </LinearLayout>
 
     </LinearLayout>
@@ -169,6 +216,17 @@
             android:textColor="#333333"
             android:textSize="16sp"
             android:lineSpacingExtra="4dp" />
+            
+        <EditText
+            android:id="@+id/et_note_content"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:textColor="#333333"
+            android:textSize="16sp"
+            android:background="@android:color/transparent"
+            android:hint="请输入备注"
+            android:visibility="gone" />
 
     </LinearLayout>
 
