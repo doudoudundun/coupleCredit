@@ -139,7 +139,7 @@
                 android:textSize="18sp"
                 android:textColor="#2196F3"
                 android:textStyle="bold" />
-                
+
             <EditText
                 android:id="@+id/et_fare"
                 android:layout_width="wrap_content"
@@ -174,17 +174,7 @@
                 android:text="2025-08-14"
                 android:textSize="16sp"
                 android:textColor="#333333" />
-                
-            <EditText
-                android:id="@+id/et_date"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="2025-08-14"
-                android:textSize="16sp"
-                android:textColor="#333333"
-                android:background="@android:color/transparent"
-                android:inputType="date"
-                android:visibility="gone" />
+
         </LinearLayout>
 
     </LinearLayout>

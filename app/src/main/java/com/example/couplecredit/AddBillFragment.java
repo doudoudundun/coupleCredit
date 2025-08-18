@@ -454,46 +454,22 @@ public class AddBillFragment extends Fragment {
         int year = selectedDate.get(Calendar.YEAR);
         int month = selectedDate.get(Calendar.MONTH);
         int day = selectedDate.get(Calendar.DAY_OF_MONTH);
-        
-        DatePickerDialog datePickerDialog = new DatePickerDialog(
-            getContext(),
-            new DatePickerDialog.OnDateSetListener() {
-                @Override
-                public void onDateSet(DatePicker view, int year, int month, int dayOfMonth) {
-                    selectedDate.set(Calendar.YEAR, year);
-                    selectedDate.set(Calendar.MONTH, month);
-                    selectedDate.set(Calendar.DAY_OF_MONTH, dayOfMonth);
-                    updateDateDisplay();
-                    Toast.makeText(getActivity(), "日期已更新", Toast.LENGTH_SHORT).show();
+        String dateString = String.format("%d-%02d-%02d", year, month + 1, day);
+        Utils.showDatePicker(getActivity(), dateString, formattedDate -> {
+            // 解析选择的日期并设置到selectedDate
+            try {
+                String[] dateParts = formattedDate.split("-");
+                if (dateParts.length == 3) {
+                    int selectedYear = Integer.parseInt(dateParts[0]);
+                    int selectedMonth = Integer.parseInt(dateParts[1]) - 1; // Calendar月份从0开始
+                    int selectedDay = Integer.parseInt(dateParts[2]);
+                    selectedDate.set(selectedYear, selectedMonth, selectedDay);
                 }
-            },
-            year, month, day
-        );
-        
-        // 设置对话框标题
-        datePickerDialog.setTitle("选择日期");
-        
-        // 设置确定按钮文本和行为
-        datePickerDialog.setButton(DatePickerDialog.BUTTON_POSITIVE, "确定", datePickerDialog);
-        
-        // 设置取消按钮文本
-        datePickerDialog.setButton(DatePickerDialog.BUTTON_NEGATIVE, "取消", 
-            (dialog, which) -> {
-                dialog.dismiss();
-                Toast.makeText(getActivity(), "已取消选择", Toast.LENGTH_SHORT).show();
-            });
-        
-        datePickerDialog.show();
-        
-        // 设置按钮颜色，确保按钮文字可见
-        if (datePickerDialog.getButton(DatePickerDialog.BUTTON_POSITIVE) != null) {
-            datePickerDialog.getButton(DatePickerDialog.BUTTON_POSITIVE).setTextColor(
-                getResources().getColor(android.R.color.holo_blue_dark));
-        }
-        if (datePickerDialog.getButton(DatePickerDialog.BUTTON_NEGATIVE) != null) {
-            datePickerDialog.getButton(DatePickerDialog.BUTTON_NEGATIVE).setTextColor(
-                getResources().getColor(android.R.color.holo_red_dark));
-        }
+            } catch (Exception e) {
+                // 解析失败时保持原日期
+            }
+            updateDateDisplay();
+        });
     }
     
     private void updateDateDisplay() {

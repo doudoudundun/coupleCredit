@@ -1,7 +1,14 @@
 package com.example.couplecredit;
 
+import static java.security.AccessController.getContext;
+
+import android.app.DatePickerDialog;
 import android.content.Context;
 import android.net.Uri;
+import android.widget.DatePicker;
+import android.widget.Toast;
+
+import java.util.Calendar;
 
 public final class Utils {
     public static void insertBill(Context context,int userId, String title, String type, double amount, String date, String time, int incomeType) {
@@ -89,4 +96,56 @@ public final class Utils {
             selectionArgs
         );
     }
+
+    public interface DatePickerCallback {
+        void onDateSelected(String formattedDate);
+    }
+    
+    public static void showDatePicker(Context context, String dateString, DatePickerCallback callback) {
+        Calendar selectedDate = Calendar.getInstance();
+        int year = selectedDate.get(Calendar.YEAR);
+        int month = selectedDate.get(Calendar.MONTH);
+        int day = selectedDate.get(Calendar.DAY_OF_MONTH);
+        
+        // 解析当前日期文本
+        if (dateString != null && !dateString.isEmpty()) {
+            try {
+                String[] dateParts = dateString.split("-");
+                if (dateParts.length == 3) {
+                    year = Integer.parseInt(dateParts[0]);
+                    month = Integer.parseInt(dateParts[1]) - 1; // Calendar月份从0开始
+                    day = Integer.parseInt(dateParts[2]);
+                }
+            } catch (Exception e) {
+                // 使用当前日期作为默认值
+            }
+        }
+        
+        DatePickerDialog datePickerDialog = new DatePickerDialog(
+                context,
+                (view, selectedYear, selectedMonth, selectedDay) -> {
+                    // 格式化选择的日期为YYYY-MM-DD格式
+                    String formattedDate = String.format("%04d-%02d-%02d", selectedYear, selectedMonth + 1, selectedDay);
+                    if (callback != null) {
+                        callback.onDateSelected(formattedDate);
+                    }
+                },
+                year, month, day
+        );
+
+        datePickerDialog.setTitle("选择日期");
+        datePickerDialog.show();
+        
+        // 设置按钮颜色
+        if (datePickerDialog.getButton(DatePickerDialog.BUTTON_POSITIVE) != null) {
+            datePickerDialog.getButton(DatePickerDialog.BUTTON_POSITIVE).setTextColor(
+                    context.getResources().getColor(android.R.color.holo_blue_dark));
+        }
+        if (datePickerDialog.getButton(DatePickerDialog.BUTTON_NEGATIVE) != null) {
+            datePickerDialog.getButton(DatePickerDialog.BUTTON_NEGATIVE).setTextColor(
+                    context.getResources().getColor(android.R.color.holo_red_dark));
+        }
+    }
+
+
 }

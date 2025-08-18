@@ -1,5 +1,6 @@
 package com.example.couplecredit;
 
+import android.app.DatePickerDialog;
 import android.app.Dialog;
 import android.database.Cursor;
 import android.net.Uri;
@@ -361,7 +362,7 @@ public class ClassicModelFragment extends Fragment {
         TextView tvNoteContent = mDialog.findViewById(R.id.tv_note_content);
         
 
-        EditText etDate = mDialog.findViewById(R.id.et_date);
+//        EditText etDate = mDialog.findViewById(R.id.et_date);
         EditText etFare = mDialog.findViewById(R.id.et_fare);
         EditText etNoteContent = mDialog.findViewById(R.id.et_note_content);
         
@@ -377,8 +378,8 @@ public class ClassicModelFragment extends Fragment {
         if (tvFare != null) tvFare.setText("￥ " + String.format("%.2f", fare));
         
         // 设置EditText的初始值
-        if (etDate != null) etDate.setText(date);
-        if (etFare != null) etFare.setText(String.format("%.2f", fare));
+//        if (etDate != null) etDate.setText(date);
+        if (etFare != null) etFare.setText("￥" + String.format("%.2f", fare));
         
         // 处理备注显示
         String noteTitle = bill.getTitle();
@@ -398,14 +399,18 @@ public class ClassicModelFragment extends Fragment {
         if (btnEdit != null) btnEdit.setOnClickListener(v -> {
             // 进入修改模式
             enterEditMode(tvDate, tvFare, tvNoteContent,
-                         etDate, etFare, etNoteContent,
+                         etFare, etNoteContent,
                          btnEdit, btnDelete, btnConfirm, btnCancel);
         });
         
         if (btnConfirm != null) btnConfirm.setOnClickListener(v -> {
             // 确认修改并更新数据库
-            String currentDate = etDate.getText().toString();
-            double currentFare = Double.parseDouble(etFare.getText().toString());
+            String currentDate = tvDate.getText().toString();
+            String fareText = etFare.getText().toString();
+            // 判空逻辑：如果包含货币符号则去掉，否则直接解析
+            double currentFare = fareText.startsWith("￥") ? 
+                Double.parseDouble(fareText.substring(1)) : 
+                Double.parseDouble(fareText);
             String currentNoteContent = etNoteContent.getText().toString();
             SimpleDateFormat timeFormat = new SimpleDateFormat("HH:mm:ss", Locale.getDefault());
             String currentTime = timeFormat.format(new Date());
@@ -421,34 +426,40 @@ public class ClassicModelFragment extends Fragment {
             }
             
             exitEditMode(tvDate, tvFare, tvNoteContent,
-                        etDate, etFare, etNoteContent,
+                        etFare, etNoteContent,
                         btnEdit, btnDelete, btnConfirm, btnCancel);
         });
         
         if (btnCancel != null) btnCancel.setOnClickListener(v -> {
             // 取消修改，恢复原始数据
-            if (etDate != null) etDate.setText(date);
-            if (etFare != null) etFare.setText(String.format("%.2f", fare));
+//            if (etDate != null) etDate.setText(date);
+            if (etFare != null) etFare.setText("￥" + String.format("%.2f", fare));
             if (etNoteContent != null) etNoteContent.setText(noteTitle != null ? noteTitle : "");
             
+            // 更新TextView显示原始数据
+            if (tvFare != null) tvFare.setText("￥ " + String.format("%.2f", fare));
+            if (tvNoteContent != null) tvNoteContent.setText(noteTitle != null ? noteTitle : "");
+            
             exitEditMode(tvDate, tvFare, tvNoteContent,
-                        etDate, etFare, etNoteContent,
+                        etFare, etNoteContent,
                         btnEdit, btnDelete, btnConfirm, btnCancel);
         });
     }
     
     private void enterEditMode(TextView tvDate, TextView tvFare, TextView tvNoteContent,
-                              EditText etDate, EditText etFare, EditText etNoteContent,
+                               EditText etFare, EditText etNoteContent,
                               Button btnEdit, Button btnDelete, ImageButton btnConfirm, ImageButton btnCancel) {
         // 隐藏TextView，显示EditText
         //if (tvCategoryName != null) tvCategoryName.setVisibility(View.GONE);
-        if (tvDate != null) tvDate.setVisibility(View.GONE);
+        if (tvDate != null) tvDate.setOnClickListener(v-> {//设置日期选择器
+            Utils.showDatePicker(getContext(), tvDate.getText().toString(), 
+                formattedDate -> tvDate.setText(formattedDate));
+        });
         if (tvFare != null) tvFare.setVisibility(View.GONE);
         if (tvNoteContent != null) tvNoteContent.setVisibility(View.GONE);
         
         //if (etCategoryName != null) etCategoryName.setVisibility(View.VISIBLE);
-        if (etDate != null) etDate.setVisibility(View.VISIBLE);
-        //Todo：设置日期选择器
+
         if (etFare != null) etFare.setVisibility(View.VISIBLE); //只让输入数字
         if (etNoteContent != null) etNoteContent.setVisibility(View.VISIBLE);
         
@@ -461,15 +472,18 @@ public class ClassicModelFragment extends Fragment {
     }
     
     private void exitEditMode(TextView tvDate, TextView tvFare, TextView tvNoteContent,
-                             EditText etDate, EditText etFare, EditText etNoteContent,
+                             EditText etFare, EditText etNoteContent,
                              Button btnEdit, Button btnDelete, ImageButton btnConfirm, ImageButton btnCancel) {
         // 更新TextView的内容为EditText中的值
 
-        if (tvDate != null && etDate != null) {
-            tvDate.setText(etDate.getText().toString());
-        }
         if (tvFare != null && etFare != null) {
-            tvFare.setText("￥ " + etFare.getText().toString());
+            String fareText = etFare.getText().toString();
+            // 判空逻辑：如果EditText中没有货币符号，则添加
+            if (!fareText.startsWith("￥")) {
+                tvFare.setText("￥" + fareText);
+            } else {
+                tvFare.setText(fareText);
+            }
         }
         if (tvNoteContent != null && etNoteContent != null) {
             tvNoteContent.setText(etNoteContent.getText().toString());
@@ -482,7 +496,6 @@ public class ClassicModelFragment extends Fragment {
         if (tvNoteContent != null) tvNoteContent.setVisibility(View.VISIBLE);
         
 
-        if (etDate != null) etDate.setVisibility(View.GONE);
         if (etFare != null) etFare.setVisibility(View.GONE);
         if (etNoteContent != null) etNoteContent.setVisibility(View.GONE);
         
