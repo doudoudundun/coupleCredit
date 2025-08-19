@@ -43,7 +43,7 @@
                     android:id="@+id/tv_username"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="学长"
+                    android:text="男友"
                     android:textSize="14sp"
                     android:textStyle="bold"
                     android:textColor="#333333" />
@@ -60,51 +60,52 @@
 
             </LinearLayout>
 
-            <!-- 消息内容文本 -->
-            <TextView
-                android:id="@+id/tv_message_content"
+            <!-- 消息文本和点赞按钮容器 -->
+            <LinearLayout
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="小迷糊，要记得记账呀"
-                android:textSize="16sp"
-                android:textColor="#333333"
-                android:background="@drawable/chat_bubble_background"
-                android:padding="12dp"
                 android:layout_marginTop="4dp"
-                android:layout_marginEnd="60dp" />
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <!-- 消息内容文本 -->
+                <TextView
+                    android:id="@+id/tv_message_content"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="小迷糊，要记得记账呀"
+                    android:textSize="16sp"
+                    android:textColor="#333333"
+                    android:background="@drawable/chat_bubble_background"
+                    android:gravity="start"
+                    android:padding="12dp"
+                    android:layout_marginTop="4dp"
+                    android:maxWidth="300dp"
+                    android:maxLines="10"
+                    android:ellipsize="none" />
+
+
+                <!-- 点赞按钮 -->
+                <ImageView
+                    android:id="@+id/iv_like"
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:background="@drawable/circle_bg_pink"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:padding="4dp"
+                    android:layout_marginStart="16dp"
+                    android:src="@drawable/ic_favorite" />
+
+
+
+            </LinearLayout>
+
+
 
         </LinearLayout>
 
-        <!-- 消息互动按钮组 -->
-        <LinearLayout
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal">
 
-            <!-- 删除这个回复按钮 -->
-            <!-- <ImageView
-                android:id="@+id/iv_reply"
-                android:layout_width="24dp"
-                android:layout_height="24dp"
-                android:src="@android:drawable/ic_menu_revert"
-                android:background="@drawable/circle_bg_gray"
-                android:padding="4dp"
-                android:layout_marginEnd="8dp"
-                android:clickable="true"
-                android:focusable="true" /> -->
-
-            <!-- 点赞按钮 -->
-            <ImageView
-                android:id="@+id/iv_like"
-                android:layout_width="24dp"
-                android:layout_height="24dp"
-                android:src="@drawable/ic_favorite"
-                android:background="@drawable/circle_bg_pink"
-                android:padding="4dp"
-                android:clickable="true"
-                android:focusable="true" />
-
-        </LinearLayout>
 
     </LinearLayout>
 
