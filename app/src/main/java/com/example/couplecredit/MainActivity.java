@@ -122,7 +122,7 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    private void showFragment(Fragment fragment) {
+    public void showFragment(Fragment fragment) {
         FragmentTransaction transaction = fragmentManager.beginTransaction();
         
         // 隐藏当前Fragment
@@ -145,6 +145,11 @@ public class MainActivity extends AppCompatActivity {
     // 提供获取HeadFragment的方法
     public HeadFragment getHeadFragment() {
         return headFragment;
+    }
+    
+    // 提供获取ReportFragment的方法
+    public ReportFragment getReportFragment() {
+        return reportFragment;
     }
 
 }

@@ -74,6 +74,38 @@ public class ClassicModelFragment extends Fragment {
         rvBillList = view.findViewById(R.id.rv_bill_list);
         tvExpenseAmount = view.findViewById(R.id.tv_expense_amount);
         tvIncomeAmount = view.findViewById(R.id.tv_income_amount);
+        
+        // 设置卡片点击监听器
+        LinearLayout llExpenseCard = view.findViewById(R.id.ll_expense_card);
+        LinearLayout llIncomeCard = view.findViewById(R.id.ll_income_card);
+        
+        llExpenseCard.setOnClickListener(v -> {
+            MainActivity mainActivity = (MainActivity) getActivity();
+            if (mainActivity != null) {
+                // 直接调用MainActivity的showFragment方法跳转到ReportFragment
+                mainActivity.showFragment(mainActivity.getReportFragment());
+                // 更新底部导航栏选中状态
+                com.transsion.widgetslib.widget.FootOperationBar footBar = 
+                    (com.transsion.widgetslib.widget.FootOperationBar) mainActivity.findViewById(R.id.bottom_nav);
+                if (footBar != null) {
+                    footBar.setItemSelectState(2);
+                }
+            }
+        });
+        
+        llIncomeCard.setOnClickListener(v -> {
+            MainActivity mainActivity = (MainActivity) getActivity();
+            if (mainActivity != null) {
+                // 直接调用MainActivity的showFragment方法跳转到ReportFragment
+                mainActivity.showFragment(mainActivity.getReportFragment());
+                // 更新底部导航栏选中状态
+                com.transsion.widgetslib.widget.FootOperationBar footBar = 
+                    (com.transsion.widgetslib.widget.FootOperationBar) mainActivity.findViewById(R.id.bottom_nav);
+                if (footBar != null) {
+                    footBar.setItemSelectState(2);
+                }
+            }
+        });
 
 
         // 移除初始化时的弹窗创建，改为在点击时创建
