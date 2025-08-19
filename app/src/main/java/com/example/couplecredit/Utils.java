@@ -3,9 +3,13 @@ package com.example.couplecredit;
 import static java.security.AccessController.getContext;
 
 import android.app.DatePickerDialog;
+import android.app.Dialog;
 import android.content.Context;
 import android.net.Uri;
+import android.view.Window;
 import android.widget.DatePicker;
+import android.widget.NumberPicker;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import java.util.Calendar;
@@ -99,6 +103,7 @@ public final class Utils {
 
     public interface DatePickerCallback {
         void onDateSelected(String formattedDate);
+
     }
     
     public static void showDatePicker(Context context, String dateString, DatePickerCallback callback) {
@@ -146,6 +151,45 @@ public final class Utils {
                     context.getResources().getColor(android.R.color.holo_red_dark));
         }
     }
+    public interface MonthPickerCallback{
+        void onMonthSelected(int year, int month);
+    }
+    public static void showDatePickerDialog(Context context, int currentYear, int currentMonth, MonthPickerCallback callback) {
+        Dialog dialog = new Dialog(context);
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
+        dialog.setContentView(R.layout.dialog_date_picker);
 
+        // 获取对话框中的控件
+        NumberPicker yearPicker = dialog.findViewById(R.id.np_year);
+        NumberPicker monthPicker = dialog.findViewById(R.id.np_month);
+        TextView tvCancel = dialog.findViewById(R.id.tv_cancel);
+        TextView tvConfirm = dialog.findViewById(R.id.tv_confirm);
+
+        // 设置年份选择器
+        yearPicker.setMinValue(2020);
+        yearPicker.setMaxValue(2080);
+        yearPicker.setValue(currentYear);
+
+        // 设置月份选择器
+        String[] monthDisplayValues = {"01", "02", "03", "04", "05", "06",
+                "07", "08", "09", "10", "11", "12"};
+        monthPicker.setMinValue(1);
+        monthPicker.setMaxValue(12);
+        monthPicker.setDisplayedValues(monthDisplayValues);
+        monthPicker.setValue(currentMonth);
+
+        // 取消按钮
+        tvCancel.setOnClickListener(v -> dialog.dismiss());
+
+        // 确认按钮
+        tvConfirm.setOnClickListener(v -> {
+            int year = yearPicker.getValue();
+            int month = monthPicker.getValue();
+            callback.onMonthSelected(year, month);
+            dialog.dismiss();
+        });
+
+        dialog.show();
+    }
 
 }

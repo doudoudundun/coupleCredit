@@ -82,11 +82,14 @@ public class ClassicModelFragment extends Fragment {
         llExpenseCard.setOnClickListener(v -> {
             MainActivity mainActivity = (MainActivity) getActivity();
             if (mainActivity != null) {
-                // 直接调用MainActivity的showFragment方法跳转到ReportFragment
-                mainActivity.showFragment(mainActivity.getReportFragment());
+                // 跳转到ReportFragment并同步月份
+                ReportFragment reportFragment = mainActivity.getReportFragment();
+                mainActivity.showFragment(reportFragment);
+                // 更新ReportFragment的月份显示
+                reportFragment.updateMonthDisplay(currentYear, currentMonth, "expense");
                 // 更新底部导航栏选中状态
-                com.transsion.widgetslib.widget.FootOperationBar footBar = 
-                    (com.transsion.widgetslib.widget.FootOperationBar) mainActivity.findViewById(R.id.bottom_nav);
+                com.transsion.widgetslib.widget.FootOperationBar footBar =
+                        (com.transsion.widgetslib.widget.FootOperationBar) mainActivity.findViewById(R.id.bottom_nav);
                 if (footBar != null) {
                     footBar.setItemSelectState(2);
                 }
@@ -96,8 +99,11 @@ public class ClassicModelFragment extends Fragment {
         llIncomeCard.setOnClickListener(v -> {
             MainActivity mainActivity = (MainActivity) getActivity();
             if (mainActivity != null) {
-                // 直接调用MainActivity的showFragment方法跳转到ReportFragment
-                mainActivity.showFragment(mainActivity.getReportFragment());
+                // 跳转到ReportFragment并同步月份
+                ReportFragment reportFragment = mainActivity.getReportFragment();
+                mainActivity.showFragment(reportFragment);
+                // 更新ReportFragment的月份显示
+                reportFragment.updateMonthDisplay(currentYear, currentMonth, "income");
                 // 更新底部导航栏选中状态
                 com.transsion.widgetslib.widget.FootOperationBar footBar = 
                     (com.transsion.widgetslib.widget.FootOperationBar) mainActivity.findViewById(R.id.bottom_nav);
@@ -228,17 +234,6 @@ public class ClassicModelFragment extends Fragment {
     private void insertSampleData() {
         // 插入示例账单数据
         Utils.insertBill(getContext(),1, "午餐聚餐", "餐饮", 25.80, "2025-08-15", "00:00:00", 0); // 支出
-        Utils.insertBill(getContext(),2, "地铁出行", "交通", 12.00, "2025-08-14", "00:00:00", 0); // 支出
-        Utils.insertBill(getContext(),3, "日用品采购", "购物", 35.50, "2025-08-13", "00:00:00", 0); // 支出
-        Utils.insertBill(getContext(),1, "电影票", "娱乐", 68.0, "2025-08-12", "00:00:00", 0); // 支出
-        Utils.insertBill(getContext(),2, "咖啡", "餐饮", 45.0, "2025-08-11", "00:00:00", 0); // 支出
-        Utils.insertBill(getContext(),3, "工资收入", "收入", 5000.0, "2025-08-10", "00:00:00", 1); // 收入
-        Utils.insertBill(getContext(),1, "午餐聚餐", "餐饮", 258.0, "2025-08-15", "00:00:00", 0); // 支出
-        Utils.insertBill(getContext(),2, "地铁出行", "交通", 12.00, "2025-08-14", "00:00:00", 0); // 支出
-        Utils.insertBill(getContext(),3, "兼职收入", "收入", 800.0, "2025-08-13", "00:00:00", 1); // 收入
-        Utils.insertBill(getContext(),1, "电影票", "娱乐", 68.0, "2025-08-12", "00:00:00", 0); // 支出
-        Utils.insertBill(getContext(),2, "咖啡", "餐饮", 45.0, "2025-08-11", "00:00:00", 0); // 支出
-        Utils.insertBill(getContext(),3, "水电费", "生活", 180.0, "2025-07-10", "00:00:00", 0); // 支出
     }
     
     private int getIconForCategory(String category) {
@@ -330,45 +325,15 @@ public class ClassicModelFragment extends Fragment {
         return months[month - 1];
     }
     private void showDatePickerDialog() {
-        Dialog dialog = new Dialog(getContext());
-        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
-        dialog.setContentView(R.layout.dialog_date_picker);
-
-        // 获取对话框中的控件
-        NumberPicker yearPicker = dialog.findViewById(R.id.np_year);
-        NumberPicker monthPicker = dialog.findViewById(R.id.np_month);
-        TextView tvCancel = dialog.findViewById(R.id.tv_cancel);
-        TextView tvConfirm = dialog.findViewById(R.id.tv_confirm);
-
-        // 设置年份选择器
-        yearPicker.setMinValue(2020);
-        yearPicker.setMaxValue(2080);
-        yearPicker.setValue(currentYear);
-
-        // 设置月份选择器
-        String[] monthDisplayValues = {"01", "02", "03", "04", "05", "06",
-                "07", "08", "09", "10", "11", "12"};
-        monthPicker.setMinValue(1);
-        monthPicker.setMaxValue(12);
-        monthPicker.setDisplayedValues(monthDisplayValues);
-        monthPicker.setValue(currentMonth);
-
-        // 取消按钮
-        tvCancel.setOnClickListener(v -> dialog.dismiss());
-
-        // 确认按钮
-        tvConfirm.setOnClickListener(v -> {
-            currentYear = yearPicker.getValue();
-            currentMonth = monthPicker.getValue();
+        Utils.showDatePickerDialog(getContext(), currentYear, currentMonth, (selectedYear, selectedMonth)->{
+            currentYear = selectedYear;
+            currentMonth = selectedMonth;
             updateMonthTitle();
             //更新recyclerView显示
             loadBillData(currentYear,currentMonth);
             processAndDisplayData();
             sumAmounts();
-            dialog.dismiss();
         });
-
-        dialog.show();
     }
 
     private void processDialog(BillBean bill){
@@ -451,10 +416,6 @@ public class ClassicModelFragment extends Fragment {
             if (updatedRows > 0) {
                 // 更新成功，刷新数据
                 refreshBillData();
-//                // 关闭对话框
-//                if (mDialog != null) {
-//                    mDialog.dismiss();
-//                }
             }
             
             exitEditMode(tvDate, tvFare, tvNoteContent,
@@ -484,7 +445,7 @@ public class ClassicModelFragment extends Fragment {
         // 隐藏TextView，显示EditText
         //if (tvCategoryName != null) tvCategoryName.setVisibility(View.GONE);
         if (tvDate != null) tvDate.setOnClickListener(v-> {//设置日期选择器
-            Utils.showDatePicker(getContext(), tvDate.getText().toString(), 
+            Utils.showDatePicker(getContext(), tvDate.getText().toString(),
                 formattedDate -> tvDate.setText(formattedDate));
         });
         if (tvFare != null) tvFare.setVisibility(View.GONE);
