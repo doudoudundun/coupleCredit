@@ -85,14 +85,15 @@ public class ClassicModelFragment extends Fragment {
                 // 跳转到ReportFragment并同步月份
                 ReportFragment reportFragment = mainActivity.getReportFragment();
                 mainActivity.showFragment(reportFragment);
-                // 更新ReportFragment的月份显示
-                reportFragment.updateMonthDisplay(currentYear, currentMonth, "expense");
+
                 // 更新底部导航栏选中状态
                 com.transsion.widgetslib.widget.FootOperationBar footBar =
                         (com.transsion.widgetslib.widget.FootOperationBar) mainActivity.findViewById(R.id.bottom_nav);
                 if (footBar != null) {
                     footBar.setItemSelectState(2);
                 }
+                // 更新ReportFragment的月份显示
+                reportFragment.updateDisplay(currentYear, currentMonth, "expense");
             }
         });
         
@@ -103,7 +104,7 @@ public class ClassicModelFragment extends Fragment {
                 ReportFragment reportFragment = mainActivity.getReportFragment();
                 mainActivity.showFragment(reportFragment);
                 // 更新ReportFragment的月份显示
-                reportFragment.updateMonthDisplay(currentYear, currentMonth, "income");
+                reportFragment.updateDisplay(currentYear, currentMonth, "income");
                 // 更新底部导航栏选中状态
                 com.transsion.widgetslib.widget.FootOperationBar footBar = 
                     (com.transsion.widgetslib.widget.FootOperationBar) mainActivity.findViewById(R.id.bottom_nav);

@@ -714,12 +714,12 @@ public class AddBillFragment extends Fragment {
          if (rootView != null) {
              // 恢复支出分类的原始样式
              setCategoryStyle(rootView, R.id.category_food, "餐品", R.drawable.circle_bg_orange, R.drawable.ic_favorite);
-             setCategoryStyle(rootView, R.id.category_drink, "饮品", R.drawable.circle_bg_blue, R.drawable.ic_favorite);
-             setCategoryStyle(rootView, R.id.category_fruit, "水果", R.drawable.circle_bg_green, R.drawable.ic_favorite);
+             setCategoryStyle(rootView, R.id.category_drink, "饮品", R.drawable.circle_bg_green, R.drawable.ic_drink);
+             setCategoryStyle(rootView, R.id.category_fruit, "水果", R.drawable.circle_bg_green, R.drawable.ic_fruit);
              setCategoryStyle(rootView, R.id.category_shopping, "购物", R.drawable.circle_bg_purple, R.drawable.ic_favorite);
              setCategoryStyle(rootView, R.id.category_transport, "交通", R.drawable.circle_bg_yellow, R.drawable.ic_favorite);
              setCategoryStyle(rootView, R.id.category_hotel, "住宿", R.drawable.circle_bg_blue, R.drawable.ic_favorite);
-             setCategoryStyle(rootView, R.id.category_daily, "日常", R.drawable.circle_bg_red, R.drawable.ic_favorite);
+             setCategoryStyle(rootView, R.id.category_daily, "日常", R.drawable.circle_bg_red, R.drawable.ic_clothes);
              setCategoryStyle(rootView, R.id.category_study, "学习", R.drawable.circle_bg_blue, R.drawable.ic_favorite);
              setCategoryStyle(rootView, R.id.category_entertainment, "娱乐", R.drawable.circle_bg_teal, R.drawable.ic_favorite);
              setCategoryStyle(rootView, R.id.category_cosmetic, "化妆", R.drawable.circle_bg_pink, R.drawable.ic_favorite);
@@ -836,12 +836,12 @@ public class AddBillFragment extends Fragment {
      private void initializeCategoryStyles(View rootView) {
          // 为每个分类项设置不同的背景颜色、图标和文本
          setCategoryStyle(rootView, R.id.category_food, "餐品", R.drawable.circle_bg_orange, R.drawable.ic_favorite);
-         setCategoryStyle(rootView, R.id.category_drink, "饮品", R.drawable.circle_bg_blue, R.drawable.ic_favorite);
-         setCategoryStyle(rootView, R.id.category_fruit, "水果", R.drawable.circle_bg_green, R.drawable.ic_favorite);
+         setCategoryStyle(rootView, R.id.category_drink, "饮品", R.drawable.circle_bg_blue, R.drawable.ic_drink);
+         setCategoryStyle(rootView, R.id.category_fruit, "水果", R.drawable.circle_bg_green, R.drawable.ic_fruit);
          setCategoryStyle(rootView, R.id.category_shopping, "购物", R.drawable.circle_bg_purple, R.drawable.ic_favorite);
          setCategoryStyle(rootView, R.id.category_transport, "交通", R.drawable.circle_bg_yellow, R.drawable.ic_favorite);
          setCategoryStyle(rootView, R.id.category_hotel, "住宿", R.drawable.circle_bg_blue, R.drawable.ic_favorite);
-         setCategoryStyle(rootView, R.id.category_daily, "日常", R.drawable.circle_bg_red, R.drawable.ic_favorite);
+         setCategoryStyle(rootView, R.id.category_daily, "日常", R.drawable.circle_bg_red, R.drawable.ic_clothes);
          setCategoryStyle(rootView, R.id.category_study, "学习", R.drawable.circle_bg_blue, R.drawable.ic_favorite);
          setCategoryStyle(rootView, R.id.category_entertainment, "娱乐", R.drawable.circle_bg_teal, R.drawable.ic_favorite);
          setCategoryStyle(rootView, R.id.category_cosmetic, "化妆", R.drawable.circle_bg_pink, R.drawable.ic_favorite);
