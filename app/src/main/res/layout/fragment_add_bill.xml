@@ -40,37 +40,39 @@
         android:layout_weight="1"
         android:background="@android:color/white">
 
-        <GridLayout
+        <!-- 使用自定义的自适应GridLayout -->
+        <com.example.couplecredit.widget.AdaptiveGridLayout
             android:id="@+id/grid_categories"
             android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:columnCount="5"
-            android:layout_gravity="center_horizontal"
-            android:padding="12dp">
+            android:layout_height="wrap_content"
+            android:padding="12dp"
+            app:minColumnWidth="80dp"
+            app:maxColumns="6"
+            app:minColumns="3">
+    
+        <!-- 分类项保持不变 -->
+        <include layout="@layout/item_category" android:id="@+id/category_food" />
+        <include layout="@layout/item_category" android:id="@+id/category_drink" />
+        <include layout="@layout/item_category" android:id="@+id/category_fruit" />
+        <include layout="@layout/item_category" android:id="@+id/category_shopping" />
+        <include layout="@layout/item_category" android:id="@+id/category_transport" />
+        <include layout="@layout/item_category" android:id="@+id/category_hotel" />
+        <include layout="@layout/item_category" android:id="@+id/category_daily" />
+        <include layout="@layout/item_category" android:id="@+id/category_study" />
+        <include layout="@layout/item_category" android:id="@+id/category_entertainment" />
+        <include layout="@layout/item_category" android:id="@+id/category_cosmetic" />
+        <include layout="@layout/item_category" android:id="@+id/category_travel" />
+        <include layout="@layout/item_category" android:id="@+id/category_medical" />
+        <include layout="@layout/item_category" android:id="@+id/category_member" />
+        <include layout="@layout/item_category" android:id="@+id/category_communication" />
+        <include layout="@layout/item_category" android:id="@+id/category_social" />
+        <include layout="@layout/item_category" android:id="@+id/category_investment" />
+        <include layout="@layout/item_category" android:id="@+id/category_parenting" />
+        <include layout="@layout/item_category" android:id="@+id/category_pet" />
+        <include layout="@layout/item_category" android:id="@+id/category_decoration" />
+        <include layout="@layout/item_category" android:id="@+id/category_other" />
 
-            <!-- 使用可复用的分类项布局 -->
-            <include layout="@layout/item_category" android:id="@+id/category_food" />
-            <include layout="@layout/item_category" android:id="@+id/category_drink" />
-            <include layout="@layout/item_category" android:id="@+id/category_fruit" />
-            <include layout="@layout/item_category" android:id="@+id/category_shopping" />
-            <include layout="@layout/item_category" android:id="@+id/category_transport" />
-            <include layout="@layout/item_category" android:id="@+id/category_hotel" />
-            <include layout="@layout/item_category" android:id="@+id/category_daily" />
-            <include layout="@layout/item_category" android:id="@+id/category_study" />
-            <include layout="@layout/item_category" android:id="@+id/category_entertainment" />
-            <include layout="@layout/item_category" android:id="@+id/category_cosmetic" />
-            <include layout="@layout/item_category" android:id="@+id/category_travel" />
-            <include layout="@layout/item_category" android:id="@+id/category_medical" />
-            <include layout="@layout/item_category" android:id="@+id/category_member" />
-            <include layout="@layout/item_category" android:id="@+id/category_communication" />
-            <include layout="@layout/item_category" android:id="@+id/category_social" />
-            <include layout="@layout/item_category" android:id="@+id/category_investment" />
-            <include layout="@layout/item_category" android:id="@+id/category_parenting" />
-            <include layout="@layout/item_category" android:id="@+id/category_pet" />
-            <include layout="@layout/item_category" android:id="@+id/category_decoration" />
-            <include layout="@layout/item_category" android:id="@+id/category_other" />
-
-        </GridLayout>
+    </com.example.couplecredit.widget.AdaptiveGridLayout>
 
     </ScrollView>
 
