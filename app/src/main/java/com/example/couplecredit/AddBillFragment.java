@@ -243,12 +243,12 @@ public class AddBillFragment extends Fragment {
     }
 
     private void setupCategoryListeners(View view) {
-        // 餐品
+        // 餐品/工资
         LinearLayout categoryFood = view.findViewById(R.id.category_food);
         categoryFood.setOnClickListener(v -> {
             try {
                 Log.d("AddBillFragment", "Category food clicked");
-                selectedCategory = "餐品";
+                selectedCategory = isExpense ? "餐品" : "工资";
                 updateCategorySelection(view, categoryFood);
                 Log.d("AddBillFragment", "Category food selection completed");
             } catch (Exception e) {
@@ -256,31 +256,31 @@ public class AddBillFragment extends Fragment {
             }
         });
 
-        // 饮品
+        // 饮品/兼职
         LinearLayout categoryDrink = view.findViewById(R.id.category_drink);
         categoryDrink.setOnClickListener(v -> {
-            selectedCategory = "饮品";
+            selectedCategory = isExpense ? "饮品" : "兼职";
             updateCategorySelection(view, categoryDrink);
         });
 
-        // 水果
+        // 水果/理财
         LinearLayout categoryFruit = view.findViewById(R.id.category_fruit);
         categoryFruit.setOnClickListener(v -> {
-            selectedCategory = "水果";
+            selectedCategory = isExpense ? "水果" : "理财";
             updateCategorySelection(view, categoryFruit);
         });
 
-        // 购物
+        // 购物/礼金
         LinearLayout categoryShopping = view.findViewById(R.id.category_shopping);
         categoryShopping.setOnClickListener(v -> {
-            selectedCategory = "购物";
+            selectedCategory = isExpense ? "购物" : "礼金";
             updateCategorySelection(view, categoryShopping);
         });
 
-        // 交通
+        // 交通/其他
         LinearLayout categoryTransport = view.findViewById(R.id.category_transport);
         categoryTransport.setOnClickListener(v -> {
-            selectedCategory = "交通";
+            selectedCategory = isExpense ? "交通" : "其他";
             updateCategorySelection(view, categoryTransport);
         });
 

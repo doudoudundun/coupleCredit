@@ -43,6 +43,9 @@ dependencies {
     implementation(libs.androidx.room.common.jvm)
     annotationProcessor("androidx.room:room-compiler:2.6.1")
     
+    // 添加图表库依赖
+    implementation("com.github.PhilJay:MPAndroidChart:v3.1.0")
+    
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
