@@ -709,57 +709,57 @@ public class AddBillFragment extends Fragment {
     }
     
     private void showExpenseCategories() {
-         // 显示所有支出分类项
-         View rootView = getView();
-         if (rootView != null) {
-             // 恢复支出分类的原始样式
-             setCategoryStyle(rootView, R.id.category_food, "餐品", R.drawable.circle_bg_orange, R.drawable.ic_favorite);
-             setCategoryStyle(rootView, R.id.category_drink, "饮品", R.drawable.circle_bg_blue, R.drawable.ic_favorite);
-             setCategoryStyle(rootView, R.id.category_fruit, "水果", R.drawable.circle_bg_green, R.drawable.ic_favorite);
-             setCategoryStyle(rootView, R.id.category_shopping, "购物", R.drawable.circle_bg_purple, R.drawable.ic_favorite);
-             setCategoryStyle(rootView, R.id.category_transport, "交通", R.drawable.circle_bg_yellow, R.drawable.ic_favorite);
-             setCategoryStyle(rootView, R.id.category_hotel, "住宿", R.drawable.circle_bg_blue, R.drawable.ic_favorite);
-             setCategoryStyle(rootView, R.id.category_daily, "日常", R.drawable.circle_bg_red, R.drawable.ic_favorite);
-             setCategoryStyle(rootView, R.id.category_study, "学习", R.drawable.circle_bg_blue, R.drawable.ic_favorite);
-             setCategoryStyle(rootView, R.id.category_entertainment, "娱乐", R.drawable.circle_bg_teal, R.drawable.ic_favorite);
-             setCategoryStyle(rootView, R.id.category_cosmetic, "化妆", R.drawable.circle_bg_pink, R.drawable.ic_favorite);
-             setCategoryStyle(rootView, R.id.category_travel, "旅游", R.drawable.circle_bg_blue, R.drawable.ic_favorite);
-             setCategoryStyle(rootView, R.id.category_medical, "医疗", R.drawable.circle_bg_green, R.drawable.ic_favorite);
-             setCategoryStyle(rootView, R.id.category_member, "会员", R.drawable.circle_bg_yellow, R.drawable.ic_favorite);
-             setCategoryStyle(rootView, R.id.category_communication, "通讯", R.drawable.circle_bg_gray, R.drawable.ic_favorite);
-             setCategoryStyle(rootView, R.id.category_social, "人情", R.drawable.circle_bg_red, R.drawable.ic_favorite);
-             setCategoryStyle(rootView, R.id.category_investment, "投资", R.drawable.circle_bg_red, R.drawable.ic_favorite);
-             setCategoryStyle(rootView, R.id.category_parenting, "亲子", R.drawable.circle_bg_blue, R.drawable.ic_favorite);
-             setCategoryStyle(rootView, R.id.category_pet, "宠物", R.drawable.circle_bg_blue, R.drawable.ic_favorite);
-             setCategoryStyle(rootView, R.id.category_decoration, "装修", R.drawable.circle_bg_gray, R.drawable.ic_favorite);
-             setCategoryStyle(rootView, R.id.category_other, "其他", R.drawable.circle_bg_green, R.drawable.ic_favorite);
-
-             // 显示所有支出分类项
-             rootView.findViewById(R.id.category_food).setVisibility(View.VISIBLE);
-             rootView.findViewById(R.id.category_drink).setVisibility(View.VISIBLE);
-             rootView.findViewById(R.id.category_fruit).setVisibility(View.VISIBLE);
-             rootView.findViewById(R.id.category_shopping).setVisibility(View.VISIBLE);
-             rootView.findViewById(R.id.category_transport).setVisibility(View.VISIBLE);
-             rootView.findViewById(R.id.category_hotel).setVisibility(View.VISIBLE);
-             rootView.findViewById(R.id.category_daily).setVisibility(View.VISIBLE);
-             rootView.findViewById(R.id.category_study).setVisibility(View.VISIBLE);
-             rootView.findViewById(R.id.category_entertainment).setVisibility(View.VISIBLE);
-             rootView.findViewById(R.id.category_cosmetic).setVisibility(View.VISIBLE);
-             rootView.findViewById(R.id.category_travel).setVisibility(View.VISIBLE);
-             rootView.findViewById(R.id.category_medical).setVisibility(View.VISIBLE);
-             rootView.findViewById(R.id.category_member).setVisibility(View.VISIBLE);
-             rootView.findViewById(R.id.category_communication).setVisibility(View.VISIBLE);
-             rootView.findViewById(R.id.category_social).setVisibility(View.VISIBLE);
-             rootView.findViewById(R.id.category_investment).setVisibility(View.VISIBLE);
-             rootView.findViewById(R.id.category_parenting).setVisibility(View.VISIBLE);
-             rootView.findViewById(R.id.category_pet).setVisibility(View.VISIBLE);
-             rootView.findViewById(R.id.category_decoration).setVisibility(View.VISIBLE);
-             rootView.findViewById(R.id.category_other).setVisibility(View.VISIBLE);
-             
-             // 隐藏收入分类项（如果存在）
-             hideIncomeOnlyCategories(rootView);
-         }
-     }
+        // 显示所有支出分类项
+        View rootView = getView();
+        if (rootView != null) {
+            // 恢复支出分类的原始样式 - 统一使用img_category_food图标，移除背景
+            setCategoryStyle(rootView, R.id.category_food, "餐品", 0, R.drawable.img_category_food);
+            setCategoryStyle(rootView, R.id.category_drink, "饮品", 0, R.drawable.img_category_drink);
+            setCategoryStyle(rootView, R.id.category_fruit, "水果", 0, R.drawable.img_category_fruit);
+            setCategoryStyle(rootView, R.id.category_shopping, "购物", 0, R.drawable.img_category_shopping);
+            setCategoryStyle(rootView, R.id.category_transport, "交通", 0, R.drawable.img_category_transport);
+            setCategoryStyle(rootView, R.id.category_hotel, "住宿", 0, R.drawable.img_category_hotel);
+            setCategoryStyle(rootView, R.id.category_daily, "日常", 0, R.drawable.img_category_food);
+            setCategoryStyle(rootView, R.id.category_study, "学习", 0, R.drawable.img_category_food);
+            setCategoryStyle(rootView, R.id.category_entertainment, "娱乐", 0, R.drawable.img_category_entertainment);
+            setCategoryStyle(rootView, R.id.category_cosmetic, "化妆", 0, R.drawable.img_category_cosmetic);
+            setCategoryStyle(rootView, R.id.category_travel, "旅游", 0, R.drawable.img_category_travel);
+            setCategoryStyle(rootView, R.id.category_medical, "医疗", 0, R.drawable.img_category_medical);
+            setCategoryStyle(rootView, R.id.category_member, "会员", 0, R.drawable.img_category_member);
+            setCategoryStyle(rootView, R.id.category_communication, "通讯", 0, R.drawable.img_category_communication);
+            setCategoryStyle(rootView, R.id.category_social, "人情", 0, R.drawable.img_category_food);
+            setCategoryStyle(rootView, R.id.category_investment, "投资", 0, R.drawable.img_category_food);
+            setCategoryStyle(rootView, R.id.category_parenting, "亲子", 0, R.drawable.img_category_parenting);
+            setCategoryStyle(rootView, R.id.category_pet, "宠物", 0, R.drawable.img_category_pet);
+            setCategoryStyle(rootView, R.id.category_decoration, "装修", 0, R.drawable.img_category_decoration);
+            setCategoryStyle(rootView, R.id.category_other, "其他", 0, R.drawable.img_category_food);
+            
+            // 显示所有支出分类项
+            rootView.findViewById(R.id.category_food).setVisibility(View.VISIBLE);
+            rootView.findViewById(R.id.category_drink).setVisibility(View.VISIBLE);
+            rootView.findViewById(R.id.category_fruit).setVisibility(View.VISIBLE);
+            rootView.findViewById(R.id.category_shopping).setVisibility(View.VISIBLE);
+            rootView.findViewById(R.id.category_transport).setVisibility(View.VISIBLE);
+            rootView.findViewById(R.id.category_hotel).setVisibility(View.VISIBLE);
+            rootView.findViewById(R.id.category_daily).setVisibility(View.VISIBLE);
+            rootView.findViewById(R.id.category_study).setVisibility(View.VISIBLE);
+            rootView.findViewById(R.id.category_entertainment).setVisibility(View.VISIBLE);
+            rootView.findViewById(R.id.category_cosmetic).setVisibility(View.VISIBLE);
+            rootView.findViewById(R.id.category_travel).setVisibility(View.VISIBLE);
+            rootView.findViewById(R.id.category_medical).setVisibility(View.VISIBLE);
+            rootView.findViewById(R.id.category_member).setVisibility(View.VISIBLE);
+            rootView.findViewById(R.id.category_communication).setVisibility(View.VISIBLE);
+            rootView.findViewById(R.id.category_social).setVisibility(View.VISIBLE);
+            rootView.findViewById(R.id.category_investment).setVisibility(View.VISIBLE);
+            rootView.findViewById(R.id.category_parenting).setVisibility(View.VISIBLE);
+            rootView.findViewById(R.id.category_pet).setVisibility(View.VISIBLE);
+            rootView.findViewById(R.id.category_decoration).setVisibility(View.VISIBLE);
+            rootView.findViewById(R.id.category_other).setVisibility(View.VISIBLE);
+            
+            // 隐藏收入分类项（如果存在）
+            hideIncomeOnlyCategories(rootView);
+        }
+    }
     
     private void showIncomeCategories() {
         // 隐藏支出专用分类
@@ -789,109 +789,114 @@ public class AddBillFragment extends Fragment {
     }
     
     private void showIncomeOnlyCategories(View rootView) {
-         // 显示收入分类项，重用现有的分类项并修改样式
-         
-         // 为收入分类设置不同的样式
-         setCategoryStyle(rootView, R.id.category_food, "工资", R.drawable.circle_bg_yellow, R.drawable.ic_favorite);
-         setCategoryStyle(rootView, R.id.category_drink, "兼职", R.drawable.circle_bg_blue, R.drawable.ic_favorite);
-         setCategoryStyle(rootView, R.id.category_fruit, "理财", R.drawable.circle_bg_red, R.drawable.ic_favorite);
-         setCategoryStyle(rootView, R.id.category_shopping, "礼金", R.drawable.circle_bg_orange, R.drawable.ic_favorite);
-         setCategoryStyle(rootView, R.id.category_transport, "其他", R.drawable.circle_bg_green, R.drawable.ic_favorite);
-         
-         // 显示收入分类项（只显示第一行的5个）
-         rootView.findViewById(R.id.category_food).setVisibility(View.VISIBLE);
-         rootView.findViewById(R.id.category_drink).setVisibility(View.VISIBLE);
-         rootView.findViewById(R.id.category_fruit).setVisibility(View.VISIBLE);
-         rootView.findViewById(R.id.category_shopping).setVisibility(View.VISIBLE);
-         rootView.findViewById(R.id.category_transport).setVisibility(View.VISIBLE);
-         
-         // 隐藏所有其他分类项
-         rootView.findViewById(R.id.category_hotel).setVisibility(View.GONE);
-         rootView.findViewById(R.id.category_daily).setVisibility(View.GONE);
-         rootView.findViewById(R.id.category_study).setVisibility(View.GONE);
-         rootView.findViewById(R.id.category_entertainment).setVisibility(View.GONE);
-         rootView.findViewById(R.id.category_cosmetic).setVisibility(View.GONE);
-         rootView.findViewById(R.id.category_travel).setVisibility(View.GONE);
-         rootView.findViewById(R.id.category_medical).setVisibility(View.GONE);
-         rootView.findViewById(R.id.category_member).setVisibility(View.GONE);
-         rootView.findViewById(R.id.category_communication).setVisibility(View.GONE);
-         rootView.findViewById(R.id.category_social).setVisibility(View.GONE);
-         rootView.findViewById(R.id.category_investment).setVisibility(View.GONE);
-         rootView.findViewById(R.id.category_parenting).setVisibility(View.GONE);
-         rootView.findViewById(R.id.category_pet).setVisibility(View.GONE);
-         rootView.findViewById(R.id.category_decoration).setVisibility(View.GONE);
-         rootView.findViewById(R.id.category_other).setVisibility(View.GONE);
-     }
-     
-     private void updateCategoryText(View rootView, int categoryId, String newText) {
-         View categoryView = rootView.findViewById(categoryId);
-         if (categoryView != null) {
-             TextView textView = categoryView.findViewById(R.id.tv_category_name);
-             if (textView != null) {
-                 textView.setText(newText);
-             }
-         }
-     }
-     
-     private void initializeCategoryStyles(View rootView) {
-         // 为每个分类项设置不同的背景颜色、图标和文本
-         setCategoryStyle(rootView, R.id.category_food, "餐品", R.drawable.circle_bg_orange, R.drawable.ic_favorite);
-         setCategoryStyle(rootView, R.id.category_drink, "饮品", R.drawable.circle_bg_blue, R.drawable.ic_favorite);
-         setCategoryStyle(rootView, R.id.category_fruit, "水果", R.drawable.circle_bg_green, R.drawable.ic_favorite);
-         setCategoryStyle(rootView, R.id.category_shopping, "购物", R.drawable.circle_bg_purple, R.drawable.ic_favorite);
-         setCategoryStyle(rootView, R.id.category_transport, "交通", R.drawable.circle_bg_yellow, R.drawable.ic_favorite);
-         setCategoryStyle(rootView, R.id.category_hotel, "住宿", R.drawable.circle_bg_blue, R.drawable.ic_favorite);
-         setCategoryStyle(rootView, R.id.category_daily, "日常", R.drawable.circle_bg_red, R.drawable.ic_favorite);
-         setCategoryStyle(rootView, R.id.category_study, "学习", R.drawable.circle_bg_blue, R.drawable.ic_favorite);
-         setCategoryStyle(rootView, R.id.category_entertainment, "娱乐", R.drawable.circle_bg_teal, R.drawable.ic_favorite);
-         setCategoryStyle(rootView, R.id.category_cosmetic, "化妆", R.drawable.circle_bg_pink, R.drawable.ic_favorite);
-         setCategoryStyle(rootView, R.id.category_travel, "旅游", R.drawable.circle_bg_blue, R.drawable.ic_profile);
-         setCategoryStyle(rootView, R.id.category_medical, "医疗", R.drawable.circle_bg_green, R.drawable.ic_favorite);
-         setCategoryStyle(rootView, R.id.category_member, "会员", R.drawable.circle_bg_yellow, R.drawable.ic_favorite);
-         setCategoryStyle(rootView, R.id.category_communication, "通讯", R.drawable.circle_bg_gray, R.drawable.ic_favorite);
-         setCategoryStyle(rootView, R.id.category_social, "人情", R.drawable.circle_bg_red, R.drawable.ic_favorite);
-         setCategoryStyle(rootView, R.id.category_investment, "投资", R.drawable.circle_bg_red, R.drawable.ic_favorite);
-         setCategoryStyle(rootView, R.id.category_parenting, "亲子", R.drawable.circle_bg_blue, R.drawable.ic_favorite);
-         setCategoryStyle(rootView, R.id.category_pet, "宠物", R.drawable.circle_bg_blue, R.drawable.ic_favorite);
-         setCategoryStyle(rootView, R.id.category_decoration, "装修", R.drawable.circle_bg_gray, R.drawable.ic_favorite);
-         setCategoryStyle(rootView, R.id.category_other, "其他", R.drawable.circle_bg_green, R.drawable.ic_favorite);
-     }
-     
-     private void setCategoryStyle(View rootView, int categoryId, String text, int backgroundRes, int iconRes) {
-         try {
-             View categoryView = rootView.findViewById(categoryId);
-             if (categoryView == null) {
-                 Log.w("AddBillFragment", "Category view not found for ID: " + categoryId);
-                 return;
-             }
-             
-             // 设置文本
-             TextView textView = categoryView.findViewById(R.id.tv_category_name);
-             if (textView != null) {
-                 textView.setText(text);
-             } else {
-                 Log.w("AddBillFragment", "TextView not found in category: " + categoryId);
-             }
-             
-             // 设置背景颜色
-             FrameLayout frameLayout = categoryView.findViewById(R.id.frame_category_icon);
-             if (frameLayout != null) {
-                 frameLayout.setBackgroundResource(backgroundRes);
-             } else {
-                 Log.w("AddBillFragment", "FrameLayout not found in category: " + categoryId);
-             }
-             
-             // 设置图标
-             ImageView imageView = categoryView.findViewById(R.id.iv_category_icon);
-             if (imageView != null) {
-                 imageView.setImageResource(iconRes);
-             } else {
-                 Log.w("AddBillFragment", "ImageView not found in category: " + categoryId);
-             }
-         } catch (Exception e) {
-             Log.e("AddBillFragment", "Error setting category style for ID: " + categoryId, e);
-         }
-     }
+        // 显示收入分类项，重用现有的分类项并修改样式
+        
+        // 为收入分类设置统一样式 - 使用img_category_food图标，移除背景
+        setCategoryStyle(rootView, R.id.category_food, "工资", 0, R.drawable.img_category_food);
+        setCategoryStyle(rootView, R.id.category_drink, "兼职", 0, R.drawable.img_category_food);
+        setCategoryStyle(rootView, R.id.category_fruit, "理财", 0, R.drawable.img_category_food);
+        setCategoryStyle(rootView, R.id.category_shopping, "礼金", 0, R.drawable.img_category_food);
+        setCategoryStyle(rootView, R.id.category_transport, "其他", 0, R.drawable.img_category_food);
+        
+        // 显示收入分类项（只显示第一行的5个）
+        rootView.findViewById(R.id.category_food).setVisibility(View.VISIBLE);
+        rootView.findViewById(R.id.category_drink).setVisibility(View.VISIBLE);
+        rootView.findViewById(R.id.category_fruit).setVisibility(View.VISIBLE);
+        rootView.findViewById(R.id.category_shopping).setVisibility(View.VISIBLE);
+        rootView.findViewById(R.id.category_transport).setVisibility(View.VISIBLE);
+        
+        // 隐藏所有其他分类项
+        rootView.findViewById(R.id.category_hotel).setVisibility(View.GONE);
+        rootView.findViewById(R.id.category_daily).setVisibility(View.GONE);
+        rootView.findViewById(R.id.category_study).setVisibility(View.GONE);
+        rootView.findViewById(R.id.category_entertainment).setVisibility(View.GONE);
+        rootView.findViewById(R.id.category_cosmetic).setVisibility(View.GONE);
+        rootView.findViewById(R.id.category_travel).setVisibility(View.GONE);
+        rootView.findViewById(R.id.category_medical).setVisibility(View.GONE);
+        rootView.findViewById(R.id.category_member).setVisibility(View.GONE);
+        rootView.findViewById(R.id.category_communication).setVisibility(View.GONE);
+        rootView.findViewById(R.id.category_social).setVisibility(View.GONE);
+        rootView.findViewById(R.id.category_investment).setVisibility(View.GONE);
+        rootView.findViewById(R.id.category_parenting).setVisibility(View.GONE);
+        rootView.findViewById(R.id.category_pet).setVisibility(View.GONE);
+        rootView.findViewById(R.id.category_decoration).setVisibility(View.GONE);
+        rootView.findViewById(R.id.category_other).setVisibility(View.GONE);
+    }
+    
+    private void updateCategoryText(View rootView, int categoryId, String newText) {
+        View categoryView = rootView.findViewById(categoryId);
+        if (categoryView != null) {
+            TextView textView = categoryView.findViewById(R.id.tv_category_name);
+            if (textView != null) {
+                textView.setText(newText);
+            }
+        }
+    }
+    
+    private void initializeCategoryStyles(View rootView) {
+        // 为每个分类项设置统一样式 - 使用img_category_food图标，移除背景颜色
+        setCategoryStyle(rootView, R.id.category_food, "餐品", 0, R.drawable.img_category_food);
+        setCategoryStyle(rootView, R.id.category_drink, "饮品", 0, R.drawable.img_category_drink);
+        setCategoryStyle(rootView, R.id.category_fruit, "水果", 0, R.drawable.img_category_fruit);
+        setCategoryStyle(rootView, R.id.category_shopping, "购物", 0, R.drawable.img_category_shopping);
+        setCategoryStyle(rootView, R.id.category_transport, "交通", 0, R.drawable.img_category_transport);
+        setCategoryStyle(rootView, R.id.category_hotel, "住宿", 0, R.drawable.img_category_hotel);
+        setCategoryStyle(rootView, R.id.category_daily, "日常", 0, R.drawable.img_category_food);
+        setCategoryStyle(rootView, R.id.category_study, "学习", 0, R.drawable.img_category_food);
+        setCategoryStyle(rootView, R.id.category_entertainment, "娱乐", 0, R.drawable.img_category_entertainment);
+        setCategoryStyle(rootView, R.id.category_cosmetic, "化妆", 0, R.drawable.img_category_cosmetic);
+        setCategoryStyle(rootView, R.id.category_travel, "旅游", 0, R.drawable.img_category_travel);
+        setCategoryStyle(rootView, R.id.category_medical, "医疗", 0, R.drawable.img_category_medical);
+        setCategoryStyle(rootView, R.id.category_member, "会员", 0, R.drawable.img_category_member);
+        setCategoryStyle(rootView, R.id.category_communication, "通讯", 0, R.drawable.img_category_communication);
+        setCategoryStyle(rootView, R.id.category_social, "人情", 0, R.drawable.img_category_food);
+        setCategoryStyle(rootView, R.id.category_investment, "投资", 0, R.drawable.img_category_food);
+        setCategoryStyle(rootView, R.id.category_parenting, "亲子", 0, R.drawable.img_category_parenting);
+        setCategoryStyle(rootView, R.id.category_pet, "宠物", 0, R.drawable.img_category_pet);
+        setCategoryStyle(rootView, R.id.category_decoration, "装修", 0, R.drawable.img_category_decoration);
+        setCategoryStyle(rootView, R.id.category_other, "其他", 0, R.drawable.img_category_food);
+    }
+    
+    private void setCategoryStyle(View rootView, int categoryId, String text, int backgroundRes, int iconRes) {
+        try {
+            View categoryView = rootView.findViewById(categoryId);
+            if (categoryView == null) {
+                Log.w("AddBillFragment", "Category view not found for ID: " + categoryId);
+                return;
+            }
+            
+            // 设置文本
+            TextView textView = categoryView.findViewById(R.id.tv_category_name);
+            if (textView != null) {
+                textView.setText(text);
+            } else {
+                Log.w("AddBillFragment", "TextView not found in category: " + categoryId);
+            }
+            
+            // 设置背景颜色 - 如果backgroundRes为0则移除背景
+            FrameLayout frameLayout = categoryView.findViewById(R.id.frame_category_icon);
+            if (frameLayout != null) {
+                if (backgroundRes == 0) {
+                    // 移除背景颜色，设置为透明
+                    frameLayout.setBackground(null);
+                } else {
+                    frameLayout.setBackgroundResource(backgroundRes);
+                }
+            } else {
+                Log.w("AddBillFragment", "FrameLayout not found in category: " + categoryId);
+            }
+            
+            // 设置图标
+            ImageView imageView = categoryView.findViewById(R.id.iv_category_icon);
+            if (imageView != null) {
+                imageView.setImageResource(iconRes);
+            } else {
+                Log.w("AddBillFragment", "ImageView not found in category: " + categoryId);
+            }
+        } catch (Exception e) {
+            Log.e("AddBillFragment", "Error setting category style for ID: " + categoryId, e);
+        }
+    }
 
     /**
      * 根据屏幕尺寸调整布局参数
