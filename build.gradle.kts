@@ -10,5 +10,6 @@ allprojects {
         maven{ url = uri("https://artifact.transsion.com/artifactory/maven-public/") }
         maven{ url = uri("https://artifact.transsion.com/artifactory/google/") }
         maven{ url = uri("https://artifact.transsion.com/artifactory/Jcenter/") }
+        maven { url = uri("https://jitpack.io") }
     }
 }
