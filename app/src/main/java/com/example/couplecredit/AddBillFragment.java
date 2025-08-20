@@ -37,6 +37,9 @@ import java.util.Calendar;
 import java.util.Date;
 import java.util.Locale;
 
+// 在类的顶部添加导入
+import com.example.couplecredit.widget.AdaptiveGridLayout;
+
 public class AddBillFragment extends Fragment {
 
     private static final int REQUEST_IMAGE_PICK = 1001;
@@ -47,7 +50,7 @@ public class AddBillFragment extends Fragment {
     private EditText etNote;
     private TextView tvDate, tvPhoto, tvSelf, tvPartner, tvShared;
 //    private View indicatorExpense, indicatorIncome;
-    private GridLayout gridCategories;
+    private AdaptiveGridLayout gridCategories; // 替换原来的GridLayout
 
     private TabLayout mTabLayout;
     private OSTabLayout mOsTabLayout;
@@ -95,7 +98,14 @@ public class AddBillFragment extends Fragment {
 //        indicatorIncome = view.findViewById(R.id.indicator_income);
         
         // 分类选择区域
+        // 初始化自适应网格布局
         gridCategories = view.findViewById(R.id.grid_categories);
+        
+        // 确保布局参数正确设置，防止内存泄漏
+        if (gridCategories != null) {
+            // 可以在这里动态调整布局参数
+            adjustLayoutForScreenSize();
+        }
         
         // 金额显示和备注
         tvAmountDisplay = view.findViewById(R.id.tv_amount_display);
@@ -882,4 +892,52 @@ public class AddBillFragment extends Fragment {
              Log.e("AddBillFragment", "Error setting category style for ID: " + categoryId, e);
          }
      }
+
+    /**
+     * 根据屏幕尺寸调整布局参数
+     * 确保在不同设备上都有良好的显示效果
+     */
+    private void adjustLayoutForScreenSize() {
+        if (gridCategories == null) {
+            Log.w("AddBillFragment", "gridCategories is null, cannot adjust layout");
+            return;
+        }
+        
+        try {
+            // 获取屏幕密度
+            float density = getResources().getDisplayMetrics().density;
+            
+            // 根据屏幕密度调整间距
+            int spacing = (int) (8 * density); // 8dp转换为px
+            gridCategories.setPadding(spacing, spacing, spacing, spacing);
+            
+            // 记录日志用于调试
+            Log.d("AddBillFragment", "Screen density: " + density + ", Spacing: " + spacing + "px");
+            
+        } catch (Exception e) {
+            Log.e("AddBillFragment", "Error adjusting layout for screen size", e);
+        }
+    }
+    
+    @Override
+    public void onDestroyView() {
+        super.onDestroyView();
+        
+        // 清理引用，防止内存泄漏
+        if (gridCategories != null) {
+            gridCategories.removeAllViews();
+            gridCategories = null;
+        }
+        
+        // 清理其他可能的引用
+        tvAmountDisplay = null;
+        etNote = null;
+        tvDate = null;
+        tvPhoto = null;
+        tvSelf = null;
+        tvPartner = null;
+        tvShared = null;
+        
+        Log.d("AddBillFragment", "View destroyed and references cleaned");
+    }
 }

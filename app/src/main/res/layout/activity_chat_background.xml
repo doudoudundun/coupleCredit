@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- 聊天背景设置页面布局 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/main"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical">
@@ -14,8 +15,7 @@
         android:elevation="4dp"
         android:gravity="center_vertical"
         android:paddingStart="16dp"
-        android:paddingEnd="16dp"
-        android:layout_marginTop="20dp">
+        android:paddingEnd="16dp">
 
         <!-- 返回按钮 - 使用系统图标 -->
         <ImageView

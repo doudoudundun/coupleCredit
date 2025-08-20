@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <declare-styleable name="AdaptiveGridLayout">
+        <!-- 最小列宽度 -->
+        <attr name="minColumnWidth" format="dimension" />
+        <!-- 最大列数 -->
+        <attr name="maxColumns" format="integer" />
+        <!-- 最小列数 -->
+        <attr name="minColumns" format="integer" />
+        <!-- 水平间距 -->
+        <attr name="horizontalSpacing" format="dimension" />
+        <!-- 垂直间距 -->
+        <attr name="verticalSpacing" format="dimension" />
+    </declare-styleable>
+</resources>
