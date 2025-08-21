@@ -1,5 +1,6 @@
 package com.example.couplecredit;
 
+import android.content.Intent;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.Button;
@@ -58,8 +59,9 @@ public class LoginActivity extends AppCompatActivity {
         tvRegisterHint.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                // 暂时显示提示信息，后续可跳转到注册页面
-                Toast.makeText(LoginActivity.this, "注册功能暂未开放", Toast.LENGTH_SHORT).show();
+                // 跳转到注册页面
+                Intent intent = new Intent(LoginActivity.this, RegisterActivity.class);
+                startActivity(intent);
             }
         });
     }

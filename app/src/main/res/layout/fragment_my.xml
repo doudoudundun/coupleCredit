@@ -5,17 +5,53 @@
     android:layout_height="match_parent"
     android:orientation="vertical"
     android:padding="16dp">
-
-    <!-- 页面标题 -->
-    <TextView
-        android:layout_width="wrap_content"
+    <!-- 登录选项容器 -->
+    <LinearLayout
+        android:id="@+id/ll_login"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="我的"
-        android:textSize="24sp"
-        android:textStyle="bold"
-        android:layout_marginBottom="32dp"
-        android:layout_gravity="center_horizontal" />
+        android:orientation="horizontal"
+        android:padding="16dp"
+        android:background="?android:attr/selectableItemBackground"
+        android:clickable="true"
+        android:focusable="true"
+        android:gravity="center_vertical">
 
+        <!-- 默认头像 -->
+        <ImageView
+            android:id="@+id/iv_user_avatar"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:src="@drawable/ic_default_avatar"
+            android:layout_marginEnd="12dp"
+            android:contentDescription="用户头像" />
+
+        <!-- 登录选项文本 -->
+        <TextView
+            android:id="@+id/tv_login_text"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="点我立即登录"
+            android:textSize="16sp"
+            android:textColor="@android:color/black"
+            android:layout_gravity="center_vertical" />
+
+        <!-- 右箭头指示器 -->
+        <ImageView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:src="@drawable/ic_arrow_right"
+            android:layout_gravity="center_vertical"
+            android:contentDescription="箭头" />
+
+    </LinearLayout>
+
+    <!-- 分割线 -->
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="@android:color/darker_gray" />
     <!-- 设置聊天背景选项容器 -->
     <LinearLayout
         android:id="@+id/ll_chat_background"
@@ -92,41 +128,5 @@
         android:layout_height="1dp"
         android:background="@android:color/darker_gray" />
 
-    <!-- 登录选项容器 -->
-    <LinearLayout
-        android:id="@+id/ll_login"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:padding="16dp"
-        android:background="?android:attr/selectableItemBackground"
-        android:clickable="true"
-        android:focusable="true">
-
-        <!-- 登录选项文本 -->
-        <TextView
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="登录"
-            android:textSize="16sp"
-            android:textColor="@android:color/black"
-            android:layout_gravity="center_vertical" />
-
-        <!-- 右箭头指示器 -->
-        <ImageView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:src="@drawable/ic_arrow_right"
-            android:textColor="@android:color/darker_gray"
-            android:layout_gravity="center_vertical" />
-
-    </LinearLayout>
-
-    <!-- 分割线 -->
-    <View
-        android:layout_width="match_parent"
-        android:layout_height="1dp"
-        android:background="@android:color/darker_gray" />
 
 </LinearLayout>
