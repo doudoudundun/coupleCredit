@@ -5,7 +5,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="#F5F5F5"
-    tools:context=".HeadFragment">
+    tools:context=".fragment.HeadFragment">
 
     <FrameLayout
         android:id="@+id/fg_change"

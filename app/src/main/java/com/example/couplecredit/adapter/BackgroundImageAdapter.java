@@ -1,4 +1,4 @@
-package com.example.couplecredit;
+package com.example.couplecredit.adapter;
 
 import android.content.Context;
 import android.view.LayoutInflater;
@@ -6,6 +6,8 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.BaseAdapter;
 import android.widget.ImageView;
+
+import com.example.couplecredit.R;
 
 import java.util.List;
 

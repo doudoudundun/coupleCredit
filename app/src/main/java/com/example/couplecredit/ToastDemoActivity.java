@@ -1,9 +1,10 @@
 package com.example.couplecredit;
 
 import android.os.Bundle;
-import android.view.View;
 import android.widget.Button;
 import androidx.appcompat.app.AppCompatActivity;
+
+import com.example.couplecredit.function.CustomToast;
 
 /**
  * Toast演示页面

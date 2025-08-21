@@ -1,4 +1,4 @@
-package com.example.couplecredit;
+package com.example.couplecredit.function;
 
 import android.content.Context;
 import android.view.Gravity;
@@ -7,6 +7,8 @@ import android.view.View;
 import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
+
+import com.example.couplecredit.R;
 
 /**
  * 自定义Toast工具类
