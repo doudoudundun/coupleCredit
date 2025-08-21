@@ -17,6 +17,10 @@ import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentManager;
 import androidx.fragment.app.FragmentTransaction;
 
+import com.example.couplecredit.fragment.AddBillFragment;
+import com.example.couplecredit.fragment.HeadFragment;
+import com.example.couplecredit.fragment.MyFragment;
+import com.example.couplecredit.fragment.ReportFragment;
 import com.transsion.widgetslib.widget.FootOperationBar;
 import com.github.mikephil.charting.utils.Utils;
 

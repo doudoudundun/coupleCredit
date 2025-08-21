@@ -1,7 +1,5 @@
-package com.example.couplecredit;
+package com.example.couplecredit.fragment;
 
-import android.app.DatePickerDialog;
-import android.app.Dialog;
 import android.database.Cursor;
 import android.net.Uri;
 import android.os.Bundle;
@@ -9,13 +7,12 @@ import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.view.Window;
 
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageButton;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
-import android.widget.NumberPicker;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
@@ -24,6 +21,13 @@ import androidx.fragment.app.Fragment;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
+import com.example.couplecredit.adapter.BillAdapter;
+import com.example.couplecredit.BillBean;
+import com.example.couplecredit.BillDatabaseHelper;
+import com.example.couplecredit.BillProvider;
+import com.example.couplecredit.MainActivity;
+import com.example.couplecredit.R;
+import com.example.couplecredit.function.Utils;
 import com.transsion.widgetslib.dialog.PromptDialog;
 
 import java.text.SimpleDateFormat;
@@ -389,6 +393,7 @@ public class ClassicModelFragment extends Fragment {
                 .show();
 
         // 获取对话框中的视图组件
+        ImageView ivCategoryIcon = mDialog.findViewById(R.id.iv_category_icon);
         TextView tvCategoryName = mDialog.findViewById(R.id.tv_category_name);
         TextView tvDate = mDialog.findViewById(R.id.tv_date);
         TextView tvFare = mDialog.findViewById(R.id.tv_fare);
@@ -406,6 +411,11 @@ public class ClassicModelFragment extends Fragment {
         LinearLayout llNoteCard = mDialog.findViewById(R.id.ll_note_card);
 
         // 设置数据
+        if (ivCategoryIcon != null) {
+            int iconResId = getIconForCategory(categoryName);
+            ivCategoryIcon.setImageResource(iconResId);
+            ivCategoryIcon.setBackground(null); // 移除背景色，显示图标
+        }
         if (tvCategoryName != null) tvCategoryName.setText(incomeType + "-" + categoryName);
         if (tvDate != null) tvDate.setText(date);
         if (tvFare != null) tvFare.setText("￥ " + String.format("%.2f", fare));

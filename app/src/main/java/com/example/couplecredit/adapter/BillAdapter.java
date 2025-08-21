@@ -1,15 +1,18 @@
-package com.example.couplecredit;
+package com.example.couplecredit.adapter;
 
 import android.content.Context;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.AdapterView;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
+
+import com.example.couplecredit.BillBean;
+import com.example.couplecredit.R;
+
 import java.util.List;
 import java.util.Map;
 

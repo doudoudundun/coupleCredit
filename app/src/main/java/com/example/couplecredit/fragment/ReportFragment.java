@@ -1,4 +1,4 @@
-package com.example.couplecredit;
+package com.example.couplecredit.fragment;
 
 import android.os.Bundle;
 import android.view.LayoutInflater;
@@ -10,8 +10,11 @@ import android.widget.TextView;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
-import androidx.fragment.app.FragmentManager;
 
+import com.example.couplecredit.BillDatabaseHelper;
+import com.example.couplecredit.BillProvider;
+import com.example.couplecredit.R;
+import com.example.couplecredit.function.Utils;
 import com.transsion.widgetslib.widget.OSSegmentedTab;
 import com.github.mikephil.charting.charts.LineChart;
 import com.github.mikephil.charting.components.XAxis;
@@ -222,7 +225,7 @@ public class ReportFragment extends Fragment {
         }
         
         // 构建查询条件：日期匹配且为收入类型相同
-        String selection = BillDatabaseHelper.COLUMN_DATE + "=? AND " + 
+        String selection = BillDatabaseHelper.COLUMN_DATE + "=? AND " +
                           BillDatabaseHelper.COLUMN_INCOME_TYPE + "=?";
         String[] selectionArgs= new String[]{dateStr, String.valueOf(income_type)}; // 1表示收入，0表示支出;
         

@@ -1,12 +1,10 @@
-package com.example.couplecredit;
+package com.example.couplecredit.fragment;
 
 import android.Manifest;
 import android.annotation.SuppressLint;
 import android.app.Activity;
-import android.app.DatePickerDialog;
 import android.content.Intent;
 import android.content.pm.PackageManager;
-import android.graphics.Typeface;
 import android.net.Uri;
 import android.os.Bundle;
 import android.provider.MediaStore;
@@ -14,10 +12,8 @@ import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.DatePicker;
 import android.widget.EditText;
 import android.widget.FrameLayout;
-import android.widget.GridLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
@@ -29,6 +25,10 @@ import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import androidx.fragment.app.Fragment;
 
+import com.example.couplecredit.MainActivity;
+import com.example.couplecredit.R;
+import com.example.couplecredit.function.CustomToast;
+import com.example.couplecredit.function.Utils;
 import com.transsion.widgetslib.widget.tablayout.OSTabLayout;
 import com.transsion.widgetslib.widget.tablayout.TabLayout;
 

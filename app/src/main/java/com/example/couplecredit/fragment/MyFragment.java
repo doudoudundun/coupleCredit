@@ -1,4 +1,4 @@
-package com.example.couplecredit;
+package com.example.couplecredit.fragment;
 
 import android.content.Intent;
 import android.os.Bundle;
@@ -11,6 +11,11 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
 
+import com.example.couplecredit.ChatBackgroundActivity;
+import com.example.couplecredit.LoginActivity;
+import com.example.couplecredit.R;
+import com.example.couplecredit.ToastDemoActivity;
+
 /**
  * 我的页面Fragment
  * 提供用户个人设置和功能入口
@@ -20,6 +25,7 @@ public class MyFragment extends Fragment {
     // UI组件声明
     private LinearLayout llChatBackground;  // 聊天背景设置选项容器
     private LinearLayout llToastDemo;       // Toast演示选项容器
+    private LinearLayout llLogin;           // 登录选项容器
     
     /**
      * 创建Fragment视图
@@ -51,6 +57,7 @@ public class MyFragment extends Fragment {
     private void initViews(View view) {
         llChatBackground = view.findViewById(R.id.ll_chat_background);
         llToastDemo = view.findViewById(R.id.ll_toast_demo);
+        llLogin = view.findViewById(R.id.ll_login);
     }
     
     /**
@@ -68,6 +75,13 @@ public class MyFragment extends Fragment {
         llToastDemo.setOnClickListener(v -> {
             // 启动Toast演示Activity
             Intent intent = new Intent(getActivity(), ToastDemoActivity.class);
+            startActivity(intent);
+        });
+        
+        // 设置登录选项点击事件
+        llLogin.setOnClickListener(v -> {
+            // 启动登录Activity
+            Intent intent = new Intent(getActivity(), LoginActivity.class);
             startActivity(intent);
         });
     }

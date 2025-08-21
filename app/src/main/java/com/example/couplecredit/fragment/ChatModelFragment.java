@@ -1,4 +1,4 @@
-package com.example.couplecredit;
+package com.example.couplecredit.fragment;
 
 // 添加缺少的 import 语句
 import android.content.Context;
@@ -23,6 +23,7 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 // 添加Room数据库相关导入
+import com.example.couplecredit.R;
 import com.example.couplecredit.database.ChatDatabase;
 import com.example.couplecredit.database.ChatMessageDao;
 import com.example.couplecredit.database.ChatMessageEntity;

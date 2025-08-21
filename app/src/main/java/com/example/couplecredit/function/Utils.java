@@ -1,16 +1,17 @@
-package com.example.couplecredit;
-
-import static java.security.AccessController.getContext;
+package com.example.couplecredit.function;
 
 import android.app.DatePickerDialog;
 import android.app.Dialog;
 import android.content.Context;
 import android.net.Uri;
 import android.view.Window;
-import android.widget.DatePicker;
 import android.widget.NumberPicker;
 import android.widget.TextView;
-import android.widget.Toast;
+
+import com.example.couplecredit.BillBean;
+import com.example.couplecredit.BillDatabaseHelper;
+import com.example.couplecredit.BillProvider;
+import com.example.couplecredit.R;
 
 import java.util.Calendar;
 

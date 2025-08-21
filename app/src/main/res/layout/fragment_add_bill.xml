@@ -4,8 +4,8 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#F5F5F5"
     android:orientation="vertical"
+    android:background="#F5F5F5"
     tools:context=".fragment.AddBillFragment">
 
 
@@ -21,18 +21,18 @@
             android:layout_height="wrap_content"
             android:layout_centerInParent="true"
             android:text="记账"
-            android:textColor="#333333"
             android:textSize="18sp"
-            android:textStyle="bold" />
+            android:textStyle="bold"
+            android:textColor="#333333" />
 
     </RelativeLayout>
 
     <!-- 支出/收入切换 -->
-    <com.transsion.widgetslib.widget.tablayout.OSTabLayout
-        android:id="@+id/slide_tab"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        app:osIsFirstLevelTab="true" />
+        <com.transsion.widgetslib.widget.tablayout.OSTabLayout
+            android:id="@+id/slide_tab"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:osIsFirstLevelTab="true" />
     <!-- 分类选择区域 -->
     <ScrollView
         android:layout_width="match_parent"
@@ -46,109 +46,33 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:padding="12dp"
-            app:maxColumns="6"
             app:minColumnWidth="80dp"
+            app:maxColumns="6"
             app:minColumns="3">
+    
+        <!-- 分类项保持不变 -->
+        <include layout="@layout/item_category" android:id="@+id/category_food" />
+        <include layout="@layout/item_category" android:id="@+id/category_drink" />
+        <include layout="@layout/item_category" android:id="@+id/category_fruit" />
+        <include layout="@layout/item_category" android:id="@+id/category_shopping" />
+        <include layout="@layout/item_category" android:id="@+id/category_transport" />
+        <include layout="@layout/item_category" android:id="@+id/category_hotel" />
+        <include layout="@layout/item_category" android:id="@+id/category_daily" />
+        <include layout="@layout/item_category" android:id="@+id/category_study" />
+        <include layout="@layout/item_category" android:id="@+id/category_entertainment" />
+        <include layout="@layout/item_category" android:id="@+id/category_cosmetic" />
+        <include layout="@layout/item_category" android:id="@+id/category_travel" />
+        <include layout="@layout/item_category" android:id="@+id/category_medical" />
+        <include layout="@layout/item_category" android:id="@+id/category_member" />
+        <include layout="@layout/item_category" android:id="@+id/category_communication" />
+        <include layout="@layout/item_category" android:id="@+id/category_social" />
+        <include layout="@layout/item_category" android:id="@+id/category_investment" />
+        <include layout="@layout/item_category" android:id="@+id/category_parenting" />
+        <include layout="@layout/item_category" android:id="@+id/category_pet" />
+        <include layout="@layout/item_category" android:id="@+id/category_decoration" />
+        <include layout="@layout/item_category" android:id="@+id/category_other" />
 
-            <!-- 分类项保持不变 -->
-            <include
-                android:id="@+id/category_food"
-                layout="@layout/item_category" />
-
-            <include
-                android:id="@+id/category_drink"
-                layout="@layout/item_category" />
-
-            <include
-                android:id="@+id/category_fruit"
-                layout="@layout/item_category" />
-
-            <include
-                android:id="@+id/category_shopping"
-                layout="@layout/item_category" />
-
-            <include
-                android:id="@+id/category_transport"
-                layout="@layout/item_category" />
-
-            <include
-                android:id="@+id/category_hotel"
-                layout="@layout/item_category" />
-
-            <include
-                android:id="@+id/category_daily"
-                layout="@layout/item_category" />
-
-            <include
-                android:id="@+id/category_study"
-                layout="@layout/item_category" />
-
-            <include
-                android:id="@+id/category_entertainment"
-                layout="@layout/item_category" />
-
-            <include
-                android:id="@+id/category_cosmetic"
-                layout="@layout/item_category" />
-
-            <include
-                android:id="@+id/category_travel"
-                layout="@layout/item_category" />
-
-            <include
-                android:id="@+id/category_medical"
-                layout="@layout/item_category" />
-
-            <include
-                android:id="@+id/category_member"
-                layout="@layout/item_category" />
-
-            <include
-                android:id="@+id/category_communication"
-                layout="@layout/item_category" />
-
-            <include
-                android:id="@+id/category_social"
-                layout="@layout/item_category" />
-
-            <include
-                android:id="@+id/category_investment"
-                layout="@layout/item_category" />
-
-            <include
-                android:id="@+id/category_parenting"
-                layout="@layout/item_category" />
-
-            <include
-                android:id="@+id/category_pet"
-                layout="@layout/item_category" />
-
-            <include
-                android:id="@+id/category_decoration"
-                layout="@layout/item_category" />
-
-            <include
-                android:id="@+id/category_other"
-                layout="@layout/item_category" />
-
-            <include
-                android:id="@+id/category_salary"
-                layout="@layout/item_category" />
-
-            <include
-                android:id="@+id/category_parttime"
-                layout="@layout/item_category" />
-
-            <include
-                android:id="@+id/category_financial"
-                layout="@layout/item_category" />
-
-            <include
-                android:id="@+id/category_cashgift"
-                layout="@layout/item_category" />
-
-
-        </com.example.couplecredit.widget.AdaptiveGridLayout>
+    </com.example.couplecredit.widget.AdaptiveGridLayout>
 
     </ScrollView>
 
@@ -156,75 +80,75 @@
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:background="@android:color/white"
-        android:orientation="vertical">
+        android:orientation="vertical"
+        android:background="@android:color/white">
 
         <!-- 日期和账单归属选择 -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:gravity="center_vertical"
             android:orientation="horizontal"
-            android:padding="6dp">
+            android:padding="6dp"
+            android:gravity="center_vertical">
 
             <!-- 日期选择 -->
             <TextView
                 android:id="@+id/tv_date"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginEnd="8dp"
+                android:text="8月6日"
+                android:textSize="12sp"
+                android:textColor="@android:color/white"
                 android:background="#FF9500"
                 android:padding="8dp"
-                android:text="8月6日"
-                android:textColor="@android:color/white"
-                android:textSize="12sp" />
+                android:layout_marginEnd="8dp" />
 
             <!-- 图片按钮 -->
             <TextView
                 android:id="@+id/tv_photo"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginEnd="8dp"
+                android:text="图片"
+                android:textSize="12sp"
+                android:textColor="#666666"
                 android:background="#E0E0E0"
                 android:padding="8dp"
-                android:text="图片"
-                android:textColor="#666666"
-                android:textSize="12sp" />
+                android:layout_marginEnd="8dp" />
 
             <!-- 自己按钮 -->
             <TextView
                 android:id="@+id/tv_self"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginEnd="8dp"
+                android:text="自己"
+                android:textSize="12sp"
+                android:textColor="@android:color/white"
                 android:background="#FF9500"
                 android:padding="8dp"
-                android:text="自己"
-                android:textColor="@android:color/white"
-                android:textSize="12sp" />
+                android:layout_marginEnd="8dp" />
 
             <!-- 对方按钮 -->
             <TextView
                 android:id="@+id/tv_partner"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginEnd="8dp"
+                android:text="对方"
+                android:textSize="12sp"
+                android:textColor="#666666"
                 android:background="#E0E0E0"
                 android:padding="8dp"
-                android:text="对方"
-                android:textColor="#666666"
-                android:textSize="12sp" />
+                android:layout_marginEnd="8dp" />
 
             <!-- 共同按钮 -->
             <TextView
                 android:id="@+id/tv_shared"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:background="#E0E0E0"
-                android:padding="8dp"
                 android:text="共同"
+                android:textSize="12sp"
                 android:textColor="#666666"
-                android:textSize="12sp" />
+                android:background="#E0E0E0"
+                android:padding="8dp" />
 
         </LinearLayout>
 
@@ -232,29 +156,29 @@
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:gravity="center_vertical"
             android:orientation="horizontal"
-            android:padding="8dp">
+            android:padding="8dp"
+            android:gravity="center_vertical">
 
             <EditText
                 android:id="@+id/et_note"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:background="@null"
                 android:hint="点击输入备注"
-                android:padding="6dp"
+                android:textSize="16sp"
                 android:textColor="#666666"
                 android:textColorHint="#999999"
-                android:textSize="16sp" />
+                android:background="@null"
+                android:padding="6dp" />
 
             <TextView
                 android:id="@+id/tv_amount_display"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="¥0.00"
-                android:textColor="#FF9500"
                 android:textSize="22sp"
+                android:textColor="#FF9500"
                 android:textStyle="bold" />
 
         </LinearLayout>
@@ -263,9 +187,9 @@
         <GridLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:background="#F0F0F0"
             android:columnCount="4"
-            android:rowCount="4">
+            android:rowCount="4"
+            android:background="#F0F0F0">
 
             <!-- 第一行 -->
             <TextView
@@ -273,48 +197,48 @@
                 android:layout_width="0dp"
                 android:layout_height="45dp"
                 android:layout_columnWeight="1"
-                android:layout_margin="1dp"
-                android:background="@android:color/white"
-                android:gravity="center"
                 android:text="1"
+                android:textSize="20sp"
                 android:textColor="#333333"
-                android:textSize="20sp" />
+                android:gravity="center"
+                android:background="@android:color/white"
+                android:layout_margin="1dp" />
 
             <TextView
                 android:id="@+id/key_2"
                 android:layout_width="0dp"
                 android:layout_height="45dp"
                 android:layout_columnWeight="1"
-                android:layout_margin="1dp"
-                android:background="@android:color/white"
-                android:gravity="center"
                 android:text="2"
+                android:textSize="20sp"
                 android:textColor="#333333"
-                android:textSize="20sp" />
+                android:gravity="center"
+                android:background="@android:color/white"
+                android:layout_margin="1dp" />
 
             <TextView
                 android:id="@+id/key_3"
                 android:layout_width="0dp"
                 android:layout_height="45dp"
                 android:layout_columnWeight="1"
-                android:layout_margin="1dp"
-                android:background="@android:color/white"
-                android:gravity="center"
                 android:text="3"
+                android:textSize="20sp"
                 android:textColor="#333333"
-                android:textSize="20sp" />
+                android:gravity="center"
+                android:background="@android:color/white"
+                android:layout_margin="1dp" />
 
             <TextView
                 android:id="@+id/key_delete"
                 android:layout_width="0dp"
                 android:layout_height="45dp"
                 android:layout_columnWeight="1"
-                android:layout_margin="1dp"
-                android:background="@android:color/white"
-                android:gravity="center"
                 android:text="⌫"
+                android:textSize="20sp"
                 android:textColor="#333333"
-                android:textSize="20sp" />
+                android:gravity="center"
+                android:background="@android:color/white"
+                android:layout_margin="1dp" />
 
             <!-- 第二行 -->
             <TextView
@@ -322,48 +246,48 @@
                 android:layout_width="0dp"
                 android:layout_height="45dp"
                 android:layout_columnWeight="1"
-                android:layout_margin="1dp"
-                android:background="@android:color/white"
-                android:gravity="center"
                 android:text="4"
+                android:textSize="20sp"
                 android:textColor="#333333"
-                android:textSize="20sp" />
+                android:gravity="center"
+                android:background="@android:color/white"
+                android:layout_margin="1dp" />
 
             <TextView
                 android:id="@+id/key_5"
                 android:layout_width="0dp"
                 android:layout_height="45dp"
                 android:layout_columnWeight="1"
-                android:layout_margin="1dp"
-                android:background="@android:color/white"
-                android:gravity="center"
                 android:text="5"
+                android:textSize="20sp"
                 android:textColor="#333333"
-                android:textSize="20sp" />
+                android:gravity="center"
+                android:background="@android:color/white"
+                android:layout_margin="1dp" />
 
             <TextView
                 android:id="@+id/key_6"
                 android:layout_width="0dp"
                 android:layout_height="45dp"
                 android:layout_columnWeight="1"
-                android:layout_margin="1dp"
-                android:background="@android:color/white"
-                android:gravity="center"
                 android:text="6"
+                android:textSize="20sp"
                 android:textColor="#333333"
-                android:textSize="20sp" />
+                android:gravity="center"
+                android:background="@android:color/white"
+                android:layout_margin="1dp" />
 
             <TextView
                 android:id="@+id/key_plus"
                 android:layout_width="0dp"
                 android:layout_height="45dp"
                 android:layout_columnWeight="1"
-                android:layout_margin="1dp"
-                android:background="@android:color/white"
-                android:gravity="center"
                 android:text="+"
+                android:textSize="20sp"
                 android:textColor="#333333"
-                android:textSize="20sp" />
+                android:gravity="center"
+                android:background="@android:color/white"
+                android:layout_margin="1dp" />
 
             <!-- 第三行 -->
             <TextView
@@ -371,48 +295,48 @@
                 android:layout_width="0dp"
                 android:layout_height="45dp"
                 android:layout_columnWeight="1"
-                android:layout_margin="1dp"
-                android:background="@android:color/white"
-                android:gravity="center"
                 android:text="7"
+                android:textSize="20sp"
                 android:textColor="#333333"
-                android:textSize="20sp" />
+                android:gravity="center"
+                android:background="@android:color/white"
+                android:layout_margin="1dp" />
 
             <TextView
                 android:id="@+id/key_8"
                 android:layout_width="0dp"
                 android:layout_height="45dp"
                 android:layout_columnWeight="1"
-                android:layout_margin="1dp"
-                android:background="@android:color/white"
-                android:gravity="center"
                 android:text="8"
+                android:textSize="20sp"
                 android:textColor="#333333"
-                android:textSize="20sp" />
+                android:gravity="center"
+                android:background="@android:color/white"
+                android:layout_margin="1dp" />
 
             <TextView
                 android:id="@+id/key_9"
                 android:layout_width="0dp"
                 android:layout_height="45dp"
                 android:layout_columnWeight="1"
-                android:layout_margin="1dp"
-                android:background="@android:color/white"
-                android:gravity="center"
                 android:text="9"
+                android:textSize="20sp"
                 android:textColor="#333333"
-                android:textSize="20sp" />
+                android:gravity="center"
+                android:background="@android:color/white"
+                android:layout_margin="1dp" />
 
             <TextView
                 android:id="@+id/key_minus"
                 android:layout_width="0dp"
                 android:layout_height="45dp"
                 android:layout_columnWeight="1"
-                android:layout_margin="1dp"
-                android:background="@android:color/white"
-                android:gravity="center"
                 android:text="-"
+                android:textSize="20sp"
                 android:textColor="#333333"
-                android:textSize="20sp" />
+                android:gravity="center"
+                android:background="@android:color/white"
+                android:layout_margin="1dp" />
 
             <!-- 第四行 -->
             <TextView
@@ -420,48 +344,48 @@
                 android:layout_width="0dp"
                 android:layout_height="50dp"
                 android:layout_columnWeight="1"
-                android:layout_margin="1dp"
-                android:background="@android:color/white"
-                android:gravity="center"
                 android:text="再记"
+                android:textSize="16sp"
                 android:textColor="#333333"
-                android:textSize="16sp" />
+                android:gravity="center"
+                android:background="@android:color/white"
+                android:layout_margin="1dp" />
 
             <TextView
                 android:id="@+id/key_0"
                 android:layout_width="0dp"
                 android:layout_height="50dp"
                 android:layout_columnWeight="1"
-                android:layout_margin="1dp"
-                android:background="@android:color/white"
-                android:gravity="center"
                 android:text="0"
+                android:textSize="20sp"
                 android:textColor="#333333"
-                android:textSize="20sp" />
+                android:gravity="center"
+                android:background="@android:color/white"
+                android:layout_margin="1dp" />
 
             <TextView
                 android:id="@+id/key_dot"
                 android:layout_width="0dp"
                 android:layout_height="50dp"
                 android:layout_columnWeight="1"
-                android:layout_margin="1dp"
-                android:background="@android:color/white"
-                android:gravity="center"
                 android:text="."
+                android:textSize="20sp"
                 android:textColor="#333333"
-                android:textSize="20sp" />
+                android:gravity="center"
+                android:background="@android:color/white"
+                android:layout_margin="1dp" />
 
             <TextView
                 android:id="@+id/key_save"
                 android:layout_width="0dp"
                 android:layout_height="50dp"
                 android:layout_columnWeight="1"
-                android:layout_margin="1dp"
-                android:background="#07C160"
-                android:gravity="center"
                 android:text="保存"
+                android:textSize="16sp"
                 android:textColor="@android:color/white"
-                android:textSize="16sp" />
+                android:gravity="center"
+                android:background="#07C160"
+                android:layout_margin="1dp" />
 
         </GridLayout>
 
