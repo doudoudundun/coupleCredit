@@ -18,6 +18,7 @@ import androidx.fragment.app.FragmentManager;
 import androidx.fragment.app.FragmentTransaction;
 
 import com.transsion.widgetslib.widget.FootOperationBar;
+import com.github.mikephil.charting.utils.Utils;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -37,6 +38,9 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         EdgeToEdge.enable(this);
         setContentView(R.layout.activity_main);
+        
+        // 初始化MPAndroidChart的Utils
+        Utils.init(this);
 
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main), (v, insets) -> {
             androidx.core.graphics.Insets systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
@@ -52,8 +56,10 @@ public class MainActivity extends AppCompatActivity {
         reportFragment = new ReportFragment();
         myFragment = new MyFragment();
 
+        // 预初始化所有Fragment，避免运行时空指针异常
+        initAllFragments();
+
         // 默认显示首页Fragment
-//        currentFragment = headFragment;
         showFragment(headFragment);
 
         mFootOptBar = (FootOperationBar) findViewById(R.id.bottom_nav);
@@ -130,13 +136,8 @@ public class MainActivity extends AppCompatActivity {
             transaction.hide(currentFragment);
         }
         
-        // 如果Fragment还没有添加到容器中，则添加它
-        if (!fragment.isAdded()) {
-            transaction.add(R.id.fragment_container, fragment);
-        } else {
-            // 如果已经添加，则显示它
-            transaction.show(fragment);
-        }
+        // 显示目标Fragment（所有Fragment已在initAllFragments中预添加）
+        transaction.show(fragment);
         
         currentFragment = fragment;
         transaction.commit();
@@ -152,4 +153,24 @@ public class MainActivity extends AppCompatActivity {
         return reportFragment;
     }
 
+    /**
+     * 预初始化所有Fragment，确保它们在应用启动时就完成初始化
+     */
+    private void initAllFragments() {
+        FragmentTransaction transaction = fragmentManager.beginTransaction();
+        
+        // 添加所有Fragment但设为隐藏状态
+        transaction.add(R.id.fragment_container, headFragment, "head");
+        transaction.add(R.id.fragment_container, addBillFragment, "addBill");
+        transaction.add(R.id.fragment_container, reportFragment, "report");
+        transaction.add(R.id.fragment_container, myFragment, "my");
+        
+        // 隐藏所有Fragment
+        transaction.hide(headFragment);
+        transaction.hide(addBillFragment);
+        transaction.hide(reportFragment);
+        transaction.hide(myFragment);
+        
+        transaction.commit();
+    }
 }

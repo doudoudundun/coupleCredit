@@ -33,6 +33,7 @@ public class ReportFragment extends Fragment {
     private int currentMonth;
     private TextView tv_month_choose;
     private TextView tv_trend_title;
+    private TextView tv_remainer;
     private OSSegmentedTab segmentedTab;
     private List<String> currentTabs = new ArrayList<>();
     private LineChart TrendChart;
@@ -48,6 +49,7 @@ public class ReportFragment extends Fragment {
                 income_type = 0;
                 tv_trend_title.setText("支出趋势");
                 loadTrendData();
+                tv_remainer.setText("结余：￥" + String.format("%.2f", getRemainer()));
             } else if (position == 1) {
                 // 显示收入内容
                 income_type = 1;
@@ -82,6 +84,7 @@ public class ReportFragment extends Fragment {
         }
         tv_trend_title = view.findViewById(R.id.tv_trend_title);
         tv_month_choose = view.findViewById(R.id.tv_month_choose);
+        tv_remainer = view.findViewById(R.id.tv_remainer);
         tv_month_choose.setText(currentYear + "年" + currentMonth + "月 >");
         tv_month_choose.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -109,14 +112,15 @@ public class ReportFragment extends Fragment {
     }
     
     // 公共方法：更新月份显示
-    public void updateMonthDisplay(int year, int month, String type) {
+    public void updateDisplay(int year, int month, String type) {
         currentYear = year;
         currentMonth = month;
         if (tv_month_choose != null) {
             tv_month_choose.setText(currentYear + "年" + currentMonth + "月 >");
         }
-        // 这里可以根据type参数做其他处理，比如更新图表数据等
+        loadTrendData();
     }
+
 
     private void setupSegmentedTab() {
         segmentedTab.addTabs(currentTabs);
@@ -153,7 +157,6 @@ public class ReportFragment extends Fragment {
     private void loadTrendData() {
         // 模拟收入趋势数据（实际应从数据库获取）
         List<com.github.mikephil.charting.data.Entry> entries = new ArrayList<>();
-        
         // 获取当前月份的天数
         Calendar calendar = Calendar.getInstance();
         calendar.set(currentYear, currentMonth - 1, 1);
@@ -187,13 +190,36 @@ public class ReportFragment extends Fragment {
         dataSet.setFillAlpha(50);
         
         LineData lineData = new LineData(dataSet);
-        TrendChart.setData(lineData);
-        TrendChart.invalidate();
+        
+        // 检查TrendChart是否已初始化
+        if (TrendChart != null) {
+            TrendChart.setData(lineData);
+            // 添加从下到上的动画效果，持续时间300毫秒
+            TrendChart.animateY(300);
+            TrendChart.invalidate();
+        }
     }
-    
+    private double getRemainer(){
+        //获取当月天数
+        Calendar calendar = Calendar.getInstance();
+        calendar.set(currentYear, currentMonth - 1, 1);
+        int daysInMonth = calendar.getActualMaximum(Calendar.DAY_OF_MONTH);
+
+        double total = 0;
+        for (int day = 1; day <= daysInMonth; day++) {
+            float count = getCountForDay(day, 1)-getCountForDay(day, 0);
+            total += count;
+        }
+        return total;
+    }
     private float getCountForDay(int day, int income_type) {
         // 查询数据库获取指定日期的收入数据
         String dateStr = String.format("%04d-%02d-%02d", currentYear, currentMonth, day);
+        
+        // 检查Context是否可用
+        if (getContext() == null) {
+            return 0;
+        }
         
         // 构建查询条件：日期匹配且为收入类型相同
         String selection = BillDatabaseHelper.COLUMN_DATE + "=? AND " + 
