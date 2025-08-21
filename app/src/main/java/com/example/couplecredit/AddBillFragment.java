@@ -66,7 +66,7 @@ public class AddBillFragment extends Fragment {
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
         View view = inflater.inflate(R.layout.fragment_add_bill, container, false);
-
+    
         // 初始化UI组件
         initViews(view);
         
@@ -76,10 +76,12 @@ public class AddBillFragment extends Fragment {
         // 初始化默认状态
         updateDateDisplay();
         updateAmountDisplay();
-        switchToExpense(); // 默认显示支出模式
         
         // 初始化分类项的样式
         initializeCategoryStyles(view);
+        
+        // 默认显示支出模式（这个调用要放在initializeCategoryStyles之后）
+        switchToExpense();
         
         return view;
     }
@@ -388,6 +390,43 @@ public class AddBillFragment extends Fragment {
             selectedCategory = "其他";
             updateCategorySelection(view, categoryOther);
         });
+        
+        // 添加收入专用分类的监听器
+        // 工资
+        LinearLayout categorySalary = view.findViewById(R.id.category_salary);
+        if (categorySalary != null) {
+            categorySalary.setOnClickListener(v -> {
+                selectedCategory = "工资";
+                updateCategorySelection(view, categorySalary);
+            });
+        }
+        
+        // 礼金
+        LinearLayout categoryCashgift = view.findViewById(R.id.category_cashgift);
+        if (categoryCashgift != null) {
+            categoryCashgift.setOnClickListener(v -> {
+                selectedCategory = "礼金";
+                updateCategorySelection(view, categoryCashgift);
+            });
+        }
+        
+        // 兼职
+        LinearLayout categoryParttime = view.findViewById(R.id.category_parttime);
+        if (categoryParttime != null) {
+            categoryParttime.setOnClickListener(v -> {
+                selectedCategory = "兼职";
+                updateCategorySelection(view, categoryParttime);
+            });
+        }
+        
+        // 理财
+        LinearLayout categoryFinancial = view.findViewById(R.id.category_financial);
+        if (categoryFinancial != null) {
+            categoryFinancial.setOnClickListener(v -> {
+                selectedCategory = "理财";
+                updateCategorySelection(view, categoryFinancial);
+            });
+        }
     }
     
     private void setupKeypadListeners(View view) {
@@ -539,7 +578,12 @@ public class AddBillFragment extends Fragment {
                 rootView.findViewById(R.id.category_parenting),
                 rootView.findViewById(R.id.category_pet),
                 rootView.findViewById(R.id.category_decoration),
-                rootView.findViewById(R.id.category_other)
+                rootView.findViewById(R.id.category_other),
+                // 添加收入专用分类
+                rootView.findViewById(R.id.category_salary),
+                rootView.findViewById(R.id.category_cashgift),
+                rootView.findViewById(R.id.category_parttime),
+                rootView.findViewById(R.id.category_financial)
             };
             
             for (int i = 0; i < categories.length; i++) {
@@ -719,20 +763,20 @@ public class AddBillFragment extends Fragment {
             setCategoryStyle(rootView, R.id.category_shopping, "购物", 0, R.drawable.img_category_shopping);
             setCategoryStyle(rootView, R.id.category_transport, "交通", 0, R.drawable.img_category_transport);
             setCategoryStyle(rootView, R.id.category_hotel, "住宿", 0, R.drawable.img_category_hotel);
-            setCategoryStyle(rootView, R.id.category_daily, "日常", 0, R.drawable.img_category_food);
-            setCategoryStyle(rootView, R.id.category_study, "学习", 0, R.drawable.img_category_food);
+            setCategoryStyle(rootView, R.id.category_daily, "日常", 0, R.drawable.img_category_daily);
+            setCategoryStyle(rootView, R.id.category_study, "学习", 0, R.drawable.img_category_study);
             setCategoryStyle(rootView, R.id.category_entertainment, "娱乐", 0, R.drawable.img_category_entertainment);
             setCategoryStyle(rootView, R.id.category_cosmetic, "化妆", 0, R.drawable.img_category_cosmetic);
             setCategoryStyle(rootView, R.id.category_travel, "旅游", 0, R.drawable.img_category_travel);
             setCategoryStyle(rootView, R.id.category_medical, "医疗", 0, R.drawable.img_category_medical);
             setCategoryStyle(rootView, R.id.category_member, "会员", 0, R.drawable.img_category_member);
             setCategoryStyle(rootView, R.id.category_communication, "通讯", 0, R.drawable.img_category_communication);
-            setCategoryStyle(rootView, R.id.category_social, "人情", 0, R.drawable.img_category_food);
-            setCategoryStyle(rootView, R.id.category_investment, "投资", 0, R.drawable.img_category_food);
+            setCategoryStyle(rootView, R.id.category_social, "人情", 0, R.drawable.img_category_social);
+            setCategoryStyle(rootView, R.id.category_investment, "投资", 0, R.drawable.img_category_investment);
             setCategoryStyle(rootView, R.id.category_parenting, "亲子", 0, R.drawable.img_category_parenting);
             setCategoryStyle(rootView, R.id.category_pet, "宠物", 0, R.drawable.img_category_pet);
             setCategoryStyle(rootView, R.id.category_decoration, "装修", 0, R.drawable.img_category_decoration);
-            setCategoryStyle(rootView, R.id.category_other, "其他", 0, R.drawable.img_category_food);
+            setCategoryStyle(rootView, R.id.category_other, "其他", 0, R.drawable.img_category_other);
             
             // 显示所有支出分类项
             rootView.findViewById(R.id.category_food).setVisibility(View.VISIBLE);
@@ -782,30 +826,9 @@ public class AddBillFragment extends Fragment {
             showIncomeOnlyCategories(rootView);
         }
     }
-    
-    private void hideIncomeOnlyCategories(View rootView) {
-        // 隐藏收入专用分类项（如果存在的话）
-        // 这里可以根据需要添加收入专用分类的隐藏逻辑
-    }
-    
-    private void showIncomeOnlyCategories(View rootView) {
-        // 显示收入分类项，重用现有的分类项并修改样式
-        
-        // 为收入分类设置统一样式 - 使用img_category_food图标，移除背景
-        setCategoryStyle(rootView, R.id.category_food, "工资", 0, R.drawable.img_category_food);
-        setCategoryStyle(rootView, R.id.category_drink, "兼职", 0, R.drawable.img_category_food);
-        setCategoryStyle(rootView, R.id.category_fruit, "理财", 0, R.drawable.img_category_food);
-        setCategoryStyle(rootView, R.id.category_shopping, "礼金", 0, R.drawable.img_category_food);
-        setCategoryStyle(rootView, R.id.category_transport, "其他", 0, R.drawable.img_category_food);
-        
-        // 显示收入分类项（只显示第一行的5个）
-        rootView.findViewById(R.id.category_food).setVisibility(View.VISIBLE);
-        rootView.findViewById(R.id.category_drink).setVisibility(View.VISIBLE);
-        rootView.findViewById(R.id.category_fruit).setVisibility(View.VISIBLE);
-        rootView.findViewById(R.id.category_shopping).setVisibility(View.VISIBLE);
-        rootView.findViewById(R.id.category_transport).setVisibility(View.VISIBLE);
-        
-        // 隐藏所有其他分类项
+
+    private void hideExpenseOnlyCategories(View rootView) {
+        // 隐藏支出专用分类项（"餐品、饮品、水果、购物、交通、住宿、日常、学习、娱乐、化妆、旅游、医疗、会员、通讯、人情、投资、亲子、宠物、装修、其他"）
         rootView.findViewById(R.id.category_hotel).setVisibility(View.GONE);
         rootView.findViewById(R.id.category_daily).setVisibility(View.GONE);
         rootView.findViewById(R.id.category_study).setVisibility(View.GONE);
@@ -820,7 +843,37 @@ public class AddBillFragment extends Fragment {
         rootView.findViewById(R.id.category_parenting).setVisibility(View.GONE);
         rootView.findViewById(R.id.category_pet).setVisibility(View.GONE);
         rootView.findViewById(R.id.category_decoration).setVisibility(View.GONE);
-        rootView.findViewById(R.id.category_other).setVisibility(View.GONE);
+        // rootView.findViewById(R.id.category_other).setVisibility(View.GONE);
+    }
+
+    private void hideIncomeOnlyCategories(View rootView) {
+        // 隐藏收入专用分类项（"工资、礼金、兼职、理财和其他"）
+        rootView.findViewById(R.id.category_salary).setVisibility(View.GONE);
+        rootView.findViewById(R.id.category_cashgift).setVisibility(View.GONE);
+        rootView.findViewById(R.id.category_parttime).setVisibility(View.GONE);
+        rootView.findViewById(R.id.category_financial).setVisibility(View.GONE);
+        // rootView.findViewById(R.id.category_other).setVisibility(View.GONE);
+    }
+    
+    private void showIncomeOnlyCategories(View rootView) {
+        // 显示收入分类项，重用现有的分类项并修改样式
+        
+        // 为收入分类设置样式 - 保持各自的图标资源，移除背景
+        setCategoryStyle(rootView, R.id.category_salary, "工资", 0, R.drawable.img_category_salary);
+        setCategoryStyle(rootView, R.id.category_cashgift, "礼金", 0, R.drawable.img_category_cashgift);
+        setCategoryStyle(rootView, R.id.category_parttime, "兼职", 0, R.drawable.img_category_parttime);
+        setCategoryStyle(rootView, R.id.category_financial, "理财", 0, R.drawable.img_category_financial);
+        setCategoryStyle(rootView, R.id.category_other, "其他", 0, R.drawable.img_category_other);
+    
+        // 显示收入分类项（只显示这5个）
+        rootView.findViewById(R.id.category_salary).setVisibility(View.VISIBLE);
+        rootView.findViewById(R.id.category_cashgift).setVisibility(View.VISIBLE);
+        rootView.findViewById(R.id.category_parttime).setVisibility(View.VISIBLE);
+        rootView.findViewById(R.id.category_financial).setVisibility(View.VISIBLE);
+        rootView.findViewById(R.id.category_other).setVisibility(View.VISIBLE);
+    
+        // 隐藏所有其他分类项
+        hideExpenseOnlyCategories(rootView);
     }
     
     private void updateCategoryText(View rootView, int categoryId, String newText) {
@@ -841,20 +894,22 @@ public class AddBillFragment extends Fragment {
         setCategoryStyle(rootView, R.id.category_shopping, "购物", 0, R.drawable.img_category_shopping);
         setCategoryStyle(rootView, R.id.category_transport, "交通", 0, R.drawable.img_category_transport);
         setCategoryStyle(rootView, R.id.category_hotel, "住宿", 0, R.drawable.img_category_hotel);
-        setCategoryStyle(rootView, R.id.category_daily, "日常", 0, R.drawable.img_category_food);
-        setCategoryStyle(rootView, R.id.category_study, "学习", 0, R.drawable.img_category_food);
+        setCategoryStyle(rootView, R.id.category_daily, "日常", 0, R.drawable.img_category_daily);
+        setCategoryStyle(rootView, R.id.category_study, "学习", 0, R.drawable.img_category_study);
         setCategoryStyle(rootView, R.id.category_entertainment, "娱乐", 0, R.drawable.img_category_entertainment);
         setCategoryStyle(rootView, R.id.category_cosmetic, "化妆", 0, R.drawable.img_category_cosmetic);
         setCategoryStyle(rootView, R.id.category_travel, "旅游", 0, R.drawable.img_category_travel);
         setCategoryStyle(rootView, R.id.category_medical, "医疗", 0, R.drawable.img_category_medical);
         setCategoryStyle(rootView, R.id.category_member, "会员", 0, R.drawable.img_category_member);
         setCategoryStyle(rootView, R.id.category_communication, "通讯", 0, R.drawable.img_category_communication);
-        setCategoryStyle(rootView, R.id.category_social, "人情", 0, R.drawable.img_category_food);
-        setCategoryStyle(rootView, R.id.category_investment, "投资", 0, R.drawable.img_category_food);
+        setCategoryStyle(rootView, R.id.category_social, "人情", 0, R.drawable.img_category_social);
+        setCategoryStyle(rootView, R.id.category_investment, "投资", 0, R.drawable.img_category_investment);
         setCategoryStyle(rootView, R.id.category_parenting, "亲子", 0, R.drawable.img_category_parenting);
         setCategoryStyle(rootView, R.id.category_pet, "宠物", 0, R.drawable.img_category_pet);
         setCategoryStyle(rootView, R.id.category_decoration, "装修", 0, R.drawable.img_category_decoration);
-        setCategoryStyle(rootView, R.id.category_other, "其他", 0, R.drawable.img_category_food);
+        setCategoryStyle(rootView, R.id.category_other, "其他", 0, R.drawable.img_category_other);
+
+        hideIncomeOnlyCategories(rootView);
     }
     
     private void setCategoryStyle(View rootView, int categoryId, String text, int backgroundRes, int iconRes) {
