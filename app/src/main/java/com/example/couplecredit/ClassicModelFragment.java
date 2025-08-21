@@ -239,17 +239,52 @@ public class ClassicModelFragment extends Fragment {
     
     private int getIconForCategory(String category) {
         switch (category) {
+            case "餐品":
             case "餐饮":
-                return R.drawable.ic_money;
-            case "交通":
-            case "生活":
-                return R.drawable.ic_report;
+                return R.drawable.img_category_food;
+            case "饮品":
+                return R.drawable.img_category_drink;
+            case "水果":
+                return R.drawable.img_category_fruit;
             case "购物":
-                return R.drawable.ic_favorite;
+                return R.drawable.img_category_shopping;
+            case "交通":
+                return R.drawable.img_category_transport;
+            case "住宿":
+                return R.drawable.img_category_hotel;
+            case "日常":
+                return R.drawable.img_category_food;
+            case "学习":
+                return R.drawable.img_category_food;
             case "娱乐":
-                return R.drawable.ic_profile;
+                return R.drawable.img_category_entertainment;
+            case "化妆":
+                return R.drawable.img_category_cosmetic;
+            case "旅游":
+                return R.drawable.img_category_travel;
+            case "医疗":
+                return R.drawable.img_category_medical;
+            case "会员":
+                return R.drawable.img_category_member;
+            case "通讯":
+                return R.drawable.img_category_communication;
+            case "人情":
+            case "社交":
+                return R.drawable.img_category_food;
+            case "投资":
+                return R.drawable.img_category_food;
+            case "亲子":
+            case "育儿":
+                return R.drawable.img_category_parenting;
+            case "宠物":
+                return R.drawable.img_category_pet;
+            case "装修":
+                return R.drawable.img_category_decoration;
+            case "其他":
+            case "生活":
+                return R.drawable.img_category_food;
             default:
-                return R.drawable.ic_money;
+                return R.drawable.img_category_food;
         }
     }
     private void processAndDisplayData() {

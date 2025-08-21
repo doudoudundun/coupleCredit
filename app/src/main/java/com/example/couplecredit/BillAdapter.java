@@ -78,10 +78,15 @@ public class BillAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
                 TextView tvKind = billView.findViewById(R.id.tv_category_name);
                 TextView tvMoney = billView.findViewById(R.id.tv_amount);
                 TextView tvRemark = billView.findViewById(R.id.tv_category_desc);
+                ImageView ivIcon = billView.findViewById(R.id.iv_category_icon);
                 
                 tvKind.setText(bill.getCategoryName());
                 tvMoney.setText(String.format("%.2f", bill.getFare()));
                 tvRemark.setText(bill.getCategoryDesc());
+                
+                // 设置分类图标
+                ivIcon.setImageResource(bill.getIconResId());
+                ivIcon.setBackground(null); // 移除默认背景
                 
                 // 设置颜色（根据收入支出类型判断）
                 if (bill.getIncomeType() == 0) { // 支出
