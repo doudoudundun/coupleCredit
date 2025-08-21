@@ -40,14 +40,26 @@ import java.util.Locale;
 // 在类的顶部添加导入
 import com.example.couplecredit.widget.AdaptiveGridLayout;
 
+/**
+ * 记账页面Fragment
+ * 功能包括：
+ * 1. 支出/收入模式切换
+ * 2. 分类选择（支出分类和收入分类）
+ * 3. 金额输入（支持数字键盘和运算符）
+ * 4. 日期选择
+ * 5. 备注输入
+ * 6. 账单归属选择（自己/对方/共同）
+ * 7. 照片选择
+ * 8. 保存账单数据
+ */
+
 public class AddBillFragment extends Fragment {
 
     private static final int REQUEST_IMAGE_PICK = 1001;
     private static final int REQUEST_PERMISSION = 1002;
-    
-    private TextView tvExpense, tvIncome;
-    private TextView tvAmountDisplay;
-    private EditText etNote;
+
+    private TextView tvAmountDisplay;// 显示当前输入金额
+    private EditText etNote;// 备注输入框
     private TextView tvDate, tvPhoto, tvSelf, tvPartner, tvShared;
 //    private View indicatorExpense, indicatorIncome;
     private AdaptiveGridLayout gridCategories; // 替换原来的GridLayout
@@ -604,51 +616,51 @@ public class AddBillFragment extends Fragment {
         }
     }
 
-    @SuppressLint("ResourceType")
-    private void resetCategoryBackgrounds(View rootView) {
-        try {
-            Log.d("AddBillFragment", "resetCategoryBackgrounds called");
-            
-            // 重置所有分类背景
-            int defaultBackground = android.R.attr.selectableItemBackground;
-            
-            LinearLayout[] categories = {
-                rootView.findViewById(R.id.category_food),
-                rootView.findViewById(R.id.category_drink),
-                rootView.findViewById(R.id.category_fruit),
-                rootView.findViewById(R.id.category_shopping),
-                rootView.findViewById(R.id.category_transport),
-                rootView.findViewById(R.id.category_hotel),
-                rootView.findViewById(R.id.category_daily),
-                rootView.findViewById(R.id.category_study),
-                rootView.findViewById(R.id.category_entertainment),
-                rootView.findViewById(R.id.category_cosmetic),
-                rootView.findViewById(R.id.category_travel),
-                rootView.findViewById(R.id.category_medical),
-                rootView.findViewById(R.id.category_member),
-                rootView.findViewById(R.id.category_communication),
-                rootView.findViewById(R.id.category_social),
-                rootView.findViewById(R.id.category_investment),
-                rootView.findViewById(R.id.category_parenting),
-                rootView.findViewById(R.id.category_pet),
-                rootView.findViewById(R.id.category_decoration),
-                rootView.findViewById(R.id.category_other)
-            };
-            
-            for (int i = 0; i < categories.length; i++) {
-                LinearLayout category = categories[i];
-                if (category != null) {
-                    category.setBackgroundResource(defaultBackground);
-                } else {
-                    Log.w("AddBillFragment", "Category at index " + i + " is null");
-                }
-            }
-            
-            Log.d("AddBillFragment", "resetCategoryBackgrounds completed successfully");
-        } catch (Exception e) {
-            Log.e("AddBillFragment", "Error in resetCategoryBackgrounds", e);
-        }
-    }
+//    @SuppressLint("ResourceType")
+//    private void resetCategoryBackgrounds(View rootView) {
+//        try {
+//            Log.d("AddBillFragment", "resetCategoryBackgrounds called");
+//
+//            // 重置所有分类背景
+//            int defaultBackground = android.R.attr.selectableItemBackground;
+//
+//            LinearLayout[] categories = {
+//                rootView.findViewById(R.id.category_food),
+//                rootView.findViewById(R.id.category_drink),
+//                rootView.findViewById(R.id.category_fruit),
+//                rootView.findViewById(R.id.category_shopping),
+//                rootView.findViewById(R.id.category_transport),
+//                rootView.findViewById(R.id.category_hotel),
+//                rootView.findViewById(R.id.category_daily),
+//                rootView.findViewById(R.id.category_study),
+//                rootView.findViewById(R.id.category_entertainment),
+//                rootView.findViewById(R.id.category_cosmetic),
+//                rootView.findViewById(R.id.category_travel),
+//                rootView.findViewById(R.id.category_medical),
+//                rootView.findViewById(R.id.category_member),
+//                rootView.findViewById(R.id.category_communication),
+//                rootView.findViewById(R.id.category_social),
+//                rootView.findViewById(R.id.category_investment),
+//                rootView.findViewById(R.id.category_parenting),
+//                rootView.findViewById(R.id.category_pet),
+//                rootView.findViewById(R.id.category_decoration),
+//                rootView.findViewById(R.id.category_other)
+//            };
+//
+//            for (int i = 0; i < categories.length; i++) {
+//                LinearLayout category = categories[i];
+//                if (category != null) {
+//                    category.setBackgroundResource(defaultBackground);
+//                } else {
+//                    Log.w("AddBillFragment", "Category at index " + i + " is null");
+//                }
+//            }
+//
+//            Log.d("AddBillFragment", "resetCategoryBackgrounds completed successfully");
+//        } catch (Exception e) {
+//            Log.e("AddBillFragment", "Error in resetCategoryBackgrounds", e);
+//        }
+//    }
 
     private void saveBill() {
         String note = etNote.getText().toString().trim();
