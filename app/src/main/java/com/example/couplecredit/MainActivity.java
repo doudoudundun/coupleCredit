@@ -49,18 +49,36 @@ public class MainActivity extends AppCompatActivity {
             return insets;
         });
 
-        // 初始化Fragment管理器和Fragment实例
+        // 初始化Fragment管理器
         fragmentManager = getSupportFragmentManager();
-        headFragment = new HeadFragment();
-        addBillFragment = new AddBillFragment();
-        reportFragment = new ReportFragment();
-        myFragment = new MyFragment();
-
-        // 预初始化所有Fragment，避免运行时空指针异常
-        initAllFragments();
-
-        // 默认显示首页Fragment
-        showFragment(headFragment);
+        
+        if (savedInstanceState == null) {
+            // 首次启动：创建新的Fragment实例
+            headFragment = new HeadFragment();
+            addBillFragment = new AddBillFragment();
+            reportFragment = new ReportFragment();
+            myFragment = new MyFragment();
+            
+            // 预初始化所有Fragment，避免运行时空指针异常
+            initAllFragments();
+            
+            // 默认显示首页Fragment
+            showFragment(headFragment);
+        } else {
+            // 恢复状态：复用已有的Fragment实例
+            headFragment = (HeadFragment) fragmentManager.findFragmentByTag("head");
+            addBillFragment = (AddBillFragment) fragmentManager.findFragmentByTag("addBill");
+            reportFragment = (ReportFragment) fragmentManager.findFragmentByTag("report");
+            myFragment = (MyFragment) fragmentManager.findFragmentByTag("my");
+            
+            // 恢复currentFragment（找当前可见的Fragment）
+            for (Fragment f : fragmentManager.getFragments()) {
+                if (f != null && f.isVisible()) {
+                    currentFragment = f;
+                    break;
+                }
+            }
+        }
 
         mFootOptBar = (FootOperationBar) findViewById(R.id.bottom_nav);
         mFootOptBar.inflateMenu(R.menu.bottom_nav_menu);
@@ -129,11 +147,18 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void showFragment(Fragment fragment) {
-        FragmentTransaction transaction = fragmentManager.beginTransaction();
+        FragmentTransaction transaction = fragmentManager.beginTransaction().setReorderingAllowed(true);
         
         // 隐藏当前Fragment
         if (currentFragment != null) {
             transaction.hide(currentFragment);
+        } else {
+            // 兜底：全部隐藏一遍（只针对顶层容器的fragment）
+            for (Fragment f : fragmentManager.getFragments()) {
+                if (f != null && f.getView() != null && f.isVisible()) {
+                    transaction.hide(f);
+                }
+            }
         }
         
         // 显示目标Fragment（所有Fragment已在initAllFragments中预添加）

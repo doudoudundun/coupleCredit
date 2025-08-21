@@ -46,12 +46,18 @@ public class HeadFragment extends Fragment {
         @Override
         public void onTabSelected(int position) {
             if (position == 0) {
-                fragmentManager.beginTransaction().replace(R.id.fg_change, ClassicFragment).commit();
+                if (ClassicFragment == null) {
+                    ClassicFragment = new ClassicModelFragment();
+                }
+                fragmentManager.beginTransaction().replace(R.id.fg_change, ClassicFragment, "classic").commit();
                 isClassicMode = true;
                 // 添加保存状态到SharedPreferences
                 saveMode(true);
             } else if (position == 1) {
-                fragmentManager.beginTransaction().replace(R.id.fg_change, ChatFragment).commit();
+                if (ChatFragment == null) {
+                    ChatFragment = new ChatModelFragment();
+                }
+                fragmentManager.beginTransaction().replace(R.id.fg_change, ChatFragment, "chat").commit();
                 isClassicMode = false;
                 // 添加保存状态到SharedPreferences
                 saveMode(false);
@@ -83,8 +89,6 @@ public class HeadFragment extends Fragment {
         
         segmentedTab = view.findViewById(R.id.segmented_tab);
         fragmentManager = getChildFragmentManager();
-        ClassicFragment = new ClassicModelFragment();
-        ChatFragment = new ChatModelFragment();
         
         // 只在第一次创建时添加tabs
         if (currentTabs.isEmpty()) {
@@ -95,11 +99,25 @@ public class HeadFragment extends Fragment {
         // 设置分段按钮点击事件
         setupSegmentedTab();
         
-        // 根据保存的状态显示对应的Fragment，直接切换Fragment而不触发保存
-        if (isClassicMode) {
-            fragmentManager.beginTransaction().replace(R.id.fg_change, ClassicFragment).commit();
+        // 检查是否已有子Fragment存在
+        Fragment existing = fragmentManager.findFragmentById(R.id.fg_change);
+        if (existing == null) {
+            // 首次创建：根据保存的状态显示对应的Fragment
+            ClassicFragment = new ClassicModelFragment();
+            ChatFragment = new ChatModelFragment();
+            
+            if (isClassicMode) {
+                fragmentManager.beginTransaction().replace(R.id.fg_change, ClassicFragment, "classic").commit();
+            } else {
+                fragmentManager.beginTransaction().replace(R.id.fg_change, ChatFragment, "chat").commit();
+            }
         } else {
-            fragmentManager.beginTransaction().replace(R.id.fg_change, ChatFragment).commit();
+            // 已存在子Fragment，获取引用
+            if (isClassicMode) {
+                ClassicFragment = existing;
+            } else {
+                ChatFragment = existing;
+            }
         }
     }
     private void setupSegmentedTab() {
