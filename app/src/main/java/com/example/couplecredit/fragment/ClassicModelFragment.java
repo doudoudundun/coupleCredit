@@ -257,9 +257,9 @@ public class ClassicModelFragment extends Fragment {
             case "住宿":
                 return R.drawable.img_category_hotel;
             case "日常":
-                return R.drawable.img_category_food;
+                return R.drawable.img_category_daily;
             case "学习":
-                return R.drawable.img_category_food;
+                return R.drawable.img_category_study;
             case "娱乐":
                 return R.drawable.img_category_entertainment;
             case "化妆":
@@ -274,9 +274,9 @@ public class ClassicModelFragment extends Fragment {
                 return R.drawable.img_category_communication;
             case "人情":
             case "社交":
-                return R.drawable.img_category_food;
+                return R.drawable.img_category_social;
             case "投资":
-                return R.drawable.img_category_food;
+                return R.drawable.img_category_investment;
             case "亲子":
             case "育儿":
                 return R.drawable.img_category_parenting;
@@ -284,11 +284,20 @@ public class ClassicModelFragment extends Fragment {
                 return R.drawable.img_category_pet;
             case "装修":
                 return R.drawable.img_category_decoration;
+            // 收入分类
+            case "工资":
+                return R.drawable.img_category_salary;
+            case "礼金":
+                return R.drawable.img_category_cashgift;
+            case "兼职":
+                return R.drawable.img_category_parttime;
+            case "理财":
+                return R.drawable.img_category_financial;
             case "其他":
             case "生活":
-                return R.drawable.img_category_food;
+                return R.drawable.img_category_other;
             default:
-                return R.drawable.img_category_food;
+                return R.drawable.img_category_other;
         }
     }
     private void processAndDisplayData() {

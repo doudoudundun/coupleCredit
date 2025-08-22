@@ -10,6 +10,8 @@ import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
 
+import com.example.couplecredit.function.MySQLDatabaseHelper;
+
 /**
  * 注册页面Activity
  * 提供用户注册功能界面
@@ -17,6 +19,7 @@ import androidx.appcompat.app.AppCompatActivity;
 public class RegisterActivity extends AppCompatActivity {
     
     private EditText etUsername;
+    private EditText etEmail;
     private EditText etPassword;
     private EditText etConfirmPassword;
     private Button btnRegister;
@@ -39,6 +42,7 @@ public class RegisterActivity extends AppCompatActivity {
      */
     private void initViews() {
         etUsername = findViewById(R.id.et_username);
+        etEmail = findViewById(R.id.et_email);
         etPassword = findViewById(R.id.et_password);
         etConfirmPassword = findViewById(R.id.et_confirm_password);
         btnRegister = findViewById(R.id.btn_register);
@@ -74,12 +78,18 @@ public class RegisterActivity extends AppCompatActivity {
      */
     private void performRegister() {
         String username = etUsername.getText().toString().trim();
+        String email = etEmail.getText().toString().trim();
         String password = etPassword.getText().toString().trim();
         String confirmPassword = etConfirmPassword.getText().toString().trim();
         
         // 输入验证
         if (username.isEmpty()) {
             Toast.makeText(this, "请输入账号", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        
+        if (email.isEmpty()) {
+            Toast.makeText(this, "请输入邮箱", Toast.LENGTH_SHORT).show();
             return;
         }
         
@@ -103,12 +113,21 @@ public class RegisterActivity extends AppCompatActivity {
             return;
         }
         
-        // 暂时显示注册信息，实际注册功能待实现
-        Toast.makeText(this, "注册功能暂未实现\n账号: " + username + "\n密码: " + password, Toast.LENGTH_LONG).show();
-        
-        // 模拟注册成功，跳转到登录页面
-        // Intent intent = new Intent(RegisterActivity.this, LoginActivity.class);
-        // startActivity(intent);
-        // finish();
+        // 直接插入用户信息到现有表
+        MySQLDatabaseHelper.insertUser(username, email, password, new MySQLDatabaseHelper.DatabaseCallback() {
+            @Override
+            public void onSuccess(String message) {
+                Toast.makeText(RegisterActivity.this, "注册成功！", Toast.LENGTH_SHORT).show();
+                // 注册成功，跳转到登录页面
+                Intent intent = new Intent(RegisterActivity.this, LoginActivity.class);
+                startActivity(intent);
+                finish();
+            }
+            
+            @Override
+            public void onError(String error) {
+                Toast.makeText(RegisterActivity.this, "注册失败: " + error, Toast.LENGTH_LONG).show();
+            }
+        });
     }
 }

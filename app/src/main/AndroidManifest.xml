@@ -4,8 +4,10 @@
 
     <!-- 权限声明应该在<application>标签外部 -->
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.INTERNET" />
 
     <application
+        android:name=".MyApplication"
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
@@ -47,6 +49,11 @@
             android:name=".RegisterActivity"
             android:label="注册"
             android:parentActivityName=".LoginActivity" />
+        <!-- TestDatabaseActivity声明 -->
+        <activity
+            android:name=".TestDatabaseActivity"
+            android:label="数据库测试"
+            android:parentActivityName=".MainActivity" />
     </application>
 
 </manifest>

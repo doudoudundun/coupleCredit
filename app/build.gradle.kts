@@ -12,6 +12,7 @@ android {
         targetSdk = 36
         versionCode = 1
         versionName = "1.0"
+        multiDexEnabled = true
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -28,6 +29,18 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
+    }
+    
+    packaging {
+        resources {
+            excludes += setOf(
+                "META-INF/DEPENDENCIES",
+                "META-INF/LICENSE",
+                "META-INF/LICENSE.txt",
+                "META-INF/NOTICE",
+                "META-INF/NOTICE.txt"
+            )
+        }
     }
 }
 
@@ -56,5 +69,14 @@ dependencies {
 //    implementation("com.transsion.api:widgetsThemes:16.1.0.2")
 //    implementation("com.transsion.api:widgetBottomSheet:16.1.0.2")
 //    implementation("com.transsion.api:widgetsShareAnimation:16.1.0.2")
+    
+    // MySQL JDBC驱动
+    // 使用更老版本的MySQL驱动，避免Java 8+ API依赖
+    implementation("mysql:mysql-connector-java:5.1.47")
+    // 添加Android兼容的数据库连接池
+    implementation("com.zaxxer:HikariCP-java7:2.4.13")
+    
+    // MultiDex支持
+    implementation("androidx.multidex:multidex:2.0.1")
 
 }

@@ -2,12 +2,15 @@ package com.example.couplecredit;
 
 import static com.transsion.widgetslib.util.Utils.isGestureNavigationBarOn;
 
+import android.content.Intent;
 import android.graphics.Color;
 import android.graphics.Insets;
 import android.os.Build;
 import android.os.Bundle;
 import android.view.View;
 import android.view.WindowInsets;
+
+import com.google.android.material.floatingactionbutton.FloatingActionButton;
 
 import androidx.activity.EdgeToEdge;
 import androidx.appcompat.app.AppCompatActivity;
@@ -85,6 +88,13 @@ public class MainActivity extends AppCompatActivity {
         }
 
         mFootOptBar = (FootOperationBar) findViewById(R.id.bottom_nav);
+        
+        // 设置数据库测试按钮点击事件
+        FloatingActionButton fabTestDb = findViewById(R.id.fab_test_db);
+        fabTestDb.setOnClickListener(v -> {
+            Intent intent = new Intent(MainActivity.this, TestDatabaseActivity.class);
+            startActivity(intent);
+        });
         mFootOptBar.inflateMenu(R.menu.bottom_nav_menu);
         //mFootOptBar.setLandscape(isFootOperationLandscape());
         //BottomNavigationView bottomNav = findViewById(R.id.bottom_nav);
