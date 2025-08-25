@@ -25,7 +25,7 @@ import com.example.couplecredit.adapter.BillAdapter;
 import com.example.couplecredit.BillBean;
 import com.example.couplecredit.BillDatabaseHelper;
 import com.example.couplecredit.BillProvider;
-import com.example.couplecredit.MainActivity;
+import com.example.couplecredit.activity.MainActivity;
 import com.example.couplecredit.R;
 import com.example.couplecredit.function.Utils;
 import com.transsion.widgetslib.dialog.PromptDialog;

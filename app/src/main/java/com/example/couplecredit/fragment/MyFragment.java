@@ -6,15 +6,21 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.LinearLayout;
+import android.widget.TextView;
+import android.text.Html;
+import android.text.Spanned;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
 
 import com.example.couplecredit.ChatBackgroundActivity;
-import com.example.couplecredit.LoginActivity;
+import com.example.couplecredit.activity.LoginActivity;
 import com.example.couplecredit.R;
-import com.example.couplecredit.ToastDemoActivity;
+import com.example.couplecredit.activity.ToastDemoActivity;
+import com.example.couplecredit.activity.UserSettingsActivity;
+import android.content.SharedPreferences;
+import android.content.Context;
 
 /**
  * 我的页面Fragment
@@ -26,6 +32,14 @@ public class MyFragment extends Fragment {
     private LinearLayout llChatBackground;  // 聊天背景设置选项容器
     private LinearLayout llToastDemo;       // Toast演示选项容器
     private LinearLayout llLogin;           // 登录选项容器
+    private LinearLayout llUserSettings;    // 个人设置选项容器
+    private TextView tvLoginText;           // 登录文本
+    private View viewSettingsDivider;       // 设置分割线
+    
+    // 用户信息
+    private String username;
+    private String userId;
+    private boolean isLoggedIn = false;
     
     /**
      * 创建Fragment视图
@@ -44,10 +58,20 @@ public class MyFragment extends Fragment {
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
         
+        // 获取传递的用户信息
+        Bundle args = getArguments();
+        if (args != null) {
+            username = args.getString("username");
+            userId = args.getString("id");
+            isLoggedIn = (username != null && userId != null);
+        }
+        
         // 初始化UI组件
         initViews(view);
         // 设置事件监听器
         setupListeners();
+        // 更新UI显示
+        updateLoginUI();
     }
     
     /**
@@ -58,6 +82,9 @@ public class MyFragment extends Fragment {
         llChatBackground = view.findViewById(R.id.ll_chat_background);
         llToastDemo = view.findViewById(R.id.ll_toast_demo);
         llLogin = view.findViewById(R.id.ll_login);
+        llUserSettings = view.findViewById(R.id.ll_user_settings);
+        tvLoginText = view.findViewById(R.id.tv_login_text);
+        viewSettingsDivider = view.findViewById(R.id.view_settings_divider);
     }
     
     /**
@@ -80,9 +107,82 @@ public class MyFragment extends Fragment {
         
         // 设置登录选项点击事件
         llLogin.setOnClickListener(v -> {
-            // 启动登录Activity
-            Intent intent = new Intent(getActivity(), LoginActivity.class);
+            if (!isLoggedIn) {
+                // 未登录，启动登录Activity
+                Intent intent = new Intent(getActivity(), LoginActivity.class);
+                startActivity(intent);
+            } else {
+                // 已登录，跳转到个人设置界面
+                Intent intent = new Intent(getActivity(), UserSettingsActivity.class);
+                intent.putExtra("username", username);
+                intent.putExtra("id", userId);
+                startActivity(intent);
+            }
+        });
+        
+        // 设置个人设置选项点击事件
+        llUserSettings.setOnClickListener(v -> {
+            // 跳转到个人设置界面
+            Intent intent = new Intent(getActivity(), UserSettingsActivity.class);
+            intent.putExtra("username", username);
+            intent.putExtra("id", userId);
             startActivity(intent);
         });
     }
+    
+    @Override
+    public void onResume() {
+        super.onResume();
+        // 每次Fragment可见时检查用户登录状态
+        checkUserLoginStatus();
+    }
+    
+    /**
+     * 检查用户登录状态
+     */
+    private void checkUserLoginStatus() {
+        if (getActivity() != null) {
+            SharedPreferences sharedPreferences = getActivity().getSharedPreferences("user_prefs", Context.MODE_PRIVATE);
+            boolean isLoggedIn = sharedPreferences.getBoolean("isLoggedIn", false);
+            
+            if (isLoggedIn) {
+                // 从SharedPreferences读取用户信息
+                username = sharedPreferences.getString("username", null);
+                userId = sharedPreferences.getString("id", null);
+                this.isLoggedIn = true;
+            } else {
+                // 清空用户信息
+                username = null;
+                userId = null;
+                this.isLoggedIn = false;
+            }
+            
+            // 更新UI显示
+            updateLoginUI();
+        }
+    }
+    
+    /**
+     * 更新登录UI显示
+     */
+    private void updateLoginUI() {
+        if (isLoggedIn && tvLoginText != null) {
+            // 已登录，显示用户信息
+            String htmlText = "<big><b>" + username + "</b></big><br><small>ID: " + userId + "</small>";
+            Spanned spannedText = Html.fromHtml(htmlText, Html.FROM_HTML_MODE_LEGACY);
+            tvLoginText.setText(spannedText);
+            
+            // 显示个人设置选项
+            llUserSettings.setVisibility(View.VISIBLE);
+            viewSettingsDivider.setVisibility(View.VISIBLE);
+        } else if (tvLoginText != null) {
+            // 未登录，显示登录提示
+            tvLoginText.setText("点我立即登录");
+            
+            // 隐藏个人设置选项
+            llUserSettings.setVisibility(View.GONE);
+            viewSettingsDivider.setVisibility(View.GONE);
+        }
+    }
+
 }

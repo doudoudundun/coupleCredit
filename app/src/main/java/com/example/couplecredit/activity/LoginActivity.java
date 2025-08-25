@@ -1,4 +1,4 @@
-package com.example.couplecredit;
+package com.example.couplecredit.activity;
 
 import android.content.Intent;
 import android.os.Bundle;
@@ -9,6 +9,10 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
+
+import com.example.couplecredit.R;
+import com.example.couplecredit.function.MySQLDatabaseHelper;
+import android.content.SharedPreferences;
 
 /**
  * 登录页面Activity
@@ -84,10 +88,35 @@ public class LoginActivity extends AppCompatActivity {
             return;
         }
         
-        // 暂时显示登录信息，实际登录功能待实现
-        Toast.makeText(this, "登录功能暂未实现\n账号: " + username + "\n密码: " + password, Toast.LENGTH_LONG).show();
-        
-        // 模拟登录成功，关闭当前页面
-        // finish();
+        // 使用MySQLDatabaseHelper进行登录验证
+        MySQLDatabaseHelper.loginUser(username, password, new MySQLDatabaseHelper.LoginCallback() {
+            @Override
+            public void onLoginSuccess(String message, String userInfo) {
+                runOnUiThread(() -> {
+                    // 保存用户登录状态到SharedPreferences
+                    SharedPreferences sharedPreferences = getSharedPreferences("user_prefs", MODE_PRIVATE);
+                    SharedPreferences.Editor editor = sharedPreferences.edit();
+                    editor.putString("username", username);
+                    editor.putString("id", userInfo);
+                    editor.putBoolean("isLoggedIn", true);
+                    editor.apply();
+                    
+                    Toast.makeText(LoginActivity.this, "登录成功！", Toast.LENGTH_SHORT).show();
+                    // 登录成功，跳转到主界面
+                    Intent intent = new Intent(LoginActivity.this, MainActivity.class);
+                    intent.putExtra("username", username);
+                    intent.putExtra("id", userInfo);
+                    startActivity(intent);
+                    finish();
+                });
+            }
+
+            @Override
+            public void onLoginError(String error) {
+                runOnUiThread(() -> {
+                    Toast.makeText(LoginActivity.this, "登录失败：" + error, Toast.LENGTH_SHORT).show();
+                });
+            }
+        });
     }
 }

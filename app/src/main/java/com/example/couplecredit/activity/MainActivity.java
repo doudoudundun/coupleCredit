@@ -1,4 +1,4 @@
-package com.example.couplecredit;
+package com.example.couplecredit.activity;
 
 import static com.transsion.widgetslib.util.Utils.isGestureNavigationBarOn;
 
@@ -10,6 +10,7 @@ import android.os.Bundle;
 import android.view.View;
 import android.view.WindowInsets;
 
+import com.example.couplecredit.R;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 
 import androidx.activity.EdgeToEdge;
@@ -26,6 +27,7 @@ import com.example.couplecredit.fragment.MyFragment;
 import com.example.couplecredit.fragment.ReportFragment;
 import com.transsion.widgetslib.widget.FootOperationBar;
 import com.github.mikephil.charting.utils.Utils;
+import android.content.SharedPreferences;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -59,12 +61,35 @@ public class MainActivity extends AppCompatActivity {
         // 初始化Fragment管理器
         fragmentManager = getSupportFragmentManager();
         
+        // 获取用户信息（优先从Intent，其次从SharedPreferences）
+        Intent intent = getIntent();
+        String username = intent.getStringExtra("username");
+        String id = intent.getStringExtra("id");
+        
+        // 如果Intent中没有用户信息，从SharedPreferences读取
+        if (username == null || id == null) {
+            SharedPreferences sharedPreferences = getSharedPreferences("user_prefs", MODE_PRIVATE);
+            boolean isLoggedIn = sharedPreferences.getBoolean("isLoggedIn", false);
+            if (isLoggedIn) {
+                username = sharedPreferences.getString("username", null);
+                id = sharedPreferences.getString("id", null);
+            }
+        }
+        
         if (savedInstanceState == null) {
             // 首次启动：创建新的Fragment实例
             headFragment = new HeadFragment();
             addBillFragment = new AddBillFragment();
             reportFragment = new ReportFragment();
             myFragment = new MyFragment();
+            
+            // 如果有用户信息，传递给MyFragment
+            if (username != null && id != null) {
+                Bundle bundle = new Bundle();
+                bundle.putString("username", username);
+                bundle.putString("id", id);
+                myFragment.setArguments(bundle);
+            }
             
             // 预初始化所有Fragment，避免运行时空指针异常
             initAllFragments();
@@ -92,8 +117,8 @@ public class MainActivity extends AppCompatActivity {
         // 设置数据库测试按钮点击事件
         FloatingActionButton fabTestDb = findViewById(R.id.fab_test_db);
         fabTestDb.setOnClickListener(v -> {
-            Intent intent = new Intent(MainActivity.this, TestDatabaseActivity.class);
-            startActivity(intent);
+            Intent testIntent = new Intent(MainActivity.this, TestDatabaseActivity.class);
+            startActivity(testIntent);
         });
         mFootOptBar.inflateMenu(R.menu.bottom_nav_menu);
         //mFootOptBar.setLandscape(isFootOperationLandscape());
