@@ -63,7 +63,10 @@ public class UserSettingsActivity extends AppCompatActivity {
     private void setupListeners() {
         // 情侣绑定点击事件
         llCoupleBinding.setOnClickListener(v -> {
-            Toast.makeText(this, "情侣绑定功能开发中...", Toast.LENGTH_SHORT).show();
+            Intent intent = new Intent(UserSettingsActivity.this, com.example.couplecredit.CoupleBindingActivity.class);
+            intent.putExtra("username", username);
+            intent.putExtra("id", userId);
+            startActivity(intent);
         });
         
         // 修改密码点击事件
@@ -94,7 +97,7 @@ public class UserSettingsActivity extends AppCompatActivity {
     private void showLogoutDialog() {
         new AlertDialog.Builder(this)
                 .setTitle("确认注销")
-                .setMessage("确定要注销当前账户吗？")
+                .setMessage("确定要注销当前账户吗？\n你的所有数据都会被清空，无法恢复")
                 .setPositiveButton("确定", (dialog, which) -> {
                     // 执行注销操作
                     performLogout();
