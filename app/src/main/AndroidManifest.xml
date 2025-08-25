@@ -64,6 +64,11 @@
             android:name=".activity.ChangePasswordActivity"
             android:label="修改密码"
             android:parentActivityName=".activity.UserSettingsActivity" />
+        <!-- CoupleBindingActivity声明 -->
+        <activity
+            android:name=".CoupleBindingActivity"
+            android:label="情侣绑定"
+            android:parentActivityName=".activity.UserSettingsActivity" />
     </application>
 
 </manifest>

@@ -126,7 +126,7 @@ public class MySQLDatabaseHelper {
                 try {
                     connection = getConnection();
                     
-                    String selectSQL = "SELECT username, email FROM users WHERE username = ? AND password = ? AND status = 'active'";
+                    String selectSQL = "SELECT id, username, email FROM users WHERE username = ? AND password = ? AND status = 'active'";
                     preparedStatement = connection.prepareStatement(selectSQL);
                     preparedStatement.setString(1, username);
                     preparedStatement.setString(2, password);
@@ -134,9 +134,9 @@ public class MySQLDatabaseHelper {
                     java.sql.ResultSet resultSet = preparedStatement.executeQuery();
                     
                     if (resultSet.next()) {
-                        //todo: 将这里变成用户编号
-                        userInfo = resultSet.getString("username");
-                        Log.d(TAG, "用户登录成功: " + username);
+                        // 返回用户ID而不是用户名
+                        userInfo = String.valueOf(resultSet.getInt("id"));
+                        Log.d(TAG, "用户登录成功: " + username + ", ID: " + userInfo);
                         return true;
                     } else {
                         errorMessage = "用户名或密码错误";
@@ -319,10 +319,79 @@ public class MySQLDatabaseHelper {
     }
     
     /**
+     * 通过用户名查询用户ID
+     */
+    public static void getUserIdByUsername(String username, UserIdCallback callback) {
+        new AsyncTask<Void, Void, Integer>() {
+            private String errorMessage = "";
+            
+            @Override
+            protected Integer doInBackground(Void... voids) {
+                Connection connection = null;
+                PreparedStatement preparedStatement = null;
+                
+                try {
+                    connection = getConnection();
+                    
+                    String selectSQL = "SELECT id FROM users WHERE username = ? AND status = 'active'";
+                    preparedStatement = connection.prepareStatement(selectSQL);
+                    preparedStatement.setString(1, username);
+                    
+                    java.sql.ResultSet resultSet = preparedStatement.executeQuery();
+                    
+                    if (resultSet.next()) {
+                        int userId = resultSet.getInt("id");
+                        Log.d(TAG, "通过用户名查询到用户ID: " + username + " -> " + userId);
+                        return userId;
+                    } else {
+                        errorMessage = "用户不存在";
+                        return -1;
+                    }
+                    
+                } catch (SQLException e) {
+                    errorMessage = "数据库错误: " + e.getMessage();
+                    Log.e(TAG, "查询用户ID失败: " + e.getMessage(), e);
+                    return -1;
+                } catch (Exception e) {
+                    errorMessage = "连接错误: " + e.getMessage();
+                    Log.e(TAG, "数据库连接失败: " + e.getMessage(), e);
+                    return -1;
+                } finally {
+                    try {
+                        if (preparedStatement != null) preparedStatement.close();
+                        if (connection != null) connection.close();
+                    } catch (SQLException e) {
+                        Log.e(TAG, "关闭数据库连接失败: " + e.getMessage());
+                    }
+                }
+            }
+            
+            @Override
+            protected void onPostExecute(Integer userId) {
+                if (callback != null) {
+                    if (userId != -1) {
+                        callback.onSuccess(userId);
+                    } else {
+                        callback.onError("查询失败: " + errorMessage);
+                    }
+                }
+            }
+        }.execute();
+    }
+
+    /**
      * 登录回调接口
      */
     public interface LoginCallback {
         void onLoginSuccess(String message, String userInfo);
         void onLoginError(String error);
+    }
+    
+    /**
+     * 用户ID查询回调接口
+     */
+    public interface UserIdCallback {
+        void onSuccess(int userId);
+        void onError(String error);
     }
 }
