@@ -1,8 +1,12 @@
 package com.example.couplecredit.fragment;
 
 // 添加缺少的 import 语句
+import android.content.ClipData;
+import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.graphics.Color;
+import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.Drawable;
 import android.net.Uri;
 import android.os.Bundle;
@@ -13,6 +17,8 @@ import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageView;
+import android.widget.LinearLayout;
+import android.widget.PopupWindow;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -633,6 +639,13 @@ public class ChatModelFragment extends Fragment {
                     String statusText = newLikeStatus ? "已点赞" : "取消点赞";
                     Toast.makeText(getContext(), statusText, Toast.LENGTH_SHORT).show();
                 });
+                
+                // 在bind方法的最后添加
+                // 添加长按监听器，显示弹出菜单
+                itemView.setOnLongClickListener(v -> {
+                    showMessagePopupMenu(v, message, position);
+                    return true; // 返回true表示消费了长按事件
+                });
             }
             
             /**
@@ -773,4 +786,91 @@ public class ChatModelFragment extends Fragment {
             rootView.setBackgroundColor(0xFFF0F0F0); // 默认浅灰色背景
         }
     }
+    /**
+ * 显示消息操作弹出菜单
+ */
+private void showMessagePopupMenu(View anchorView, ChatMessage message, int position) {
+    // 创建PopupWindow
+    View popupView = LayoutInflater.from(getContext()).inflate(R.layout.popup_message_menu, null);
+    PopupWindow popupWindow = new PopupWindow(popupView,
+        ViewGroup.LayoutParams.WRAP_CONTENT, 
+        ViewGroup.LayoutParams.WRAP_CONTENT, 
+        true);
+    
+    // 设置背景和动画
+    popupWindow.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+    popupWindow.setElevation(8);
+    
+    // 获取菜单项
+    LinearLayout tvCopy = popupView.findViewById(R.id.tv_copy);
+    LinearLayout tvDelete = popupView.findViewById(R.id.tv_delete);
+    LinearLayout tvBilling = popupView.findViewById(R.id.tv_billing);
+    
+    // 设置点击事件
+    tvCopy.setOnClickListener(v -> {
+        copyMessageToClipboard(message);
+        popupWindow.dismiss();
+    });
+    
+    tvDelete.setOnClickListener(v -> {
+        deleteMessage(message, position);
+        popupWindow.dismiss();
+    });
+    
+    tvBilling.setOnClickListener(v -> {
+        // 记账功能暂不实现
+        Toast.makeText(getContext(), "记账功能开发中...", Toast.LENGTH_SHORT).show();
+        popupWindow.dismiss();
+    });
+
+
+    
+    // 显示弹出窗口
+    popupWindow.showAsDropDown(anchorView, 0, -anchorView.getHeight());
 }
+
+/**
+ * 删除消息
+ */
+private void deleteMessage(ChatMessage message, int position) {
+    // 从UI列表中删除
+    messageList.remove(position);
+    messageAdapter.notifyItemRemoved(position);
+    
+    // 从数据库中删除
+    deleteMessageFromDatabase(message);
+    
+    Toast.makeText(getContext(), "消息已删除", Toast.LENGTH_SHORT).show();
+}
+
+/**
+ * 从数据库删除消息
+ */
+private void deleteMessageFromDatabase(ChatMessage message) {
+    if (databaseExecutor != null && chatMessageDao != null) {
+        databaseExecutor.execute(() -> {
+            try {
+                // 根据消息内容和时间戳删除
+                chatMessageDao.deleteByContentAndTimestamp(message.getContent(), message.getTimestamp());
+            } catch (Exception e) {
+                requireActivity().runOnUiThread(() -> {
+                    Toast.makeText(getContext(), "删除失败: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                });
+            }
+        });
+    }
+}
+
+/**
+ * 复制消息到剪贴板
+ */
+private void copyMessageToClipboard(ChatMessage message) {
+    ClipboardManager clipboard = (ClipboardManager) requireContext().getSystemService(Context.CLIPBOARD_SERVICE);
+    ClipData clip = ClipData.newPlainText("聊天消息", message.getContent());
+    clipboard.setPrimaryClip(clip);
+    
+    Toast.makeText(getContext(), "消息已复制到剪贴板", Toast.LENGTH_SHORT).show();
+}
+
+}
+
