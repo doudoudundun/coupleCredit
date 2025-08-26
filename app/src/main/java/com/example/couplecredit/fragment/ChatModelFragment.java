@@ -1,6 +1,7 @@
 package com.example.couplecredit.fragment;
 
-// 添加缺少的 import 语句
+
+
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
@@ -50,24 +51,24 @@ import androidx.activity.OnBackPressedCallback;
  * 集成Room数据库实现消息持久化存储
  */
 public class ChatModelFragment extends Fragment {
-    
+
     // UI组件声明
     private RecyclerView rvChatMessages;     // 聊天消息列表
     private EditText etMessageInput;         // 消息输入框
     private EditText etSearch;               // 搜索输入框
     private Button btnSend;                  // 发送按钮
     private Button btnSearch;                // 搜索按钮
-    
+
     // 数据相关
     private ChatMessageAdapter messageAdapter;  // 消息列表适配器
     private List<ChatMessage> messageList;      // 消息数据列表
     private List<ChatMessage> originalMessageList;  // 原始消息列表（用于搜索恢复）
-    
+
     // 数据库相关
     private ChatDatabase chatDatabase;       // Room数据库实例
     private ChatMessageDao chatMessageDao;   // 数据访问对象
     private ExecutorService databaseExecutor; // 数据库操作线程池
-    
+
     // 添加搜索状态跟踪
     private boolean isSearchMode = false;    // 是否处于搜索模式
     private OnBackPressedCallback backPressedCallback;  // 返回键回调
@@ -87,17 +88,17 @@ public class ChatModelFragment extends Fragment {
     @Override
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
-        
+
         // 初始化各个组件
         initViews(view);
         initData();
         setupRecyclerView();
         setupListeners();
         setupBackPressedHandler();
-        
+
         // 加载聊天背景设置
         loadChatBackground(view);
-        
+
         // 从数据库加载历史消息
         loadMessagesFromDatabase();
     }
@@ -110,10 +111,10 @@ public class ChatModelFragment extends Fragment {
             // 获取数据库实例
             chatDatabase = ChatDatabase.getInstance(requireContext());
             chatMessageDao = chatDatabase.chatMessageDao();
-            
+
             // 创建数据库操作线程池
             databaseExecutor = Executors.newFixedThreadPool(2);
-            
+
         } catch (Exception e) {
             // 数据库初始化失败处理
             if (getContext() != null) {
@@ -131,19 +132,19 @@ public class ChatModelFragment extends Fragment {
             loadDefaultMessages();
             return;
         }
-        
+
         // 在后台线程执行数据库查询
         databaseExecutor.execute(() -> {
             try {
                 // 从数据库获取所有消息
                 List<ChatMessageEntity> entities = chatMessageDao.getAllMessages();
-                
+
                 // 在主线程更新UI
                 if (getActivity() != null) {
                     getActivity().runOnUiThread(() -> {
                         messageList.clear();
                         originalMessageList.clear();
-                        
+
                         if (entities.isEmpty()) {
                             // 如果数据库为空，加载默认消息并保存到数据库
                             loadDefaultMessages();
@@ -152,30 +153,30 @@ public class ChatModelFragment extends Fragment {
                             // 将数据库实体转换为ChatMessage对象
                             for (ChatMessageEntity entity : entities) {
                                 ChatMessage message = new ChatMessage(
-                                    entity.getUsername(),
-                                    entity.getContent(),
-                                    entity.getTimestamp(),
-                                    entity.getAvatarResId(),
-                                    entity.isSentByMe()
+                                        entity.getUsername(),
+                                        entity.getContent(),
+                                        entity.getTimestamp(),
+                                        entity.getAvatarResId(),
+                                        entity.isSentByMe()
                                 );
                                 message.setLiked(entity.isLiked());
                                 messageList.add(message);
                                 originalMessageList.add(message);
                             }
-                            
+
                             // 通知适配器数据已更新
                             messageAdapter.notifyDataSetChanged();
-                            
+
                             // 滚动到最新消息
                             if (!messageList.isEmpty()) {
                                 rvChatMessages.scrollToPosition(messageList.size() - 1);
                             }
-                            
+
                             Toast.makeText(getContext(), "已加载 " + entities.size() + " 条历史消息", Toast.LENGTH_SHORT).show();
                         }
                     });
                 }
-                
+
             } catch (Exception e) {
                 // 数据库查询失败处理
                 if (getActivity() != null) {
@@ -194,17 +195,17 @@ public class ChatModelFragment extends Fragment {
     private void loadDefaultMessages() {
         messageList.clear();
         originalMessageList.clear();
-        
+
         // 添加示例聊天消息
         messageList.add(new ChatMessage("男友", "小迷糊，要记得记账呀", "09:30", R.drawable.ic_profile, false));
         messageList.add(new ChatMessage("我", "好的，我刚记了今天的早餐费用", "09:32", R.drawable.ic_profile, true));
         messageList.add(new ChatMessage("男友", "很棒！坚持记账能帮我们更好地管理财务", "09:35", R.drawable.ic_profile, false));
         messageList.add(new ChatMessage("我", "今天花了50元买午餐，有点贵", "12:30", R.drawable.ic_profile, true));
         messageList.add(new ChatMessage("男友", "偶尔吃好一点没关系，重要的是要有记录", "12:35", R.drawable.ic_profile, false));
-        
+
         // 备份原始消息列表（用于搜索功能）
         originalMessageList.addAll(messageList);
-        
+
         // 通知适配器数据已更新
         if (messageAdapter != null) {
             messageAdapter.notifyDataSetChanged();
@@ -216,25 +217,25 @@ public class ChatModelFragment extends Fragment {
      */
     private void saveDefaultMessagesToDatabase() {
         if (chatMessageDao == null) return;
-        
+
         databaseExecutor.execute(() -> {
             try {
                 // 将默认消息保存到数据库
                 for (ChatMessage message : messageList) {
                     ChatMessageEntity entity = new ChatMessageEntity(
-                        message.getUsername(),
-                        message.getContent(),
-                        message.getTimestamp(),
-                        message.getAvatarResId(),
-                        message.isSentByMe()
+                            message.getUsername(),
+                            message.getContent(),
+                            message.getTimestamp(),
+                            message.getAvatarResId(),
+                            message.isSentByMe()
                     );
                     entity.setLiked(message.isLiked());
                     chatMessageDao.insertMessage(entity);
                 }
             } catch (Exception e) {
                 if (getActivity() != null) {
-                    getActivity().runOnUiThread(() -> 
-                        Toast.makeText(getContext(), "保存默认消息失败: " + e.getMessage(), Toast.LENGTH_SHORT).show()
+                    getActivity().runOnUiThread(() ->
+                            Toast.makeText(getContext(), "保存默认消息失败: " + e.getMessage(), Toast.LENGTH_SHORT).show()
                     );
                 }
             }
@@ -243,6 +244,7 @@ public class ChatModelFragment extends Fragment {
 
     /**
      * 初始化UI组件
+     *
      * @param view 根视图
      */
     private void initViews(View view) {
@@ -276,7 +278,7 @@ public class ChatModelFragment extends Fragment {
     private void setupListeners() {
         // 发送消息按钮点击事件
         btnSend.setOnClickListener(v -> sendMessage());
-        
+
         // 搜索按钮点击事件
         btnSearch.setOnClickListener(v -> {
             String searchText = etSearch.getText().toString().trim();
@@ -288,7 +290,7 @@ public class ChatModelFragment extends Fragment {
                 searchMessagesInDatabase(searchText);
             }
         });
-        
+
         // 搜索功能 - 搜索聊天记录中的关键词
         etSearch.setOnEditorActionListener((v, actionId, event) -> {
             String searchText = etSearch.getText().toString().trim();
@@ -310,21 +312,21 @@ public class ChatModelFragment extends Fragment {
             // 创建新消息，标记为本人发送
             String currentTime = new SimpleDateFormat("MM-dd HH:mm", Locale.getDefault()).format(new Date());
             ChatMessage newMessage = new ChatMessage("我", messageText, currentTime, R.drawable.ic_profile, true);
-            
+
             // 添加到消息列表
             messageList.add(newMessage);
             originalMessageList.add(newMessage);
             messageAdapter.notifyItemInserted(messageList.size() - 1);
-            
+
             // 保存到数据库
             saveMessageToDatabase(newMessage);
-            
+
             // 清空输入框
             etMessageInput.setText("");
-            
+
             // 滚动到最新消息
             rvChatMessages.scrollToPosition(messageList.size() - 1);
-            
+
             // 显示发送成功提示
             Toast.makeText(getContext(), "消息发送成功", Toast.LENGTH_SHORT).show();
         } else {
@@ -334,6 +336,7 @@ public class ChatModelFragment extends Fragment {
 
     /**
      * 将消息保存到数据库
+     *
      * @param message 要保存的消息
      */
     private void saveMessageToDatabase(ChatMessage message) {
@@ -341,22 +344,22 @@ public class ChatModelFragment extends Fragment {
             Toast.makeText(getContext(), "数据库未初始化，消息未保存", Toast.LENGTH_SHORT).show();
             return;
         }
-        
+
         databaseExecutor.execute(() -> {
             try {
                 // 创建数据库实体
                 ChatMessageEntity entity = new ChatMessageEntity(
-                    message.getUsername(),
-                    message.getContent(),
-                    message.getTimestamp(),
-                    message.getAvatarResId(),
-                    message.isSentByMe()
+                        message.getUsername(),
+                        message.getContent(),
+                        message.getTimestamp(),
+                        message.getAvatarResId(),
+                        message.isSentByMe()
                 );
                 entity.setLiked(message.isLiked());
-                
+
                 // 插入到数据库
                 long messageId = chatMessageDao.insertMessage(entity);
-                
+
                 // 在主线程显示保存结果
                 if (getActivity() != null) {
                     getActivity().runOnUiThread(() -> {
@@ -367,12 +370,12 @@ public class ChatModelFragment extends Fragment {
                         }
                     });
                 }
-                
+
             } catch (Exception e) {
                 // 保存失败处理
                 if (getActivity() != null) {
-                    getActivity().runOnUiThread(() -> 
-                        Toast.makeText(getContext(), "保存消息失败: " + e.getMessage(), Toast.LENGTH_SHORT).show()
+                    getActivity().runOnUiThread(() ->
+                            Toast.makeText(getContext(), "保存消息失败: " + e.getMessage(), Toast.LENGTH_SHORT).show()
                     );
                 }
             }
@@ -381,6 +384,7 @@ public class ChatModelFragment extends Fragment {
 
     /**
      * 在数据库中搜索聊天消息
+     *
      * @param searchText 搜索关键词
      */
     private void searchMessagesInDatabase(String searchText) {
@@ -389,39 +393,39 @@ public class ChatModelFragment extends Fragment {
             searchMessages(searchText);
             return;
         }
-        
+
         databaseExecutor.execute(() -> {
             try {
                 // 在数据库中搜索
                 List<ChatMessageEntity> entities = chatMessageDao.searchMessages(searchText);
-                
+
                 // 在主线程更新UI
                 if (getActivity() != null) {
                     getActivity().runOnUiThread(() -> {
                         List<ChatMessage> filteredList = new ArrayList<>();
-                        
+
                         // 将数据库实体转换为ChatMessage对象
                         for (ChatMessageEntity entity : entities) {
                             ChatMessage message = new ChatMessage(
-                                entity.getUsername(),
-                                entity.getContent(),
-                                entity.getTimestamp(),
-                                entity.getAvatarResId(),
-                                entity.isSentByMe()
+                                    entity.getUsername(),
+                                    entity.getContent(),
+                                    entity.getTimestamp(),
+                                    entity.getAvatarResId(),
+                                    entity.isSentByMe()
                             );
                             message.setLiked(entity.isLiked());
                             filteredList.add(message);
                         }
-                        
+
                         // 更新显示的消息列表
                         messageList.clear();
                         messageList.addAll(filteredList);
                         messageAdapter.notifyDataSetChanged();
-                        
+
                         // 设置搜索模式状态
                         isSearchMode = true;
                         backPressedCallback.setEnabled(true);  // 启用返回键拦截
-                        
+
                         // 显示搜索结果提示
                         if (filteredList.isEmpty()) {
                             Toast.makeText(getContext(), "未找到相关消息", Toast.LENGTH_SHORT).show();
@@ -430,7 +434,7 @@ public class ChatModelFragment extends Fragment {
                         }
                     });
                 }
-                
+
             } catch (Exception e) {
                 // 数据库搜索失败，使用内存搜索作为备选
                 if (getActivity() != null) {
@@ -445,28 +449,29 @@ public class ChatModelFragment extends Fragment {
 
     /**
      * 内存中搜索聊天消息（备用方法）
+     *
      * @param searchText 搜索关键词
      */
     private void searchMessages(String searchText) {
         List<ChatMessage> filteredList = new ArrayList<>();
-        
+
         // 遍历原始消息列表，查找包含关键词的消息
         for (ChatMessage message : originalMessageList) {
             if (message.getContent().toLowerCase().contains(searchText.toLowerCase()) ||
-                message.getUsername().toLowerCase().contains(searchText.toLowerCase())) {
+                    message.getUsername().toLowerCase().contains(searchText.toLowerCase())) {
                 filteredList.add(message);
             }
         }
-        
+
         // 更新显示的消息列表
         messageList.clear();
         messageList.addAll(filteredList);
         messageAdapter.notifyDataSetChanged();
-        
+
         // 设置搜索模式状态
         isSearchMode = true;
         backPressedCallback.setEnabled(true);  // 启用返回键拦截
-        
+
         // 显示搜索结果提示
         if (filteredList.isEmpty()) {
             Toast.makeText(getContext(), "未找到相关消息", Toast.LENGTH_SHORT).show();
@@ -481,19 +486,20 @@ public class ChatModelFragment extends Fragment {
     private void restoreAllMessages() {
         // 重新从数据库加载所有消息
         loadMessagesFromDatabase();
-        
+
         etSearch.setText("");  // 清空搜索框
-        
+
         // 退出搜索模式
         isSearchMode = false;
         backPressedCallback.setEnabled(false);  // 禁用返回键拦截
-        
+
         Toast.makeText(getContext(), "显示所有消息", Toast.LENGTH_SHORT).show();
     }
 
     /**
      * 更新消息点赞状态到数据库
-     * @param message 要更新的消息
+     *
+     * @param message  要更新的消息
      * @param position 消息在列表中的位置
      */
     private void updateMessageLikeStatus(ChatMessage message, int position) {
@@ -501,29 +507,29 @@ public class ChatModelFragment extends Fragment {
             Toast.makeText(getContext(), "数据库未初始化，点赞状态未保存", Toast.LENGTH_SHORT).show();
             return;
         }
-        
+
         databaseExecutor.execute(() -> {
             try {
                 // 根据消息内容和时间戳查找数据库中的对应记录
                 List<ChatMessageEntity> allEntities = chatMessageDao.getAllMessages();
-                
+
                 for (ChatMessageEntity entity : allEntities) {
-                    if (entity.getContent().equals(message.getContent()) && 
-                        entity.getTimestamp().equals(message.getTimestamp()) &&
-                        entity.getUsername().equals(message.getUsername())) {
-                        
+                    if (entity.getContent().equals(message.getContent()) &&
+                            entity.getTimestamp().equals(message.getTimestamp()) &&
+                            entity.getUsername().equals(message.getUsername())) {
+
                         // 更新点赞状态
                         entity.setLiked(message.isLiked());
                         chatMessageDao.updateMessage(entity);
                         break;
                     }
                 }
-                
+
             } catch (Exception e) {
                 // 更新失败处理
                 if (getActivity() != null) {
-                    getActivity().runOnUiThread(() -> 
-                        Toast.makeText(getContext(), "更新点赞状态失败: " + e.getMessage(), Toast.LENGTH_SHORT).show()
+                    getActivity().runOnUiThread(() ->
+                            Toast.makeText(getContext(), "更新点赞状态失败: " + e.getMessage(), Toast.LENGTH_SHORT).show()
                     );
                 }
             }
@@ -537,17 +543,18 @@ public class ChatModelFragment extends Fragment {
     private class ChatMessageAdapter extends RecyclerView.Adapter<ChatMessageAdapter.MessageViewHolder> {
         private static final int VIEW_TYPE_LEFT = 0;  // 对方消息（左侧）
         private static final int VIEW_TYPE_RIGHT = 1; // 本人消息（右侧）
-        
+
         private List<ChatMessage> messages;  // 消息列表
 
         /**
          * 构造函数
+         *
          * @param messages 消息列表
          */
         public ChatMessageAdapter(List<ChatMessage> messages) {
             this.messages = messages;
         }
-        
+
         @Override
         public int getItemViewType(int position) {
             ChatMessage message = messages.get(position);
@@ -561,11 +568,11 @@ public class ChatModelFragment extends Fragment {
             if (viewType == VIEW_TYPE_RIGHT) {
                 // 本人消息使用右侧布局
                 view = LayoutInflater.from(parent.getContext())
-                    .inflate(R.layout.item_chat_message_right, parent, false);
+                        .inflate(R.layout.item_chat_message_right, parent, false);
             } else {
                 // 对方消息使用左侧布局
                 view = LayoutInflater.from(parent.getContext())
-                    .inflate(R.layout.item_chat_message, parent, false);
+                        .inflate(R.layout.item_chat_message, parent, false);
             }
             return new MessageViewHolder(view);
         }
@@ -578,7 +585,7 @@ public class ChatModelFragment extends Fragment {
             ChatMessage message = messages.get(position);
             holder.bind(message, position);
         }
-        
+
         /**
          * 获取消息总数
          */
@@ -610,7 +617,8 @@ public class ChatModelFragment extends Fragment {
 
             /**
              * 绑定消息数据到视图
-             * @param message 消息对象
+             *
+             * @param message  消息对象
              * @param position 消息位置
              */
             public void bind(ChatMessage message, int position) {
@@ -619,27 +627,27 @@ public class ChatModelFragment extends Fragment {
                 tvMessageContent.setText(message.getContent());
                 tvTimestamp.setText(message.getTimestamp());
                 ivAvatar.setImageResource(message.getAvatarResId());
-                
+
                 // 设置点赞状态
                 updateLikeButton(message.isLiked());
-                
+
                 // 设置点赞按钮点击事件（集成数据库更新）
                 ivLike.setOnClickListener(v -> {
                     // 切换点赞状态
                     boolean newLikeStatus = !message.isLiked();
                     message.setLiked(newLikeStatus);
-                    
+
                     // 更新UI
                     updateLikeButton(newLikeStatus);
-                    
+
                     // 更新数据库中的点赞状态
                     updateMessageLikeStatus(message, position);
-                    
+
                     // 显示点赞状态提示
                     String statusText = newLikeStatus ? "已点赞" : "取消点赞";
                     Toast.makeText(getContext(), statusText, Toast.LENGTH_SHORT).show();
                 });
-                
+
                 // 在bind方法的最后添加
                 // 添加长按监听器，显示弹出菜单
                 itemView.setOnLongClickListener(v -> {
@@ -647,9 +655,10 @@ public class ChatModelFragment extends Fragment {
                     return true; // 返回true表示消费了长按事件
                 });
             }
-            
+
             /**
              * 更新点赞按钮的显示状态
+             *
              * @param isLiked 是否已点赞
              */
             private void updateLikeButton(boolean isLiked) {
@@ -680,11 +689,12 @@ public class ChatModelFragment extends Fragment {
 
         /**
          * 构造函数
-         * @param username 用户名
-         * @param content 消息内容
-         * @param timestamp 时间戳
+         *
+         * @param username    用户名
+         * @param content     消息内容
+         * @param timestamp   时间戳
          * @param avatarResId 头像资源ID
-         * @param isSentByMe 是否是本人发送
+         * @param isSentByMe  是否是本人发送
          */
         public ChatMessage(String username, String content, String timestamp, int avatarResId, boolean isSentByMe) {
             this.username = username;
@@ -699,16 +709,39 @@ public class ChatModelFragment extends Fragment {
         public ChatMessage(String username, String content, String timestamp, int avatarResId) {
             this(username, content, timestamp, avatarResId, false);
         }
-        
+
         // Getter和Setter方法
-        public String getUsername() { return username; }
-        public String getContent() { return content; }
-        public String getTimestamp() { return timestamp; }
-        public int getAvatarResId() { return avatarResId; }
-        public boolean isLiked() { return isLiked; }
-        public boolean isSentByMe() { return isSentByMe; }
-        public void setLiked(boolean liked) { isLiked = liked; }
-        public void setSentByMe(boolean sentByMe) { isSentByMe = sentByMe; }
+        public String getUsername() {
+            return username;
+        }
+
+        public String getContent() {
+            return content;
+        }
+
+        public String getTimestamp() {
+            return timestamp;
+        }
+
+        public int getAvatarResId() {
+            return avatarResId;
+        }
+
+        public boolean isLiked() {
+            return isLiked;
+        }
+
+        public boolean isSentByMe() {
+            return isSentByMe;
+        }
+
+        public void setLiked(boolean liked) {
+            isLiked = liked;
+        }
+
+        public void setSentByMe(boolean sentByMe) {
+            isSentByMe = sentByMe;
+        }
     }
 
     /**
@@ -731,7 +764,7 @@ public class ChatModelFragment extends Fragment {
         };
         requireActivity().getOnBackPressedDispatcher().addCallback(this, backPressedCallback);
     }
-    
+
     @Override
     public void onDestroyView() {
         super.onDestroyView();
@@ -743,14 +776,14 @@ public class ChatModelFragment extends Fragment {
             databaseExecutor.shutdown();
         }
     }
-    
+
     /**
      * 加载聊天背景设置
      * 从SharedPreferences读取用户设置的背景并应用到聊天界面
      */
     private void loadChatBackground(View rootView) {
         SharedPreferences prefs = getActivity().getSharedPreferences("chat_settings", Context.MODE_PRIVATE);
-        
+
         // 检查是否有自定义背景URI
         String backgroundUri = prefs.getString("chat_background_uri", null);
         if (backgroundUri != null) {
@@ -758,7 +791,7 @@ public class ChatModelFragment extends Fragment {
                 // 应用自定义背景图片
                 Uri uri = Uri.parse(backgroundUri);
                 Drawable drawable = Drawable.createFromStream(
-                    getActivity().getContentResolver().openInputStream(uri), null);
+                        getActivity().getContentResolver().openInputStream(uri), null);
                 if (drawable != null) {
                     rootView.setBackground(drawable);
                     return;
@@ -768,7 +801,7 @@ public class ChatModelFragment extends Fragment {
                 e.printStackTrace();
             }
         }
-        
+
         // 检查是否有预设背景资源ID
         int backgroundResId = prefs.getInt("chat_background", -1);
         if (backgroundResId != -1) {
@@ -786,91 +819,146 @@ public class ChatModelFragment extends Fragment {
             rootView.setBackgroundColor(0xFFF0F0F0); // 默认浅灰色背景
         }
     }
+
     /**
- * 显示消息操作弹出菜单
- */
-private void showMessagePopupMenu(View anchorView, ChatMessage message, int position) {
-    // 创建PopupWindow
-    View popupView = LayoutInflater.from(getContext()).inflate(R.layout.popup_message_menu, null);
-    PopupWindow popupWindow = new PopupWindow(popupView,
-        ViewGroup.LayoutParams.WRAP_CONTENT, 
-        ViewGroup.LayoutParams.WRAP_CONTENT, 
-        true);
-    
-    // 设置背景和动画
-    popupWindow.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
-    popupWindow.setElevation(8);
-    
-    // 获取菜单项
-    LinearLayout tvCopy = popupView.findViewById(R.id.tv_copy);
-    LinearLayout tvDelete = popupView.findViewById(R.id.tv_delete);
-    LinearLayout tvBilling = popupView.findViewById(R.id.tv_billing);
-    
-    // 设置点击事件
-    tvCopy.setOnClickListener(v -> {
-        copyMessageToClipboard(message);
-        popupWindow.dismiss();
-    });
-    
-    tvDelete.setOnClickListener(v -> {
-        deleteMessage(message, position);
-        popupWindow.dismiss();
-    });
-    
-    tvBilling.setOnClickListener(v -> {
-        // 记账功能暂不实现
-        Toast.makeText(getContext(), "记账功能开发中...", Toast.LENGTH_SHORT).show();
-        popupWindow.dismiss();
-    });
+     * 显示消息操作弹出菜单
+     */
+    private void showMessagePopupMenu(View anchorView, ChatMessage message, int position) {
+        // 创建PopupWindow
+        View popupView = LayoutInflater.from(getContext()).inflate(R.layout.popup_message_menu, null);
+        PopupWindow popupWindow = new PopupWindow(popupView,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                true);
 
+        // 设置背景和动画
+        popupWindow.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+        popupWindow.setElevation(8);
 
-    
-    // 显示弹出窗口
-    popupWindow.showAsDropDown(anchorView, 0, -anchorView.getHeight());
-}
+        // 获取菜单项
+        LinearLayout tvCopy = popupView.findViewById(R.id.tv_copy);
+        LinearLayout tvDelete = popupView.findViewById(R.id.tv_delete);
+        LinearLayout tvBilling = popupView.findViewById(R.id.tv_billing);
 
-/**
- * 删除消息
- */
-private void deleteMessage(ChatMessage message, int position) {
-    // 从UI列表中删除
-    messageList.remove(position);
-    messageAdapter.notifyItemRemoved(position);
-    
-    // 从数据库中删除
-    deleteMessageFromDatabase(message);
-    
-    Toast.makeText(getContext(), "消息已删除", Toast.LENGTH_SHORT).show();
-}
-
-/**
- * 从数据库删除消息
- */
-private void deleteMessageFromDatabase(ChatMessage message) {
-    if (databaseExecutor != null && chatMessageDao != null) {
-        databaseExecutor.execute(() -> {
-            try {
-                // 根据消息内容和时间戳删除
-                chatMessageDao.deleteByContentAndTimestamp(message.getContent(), message.getTimestamp());
-            } catch (Exception e) {
-                requireActivity().runOnUiThread(() -> {
-                    Toast.makeText(getContext(), "删除失败: " + e.getMessage(), Toast.LENGTH_SHORT).show();
-                });
-            }
+        // 设置点击事件
+        tvCopy.setOnClickListener(v -> {
+            copyMessageToClipboard(message);
+            popupWindow.dismiss();
         });
-    }
-}
 
-/**
- * 复制消息到剪贴板
- */
-private void copyMessageToClipboard(ChatMessage message) {
-    ClipboardManager clipboard = (ClipboardManager) requireContext().getSystemService(Context.CLIPBOARD_SERVICE);
-    ClipData clip = ClipData.newPlainText("聊天消息", message.getContent());
-    clipboard.setPrimaryClip(clip);
-    
-    Toast.makeText(getContext(), "消息已复制到剪贴板", Toast.LENGTH_SHORT).show();
-}
+        tvDelete.setOnClickListener(v -> {
+            deleteMessage(message, position);
+            popupWindow.dismiss();
+        });
+
+        tvBilling.setOnClickListener(v -> {
+            // 记账功能暂不实现
+            Toast.makeText(getContext(), "记账功能开发中...", Toast.LENGTH_SHORT).show();
+            popupWindow.dismiss();
+        });
+
+        // 测量弹出窗口的尺寸
+        popupView.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED);
+        int popupWidth = popupView.getMeasuredWidth();
+        int popupHeight = popupView.getMeasuredHeight();
+
+        // 获取屏幕宽度和消息框在屏幕中的位置
+        int[] anchorLocation = new int[2];
+        anchorView.getLocationOnScreen(anchorLocation);
+        int anchorScreenX = anchorLocation[0];
+        int anchorWidth = anchorView.getWidth();
+        int screenWidth = getResources().getDisplayMetrics().widthPixels;
+
+        // 计算智能的水平偏移量
+        int xOffset;
+
+        // 首先尝试居中显示
+        int centerOffset = (anchorWidth - popupWidth) / 2;
+        int popupLeftEdge = anchorScreenX + centerOffset;
+        int popupRightEdge = popupLeftEdge + popupWidth;
+
+        // 检查是否会溢出屏幕
+        if (popupLeftEdge < 0) {
+            // 左侧溢出，贴近左边界
+            xOffset = -anchorScreenX;
+        } else if (popupRightEdge > screenWidth) {
+            // 右侧溢出，贴近右边界
+            xOffset = screenWidth - anchorScreenX - popupWidth;
+        } else {
+            // 可以居中显示
+            xOffset = centerOffset;
+        }
+
+        // 如果消息很短，根据发送者调整为靠内侧显示
+        if (anchorWidth < popupWidth * 0.6) { // 消息宽度小于弹出菜单宽度的60%时
+            if (message.isSentByMe()) {
+                // 自己的消息，靠左内侧显示（向消息中心靠拢）
+                int innerOffset = anchorWidth - popupWidth;
+                // 确保不会溢出屏幕左侧
+                if (anchorScreenX + innerOffset >= 0) {
+                    xOffset = innerOffset;
+                }
+            } else {
+                // 对方的消息，靠右内侧显示（向消息中心靠拢）
+                int innerOffset = 0;
+                // 确保不会溢出屏幕右侧
+                if (anchorScreenX + popupWidth <= screenWidth) {
+                    xOffset = innerOffset;
+                }
+            }
+        }
+
+        // 计算垂直偏移量，让弹出菜单显示在消息上方且不覆盖
+        // showAsDropDown是相对于anchorView底部的，所以要显示在上方需要：
+        // -(anchorView高度 + 弹出菜单高度)
+        int yOffset = -(anchorView.getHeight() + popupHeight - 88);
+
+        // 显示弹出窗口
+        popupWindow.showAsDropDown(anchorView, xOffset, yOffset);
+    }
+
+    /**
+     * 删除消息
+     */
+    private void deleteMessage(ChatMessage message, int position) {
+        // 从UI列表中删除
+        messageList.remove(position);
+        messageAdapter.notifyItemRemoved(position);
+
+        // 从数据库中删除
+        deleteMessageFromDatabase(message);
+
+        Toast.makeText(getContext(), "消息已删除", Toast.LENGTH_SHORT).show();
+    }
+
+    /**
+     * 从数据库删除消息
+     */
+    private void deleteMessageFromDatabase(ChatMessage message) {
+        if (databaseExecutor != null && chatMessageDao != null) {
+            databaseExecutor.execute(() -> {
+                try {
+                    // 根据消息内容和时间戳删除
+                    chatMessageDao.deleteByContentAndTimestamp(message.getContent(), message.getTimestamp());
+                } catch (Exception e) {
+                    requireActivity().runOnUiThread(() -> {
+                        Toast.makeText(getContext(), "删除失败: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                    });
+                }
+            });
+        }
+    }
+
+    /**
+     * 复制消息到剪贴板
+     */
+    private void copyMessageToClipboard(ChatMessage message) {
+        ClipboardManager clipboard = (ClipboardManager) requireContext().getSystemService(Context.CLIPBOARD_SERVICE);
+        ClipData clip = ClipData.newPlainText("聊天消息", message.getContent());
+        clipboard.setPrimaryClip(clip);
+
+        Toast.makeText(getContext(), "消息已复制到剪贴板", Toast.LENGTH_SHORT).show();
+    }
 
 }
 
