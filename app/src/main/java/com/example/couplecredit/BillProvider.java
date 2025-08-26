@@ -30,82 +30,191 @@ public class BillProvider extends ContentProvider {
     @Override
     public Cursor query(Uri uri, String[] projection, String selection,
                         String[] selectionArgs, String sortOrder) {
-        SQLiteDatabase db = mDbHelper.getReadableDatabase();
-        Cursor cursor;
+        // 由于远程数据库操作是异步的，这里返回一个空的Cursor
+        // 实际的查询操作需要通过queryBillsAsync方法进行
+        String[] columns = {BillDatabaseHelper.COLUMN_ID, "relationship_id", "owner", BillDatabaseHelper.USER_ID, 
+                           BillDatabaseHelper.COLUMN_TITLE, BillDatabaseHelper.COLUMN_TYPE, BillDatabaseHelper.COLUMN_AMOUNT, 
+                           BillDatabaseHelper.COLUMN_DATE, BillDatabaseHelper.COLUMN_TIME, BillDatabaseHelper.COLUMN_INCOME_TYPE};
+        return new android.database.MatrixCursor(columns);
+    }
+    
+    // 异步查询方法
+    public void queryBillsAsync(Uri uri, String[] projection, String selection,
+                                String[] selectionArgs, String sortOrder, BillQueryResultCallback callback) {
         switch (mUriMatcher.match(uri)) {
             case BILLS:
-                cursor = db.query(BillDatabaseHelper.TABLE_BILLS,
-                        projection, selection, selectionArgs, null, null, sortOrder);
+                mDbHelper.queryBills(selection, selectionArgs, sortOrder, new BillDatabaseHelper.BillQueryCallback() {
+                    @Override
+                    public void onQuerySuccess(Cursor cursor) {
+                        callback.onQueryResult(cursor, null);
+                    }
+                    
+                    @Override
+                    public void onQueryError(String error) {
+                        callback.onQueryResult(null, error);
+                    }
+                });
                 break;
             case BILL_ID:
                 selection = BillDatabaseHelper.COLUMN_ID + "=?";
                 selectionArgs = new String[]{String.valueOf(ContentUris.parseId(uri))};
-                cursor = db.query(BillDatabaseHelper.TABLE_BILLS,
-                        projection, selection, selectionArgs, null, null, sortOrder);
+                mDbHelper.queryBills(selection, selectionArgs, sortOrder, new BillDatabaseHelper.BillQueryCallback() {
+                    @Override
+                    public void onQuerySuccess(Cursor cursor) {
+                        callback.onQueryResult(cursor, null);
+                    }
+                    
+                    @Override
+                    public void onQueryError(String error) {
+                        callback.onQueryResult(null, error);
+                    }
+                });
                 break;
             default:
-                throw new IllegalArgumentException("Unknown URI: " + uri);
+                callback.onQueryResult(null, "Unknown URI: " + uri);
         }
-        return cursor;
     }
     @Override
     public Uri insert(Uri uri, ContentValues values) {
-        SQLiteDatabase db = mDbHelper.getWritableDatabase();
-        long id;
+        // 由于远程数据库操作是异步的，这里返回一个临时URI
+        // 实际的插入操作需要通过insertBillAsync方法进行
+        return ContentUris.withAppendedId(BillProvider.CONTENT_URI, 0);
+    }
+    
+    // 异步插入方法
+    public void insertBillAsync(Uri uri, ContentValues values, BillInsertResultCallback callback) {
         switch (mUriMatcher.match(uri)) {
             case BILLS:
-                id = db.insert(BillDatabaseHelper.TABLE_BILLS, null, values);
-                if (id > 0){
-                    Uri newUri = ContentUris.withAppendedId(BillProvider.CONTENT_URI, id);
-                    getContext().getContentResolver().notifyChange(newUri, null);//通知数据已改变
-                    return newUri;
-                }
-                throw new SQLException("Failed to insert row into " + uri);
+                mDbHelper.insertBill(values, new BillDatabaseHelper.BillInsertCallback() {
+                    @Override
+                    public void onInsertSuccess(long id) {
+                        Uri newUri = ContentUris.withAppendedId(BillProvider.CONTENT_URI, id);
+                        getContext().getContentResolver().notifyChange(newUri, null);
+                        callback.onInsertResult(newUri, null);
+                    }
+                    
+                    @Override
+                    public void onInsertError(String error) {
+                        callback.onInsertResult(null, error);
+                    }
+                });
+                break;
             default:
-                throw new IllegalArgumentException("Unknown URI: " + uri);
+                callback.onInsertResult(null, "Unknown URI: " + uri);
         }
     }
     @Override
     public int delete(Uri uri, String selection, String[] selectionArgs) {
-        SQLiteDatabase db = mDbHelper.getWritableDatabase();
-        int rowsDeleted = 0;
+        // 由于远程数据库操作是异步的，这里返回0
+        // 实际的删除操作需要通过deleteBillAsync方法进行
+        return 0;
+    }
+    
+    // 异步删除方法
+    public void deleteBillAsync(Uri uri, String selection, String[] selectionArgs, BillDeleteResultCallback callback) {
         switch (mUriMatcher.match(uri)) {
             case BILLS:
-                rowsDeleted = db.delete(BillDatabaseHelper.TABLE_BILLS, selection, selectionArgs);
+                mDbHelper.deleteBill(selection, selectionArgs, new BillDatabaseHelper.BillDeleteCallback() {
+                    @Override
+                    public void onDeleteSuccess(int rowsDeleted) {
+                        if (rowsDeleted > 0) {
+                            getContext().getContentResolver().notifyChange(uri, null);
+                        }
+                        callback.onDeleteResult(rowsDeleted, null);
+                    }
+                    
+                    @Override
+                    public void onDeleteError(String error) {
+                        callback.onDeleteResult(0, error);
+                    }
+                });
                 break;
             case BILL_ID:
                 selection = BillDatabaseHelper.COLUMN_ID + " = ?";
                 selectionArgs = new String[] { String.valueOf(ContentUris.parseId(uri)) };
-                rowsDeleted = db.delete(BillDatabaseHelper.TABLE_BILLS, selection, selectionArgs);
+                mDbHelper.deleteBill(selection, selectionArgs, new BillDatabaseHelper.BillDeleteCallback() {
+                    @Override
+                    public void onDeleteSuccess(int rowsDeleted) {
+                        if (rowsDeleted > 0) {
+                            getContext().getContentResolver().notifyChange(uri, null);
+                        }
+                        callback.onDeleteResult(rowsDeleted, null);
+                    }
+                    
+                    @Override
+                    public void onDeleteError(String error) {
+                        callback.onDeleteResult(0, error);
+                    }
+                });
                 break;
             default:
-                throw new IllegalArgumentException("Unknown URI: " + uri);
+                callback.onDeleteResult(0, "Unknown URI: " + uri);
         }
-        if (rowsDeleted > 0) {//通知监听者
-            getContext().getContentResolver().notifyChange(uri, null);
-        }
-        return rowsDeleted;
     }
     @Override
     public int update(Uri uri, ContentValues values, String selection,String[] selectionArgs){
-        SQLiteDatabase db = mDbHelper.getWritableDatabase();
-        int rowsUpdated = 0;
+        // 由于远程数据库操作是异步的，这里返回0
+        // 实际的更新操作需要通过updateBillAsync方法进行
+        return 0;
+    }
+    
+    // 异步更新方法
+    public void updateBillAsync(Uri uri, ContentValues values, String selection, String[] selectionArgs, BillUpdateResultCallback callback) {
         switch (mUriMatcher.match(uri)) {
             case BILLS:
-                rowsUpdated = db.update(BillDatabaseHelper.TABLE_BILLS, values, selection, selectionArgs);
+                mDbHelper.updateBill(values, selection, selectionArgs, new BillDatabaseHelper.BillUpdateCallback() {
+                    @Override
+                    public void onUpdateSuccess(int rowsUpdated) {
+                        if (rowsUpdated > 0) {
+                            getContext().getContentResolver().notifyChange(uri, null);
+                        }
+                        callback.onUpdateResult(rowsUpdated, null);
+                    }
+                    
+                    @Override
+                    public void onUpdateError(String error) {
+                        callback.onUpdateResult(0, error);
+                    }
+                });
                 break;
             case BILL_ID:
                 selection = BillDatabaseHelper.COLUMN_ID + "=?";
                 selectionArgs = new String[]{String.valueOf(ContentUris.parseId(uri))};
-                rowsUpdated = db.update(BillDatabaseHelper.TABLE_BILLS, values, selection, selectionArgs);
+                mDbHelper.updateBill(values, selection, selectionArgs, new BillDatabaseHelper.BillUpdateCallback() {
+                    @Override
+                    public void onUpdateSuccess(int rowsUpdated) {
+                        if (rowsUpdated > 0) {
+                            getContext().getContentResolver().notifyChange(uri, null);
+                        }
+                        callback.onUpdateResult(rowsUpdated, null);
+                    }
+                    
+                    @Override
+                    public void onUpdateError(String error) {
+                        callback.onUpdateResult(0, error);
+                    }
+                });
                 break;
             default:
-                throw new IllegalArgumentException("Unknown URI: " + uri);
+                callback.onUpdateResult(0, "Unknown URI: " + uri);
         }
-        if (rowsUpdated > 0) {
-            getContext().getContentResolver().notifyChange(uri, null);
-        }
-        return rowsUpdated;
+    }
+    
+    // 回调接口
+    public interface BillQueryResultCallback {
+        void onQueryResult(Cursor cursor, String error);
+    }
+    
+    public interface BillInsertResultCallback {
+        void onInsertResult(Uri uri, String error);
+    }
+    
+    public interface BillDeleteResultCallback {
+        void onDeleteResult(int rowsDeleted, String error);
+    }
+    
+    public interface BillUpdateResultCallback {
+        void onUpdateResult(int rowsUpdated, String error);
     }
     @Override
     public String getType(Uri uri) {

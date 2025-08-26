@@ -8,6 +8,8 @@ package com.example.couplecredit;
  * 账单类别名称：string categoryName, 账单类别描述：string categoryDesc, 账单图标：int iconResId(和账单类别对应)
  */
 public final class BillBean {
+    //账单ID
+    private long billId;
     //费用
     private double fare;
     //消费日期：年
@@ -23,8 +25,9 @@ public final class BillBean {
     private String time; // 时间 HH:mm:ss
     private String title; // 备注
 
-    public BillBean(double fare, int year, int month, int day, int userId, String categoryName,
+    public BillBean(long billId, double fare, int year, int month, int day, int userId, String categoryName,
                     String categoryDesc, int iconResId, int incomeType, String time, String title) {
+        this.billId = billId;
         this.fare = fare;
         this.year = year;
         this.month = month;
@@ -124,5 +127,13 @@ public final class BillBean {
 
     public void setTitle(String title) {
         this.title = title;
+    }
+
+    public long getBillId() {
+        return billId;
+    }
+
+    public void setBillId(long billId) {
+        this.billId = billId;
     }
 }

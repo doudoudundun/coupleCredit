@@ -4,6 +4,7 @@ import android.app.DatePickerDialog;
 import android.app.Dialog;
 import android.content.Context;
 import android.net.Uri;
+import android.util.Log;
 import android.view.Window;
 import android.widget.NumberPicker;
 import android.widget.TextView;
@@ -26,7 +27,18 @@ public final class Utils {
         values.put(BillDatabaseHelper.COLUMN_TIME, time);
         values.put(BillDatabaseHelper.COLUMN_INCOME_TYPE, incomeType);
 
-        context.getContentResolver().insert(Uri.parse(BillProvider.CONTENT_URI + "/bills"), values);
+        BillDatabaseHelper billHelper = new BillDatabaseHelper(context);
+        billHelper.insertBill(values, new BillDatabaseHelper.BillInsertCallback() {
+            @Override
+            public void onInsertSuccess(long id) {
+                Log.d("Utils", "账单插入成功，ID: " + id);
+            }
+
+            @Override
+            public void onInsertError(String error) {
+                Log.e("Utils", "账单插入失败: " + error);
+            }
+        });
     }
     //加入多用户之后需要切分逻辑
     public static int getUserId(String username){
@@ -41,50 +53,45 @@ public final class Utils {
         }
     }
 
-    public static int deleteBill(Context context, BillBean bill) {
-        String selection = BillDatabaseHelper.USER_ID + "=? AND " +
-                          BillDatabaseHelper.COLUMN_TYPE + "=? AND " +
-                          BillDatabaseHelper.COLUMN_AMOUNT + "=? AND " +
-                          BillDatabaseHelper.COLUMN_DATE + "=? AND " +
-                          BillDatabaseHelper.COLUMN_TIME + "=? AND " +
-                          BillDatabaseHelper.COLUMN_INCOME_TYPE + "=?";
-        
-        String dateString = String.format("%04d-%02d-%02d", bill.getYear(), bill.getMonth(), bill.getDay());
-        
-        String[] selectionArgs = {
-            String.valueOf(bill.getUserId()),
-            bill.getCategoryName(),
-            String.valueOf(bill.getFare()),
-            dateString,
-            bill.getTime(),
-            String.valueOf(bill.getIncomeType())
-        };
-        
-        return context.getContentResolver().delete(
-            Uri.parse(BillProvider.CONTENT_URI + "/bills"),
-            selection,
-            selectionArgs
-        );
+    public interface DeleteBillCallback {
+        void onDeleteSuccess(int rowsDeleted);
+        void onDeleteError(String error);
     }
     
-    public static int updateBill(Context context, BillBean bill, String newDate, double newFare, String newNoteContent, String newTime) {
-        // 构建WHERE条件，用于定位要更新的账单
-        String selection = BillDatabaseHelper.USER_ID + "=? AND " +
-                          BillDatabaseHelper.COLUMN_TYPE + "=? AND " +
-                          BillDatabaseHelper.COLUMN_AMOUNT + "=? AND " +
-                          BillDatabaseHelper.COLUMN_DATE + "=? AND " +
-                          BillDatabaseHelper.COLUMN_TIME + "=? AND " +
-                          BillDatabaseHelper.COLUMN_INCOME_TYPE + "=?";
+    public static void deleteBill(Context context, BillBean bill, DeleteBillCallback callback) {
+        // 直接调用BillDatabaseHelper进行删除
+        BillDatabaseHelper dbHelper = new BillDatabaseHelper(context);
+        String selection = BillDatabaseHelper.COLUMN_ID + "=?";
+        String[] selectionArgs = {String.valueOf(bill.getBillId())};
         
-        String originalDateString = String.format("%04d-%02d-%02d", bill.getYear(), bill.getMonth(), bill.getDay());
+        Log.d("Utils", "开始删除账单，ID: " + bill.getBillId());
+        Log.d("Utils", "删除条件: " + selection + ", 参数: " + java.util.Arrays.toString(selectionArgs));
+        
+        dbHelper.deleteBill(selection, selectionArgs, new BillDatabaseHelper.BillDeleteCallback() {
+            @Override
+            public void onDeleteSuccess(int rowsDeleted) {
+                Log.d("Utils", "删除成功，影响行数: " + rowsDeleted);
+                if (callback != null) {
+                    callback.onDeleteSuccess(rowsDeleted);
+                }
+            }
+            
+            @Override
+            public void onDeleteError(String error) {
+                Log.e("Utils", "删除账单失败: " + error);
+                if (callback != null) {
+                    callback.onDeleteError(error);
+                }
+            }
+        });
+    }
+    
+    public static void updateBill(Context context, BillBean bill, String newDate, double newFare, String newNoteContent, String newTime, UpdateBillCallback callback) {
+        // 使用bill_id作为唯一标识进行更新
+        String selection = BillDatabaseHelper.COLUMN_ID + "=?";
         
         String[] selectionArgs = {
-            String.valueOf(bill.getUserId()),
-            bill.getCategoryName(),
-            String.valueOf(bill.getFare()),
-            originalDateString,
-            bill.getTime(),
-            String.valueOf(bill.getIncomeType())
+            String.valueOf(bill.getBillId())
         };
         
         // 构建要更新的值
@@ -94,12 +101,27 @@ public final class Utils {
         values.put(BillDatabaseHelper.COLUMN_TITLE, newNoteContent);
         values.put(BillDatabaseHelper.COLUMN_TIME, newTime);
         
-        return context.getContentResolver().update(
-            Uri.parse(BillProvider.CONTENT_URI + "/bills"),
-            values,
-            selection,
-            selectionArgs
-        );
+        BillDatabaseHelper billHelper = new BillDatabaseHelper(context);
+        billHelper.updateBill(values, selection, selectionArgs, new BillDatabaseHelper.BillUpdateCallback() {
+            @Override
+            public void onUpdateSuccess(int rowsAffected) {
+                if (callback != null) {
+                    callback.onUpdateSuccess(rowsAffected);
+                }
+            }
+
+            @Override
+            public void onUpdateError(String error) {
+                if (callback != null) {
+                    callback.onUpdateError(error);
+                }
+            }
+        });
+    }
+    
+    public interface UpdateBillCallback {
+        void onUpdateSuccess(int rowsAffected);
+        void onUpdateError(String error);
     }
 
     public interface DatePickerCallback {

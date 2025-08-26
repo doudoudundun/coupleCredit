@@ -187,7 +187,7 @@ public class CoupleRelationshipHelper {
                     updateRelationshipStmt.setInt(2, userId);
                     updateRelationshipStmt.executeUpdate();
 
-                    // 更新两个用户的状态，  可调整
+                    // 更新两个用户的状态
                     String updateUsersSql = "UPDATE users SET couple_status = 'single', relationship_id = NULL " +
                                           "WHERE id IN (?, ?)";
                     updateUsersStmt = connection.prepareStatement(updateUsersSql);

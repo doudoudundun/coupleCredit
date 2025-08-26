@@ -156,37 +156,56 @@ public class ClassicModelFragment extends Fragment {
     private void loadBillData(int year, int month) {
         billItems.clear();
         String monthPattern = String.format("%04d-%02d-%%", year, month);
-        Cursor cursor = getContext().getContentResolver().query(
-                Uri.parse(BillProvider.CONTENT_URI + "/bills"),
-                null,
-                BillDatabaseHelper.COLUMN_DATE + " LIKE ?",
-                new String[]{monthPattern},
-                BillDatabaseHelper.COLUMN_DATE + " DESC, " + BillDatabaseHelper.COLUMN_TIME + " DESC"
-        );
+        
+        android.util.Log.d("ClassicModelFragment", "生成的monthPattern: " + monthPattern);
+        
+        BillDatabaseHelper billHelper = new BillDatabaseHelper(getContext());
+        billHelper.queryBills(monthPattern, new BillDatabaseHelper.QueryCallback() {
+            @Override
+            public void onSuccess(List<Map<String, Object>> results) {
+                if (getActivity() != null) {
+                    getActivity().runOnUiThread(() -> {
+                        for (Map<String, Object> row : results) {
+                            long billId = ((Number) row.get("_id")).longValue();
+                            double amount = (Double) row.get("amount");
+                            String dateStr = (String) row.get("date");
+                            String timeStr = (String) row.get("time");
+                            int userId = (Integer) row.get("userId");
+                            String type = (String) row.get("type");
+                            String title = (String) row.get("title");
+                            int incomeType = (Integer) row.get("income_type");
 
-        if (cursor != null && cursor.moveToFirst()) {
-            do {
-                double amount = cursor.getDouble(cursor.getColumnIndexOrThrow(BillDatabaseHelper.COLUMN_AMOUNT));
-                String dateStr = cursor.getString(cursor.getColumnIndexOrThrow(BillDatabaseHelper.COLUMN_DATE));
-                String timeStr = cursor.getString(cursor.getColumnIndexOrThrow(BillDatabaseHelper.COLUMN_TIME));
-                int userId = cursor.getInt(cursor.getColumnIndexOrThrow(BillDatabaseHelper.USER_ID));
-                String type = cursor.getString(cursor.getColumnIndexOrThrow(BillDatabaseHelper.COLUMN_TYPE));
-                String title = cursor.getString(cursor.getColumnIndexOrThrow(BillDatabaseHelper.COLUMN_TITLE));
-                int incomeType = cursor.getInt(cursor.getColumnIndexOrThrow(BillDatabaseHelper.COLUMN_INCOME_TYPE));
+                            // 解析日期字符串 (格式: 2025-08-15)
+                            String[] dateParts = dateStr.split("-");
+                            int cur_year = Integer.parseInt(dateParts[0]);
+                            int cur_month = Integer.parseInt(dateParts[1]);
+                            int day = Integer.parseInt(dateParts[2]);
 
-                // 解析日期字符串 (格式: 2025-08-15)
-                String[] dateParts = dateStr.split("-");
-                int cur_year = Integer.parseInt(dateParts[0]);
-                int cur_month = Integer.parseInt(dateParts[1]);
-                int day = Integer.parseInt(dateParts[2]);
+                            // 根据类型设置图标
+                            int iconResId = getIconForCategory(type);
 
-                // 根据类型设置图标
-                int iconResId = getIconForCategory(type);
+                            billItems.add(new BillBean(billId, amount, cur_year, cur_month, day, userId, type, title, iconResId, incomeType, timeStr, title));
+                        }
+                        processAndDisplayData();
+                        sumAmounts();
+                        // 通知适配器数据已更新
+                        if (billAdapter != null) {
+                            billAdapter.notifyDataSetChanged();
+                        }
+                    });
+                }
+            }
 
-                billItems.add(new BillBean(amount, cur_year, cur_month, day, userId, type, title, iconResId, incomeType, timeStr, title));
-            } while (cursor.moveToNext());
-            cursor.close();
-        }
+            @Override
+            public void onError(String error) {
+                if (getActivity() != null) {
+                    getActivity().runOnUiThread(() -> {
+                        Log.e("ClassicModelFragment", "加载账单数据失败: " + error);
+                        // 可以显示错误提示给用户
+                    });
+                }
+            }
+        });
     }
     private void firstLoadBills() {
         // 先检查数据库是否为空，如果为空则插入示例数据
@@ -214,26 +233,22 @@ public class ClassicModelFragment extends Fragment {
     }
     
     private void checkAndInsertSampleData() {
-        // 检查数据库是否为空
-        Cursor cursor = getContext().getContentResolver().query(
-            Uri.parse(BillProvider.CONTENT_URI + "/bills"),
-            new String[]{"COUNT(*) as count"},
-            null,
-            null,
-            null
-        );
-        
-        boolean isEmpty = true;
-        if (cursor != null && cursor.moveToFirst()) {
-            int count = cursor.getInt(0);
-            isEmpty = (count == 0);
-            cursor.close();
-        }
-        
-        // 如果数据库为空，插入示例数据
-        if (isEmpty) {
-            insertSampleData();
-        }
+        BillDatabaseHelper billHelper = new BillDatabaseHelper(getContext());
+        billHelper.queryBills("", new BillDatabaseHelper.QueryCallback() {
+            @Override
+            public void onSuccess(List<Map<String, Object>> results) {
+                if (results.isEmpty()) {
+                    insertSampleData();
+                }
+            }
+
+            @Override
+            public void onError(String error) {
+                Log.e("ClassicModelFragment", "检查数据库失败: " + error);
+                // 如果查询失败，仍然插入示例数据
+                insertSampleData();
+            }
+        });
     }
     
     private void insertSampleData() {
@@ -467,11 +482,28 @@ public class ClassicModelFragment extends Fragment {
             SimpleDateFormat timeFormat = new SimpleDateFormat("HH:mm:ss", Locale.getDefault());
             String currentTime = timeFormat.format(new Date());
             
-            int updatedRows = Utils.updateBill(getContext(), bill, currentDate, currentFare, currentNoteContent, currentTime);
-            if (updatedRows > 0) {
-                // 更新成功，刷新数据
-                refreshBillData();
-            }
+            Utils.updateBill(getContext(), bill, currentDate, currentFare, currentNoteContent, currentTime, new Utils.UpdateBillCallback() {
+                @Override
+                public void onUpdateSuccess(int rowsAffected) {
+                    if (getActivity() != null) {
+                        getActivity().runOnUiThread(() -> {
+                            if (rowsAffected > 0) {
+                                // 更新成功，刷新数据
+                                refreshBillData();
+                            }
+                        });
+                    }
+                }
+
+                @Override
+                public void onUpdateError(String error) {
+                    if (getActivity() != null) {
+                        getActivity().runOnUiThread(() -> {
+                            Log.e("ClassicModelFragment", "更新账单失败: " + error);
+                        });
+                    }
+                }
+            });
             
             exitEditMode(tvDate, tvFare, tvNoteContent,
                         etFare, etNoteContent,
@@ -559,15 +591,32 @@ public class ClassicModelFragment extends Fragment {
         new PromptDialog.Builder(getContext())
                 .setTitle("删除账单（此举不可逆）")
                 .setPositiveButton("确定", (dialog, which) ->{
-                    int deletedRows = Utils.deleteBill(getContext(), bill);
-                    if (deletedRows > 0) {
-                        // 删除成功，刷新数据
-                        refreshBillData();
-                        // 关闭主对话框
-                        if (mDialog != null) {
-                            mDialog.dismiss();
+                    Utils.deleteBill(getContext(), bill, new Utils.DeleteBillCallback() {
+                        @Override
+                        public void onDeleteSuccess(int rowsDeleted) {
+                            if (getActivity() != null) {
+                                getActivity().runOnUiThread(() -> {
+                                    if (rowsDeleted > 0) {
+                                        // 删除成功，刷新数据
+                                        refreshBillData();
+                                        // 关闭主对话框
+                                        if (mDialog != null) {
+                                            mDialog.dismiss();
+                                        }
+                                    }
+                                });
+                            }
                         }
-                    }
+                        
+                        @Override
+                        public void onDeleteError(String error) {
+                            if (getActivity() != null) {
+                                getActivity().runOnUiThread(() -> {
+                                    Log.e("ClassicModelFragment", "删除账单失败: " + error);
+                                });
+                            }
+                        }
+                    });
                     dialog.dismiss();
                 })
                 .setNegativeButton("取消", (dialog, which) -> dialog.dismiss())
