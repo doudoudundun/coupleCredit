@@ -29,7 +29,7 @@ public final class Utils {
     /**
      * 插入账单（新版本 - 自动获取当前用户信息）
      */
-    public static void insertBill(Context context, String title, String type, double amount, String date, String time, int incomeType, BillInsertCallback callback) {
+    public static void insertBill(Context context, String title, String type, double amount, String date, String time, int incomeType, String billOwner, BillInsertCallback callback) {
         UserInfoManager.getCurrentUserInfo(context, new UserInfoManager.UserInfoCallback() {
             @Override
             public void onUserInfoLoaded(int userId, String username, Integer relationshipId) {
@@ -46,6 +46,21 @@ public final class Utils {
                 if (relationshipId != null) {
                     values.put("relationship_id", relationshipId);
                 }
+                
+                // 根据billOwner设置owner字段
+                int ownerValue;
+                if ("自己".equals(billOwner)) {
+                    ownerValue = userId; // 当前用户
+                } else if ("对方".equals(billOwner) && relationshipId != null) {
+                    // 需要获取对方的用户ID，这里先设为特殊值表示对方
+                    ownerValue = -1; // 临时标记，后续需要查询对方ID
+                } else if ("共同".equals(billOwner)) {
+                    ownerValue = 0; // 0表示共同账单
+                } else {
+                    ownerValue = userId; // 默认为当前用户
+                }
+                android.util.Log.d("Utils", "设置owner字段: billOwner=" + billOwner + ", ownerValue=" + ownerValue + ", userId=" + userId);
+                values.put("owner", ownerValue);
 
                 BillDatabaseHelper billHelper = new BillDatabaseHelper(context);
                 billHelper.insertBill(values, new BillDatabaseHelper.BillInsertCallback() {
@@ -83,7 +98,7 @@ public final class Utils {
      */
     @Deprecated
     public static void insertBill(Context context,int userId, String title, String type, double amount, String date, String time, int incomeType) {
-        insertBill(context, title, type, amount, date, time, incomeType, null);
+        insertBill(context, title, type, amount, date, time, incomeType, "自己", null);
     }
     //加入多用户之后需要切分逻辑
     public static int getUserId(String username){

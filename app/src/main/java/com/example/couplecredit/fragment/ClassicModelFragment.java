@@ -208,10 +208,15 @@ public class ClassicModelFragment extends Fragment implements BillAdapter.OnItem
                             double amount = (Double) row.get("amount");
                             String dateStr = (String) row.get("date");
                             String timeStr = (String) row.get("time");
-                            int userId = (Integer) row.get("userId");
+                            Integer ownerObj = (Integer) row.get("owner");
+                            int owner = ownerObj != null ? ownerObj : 0;
+                            Log.d("ClassicModelFragment", "从数据库获取的owner值: " + ownerObj + ", 最终owner: " + owner);
+                            Integer userIdObj = (Integer) row.get("userId");
+                            int userId = userIdObj != null ? userIdObj : 0;
                             String type = (String) row.get("type");
                             String title = (String) row.get("title");
-                            int incomeType = (Integer) row.get("income_type");
+                            Integer incomeTypeObj = (Integer) row.get("income_type");
+                            int incomeType = incomeTypeObj != null ? incomeTypeObj : 0;
 
                             // 解析日期字符串 (格式: 2025-08-15)
                             String[] dateParts = dateStr.split("-");
@@ -222,7 +227,7 @@ public class ClassicModelFragment extends Fragment implements BillAdapter.OnItem
                             // 根据类型设置图标
                             int iconResId = getIconForCategory(type);
 
-                            billItems.add(new BillBean(billId, amount, cur_year, cur_month, day, userId, type, title, iconResId, incomeType, timeStr, title));
+                            billItems.add(new BillBean(billId, amount, cur_year, cur_month, day, owner, userId, type, title, iconResId, incomeType, timeStr, title));
                         }
                         processAndDisplayData();
                         sumAmounts();
@@ -249,56 +254,21 @@ public class ClassicModelFragment extends Fragment implements BillAdapter.OnItem
             @Override
             public void onError(String error) {
                 Log.e("ClassicModelFragment", "获取用户信息失败: " + error);
-                // 如果获取用户信息失败，使用原有的查询方法作为备用
-                BillDatabaseHelper billHelper = new BillDatabaseHelper(getContext());
-                billHelper.queryBills(monthPattern, new BillDatabaseHelper.QueryCallback() {
-                    @Override
-                    public void onSuccess(List<Map<String, Object>> results) {
-                        if (getActivity() != null) {
-                            getActivity().runOnUiThread(() -> {
-                                for (Map<String, Object> row : results) {
-                                    long billId = ((Number) row.get("_id")).longValue();
-                                    double amount = (Double) row.get("amount");
-                                    String dateStr = (String) row.get("date");
-                                    String timeStr = (String) row.get("time");
-                                    int userId = (Integer) row.get("userId");
-                                    String type = (String) row.get("type");
-                                    String title = (String) row.get("title");
-                                    int incomeType = (Integer) row.get("income_type");
-
-                                    // 解析日期字符串 (格式: 2025-08-15)
-                                    String[] dateParts = dateStr.split("-");
-                                    int cur_year = Integer.parseInt(dateParts[0]);
-                                    int cur_month = Integer.parseInt(dateParts[1]);
-                                    int day = Integer.parseInt(dateParts[2]);
-
-                                    // 根据类型设置图标
-                                    int iconResId = getIconForCategory(type);
-
-                                    billItems.add(new BillBean(billId, amount, cur_year, cur_month, day, userId, type, title, iconResId, incomeType, timeStr, title));
-                                }
-                                processAndDisplayData();
-                                sumAmounts();
-                                // 通知适配器数据已更新
-                                if (billAdapter != null) {
-                                    billAdapter.notifyDataSetChanged();
-                                }
-                            });
+                if (getActivity() != null) {
+                    getActivity().runOnUiThread(() -> {
+                        // 清空账单数据并更新UI
+                        processAndDisplayData();
+                        sumAmounts();
+                        if (billAdapter != null) {
+                            billAdapter.notifyDataSetChanged();
                         }
-                    }
-                    
-                    @Override
-                    public void onError(String error) {
-                        Log.e("ClassicModelFragment", "备用查询账单失败: " + error);
-                    }
-                });
+                        showLoginPrompt();
+                    });
+                }
             }
         });
     }
     private void firstLoadBills() {
-        // 先检查数据库是否为空，如果为空则插入示例数据
-        checkAndInsertSampleData();
-        
         // 获取当前年月
         Calendar calendar = Calendar.getInstance();
         currentYear = calendar.get(Calendar.YEAR);
@@ -320,62 +290,9 @@ public class ClassicModelFragment extends Fragment implements BillAdapter.OnItem
         }
     }
     
-    private void checkAndInsertSampleData() {
-        // 首先检查用户是否已登录
-        if (!UserInfoManager.isUserLoggedIn(getContext())) {
-            Log.d("ClassicModelFragment", "用户未登录，跳过示例数据检查");
-            return;
-        }
-        
-        // 获取当前用户信息来检查是否需要插入示例数据
-        UserInfoManager.getCurrentUserInfo(getContext(), new UserInfoManager.UserInfoCallback() {
-             @Override
-             public void onUserInfoLoaded(int userId, String username, Integer relationshipId) {
-                BillDatabaseHelper billHelper = new BillDatabaseHelper(getContext());
-                billHelper.queryBillsWithUserFilter(userId, relationshipId, "", new BillDatabaseHelper.QueryCallback() {
-                    @Override
-                    public void onSuccess(List<Map<String, Object>> results) {
-                        if (results.isEmpty()) {
-                            insertSampleData();
-                        }
-                    }
 
-                    @Override
-                    public void onError(String error) {
-                        Log.e("ClassicModelFragment", "检查数据库失败: " + error);
-                        // 如果查询失败，仍然插入示例数据
-                        insertSampleData();
-                    }
-                });
-            }
-            
-            @Override
-            public void onError(String error) {
-                Log.e("ClassicModelFragment", "获取用户信息失败，使用备用检查方法: " + error);
-                // 备用方法：使用原有的查询
-                BillDatabaseHelper billHelper = new BillDatabaseHelper(getContext());
-                billHelper.queryBills("", new BillDatabaseHelper.QueryCallback() {
-                    @Override
-                    public void onSuccess(List<Map<String, Object>> results) {
-                        if (results.isEmpty()) {
-                            insertSampleData();
-                        }
-                    }
-
-                    @Override
-                    public void onError(String error) {
-                        Log.e("ClassicModelFragment", "备用检查数据库失败: " + error);
-                        insertSampleData();
-                    }
-                });
-            }
-        });
-    }
     
-    private void insertSampleData() {
-        // 插入示例账单数据
-        Utils.insertBill(getContext(),1, "午餐聚餐", "餐饮", 25.80, "2025-08-15", "00:00:00", 0); // 支出
-    }
+
     
     private int getIconForCategory(String category) {
         switch (category) {

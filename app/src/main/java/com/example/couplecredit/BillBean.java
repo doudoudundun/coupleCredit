@@ -17,6 +17,7 @@ public final class BillBean {
     //消费日期：月
     private int month;
     private int day;
+    private int owner;
     private int userId;
     private String categoryName;
     private String categoryDesc;
@@ -32,6 +33,23 @@ public final class BillBean {
         this.year = year;
         this.month = month;
         this.day = day;
+        this.userId = userId;
+        this.categoryName = categoryName;
+        this.categoryDesc = categoryDesc;
+        this.iconResId = iconResId;
+        this.incomeType = incomeType;
+        this.time = time;
+        this.title = title;
+    }
+
+    public BillBean(long billId, double fare, int year, int month, int day, int owner, int userId, String categoryName,
+                    String categoryDesc, int iconResId, int incomeType, String time, String title) {
+        this.billId = billId;
+        this.fare = fare;
+        this.year = year;
+        this.month = month;
+        this.day = day;
+        this.owner = owner;
         this.userId = userId;
         this.categoryName = categoryName;
         this.categoryDesc = categoryDesc;
@@ -135,5 +153,13 @@ public final class BillBean {
 
     public void setBillId(long billId) {
         this.billId = billId;
+    }
+
+    public int getOwner() {
+        return owner;
+    }
+
+    public void setOwner(int owner) {
+        this.owner = owner;
     }
 }

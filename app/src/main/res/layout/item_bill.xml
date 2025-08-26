@@ -36,7 +36,7 @@
             android:textStyle="bold" />
 
         <TextView
-            android:id="@+id/tv_category_desc"
+            android:id="@+id/tv_owner"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="大笨蛋 支出"

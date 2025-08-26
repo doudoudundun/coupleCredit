@@ -93,6 +93,18 @@ public class BillDatabaseHelper {
                 try {
                     connection = getConnection();
                     
+                    // 先检查表结构
+                    String describeSQL = "DESCRIBE bills";
+                    PreparedStatement describeStmt = connection.prepareStatement(describeSQL);
+                    ResultSet describeResult = describeStmt.executeQuery();
+                    Log.d(TAG, "=== 数据库表结构 ===");
+                    while (describeResult.next()) {
+                        Log.d(TAG, "字段: " + describeResult.getString("Field") + ", 类型: " + describeResult.getString("Type"));
+                    }
+                    describeResult.close();
+                    describeStmt.close();
+                    Log.d(TAG, "=== 表结构检查完毕 ===");
+                    
                     StringBuilder sql = new StringBuilder("SELECT bill_id as _id, relationship_id, owner, user_id as userId, title, type, amount, date, time, income_type FROM bills");
                     
                     if (selection != null && !selection.isEmpty()) {
@@ -184,9 +196,16 @@ public class BillDatabaseHelper {
                         statement.setNull(1, java.sql.Types.INTEGER);
                     }
                     
-                    // 设置owner为当前用户ID
+                    // 设置owner字段
                     Integer userId = values.getAsInteger(USER_ID);
-                    statement.setInt(2, userId);
+                    Integer ownerValue = values.getAsInteger("owner");
+                    if (ownerValue != null) {
+                        Log.d(TAG, "插入账单时设置owner字段: " + ownerValue);
+                        statement.setInt(2, ownerValue);
+                    } else {
+                        Log.d(TAG, "插入账单时owner字段为null，使用默认值: " + userId);
+                        statement.setInt(2, userId); // 默认为当前用户
+                    }
                     statement.setInt(3, userId);
                     statement.setString(4, values.getAsString(COLUMN_TITLE));
                     statement.setString(5, values.getAsString(COLUMN_TYPE));
@@ -421,6 +440,7 @@ public class BillDatabaseHelper {
                         row.put("amount", cursor.getDouble(cursor.getColumnIndexOrThrow("amount")));
                         row.put("date", cursor.getString(cursor.getColumnIndexOrThrow("date")));
                         row.put("time", cursor.getString(cursor.getColumnIndexOrThrow("time")));
+                        row.put("owner", cursor.getInt(cursor.getColumnIndexOrThrow("owner")));
                         row.put("userId", cursor.getInt(cursor.getColumnIndexOrThrow("userId")));
                         row.put("type", cursor.getString(cursor.getColumnIndexOrThrow("type")));
                         row.put("title", cursor.getString(cursor.getColumnIndexOrThrow("title")));
@@ -502,6 +522,14 @@ public class BillDatabaseHelper {
                         row.put("type", cursor.getString(cursor.getColumnIndexOrThrow("type")));
                         row.put("title", cursor.getString(cursor.getColumnIndexOrThrow("title")));
                         row.put("income_type", cursor.getInt(cursor.getColumnIndexOrThrow("income_type")));
+                        // 添加owner字段
+                        int ownerColumnIndex = cursor.getColumnIndex("owner");
+                        if (ownerColumnIndex != -1) {
+                            row.put("owner", cursor.getInt(ownerColumnIndex));
+                            Log.d(TAG, "查询结果中owner字段值: " + cursor.getInt(ownerColumnIndex));
+                        } else {
+                            Log.d(TAG, "查询结果中未找到owner字段");
+                        }
                         results.add(row);
                     } while (cursor.moveToNext());
                     cursor.close();

@@ -700,6 +700,7 @@ public class AddBillFragment extends Fragment {
                 dateString, 
                 timeString,
                 incomeType,
+                billOwner, // 传递账单归属信息
                 new Utils.BillInsertCallback() {
                     @Override
                     public void onInsertSuccess(long id) {
