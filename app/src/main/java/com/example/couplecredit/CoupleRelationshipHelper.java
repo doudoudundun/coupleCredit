@@ -18,6 +18,40 @@ public class CoupleRelationshipHelper {
     private static final String DB_PORT = "3306";
     private static final String DB_URL = "jdbc:mysql://" + DB_HOST + ":" + DB_PORT + "/" + DB_NAME + "?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC";
 
+    // 获取数据库连接
+    private Connection getConnection() throws ClassNotFoundException, SQLException {
+        Class.forName("com.mysql.jdbc.Driver");
+        return DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD);
+    }
+
+    // 关闭数据库资源
+    private void closeResources(Connection connection, PreparedStatement... statements) {
+        closeResources(connection, null, statements);
+    }
+
+    private void closeResources(Connection connection, ResultSet resultSet, PreparedStatement... statements) {
+        try {
+            if (resultSet != null) resultSet.close();
+            for (PreparedStatement stmt : statements) {
+                if (stmt != null) stmt.close();
+            }
+            if (connection != null) connection.close();
+        } catch (SQLException e) {
+            Log.e(TAG, "关闭数据库资源失败", e);
+        }
+    }
+
+    // 处理数据库异常
+    private String handleException(Exception e) {
+        if (e instanceof ClassNotFoundException) {
+            return "数据库驱动未找到: " + e.getMessage();
+        } else if (e instanceof SQLException) {
+            return "数据库操作失败: " + e.getMessage();
+        } else {
+            return "未知错误: " + e.getMessage();
+        }
+    }
+
 
     public interface CoupleCallback {
         void onSuccess(String message);
@@ -60,8 +94,7 @@ public class CoupleRelationshipHelper {
                 ResultSet rs = null;
 
                 try {
-                    Class.forName("com.mysql.jdbc.Driver");
-                    connection = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD);
+                    connection = getConnection();
 
                     // 查询当前用户的情侣关系
                     String sql = "SELECT cr.user_id_1, cr.user_id_2, u1.username as name1, u2.username as name2 " +
@@ -90,20 +123,10 @@ public class CoupleRelationshipHelper {
                         }
                     }
 
-                } catch (ClassNotFoundException e) {
-                    error = "数据库驱动未找到: " + e.getMessage();
-                } catch (SQLException e) {
-                    error = "数据库操作失败: " + e.getMessage();
                 } catch (Exception e) {
-                    error = "未知错误: " + e.getMessage();
+                    error = handleException(e);
                 } finally {
-                    try {
-                        if (rs != null) rs.close();
-                        if (stmt != null) stmt.close();
-                        if (connection != null) connection.close();
-                    } catch (SQLException e) {
-                        e.printStackTrace();
-                    }
+                    closeResources(connection, rs, stmt);
                 }
                 return null;
             }
@@ -135,8 +158,7 @@ public class CoupleRelationshipHelper {
                 ResultSet rs = null;
 
                 try {
-                    Class.forName("com.mysql.jdbc.Driver");
-                    connection = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD);
+                    connection = getConnection();
                     connection.setAutoCommit(false); // 开启事务
 
                     // 查找当前用户的情侣关系
@@ -158,14 +180,14 @@ public class CoupleRelationshipHelper {
                     selectStmt.close();
 
                     // 更新情侣关系状态为inactive
-                    String updateRelationshipSql = "UPDATE couple_relationships SET status = 'inactive' " +
+                    String updateRelationshipSql = "UPDATE couple_relationships SET status = 'dissolved' " +
                                                   "WHERE (user_id_1 = ? OR user_id_2 = ?) AND status = 'active'";
                     updateRelationshipStmt = connection.prepareStatement(updateRelationshipSql);
                     updateRelationshipStmt.setInt(1, userId);
                     updateRelationshipStmt.setInt(2, userId);
                     updateRelationshipStmt.executeUpdate();
 
-                    // 更新两个用户的状态
+                    // 更新两个用户的状态，  可调整
                     String updateUsersSql = "UPDATE users SET couple_status = 'single', relationship_id = NULL " +
                                           "WHERE id IN (?, ?)";
                     updateUsersStmt = connection.prepareStatement(updateUsersSql);
@@ -182,27 +204,17 @@ public class CoupleRelationshipHelper {
                     connection.commit(); // 提交事务
                     return "情侣关系解绑成功";
 
-                } catch (ClassNotFoundException e) {
-                    error = "数据库驱动未找到: " + e.getMessage();
                 } catch (SQLException e) {
-                    error = "数据库操作失败: " + e.getMessage();
+                    error = handleException(e);
                     try {
                         if (connection != null) connection.rollback();
                     } catch (SQLException rollbackEx) {
-                        rollbackEx.printStackTrace();
+                        Log.e(TAG, "事务回滚失败", rollbackEx);
                     }
                 } catch (Exception e) {
-                    error = "未知错误: " + e.getMessage();
+                    error = handleException(e);
                 } finally {
-                    try {
-                        if (rs != null) rs.close();
-                        if (selectStmt != null) selectStmt.close();
-                        if (updateUsersStmt != null) updateUsersStmt.close();
-                        if (updateRelationshipStmt != null) updateRelationshipStmt.close();
-                        if (connection != null) connection.close();
-                    } catch (SQLException e) {
-                        e.printStackTrace();
-                    }
+                    closeResources(connection, rs, selectStmt, updateUsersStmt, updateRelationshipStmt);
                 }
                 return null;
             }
@@ -243,8 +255,7 @@ public class CoupleRelationshipHelper {
                 ResultSet rs = null;
 
                 try {
-                    Class.forName("com.mysql.jdbc.Driver");
-                    connection = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD);
+                    connection = getConnection();
 
                     // 检查用户当前状态
                     String checkSql = "SELECT couple_status FROM users WHERE id = ?";
@@ -294,21 +305,10 @@ public class CoupleRelationshipHelper {
                         return null;
                     }
 
-                } catch (ClassNotFoundException e) {
-                    error = "数据库驱动未找到: " + e.getMessage();
-                } catch (SQLException e) {
-                    error = "数据库操作失败: " + e.getMessage();
                 } catch (Exception e) {
-                    error = "未知错误: " + e.getMessage();
+                    error = handleException(e);
                 } finally {
-                    try {
-                        if (rs != null) rs.close();
-                        if (checkStmt != null) checkStmt.close();
-                        if (updateStmt != null) updateStmt.close();
-                        if (connection != null) connection.close();
-                    } catch (SQLException e) {
-                        e.printStackTrace();
-                    }
+                    closeResources(connection, rs, checkStmt, updateStmt);
                 }
                 return null;
             }
@@ -338,8 +338,7 @@ public class CoupleRelationshipHelper {
                 ResultSet rs = null;
 
                 try {
-                    Class.forName("com.mysql.jdbc.Driver");
-                    connection = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD);
+                    connection = getConnection();
 
                     String sql = "SELECT id, username FROM users WHERE invite_code = ? AND couple_status = 'pending'";
                     stmt = connection.prepareStatement(sql);
@@ -351,20 +350,10 @@ public class CoupleRelationshipHelper {
                         foundUsername = rs.getString("username");
                     }
 
-                } catch (ClassNotFoundException e) {
-                    error = "数据库驱动未找到: " + e.getMessage();
-                } catch (SQLException e) {
-                    error = "数据库操作失败: " + e.getMessage();
                 } catch (Exception e) {
-                    error = "未知错误: " + e.getMessage();
+                    error = handleException(e);
                 } finally {
-                    try {
-                        if (rs != null) rs.close();
-                        if (stmt != null) stmt.close();
-                        if (connection != null) connection.close();
-                    } catch (SQLException e) {
-                        e.printStackTrace();
-                    }
+                    closeResources(connection, rs, stmt);
                 }
                 return null;
             }
@@ -396,8 +385,7 @@ public class CoupleRelationshipHelper {
                 ResultSet rs = null;
 
                 try {
-                    Class.forName("com.mysql.jdbc.Driver");
-                    connection = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD);
+                    connection = getConnection();
                     connection.setAutoCommit(false); // 开启事务
 
                     // 检查两个用户的状态
@@ -469,30 +457,22 @@ public class CoupleRelationshipHelper {
                     connection.commit(); // 提交事务
                     return "情侣关系建立成功！";
 
-                } catch (ClassNotFoundException e) {
-                    error = "数据库驱动未找到: " + e.getMessage();
                 } catch (SQLException e) {
-                    error = "数据库操作失败: " + e.getMessage();
+                    error = handleException(e);
                     try {
                         if (connection != null) connection.rollback();
                     } catch (SQLException rollbackEx) {
-                        rollbackEx.printStackTrace();
+                        Log.e(TAG, "事务回滚失败", rollbackEx);
                     }
                 } catch (Exception e) {
-                    error = "未知错误: " + e.getMessage();
+                    error = handleException(e);
                 } finally {
                     try {
-                        if (rs != null) rs.close();
-                        if (insertStmt != null) insertStmt.close();
-                        if (updateStmt != null) updateStmt.close();
-                        if (clearCodeStmt != null) clearCodeStmt.close();
-                        if (connection != null) {
-                            connection.setAutoCommit(true);
-                            connection.close();
-                        }
+                        if (connection != null) connection.setAutoCommit(true);
                     } catch (SQLException e) {
-                        e.printStackTrace();
+                        Log.e(TAG, "重置自动提交失败", e);
                     }
+                    closeResources(connection, rs, insertStmt, updateStmt, clearCodeStmt);
                 }
                 return null;
             }
@@ -519,8 +499,7 @@ public class CoupleRelationshipHelper {
                 PreparedStatement stmt = null;
 
                 try {
-                    Class.forName("com.mysql.jdbc.Driver");
-                    connection = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD);
+                    connection = getConnection();
 
                     String sql = "UPDATE users SET invite_code = NULL, couple_status = 'single' WHERE id = ? AND couple_status = 'pending'";
                     stmt = connection.prepareStatement(sql);
@@ -534,19 +513,10 @@ public class CoupleRelationshipHelper {
                         return null;
                     }
 
-                } catch (ClassNotFoundException e) {
-                    error = "数据库驱动未找到: " + e.getMessage();
-                } catch (SQLException e) {
-                    error = "数据库操作失败: " + e.getMessage();
                 } catch (Exception e) {
-                    error = "未知错误: " + e.getMessage();
+                    error = handleException(e);
                 } finally {
-                    try {
-                        if (stmt != null) stmt.close();
-                        if (connection != null) connection.close();
-                    } catch (SQLException e) {
-                        e.printStackTrace();
-                    }
+                    closeResources(connection, stmt);
                 }
                 return null;
             }
