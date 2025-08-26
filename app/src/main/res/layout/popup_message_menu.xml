@@ -26,7 +26,7 @@
             <ImageView
                 android:layout_width="24dp"
                 android:layout_height="24dp"
-                android:src="@drawable/ic_copy"
+                android:src="@drawable/ic_copy1"
                 app:tint="#666666" />
 
             <TextView
@@ -34,7 +34,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="4dp"
                 android:text="复制"
-                android:textColor="#333333"
+                android:textColor="#E0E0E0"
                 android:textSize="10sp" />
         </LinearLayout>
 
@@ -60,7 +60,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="4dp"
                 android:text="删除"
-                android:textColor="#333333"
+                android:textColor="#E0E0E0"
                 android:textSize="10sp" />
         </LinearLayout>
 
@@ -85,7 +85,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="4dp"
                 android:text="记账"
-                android:textColor="#333333"
+                android:textColor="#E0E0E0"
                 android:textSize="10sp" />
         </LinearLayout>
 
