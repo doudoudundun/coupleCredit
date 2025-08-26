@@ -79,6 +79,12 @@ public class CoupleRelationshipHelper {
         void onSuccess();
         void onError(String error);
     }
+    
+    public interface RelationshipIdCallback {
+        void onRelationshipIdFound(int relationshipId);
+        void onNoRelationshipFound();
+        void onError(String error);
+    }
 
     // 获取情侣信息
     public void getCoupleInfo(int userId, CoupleInfoCallback callback) {
@@ -143,6 +149,58 @@ public class CoupleRelationshipHelper {
             }
         }.execute();
     }
+    
+    // 获取用户的relationship_id
+    public void getUserRelationshipId(int userId, RelationshipIdCallback callback) {
+        new AsyncTask<Void, Void, Void>() {
+            private String error = null;
+            private int relationshipId = -1;
+            private boolean hasRelationship = false;
+            
+            @Override
+            protected Void doInBackground(Void... voids) {
+                Connection connection = null;
+                PreparedStatement stmt = null;
+                ResultSet rs = null;
+                
+                try {
+                    connection = getConnection();
+                    
+                    // 查询用户的relationship_id
+                    String sql = "SELECT cr.relationship_id " +
+                               "FROM couple_relationships cr " +
+                               "WHERE (cr.user_id_1 = ? OR cr.user_id_2 = ?) AND cr.status = 'active'";
+                    stmt = connection.prepareStatement(sql);
+                    stmt.setInt(1, userId);
+                    stmt.setInt(2, userId);
+                    rs = stmt.executeQuery();
+                    
+                    if (rs.next()) {
+                        relationshipId = rs.getInt("relationship_id");
+                        hasRelationship = true;
+                    }
+                    
+                } catch (Exception e) {
+                    error = handleException(e);
+                } finally {
+                    closeResources(connection, rs, stmt);
+                }
+                
+                return null;
+            }
+            
+            @Override
+            protected void onPostExecute(Void result) {
+                if (error != null) {
+                    callback.onError(error);
+                } else if (hasRelationship) {
+                    callback.onRelationshipIdFound(relationshipId);
+                } else {
+                    callback.onNoRelationshipFound();
+                }
+            }
+        }.execute();
+    }
 
     // 解绑情侣关系
     public void unbindCouple(int userId, UnbindCallback callback) {
@@ -179,7 +237,7 @@ public class CoupleRelationshipHelper {
                     rs.close();
                     selectStmt.close();
 
-                    // 更新情侣关系状态为inactive
+                    // 更新情侣关系状态为dissolved
                     String updateRelationshipSql = "UPDATE couple_relationships SET status = 'dissolved' " +
                                                   "WHERE (user_id_1 = ? OR user_id_2 = ?) AND status = 'active'";
                     updateRelationshipStmt = connection.prepareStatement(updateRelationshipSql);

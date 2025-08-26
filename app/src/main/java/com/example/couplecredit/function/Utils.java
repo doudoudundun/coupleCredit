@@ -13,32 +13,77 @@ import com.example.couplecredit.BillBean;
 import com.example.couplecredit.BillDatabaseHelper;
 import com.example.couplecredit.BillProvider;
 import com.example.couplecredit.R;
+import com.example.couplecredit.function.UserInfoManager;
 
 import java.util.Calendar;
 
 public final class Utils {
-    public static void insertBill(Context context,int userId, String title, String type, double amount, String date, String time, int incomeType) {
-        android.content.ContentValues values = new android.content.ContentValues();
-        values.put(BillDatabaseHelper.USER_ID, userId);
-        values.put(BillDatabaseHelper.COLUMN_TITLE, title);
-        values.put(BillDatabaseHelper.COLUMN_TYPE, type);
-        values.put(BillDatabaseHelper.COLUMN_AMOUNT, amount);
-        values.put(BillDatabaseHelper.COLUMN_DATE, date);
-        values.put(BillDatabaseHelper.COLUMN_TIME, time);
-        values.put(BillDatabaseHelper.COLUMN_INCOME_TYPE, incomeType);
-
-        BillDatabaseHelper billHelper = new BillDatabaseHelper(context);
-        billHelper.insertBill(values, new BillDatabaseHelper.BillInsertCallback() {
+    /**
+     * 账单插入回调接口
+     */
+    public interface BillInsertCallback {
+        void onInsertSuccess(long id);
+        void onInsertError(String error);
+    }
+    
+    /**
+     * 插入账单（新版本 - 自动获取当前用户信息）
+     */
+    public static void insertBill(Context context, String title, String type, double amount, String date, String time, int incomeType, BillInsertCallback callback) {
+        UserInfoManager.getCurrentUserInfo(context, new UserInfoManager.UserInfoCallback() {
             @Override
-            public void onInsertSuccess(long id) {
-                Log.d("Utils", "账单插入成功，ID: " + id);
+            public void onUserInfoLoaded(int userId, String username, Integer relationshipId) {
+                android.content.ContentValues values = new android.content.ContentValues();
+                values.put(BillDatabaseHelper.USER_ID, userId);
+                values.put(BillDatabaseHelper.COLUMN_TITLE, title);
+                values.put(BillDatabaseHelper.COLUMN_TYPE, type);
+                values.put(BillDatabaseHelper.COLUMN_AMOUNT, amount);
+                values.put(BillDatabaseHelper.COLUMN_DATE, date);
+                values.put(BillDatabaseHelper.COLUMN_TIME, time);
+                values.put(BillDatabaseHelper.COLUMN_INCOME_TYPE, incomeType);
+                
+                // 添加relationship_id信息
+                if (relationshipId != null) {
+                    values.put("relationship_id", relationshipId);
+                }
+
+                BillDatabaseHelper billHelper = new BillDatabaseHelper(context);
+                billHelper.insertBill(values, new BillDatabaseHelper.BillInsertCallback() {
+                    @Override
+                    public void onInsertSuccess(long id) {
+                        Log.d("Utils", "账单插入成功，ID: " + id + ", 用户ID: " + userId + ", 关系ID: " + relationshipId);
+                        if (callback != null) {
+                            callback.onInsertSuccess(id);
+                        }
+                    }
+
+                    @Override
+                    public void onInsertError(String error) {
+                        Log.e("Utils", "账单插入失败: " + error);
+                        if (callback != null) {
+                            callback.onInsertError(error);
+                        }
+                    }
+                });
             }
-
+            
             @Override
-            public void onInsertError(String error) {
-                Log.e("Utils", "账单插入失败: " + error);
+            public void onError(String error) {
+                Log.e("Utils", "获取用户信息失败: " + error);
+                if (callback != null) {
+                    callback.onInsertError("获取用户信息失败: " + error);
+                }
             }
         });
+    }
+    
+    /**
+     * 插入账单（兼容旧版本）
+     * @deprecated 请使用新版本的insertBill方法
+     */
+    @Deprecated
+    public static void insertBill(Context context,int userId, String title, String type, double amount, String date, String time, int incomeType) {
+        insertBill(context, title, type, amount, date, time, incomeType, null);
     }
     //加入多用户之后需要切分逻辑
     public static int getUserId(String username){

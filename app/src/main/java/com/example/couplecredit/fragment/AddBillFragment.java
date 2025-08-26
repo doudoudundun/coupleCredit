@@ -688,28 +688,43 @@ public class AddBillFragment extends Fragment {
             // 格式化当前时间为 HH:mm:ss 格式
             SimpleDateFormat timeFormat = new SimpleDateFormat("HH:mm:ss", Locale.getDefault());
             String timeString = timeFormat.format(new Date());
-            if(selectedDate != Calendar.getInstance()){
-                timeString = "23:59:59";
-            }
             
             // 确定收入类型：支出为0，收入为1
             int incomeType = isExpense ? 0 : 1;
             
-            // 使用实际用户输入的数据插入账单
-            Utils.insertBill(getContext(), Utils.getUserId(billOwner), 
+            // 使用新版本的Utils.insertBill方法，自动获取当前用户信息
+            Utils.insertBill(getContext(), 
                 note.isEmpty() ? selectedCategory : note, // 如果没有备注就用分类作为标题
                 selectedCategory, 
                 amount, 
                 dateString, 
                 timeString,
-                incomeType);
-            CustomToast.show(getActivity(), "账单保存成功"); //定制化Toast
-            
-            // 通知首页刷新数据
-            notifyHomePageRefresh();
-            
-            // 清空输入
-            clearInputs();
+                incomeType,
+                new Utils.BillInsertCallback() {
+                    @Override
+                    public void onInsertSuccess(long id) {
+                        if (getActivity() != null) {
+                            getActivity().runOnUiThread(() -> {
+                                CustomToast.show(getActivity(), "账单保存成功"); //定制化Toast
+                                
+                                // 通知首页刷新数据
+                                notifyHomePageRefresh();
+                                
+                                // 清空输入
+                                clearInputs();
+                            });
+                        }
+                    }
+                    
+                    @Override
+                    public void onInsertError(String error) {
+                        if (getActivity() != null) {
+                            getActivity().runOnUiThread(() -> {
+                                Toast.makeText(getActivity(), "账单保存失败: " + error, Toast.LENGTH_SHORT).show();
+                            });
+                        }
+                    }
+                });
             
         } catch (NumberFormatException e) {
             Toast.makeText(getActivity(), "请输入有效的金额", Toast.LENGTH_SHORT).show();

@@ -13,6 +13,7 @@ import androidx.appcompat.app.AppCompatActivity;
 
 import com.example.couplecredit.R;
 import com.example.couplecredit.function.MySQLDatabaseHelper;
+import com.example.couplecredit.function.UserInfoManager;
 
 public class ChangePasswordActivity extends AppCompatActivity {
     
@@ -27,9 +28,8 @@ public class ChangePasswordActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_change_password);
         
-        // 获取当前用户名
-        SharedPreferences sharedPreferences = getSharedPreferences("user_prefs", Context.MODE_PRIVATE);
-        username = sharedPreferences.getString("username", null);
+        // 使用UserInfoManager获取当前用户名
+        username = UserInfoManager.getCurrentUsername(this);
         
         if (username == null) {
             Toast.makeText(this, "用户信息获取失败", Toast.LENGTH_SHORT).show();

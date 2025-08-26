@@ -19,6 +19,7 @@ import com.example.couplecredit.activity.LoginActivity;
 import com.example.couplecredit.R;
 import com.example.couplecredit.activity.ToastDemoActivity;
 import com.example.couplecredit.activity.UserSettingsActivity;
+import com.example.couplecredit.function.UserInfoManager;
 import android.content.SharedPreferences;
 import android.content.Context;
 
@@ -142,14 +143,19 @@ public class MyFragment extends Fragment {
      */
     private void checkUserLoginStatus() {
         if (getActivity() != null) {
-            SharedPreferences sharedPreferences = getActivity().getSharedPreferences("user_prefs", Context.MODE_PRIVATE);
-            boolean isLoggedIn = sharedPreferences.getBoolean("isLoggedIn", false);
+            // 使用UserInfoManager检查登录状态
+            boolean isLoggedIn = UserInfoManager.isUserLoggedIn(getActivity());
             
             if (isLoggedIn) {
-                // 从SharedPreferences读取用户信息
-                username = sharedPreferences.getString("username", null);
-                userId = sharedPreferences.getString("id", null);
-                this.isLoggedIn = true;
+                // 从UserInfoManager读取用户信息
+                username = UserInfoManager.getCurrentUsername(getActivity());
+                int userIdInt = UserInfoManager.getCurrentUserId(getActivity());
+                if (userIdInt != -1) {
+                    userId = String.valueOf(userIdInt);
+                    this.isLoggedIn = true;
+                } else {
+                    this.isLoggedIn = false;
+                }
             } else {
                 // 清空用户信息
                 username = null;

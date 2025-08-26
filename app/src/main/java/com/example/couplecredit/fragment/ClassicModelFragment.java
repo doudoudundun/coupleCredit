@@ -28,6 +28,7 @@ import com.example.couplecredit.BillProvider;
 import com.example.couplecredit.activity.MainActivity;
 import com.example.couplecredit.R;
 import com.example.couplecredit.function.Utils;
+import com.example.couplecredit.function.UserInfoManager;
 import com.transsion.widgetslib.dialog.PromptDialog;
 
 import java.text.SimpleDateFormat;
@@ -42,7 +43,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-public class ClassicModelFragment extends Fragment {
+public class ClassicModelFragment extends Fragment implements BillAdapter.OnItemClickListener {
     private RecyclerView rvBillList;
     private BillAdapter billAdapter;
     private List<Object> displayItems; // 混合数据：String(日期) 和 BillBean
@@ -52,6 +53,7 @@ public class ClassicModelFragment extends Fragment {
     private int currentMonth;
     private TextView tvExpenseAmount;
     private TextView tvIncomeAmount;
+    private TextView tvLoginPrompt;
 
     private PromptDialog mDialog;
 
@@ -78,6 +80,7 @@ public class ClassicModelFragment extends Fragment {
         rvBillList = view.findViewById(R.id.rv_bill_list);
         tvExpenseAmount = view.findViewById(R.id.tv_expense_amount);
         tvIncomeAmount = view.findViewById(R.id.tv_income_amount);
+        tvLoginPrompt = view.findViewById(R.id.tv_login_prompt);
         
         // 设置卡片点击监听器
         LinearLayout llExpenseCard = view.findViewById(R.id.ll_expense_card);
@@ -149,6 +152,11 @@ public class ClassicModelFragment extends Fragment {
     }
     private void initBillData() {
         billItems = new ArrayList<>();
+        displayItems = new ArrayList<>();
+        
+        // 初始化适配器
+        billAdapter = new BillAdapter(getContext(), displayItems, this);
+        rvBillList.setAdapter(billAdapter);
         
         // 从数据库读取账单数据
         firstLoadBills();
@@ -159,8 +167,38 @@ public class ClassicModelFragment extends Fragment {
         
         android.util.Log.d("ClassicModelFragment", "生成的monthPattern: " + monthPattern);
         
-        BillDatabaseHelper billHelper = new BillDatabaseHelper(getContext());
-        billHelper.queryBills(monthPattern, new BillDatabaseHelper.QueryCallback() {
+        // 首先检查用户是否已登录
+        if (!UserInfoManager.isUserLoggedIn(getContext())) {
+            Log.d("ClassicModelFragment", "用户未登录，返回空账单列表");
+            // 清空账单数据并更新UI
+            if (getActivity() != null) {
+                getActivity().runOnUiThread(() -> {
+                    processAndDisplayData();
+                    sumAmounts();
+                    if (billAdapter != null) {
+                        billAdapter.notifyDataSetChanged();
+                    }
+                    // 可以在这里添加"请登录查看账单"的提示
+                    showLoginPrompt();
+                });
+            }
+            return;
+        }
+        
+        // 获取当前用户信息和relationship状态
+        UserInfoManager.getCurrentUserInfo(getContext(), new UserInfoManager.UserInfoCallback() {
+            @Override
+            public void onUserInfoLoaded(int userId, String username, Integer relationshipId) {
+                Log.d("ClassicModelFragment", "获取用户信息成功: userId=" + userId + ", relationshipId=" + relationshipId);
+                
+                // 隐藏登录提示，显示账单列表
+                if (getActivity() != null) {
+                    getActivity().runOnUiThread(() -> hideLoginPrompt());
+                }
+                
+                BillDatabaseHelper billHelper = new BillDatabaseHelper(getContext());
+                // 使用新的筛选查询方法
+                billHelper.queryBillsWithUserFilter(userId, relationshipId, monthPattern, new BillDatabaseHelper.QueryCallback() {
             @Override
             public void onSuccess(List<Map<String, Object>> results) {
                 if (getActivity() != null) {
@@ -206,6 +244,56 @@ public class ClassicModelFragment extends Fragment {
                 }
             }
         });
+            }
+            
+            @Override
+            public void onError(String error) {
+                Log.e("ClassicModelFragment", "获取用户信息失败: " + error);
+                // 如果获取用户信息失败，使用原有的查询方法作为备用
+                BillDatabaseHelper billHelper = new BillDatabaseHelper(getContext());
+                billHelper.queryBills(monthPattern, new BillDatabaseHelper.QueryCallback() {
+                    @Override
+                    public void onSuccess(List<Map<String, Object>> results) {
+                        if (getActivity() != null) {
+                            getActivity().runOnUiThread(() -> {
+                                for (Map<String, Object> row : results) {
+                                    long billId = ((Number) row.get("_id")).longValue();
+                                    double amount = (Double) row.get("amount");
+                                    String dateStr = (String) row.get("date");
+                                    String timeStr = (String) row.get("time");
+                                    int userId = (Integer) row.get("userId");
+                                    String type = (String) row.get("type");
+                                    String title = (String) row.get("title");
+                                    int incomeType = (Integer) row.get("income_type");
+
+                                    // 解析日期字符串 (格式: 2025-08-15)
+                                    String[] dateParts = dateStr.split("-");
+                                    int cur_year = Integer.parseInt(dateParts[0]);
+                                    int cur_month = Integer.parseInt(dateParts[1]);
+                                    int day = Integer.parseInt(dateParts[2]);
+
+                                    // 根据类型设置图标
+                                    int iconResId = getIconForCategory(type);
+
+                                    billItems.add(new BillBean(billId, amount, cur_year, cur_month, day, userId, type, title, iconResId, incomeType, timeStr, title));
+                                }
+                                processAndDisplayData();
+                                sumAmounts();
+                                // 通知适配器数据已更新
+                                if (billAdapter != null) {
+                                    billAdapter.notifyDataSetChanged();
+                                }
+                            });
+                        }
+                    }
+                    
+                    @Override
+                    public void onError(String error) {
+                        Log.e("ClassicModelFragment", "备用查询账单失败: " + error);
+                    }
+                });
+            }
+        });
     }
     private void firstLoadBills() {
         // 先检查数据库是否为空，如果为空则插入示例数据
@@ -233,20 +321,53 @@ public class ClassicModelFragment extends Fragment {
     }
     
     private void checkAndInsertSampleData() {
-        BillDatabaseHelper billHelper = new BillDatabaseHelper(getContext());
-        billHelper.queryBills("", new BillDatabaseHelper.QueryCallback() {
-            @Override
-            public void onSuccess(List<Map<String, Object>> results) {
-                if (results.isEmpty()) {
-                    insertSampleData();
-                }
-            }
+        // 首先检查用户是否已登录
+        if (!UserInfoManager.isUserLoggedIn(getContext())) {
+            Log.d("ClassicModelFragment", "用户未登录，跳过示例数据检查");
+            return;
+        }
+        
+        // 获取当前用户信息来检查是否需要插入示例数据
+        UserInfoManager.getCurrentUserInfo(getContext(), new UserInfoManager.UserInfoCallback() {
+             @Override
+             public void onUserInfoLoaded(int userId, String username, Integer relationshipId) {
+                BillDatabaseHelper billHelper = new BillDatabaseHelper(getContext());
+                billHelper.queryBillsWithUserFilter(userId, relationshipId, "", new BillDatabaseHelper.QueryCallback() {
+                    @Override
+                    public void onSuccess(List<Map<String, Object>> results) {
+                        if (results.isEmpty()) {
+                            insertSampleData();
+                        }
+                    }
 
+                    @Override
+                    public void onError(String error) {
+                        Log.e("ClassicModelFragment", "检查数据库失败: " + error);
+                        // 如果查询失败，仍然插入示例数据
+                        insertSampleData();
+                    }
+                });
+            }
+            
             @Override
             public void onError(String error) {
-                Log.e("ClassicModelFragment", "检查数据库失败: " + error);
-                // 如果查询失败，仍然插入示例数据
-                insertSampleData();
+                Log.e("ClassicModelFragment", "获取用户信息失败，使用备用检查方法: " + error);
+                // 备用方法：使用原有的查询
+                BillDatabaseHelper billHelper = new BillDatabaseHelper(getContext());
+                billHelper.queryBills("", new BillDatabaseHelper.QueryCallback() {
+                    @Override
+                    public void onSuccess(List<Map<String, Object>> results) {
+                        if (results.isEmpty()) {
+                            insertSampleData();
+                        }
+                    }
+
+                    @Override
+                    public void onError(String error) {
+                        Log.e("ClassicModelFragment", "备用检查数据库失败: " + error);
+                        insertSampleData();
+                    }
+                });
             }
         });
     }
@@ -621,5 +742,30 @@ public class ClassicModelFragment extends Fragment {
                 })
                 .setNegativeButton("取消", (dialog, which) -> dialog.dismiss())
                 .show();
+    }
+    
+    private void showLoginPrompt() {
+        Log.d("ClassicModelFragment", "显示登录提示");
+        if (tvLoginPrompt != null) {
+            tvLoginPrompt.setVisibility(View.VISIBLE);
+        }
+        if (rvBillList != null) {
+            rvBillList.setVisibility(View.GONE);
+        }
+    }
+    
+    private void hideLoginPrompt() {
+        if (tvLoginPrompt != null) {
+            tvLoginPrompt.setVisibility(View.GONE);
+        }
+        if (rvBillList != null) {
+            rvBillList.setVisibility(View.VISIBLE);
+        }
+    }
+    
+    @Override
+    public void onItemClick(View view, int position, BillBean bill) {
+        // 处理账单项点击事件
+        processDialog(bill);
     }
 }

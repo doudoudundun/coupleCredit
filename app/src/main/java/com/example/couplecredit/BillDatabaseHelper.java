@@ -176,10 +176,18 @@ public class BillDatabaseHelper {
                     String sql = "INSERT INTO bills (relationship_id, owner, user_id, title, type, amount, date, time, income_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
                     statement = connection.prepareStatement(sql, PreparedStatement.RETURN_GENERATED_KEYS);
                     
-                    // 设置参数，这里需要根据实际情况设置relationship_id和owner
-                    statement.setInt(1, 1); // 默认relationship_id，需要根据实际情况获取
-                    statement.setInt(2, 1); // 默认owner，改为整数类型
-                    statement.setInt(3, values.getAsInteger(USER_ID));
+                    // 动态设置relationship_id - 从ContentValues获取，如果没有则设为NULL
+                    Integer relationshipId = values.getAsInteger("relationship_id");
+                    if (relationshipId != null) {
+                        statement.setInt(1, relationshipId);
+                    } else {
+                        statement.setNull(1, java.sql.Types.INTEGER);
+                    }
+                    
+                    // 设置owner为当前用户ID
+                    Integer userId = values.getAsInteger(USER_ID);
+                    statement.setInt(2, userId);
+                    statement.setInt(3, userId);
                     statement.setString(4, values.getAsString(COLUMN_TITLE));
                     statement.setString(5, values.getAsString(COLUMN_TYPE));
                     statement.setDouble(6, values.getAsDouble(COLUMN_AMOUNT));
@@ -403,6 +411,83 @@ public class BillDatabaseHelper {
         }
         
         queryBills(processedSelection, selectionArgs, "date DESC, time DESC", new BillQueryCallback() {
+            @Override
+            public void onQuerySuccess(Cursor cursor) {
+                List<Map<String, Object>> results = new ArrayList<>();
+                if (cursor != null && cursor.moveToFirst()) {
+                    do {
+                        Map<String, Object> row = new HashMap<>();
+                        row.put("_id", cursor.getLong(cursor.getColumnIndexOrThrow("_id")));
+                        row.put("amount", cursor.getDouble(cursor.getColumnIndexOrThrow("amount")));
+                        row.put("date", cursor.getString(cursor.getColumnIndexOrThrow("date")));
+                        row.put("time", cursor.getString(cursor.getColumnIndexOrThrow("time")));
+                        row.put("userId", cursor.getInt(cursor.getColumnIndexOrThrow("userId")));
+                        row.put("type", cursor.getString(cursor.getColumnIndexOrThrow("type")));
+                        row.put("title", cursor.getString(cursor.getColumnIndexOrThrow("title")));
+                        row.put("income_type", cursor.getInt(cursor.getColumnIndexOrThrow("income_type")));
+                        results.add(row);
+                    } while (cursor.moveToNext());
+                    cursor.close();
+                }
+                callback.onSuccess(results);
+            }
+
+            @Override
+            public void onQueryError(String error) {
+                callback.onError(error);
+            }
+        });
+    }
+    
+    // 根据用户relationship状态筛选账单的查询方法
+    public void queryBillsWithUserFilter(int currentUserId, Integer relationshipId, String selection, QueryCallback callback) {
+        // 构建筛选条件
+        String userFilterSelection;
+        String[] userFilterArgs;
+        
+        if (relationshipId != null) {
+            // 用户已绑定relationship，查看该relationship_id的所有账单
+            userFilterSelection = "relationship_id = ?";
+            userFilterArgs = new String[]{String.valueOf(relationshipId)};
+            Log.d(TAG, "用户已绑定relationship，查询relationship_id=" + relationshipId + "的账单");
+        } else {
+            // 用户未绑定relationship，只查看自己的账单
+            userFilterSelection = "user_id = ? AND relationship_id IS NULL";
+            userFilterArgs = new String[]{String.valueOf(currentUserId)};
+            Log.d(TAG, "用户未绑定relationship，只查询自己的账单，userId=" + currentUserId);
+        }
+        
+        // 合并原有的selection条件
+        String finalSelection;
+        String[] finalSelectionArgs;
+        
+        if (selection != null && !selection.isEmpty()) {
+            // 处理日期模式查询
+            if (selection.contains("%%") || selection.matches(".*\\d{4}-\\d{2}-%.*")) {
+                String pattern;
+                if (selection.contains("%%")) {
+                    pattern = selection.replace("%%", "%");
+                } else {
+                    pattern = selection;
+                }
+                finalSelection = userFilterSelection + " AND date LIKE ?";
+                finalSelectionArgs = new String[userFilterArgs.length + 1];
+                System.arraycopy(userFilterArgs, 0, finalSelectionArgs, 0, userFilterArgs.length);
+                finalSelectionArgs[userFilterArgs.length] = pattern;
+            } else {
+                finalSelection = userFilterSelection + " AND (" + selection + ")";
+                finalSelectionArgs = userFilterArgs;
+            }
+        } else {
+            finalSelection = userFilterSelection;
+            finalSelectionArgs = userFilterArgs;
+        }
+        
+        Log.d(TAG, "最终查询条件: " + finalSelection);
+        Log.d(TAG, "查询参数: " + java.util.Arrays.toString(finalSelectionArgs));
+        
+        // 调用原有的查询方法
+        queryBills(finalSelection, finalSelectionArgs, "date DESC, time DESC", new BillQueryCallback() {
             @Override
             public void onQuerySuccess(Cursor cursor) {
                 List<Map<String, Object>> results = new ArrayList<>();

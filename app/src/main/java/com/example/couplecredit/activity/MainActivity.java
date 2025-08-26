@@ -25,6 +25,7 @@ import com.example.couplecredit.fragment.AddBillFragment;
 import com.example.couplecredit.fragment.HeadFragment;
 import com.example.couplecredit.fragment.MyFragment;
 import com.example.couplecredit.fragment.ReportFragment;
+import com.example.couplecredit.function.UserInfoManager;
 import com.transsion.widgetslib.widget.FootOperationBar;
 import com.github.mikephil.charting.utils.Utils;
 import android.content.SharedPreferences;
@@ -61,18 +62,19 @@ public class MainActivity extends AppCompatActivity {
         // 初始化Fragment管理器
         fragmentManager = getSupportFragmentManager();
         
-        // 获取用户信息（优先从Intent，其次从SharedPreferences）
+        // 获取用户信息（优先从Intent，其次从UserInfoManager）
         Intent intent = getIntent();
         String username = intent.getStringExtra("username");
         String id = intent.getStringExtra("id");
         
-        // 如果Intent中没有用户信息，从SharedPreferences读取
+        // 如果Intent中没有用户信息，从UserInfoManager读取
         if (username == null || id == null) {
-            SharedPreferences sharedPreferences = getSharedPreferences("user_prefs", MODE_PRIVATE);
-            boolean isLoggedIn = sharedPreferences.getBoolean("isLoggedIn", false);
-            if (isLoggedIn) {
-                username = sharedPreferences.getString("username", null);
-                id = sharedPreferences.getString("id", null);
+            if (UserInfoManager.isUserLoggedIn(this)) {
+                username = UserInfoManager.getCurrentUsername(this);
+                int userId = UserInfoManager.getCurrentUserId(this);
+                if (userId != -1) {
+                    id = String.valueOf(userId);
+                }
             }
         }
         
@@ -114,12 +116,7 @@ public class MainActivity extends AppCompatActivity {
 
         mFootOptBar = (FootOperationBar) findViewById(R.id.bottom_nav);
         
-        // 设置数据库测试按钮点击事件
-        FloatingActionButton fabTestDb = findViewById(R.id.fab_test_db);
-        fabTestDb.setOnClickListener(v -> {
-            Intent testIntent = new Intent(MainActivity.this, TestDatabaseActivity.class);
-            startActivity(testIntent);
-        });
+
         mFootOptBar.inflateMenu(R.menu.bottom_nav_menu);
         //mFootOptBar.setLandscape(isFootOperationLandscape());
         //BottomNavigationView bottomNav = findViewById(R.id.bottom_nav);

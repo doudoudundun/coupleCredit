@@ -117,6 +117,18 @@
 
         </LinearLayout>
 
+        <!-- 登录提示 -->
+        <TextView
+            android:id="@+id/tv_login_prompt"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="登录以查看账单"
+            android:textSize="16sp"
+            android:textColor="#666666"
+            android:gravity="center"
+            android:padding="32dp"
+            android:visibility="gone" />
+
         <!-- 账单列表 -->
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/rv_bill_list"

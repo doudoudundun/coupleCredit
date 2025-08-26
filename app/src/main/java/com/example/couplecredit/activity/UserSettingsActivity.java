@@ -14,6 +14,7 @@ import androidx.appcompat.app.AppCompatActivity;
 
 import com.example.couplecredit.R;
 import com.example.couplecredit.function.MySQLDatabaseHelper;
+import com.example.couplecredit.function.UserInfoManager;
 import com.example.couplecredit.CoupleRelationshipHelper;
 
 public class UserSettingsActivity extends AppCompatActivity {
@@ -37,10 +38,19 @@ public class UserSettingsActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_user_settings);
 
-        // 获取传递的用户信息
+        // 优先从Intent获取用户信息，否则从UserInfoManager获取
         Intent intent = getIntent();
         username = intent.getStringExtra("username");
         userId = intent.getStringExtra("id");
+        
+        // 如果Intent中没有用户信息，从UserInfoManager获取
+        if (username == null || userId == null) {
+            username = UserInfoManager.getCurrentUsername(this);
+            int userIdInt = UserInfoManager.getCurrentUserId(this);
+            if (userIdInt != -1) {
+                userId = String.valueOf(userIdInt);
+            }
+        }
         
         // 初始化UI组件
         initViews();
@@ -223,14 +233,13 @@ public class UserSettingsActivity extends AppCompatActivity {
      * 执行退出登录操作
      */
     private void performSignOut() {
-        // 清除SharedPreferences中的用户信息
-        SharedPreferences prefs = getSharedPreferences("user_prefs", MODE_PRIVATE);
-        prefs.edit().clear().apply();
+        // 使用UserInfoManager清除用户信息
+        UserInfoManager.clearUserInfo(this);
 
         Toast.makeText(this, "已退出登录", Toast.LENGTH_SHORT).show();
 
         // 跳转到登录界面
-        Intent intent = new Intent(UserSettingsActivity.this, LoginActivity.class);
+        Intent intent = new Intent(UserSettingsActivity.this, MainActivity.class);
         intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
         startActivity(intent);
         finish();
@@ -253,11 +262,8 @@ public class UserSettingsActivity extends AppCompatActivity {
             @Override
             public void onSuccess(String message) {
                 runOnUiThread(() -> {
-                    // 清空SharedPreferences中的用户登录状态
-                    SharedPreferences sharedPreferences = getSharedPreferences("user_prefs", MODE_PRIVATE);
-                    SharedPreferences.Editor editor = sharedPreferences.edit();
-                    editor.clear();
-                    editor.apply();
+                    // 使用UserInfoManager清空用户登录状态
+                    UserInfoManager.clearUserInfo(UserSettingsActivity.this);
                     
                     Toast.makeText(UserSettingsActivity.this, "账户注销成功", Toast.LENGTH_SHORT).show();
                     

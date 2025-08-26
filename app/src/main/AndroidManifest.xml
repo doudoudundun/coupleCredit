@@ -49,11 +49,8 @@
             android:name=".activity.RegisterActivity"
             android:label="注册"
             android:parentActivityName=".activity.LoginActivity" />
-        <!-- TestDatabaseActivity声明 -->
-        <activity
-            android:name=".activity.TestDatabaseActivity"
-            android:label="数据库测试"
-            android:parentActivityName=".activity.MainActivity" />
+
+            
         <!-- UserSettingsActivity声明 -->
         <activity
             android:name=".activity.UserSettingsActivity"
