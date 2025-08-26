@@ -35,6 +35,189 @@ public class CoupleRelationshipHelper {
         void onError(String error);
     }
 
+    public interface CoupleInfoCallback {
+        void onCoupleFound(int coupleId, String coupleName);
+        void onNoCoupleFound();
+        void onError(String error);
+    }
+
+    public interface UnbindCallback {
+        void onSuccess();
+        void onError(String error);
+    }
+
+    // 获取情侣信息
+    public void getCoupleInfo(int userId, CoupleInfoCallback callback) {
+        new AsyncTask<Void, Void, Void>() {
+            private String error = null;
+            private int coupleId = -1;
+            private String coupleName = null;
+
+            @Override
+            protected Void doInBackground(Void... voids) {
+                Connection connection = null;
+                PreparedStatement stmt = null;
+                ResultSet rs = null;
+
+                try {
+                    Class.forName("com.mysql.jdbc.Driver");
+                    connection = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD);
+
+                    // 查询当前用户的情侣关系
+                    String sql = "SELECT cr.user_id_1, cr.user_id_2, u1.username as name1, u2.username as name2 " +
+                               "FROM couple_relationships cr " +
+                               "JOIN users u1 ON cr.user_id_1 = u1.id " +
+                               "JOIN users u2 ON cr.user_id_2 = u2.id " +
+                               "WHERE (cr.user_id_1 = ? OR cr.user_id_2 = ?) AND cr.status = 'active'";
+                    stmt = connection.prepareStatement(sql);
+                    stmt.setInt(1, userId);
+                    stmt.setInt(2, userId);
+                    rs = stmt.executeQuery();
+
+                    if (rs.next()) {
+                        int user1Id = rs.getInt("user_id_1");
+                        int user2Id = rs.getInt("user_id_2");
+                        String name1 = rs.getString("name1");
+                        String name2 = rs.getString("name2");
+                        
+                        // 确定情侣的ID和姓名（排除当前用户）
+                        if (user1Id == userId) {
+                            coupleId = user2Id;
+                            coupleName = name2;
+                        } else {
+                            coupleId = user1Id;
+                            coupleName = name1;
+                        }
+                    }
+
+                } catch (ClassNotFoundException e) {
+                    error = "数据库驱动未找到: " + e.getMessage();
+                } catch (SQLException e) {
+                    error = "数据库操作失败: " + e.getMessage();
+                } catch (Exception e) {
+                    error = "未知错误: " + e.getMessage();
+                } finally {
+                    try {
+                        if (rs != null) rs.close();
+                        if (stmt != null) stmt.close();
+                        if (connection != null) connection.close();
+                    } catch (SQLException e) {
+                        e.printStackTrace();
+                    }
+                }
+                return null;
+            }
+
+            @Override
+            protected void onPostExecute(Void result) {
+                if (error != null) {
+                    callback.onError(error);
+                } else if (coupleId != -1) {
+                    callback.onCoupleFound(coupleId, coupleName);
+                } else {
+                    callback.onNoCoupleFound();
+                }
+            }
+        }.execute();
+    }
+
+    // 解绑情侣关系
+    public void unbindCouple(int userId, UnbindCallback callback) {
+        new AsyncTask<Void, Void, String>() {
+            private String error = null;
+
+            @Override
+            protected String doInBackground(Void... voids) {
+                Connection connection = null;
+                PreparedStatement updateUsersStmt = null;
+                PreparedStatement updateRelationshipStmt = null;
+                PreparedStatement selectStmt = null;
+                ResultSet rs = null;
+
+                try {
+                    Class.forName("com.mysql.jdbc.Driver");
+                    connection = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD);
+                    connection.setAutoCommit(false); // 开启事务
+
+                    // 查找当前用户的情侣关系
+                    String selectSql = "SELECT user_id_1, user_id_2 FROM couple_relationships " +
+                                     "WHERE (user_id_1 = ? OR user_id_2 = ?) AND status = 'active'";
+                    selectStmt = connection.prepareStatement(selectSql);
+                    selectStmt.setInt(1, userId);
+                    selectStmt.setInt(2, userId);
+                    rs = selectStmt.executeQuery();
+
+                    if (!rs.next()) {
+                        error = "未找到有效的情侣关系";
+                        return null;
+                    }
+
+                    int user1Id = rs.getInt("user_id_1");
+                    int user2Id = rs.getInt("user_id_2");
+                    rs.close();
+                    selectStmt.close();
+
+                    // 更新情侣关系状态为inactive
+                    String updateRelationshipSql = "UPDATE couple_relationships SET status = 'inactive' " +
+                                                  "WHERE (user_id_1 = ? OR user_id_2 = ?) AND status = 'active'";
+                    updateRelationshipStmt = connection.prepareStatement(updateRelationshipSql);
+                    updateRelationshipStmt.setInt(1, userId);
+                    updateRelationshipStmt.setInt(2, userId);
+                    updateRelationshipStmt.executeUpdate();
+
+                    // 更新两个用户的状态
+                    String updateUsersSql = "UPDATE users SET couple_status = 'single', relationship_id = NULL " +
+                                          "WHERE id IN (?, ?)";
+                    updateUsersStmt = connection.prepareStatement(updateUsersSql);
+                    updateUsersStmt.setInt(1, user1Id);
+                    updateUsersStmt.setInt(2, user2Id);
+                    int rowsUpdated = updateUsersStmt.executeUpdate();
+
+                    if (rowsUpdated != 2) {
+                        error = "更新用户状态失败";
+                        connection.rollback();
+                        return null;
+                    }
+
+                    connection.commit(); // 提交事务
+                    return "情侣关系解绑成功";
+
+                } catch (ClassNotFoundException e) {
+                    error = "数据库驱动未找到: " + e.getMessage();
+                } catch (SQLException e) {
+                    error = "数据库操作失败: " + e.getMessage();
+                    try {
+                        if (connection != null) connection.rollback();
+                    } catch (SQLException rollbackEx) {
+                        rollbackEx.printStackTrace();
+                    }
+                } catch (Exception e) {
+                    error = "未知错误: " + e.getMessage();
+                } finally {
+                    try {
+                        if (rs != null) rs.close();
+                        if (selectStmt != null) selectStmt.close();
+                        if (updateUsersStmt != null) updateUsersStmt.close();
+                        if (updateRelationshipStmt != null) updateRelationshipStmt.close();
+                        if (connection != null) connection.close();
+                    } catch (SQLException e) {
+                        e.printStackTrace();
+                    }
+                }
+                return null;
+            }
+
+            @Override
+            protected void onPostExecute(String result) {
+                if (error != null) {
+                    callback.onError(error);
+                } else {
+                    callback.onSuccess();
+                }
+            }
+        }.execute();
+    }
+
     // 生成6位随机邀请码
     private String generateInviteCode() {
         String chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";

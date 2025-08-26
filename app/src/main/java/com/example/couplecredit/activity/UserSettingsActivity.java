@@ -2,18 +2,19 @@ package com.example.couplecredit.activity;
 
 import android.app.AlertDialog;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.os.Bundle;
+import android.view.View;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.view.ViewCompat;
-import androidx.core.view.WindowInsetsCompat;
 
 import com.example.couplecredit.R;
 import com.example.couplecredit.function.MySQLDatabaseHelper;
-import android.content.SharedPreferences;
+import com.example.couplecredit.CoupleRelationshipHelper;
 
 public class UserSettingsActivity extends AppCompatActivity {
 
@@ -23,6 +24,9 @@ public class UserSettingsActivity extends AppCompatActivity {
     private LinearLayout llChangePassword; // 修改密码选项
     private LinearLayout llSignOut;        // 退出登录选项
     private LinearLayout llLogout;         // 注销用户选项
+    private LinearLayout llCoupleInfo, llUnbindCouple;
+    private TextView tvCoupleInfo, tvCoupleHint;
+    private ImageView ivUserAvatar, ivCoupleAvatar;
     
     // 用户信息
     private String username;
@@ -46,6 +50,9 @@ public class UserSettingsActivity extends AppCompatActivity {
         
         // 更新用户信息显示
         updateUserInfo();
+        
+        // 加载情侣信息
+        loadCoupleInfo();
     }
     
     /**
@@ -53,6 +60,12 @@ public class UserSettingsActivity extends AppCompatActivity {
      */
     private void initViews() {
         tvUserInfo = findViewById(R.id.tv_user_info);
+        ivUserAvatar = findViewById(R.id.iv_user_avatar);
+        tvCoupleHint = findViewById(R.id.tv_couple_hint);
+        llCoupleInfo = findViewById(R.id.ll_couple_info);
+        tvCoupleInfo = findViewById(R.id.tv_couple_info);
+        ivCoupleAvatar = findViewById(R.id.iv_couple_avatar);
+        llUnbindCouple = findViewById(R.id.ll_unbind_couple);
         llCoupleBinding = findViewById(R.id.ll_couple_binding);
         llChangePassword = findViewById(R.id.ll_change_password);
         llSignOut = findViewById(R.id.ll_sign_out);
@@ -65,7 +78,7 @@ public class UserSettingsActivity extends AppCompatActivity {
     private void setupListeners() {
         // 情侣绑定点击事件
         llCoupleBinding.setOnClickListener(v -> {
-            Intent intent = new Intent(UserSettingsActivity.this, com.example.couplecredit.CoupleBindingActivity.class);
+            Intent intent = new Intent(UserSettingsActivity.this, CoupleBindingActivity.class);
             intent.putExtra("username", username);
             intent.putExtra("id", userId);
             startActivity(intent);
@@ -80,6 +93,9 @@ public class UserSettingsActivity extends AppCompatActivity {
         
         // 退出登录点击事件
         llSignOut.setOnClickListener(v -> showSignOutDialog());
+        
+        // 解绑情侣关系点击事件
+        llUnbindCouple.setOnClickListener(v -> showUnbindDialog());
         
         // 注销用户点击事件
         llLogout.setOnClickListener(v -> {
@@ -97,6 +113,63 @@ public class UserSettingsActivity extends AppCompatActivity {
         }
     }
     
+    /**
+     * 加载情侣信息
+     */
+    private void loadCoupleInfo() {
+        CoupleRelationshipHelper coupleHelper = new CoupleRelationshipHelper();
+        int userIdInt = Integer.parseInt(userId);
+        coupleHelper.getCoupleInfo(userIdInt, new CoupleRelationshipHelper.CoupleInfoCallback() {
+            @Override
+            public void onCoupleFound(int coupleId, String coupleName) {
+                runOnUiThread(() -> {
+                    // 显示情侣信息和提示文本
+                    String coupleInfoText = "情侣用户名: " + coupleName;
+                    tvCoupleInfo.setText(coupleInfoText);
+                    tvCoupleHint.setVisibility(View.VISIBLE);
+                    llCoupleInfo.setVisibility(View.VISIBLE);
+                    llUnbindCouple.setVisibility(View.VISIBLE);
+                    // 隐藏情侣绑定选项
+                    llCoupleBinding.setVisibility(View.GONE);
+                });
+            }
+
+            @Override
+            public void onNoCoupleFound() {
+                runOnUiThread(() -> {
+                    // 没有情侣关系，隐藏情侣信息，显示情侣绑定选项
+                    tvCoupleHint.setVisibility(View.GONE);
+                    llCoupleInfo.setVisibility(View.GONE);
+                    llUnbindCouple.setVisibility(View.GONE);
+                    llCoupleBinding.setVisibility(View.VISIBLE);
+                });
+            }
+
+            @Override
+            public void onError(String error) {
+                runOnUiThread(() -> {
+                    // 出错时也隐藏情侣信息，显示情侣绑定选项
+                    tvCoupleHint.setVisibility(View.GONE);
+                    llCoupleInfo.setVisibility(View.GONE);
+                    llUnbindCouple.setVisibility(View.GONE);
+                    llCoupleBinding.setVisibility(View.VISIBLE);
+                });
+            }
+        });
+    }
+    
+    /**
+     * 显示解绑情侣关系确认对话框
+     */
+    private void showUnbindDialog() {
+        new AlertDialog.Builder(this)
+                .setTitle("解绑情侣关系")
+                .setMessage("确定要解绑情侣关系吗？解绑后将无法查看对方的账单记录。")
+                .setPositiveButton("确定", (dialog, which) -> performUnbind())
+                .setNegativeButton("取消", null)
+                .show();
+    }
+
     /**
      * 显示退出登录确认对话框
      */
@@ -121,6 +194,31 @@ public class UserSettingsActivity extends AppCompatActivity {
                 .show();
     }
     
+    /**
+     * 执行解绑情侣关系操作
+     */
+    private void performUnbind() {
+        CoupleRelationshipHelper coupleHelper = new CoupleRelationshipHelper();
+        int userIdInt = Integer.parseInt(userId);
+        coupleHelper.unbindCouple(userIdInt, new CoupleRelationshipHelper.UnbindCallback() {
+            @Override
+            public void onSuccess() {
+                runOnUiThread(() -> {
+                    Toast.makeText(UserSettingsActivity.this, "解绑成功", Toast.LENGTH_SHORT).show();
+                    // 重新加载情侣信息，隐藏相关UI
+                    loadCoupleInfo();
+                });
+            }
+
+            @Override
+            public void onError(String error) {
+                runOnUiThread(() -> {
+                    Toast.makeText(UserSettingsActivity.this, "解绑失败: " + error, Toast.LENGTH_SHORT).show();
+                });
+            }
+        });
+    }
+
     /**
      * 执行退出登录操作
      */

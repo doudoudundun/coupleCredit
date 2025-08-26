@@ -30,14 +30,26 @@
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical"
+        android:orientation="horizontal"
         android:padding="20dp"
-        android:background="@android:color/white">
+        android:background="@android:color/white"
+        android:gravity="center_vertical">
 
+        <!-- 用户头像 -->
+        <ImageView
+            android:id="@+id/iv_user_avatar"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:src="@drawable/ic_default_avatar"
+            android:layout_marginEnd="12dp"
+            android:contentDescription="用户头像" />
+
+        <!-- 用户信息文本 -->
         <TextView
             android:id="@+id/tv_user_info"
-            android:layout_width="match_parent"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
+            android:layout_weight="1"
             android:text="用户信息"
             android:textSize="16sp"
             android:textColor="@android:color/black"
@@ -45,11 +57,79 @@
 
     </LinearLayout>
 
-    <!-- 分割线 -->
-    <View
+    <!-- 情侣关系提示 -->
+     <TextView
+         android:id="@+id/tv_couple_hint"
+         android:layout_width="match_parent"
+         android:layout_height="wrap_content"
+         android:text="您的情侣:"
+         android:textSize="14sp"
+         android:textColor="#666666"
+         android:padding="20dp"
+         android:paddingBottom="8dp"
+         android:background="@android:color/white"
+         android:visibility="gone" />
+
+     <!-- 情侣信息显示区域 -->
+     <LinearLayout
+         android:id="@+id/ll_couple_info"
+         android:layout_width="match_parent"
+         android:layout_height="wrap_content"
+         android:orientation="horizontal"
+         android:padding="20dp"
+         android:paddingTop="8dp"
+         android:background="@android:color/white"
+         android:gravity="center_vertical"
+         android:visibility="gone">
+
+        <!-- 情侣头像 -->
+        <ImageView
+            android:id="@+id/iv_couple_avatar"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:src="@drawable/ic_default_avatar"
+            android:layout_marginEnd="12dp"
+            android:contentDescription="情侣头像" />
+
+        <!-- 情侣信息文本 -->
+        <TextView
+            android:id="@+id/tv_couple_info"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="情侣信息"
+            android:textSize="16sp"
+            android:textColor="@android:color/black"
+            android:lineSpacingExtra="4dp" />
+
+    </LinearLayout>
+
+    <!-- 解绑情侣关系选项 -->
+    <LinearLayout
+        android:id="@+id/ll_unbind_couple"
         android:layout_width="match_parent"
-        android:layout_height="1dp"
-        android:background="@android:color/darker_gray" />
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:padding="20dp"
+        android:background="@android:color/white"
+        android:gravity="center_vertical"
+        android:visibility="gone">
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="解绑情侣关系"
+            android:textSize="16sp"
+            android:textColor="@android:color/black" />
+
+        <ImageView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:src="@drawable/ic_arrow_right"
+            android:contentDescription="右箭头" />
+
+    </LinearLayout>
 
     <!-- 设置选项列表 -->
     <LinearLayout
