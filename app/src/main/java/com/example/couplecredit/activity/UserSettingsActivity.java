@@ -21,6 +21,7 @@ public class UserSettingsActivity extends AppCompatActivity {
     private TextView tvUserInfo;           // 用户信息显示
     private LinearLayout llCoupleBinding;  // 情侣绑定选项
     private LinearLayout llChangePassword; // 修改密码选项
+    private LinearLayout llSignOut;        // 退出登录选项
     private LinearLayout llLogout;         // 注销用户选项
     
     // 用户信息
@@ -54,6 +55,7 @@ public class UserSettingsActivity extends AppCompatActivity {
         tvUserInfo = findViewById(R.id.tv_user_info);
         llCoupleBinding = findViewById(R.id.ll_couple_binding);
         llChangePassword = findViewById(R.id.ll_change_password);
+        llSignOut = findViewById(R.id.ll_sign_out);
         llLogout = findViewById(R.id.ll_logout);
     }
     
@@ -72,8 +74,12 @@ public class UserSettingsActivity extends AppCompatActivity {
         // 修改密码点击事件
         llChangePassword.setOnClickListener(v -> {
             Intent intent = new Intent(UserSettingsActivity.this, ChangePasswordActivity.class);
+            intent.putExtra("username", username);
             startActivity(intent);
         });
+        
+        // 退出登录点击事件
+        llSignOut.setOnClickListener(v -> showSignOutDialog());
         
         // 注销用户点击事件
         llLogout.setOnClickListener(v -> {
@@ -92,20 +98,46 @@ public class UserSettingsActivity extends AppCompatActivity {
     }
     
     /**
+     * 显示退出登录确认对话框
+     */
+    private void showSignOutDialog() {
+        new AlertDialog.Builder(this)
+                .setTitle("确认退出")
+                .setMessage("确定要退出登录吗？")
+                .setPositiveButton("确定", (dialog, which) -> performSignOut())
+                .setNegativeButton("取消", null)
+                .show();
+    }
+    
+    /**
      * 显示注销确认对话框
      */
     private void showLogoutDialog() {
         new AlertDialog.Builder(this)
                 .setTitle("确认注销")
-                .setMessage("确定要注销当前账户吗？\n你的所有数据都会被清空，无法恢复")
-                .setPositiveButton("确定", (dialog, which) -> {
-                    // 执行注销操作
-                    performLogout();
-                })
+                .setMessage("注销后将删除您的所有数据，此操作不可恢复。确定要注销吗？")
+                .setPositiveButton("确定", (dialog, which) -> performLogout())
                 .setNegativeButton("取消", null)
                 .show();
     }
     
+    /**
+     * 执行退出登录操作
+     */
+    private void performSignOut() {
+        // 清除SharedPreferences中的用户信息
+        SharedPreferences prefs = getSharedPreferences("user_prefs", MODE_PRIVATE);
+        prefs.edit().clear().apply();
+
+        Toast.makeText(this, "已退出登录", Toast.LENGTH_SHORT).show();
+
+        // 跳转到登录界面
+        Intent intent = new Intent(UserSettingsActivity.this, LoginActivity.class);
+        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+        startActivity(intent);
+        finish();
+    }
+
     /**
      * 执行注销操作
      */

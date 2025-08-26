@@ -125,6 +125,40 @@
             android:layout_height="1dp"
             android:background="@android:color/darker_gray" />
 
+        <!-- 退出登录选项 -->
+        <LinearLayout
+            android:id="@+id/ll_sign_out"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:padding="16dp"
+            android:background="?android:attr/selectableItemBackground"
+            android:clickable="true"
+            android:focusable="true">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="退出登录"
+                android:textSize="16sp"
+                android:textColor="@android:color/black"
+                android:layout_gravity="center_vertical" />
+
+            <ImageView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:src="@drawable/ic_arrow_right"
+                android:layout_gravity="center_vertical" />
+
+        </LinearLayout>
+
+        <!-- 分割线 -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="@android:color/darker_gray" />
+
         <!-- 注销用户选项 -->
         <LinearLayout
             android:id="@+id/ll_logout"
