@@ -47,7 +47,7 @@
             android:layout_height="wrap_content"
             android:padding="12dp"
             app:maxColumns="6"
-            app:minColumnWidth="80dp"
+            app:minColumnWidth="60dp"
             app:minColumns="3">
 
             <!-- 分类项保持不变 -->
@@ -75,13 +75,6 @@
                 android:id="@+id/category_hotel"
                 layout="@layout/item_category" />
 
-            <include
-                android:id="@+id/category_daily"
-                layout="@layout/item_category" />
-
-            <include
-                android:id="@+id/category_study"
-                layout="@layout/item_category" />
 
             <include
                 android:id="@+id/category_entertainment"
@@ -111,9 +104,6 @@
                 android:id="@+id/category_social"
                 layout="@layout/item_category" />
 
-            <include
-                android:id="@+id/category_investment"
-                layout="@layout/item_category" />
 
             <include
                 android:id="@+id/category_parenting"
@@ -127,9 +117,6 @@
                 android:id="@+id/category_decoration"
                 layout="@layout/item_category" />
 
-            <include
-                android:id="@+id/category_other"
-                layout="@layout/item_category" />
 
             <include
                 android:id="@+id/category_salary"
@@ -145,6 +132,22 @@
 
             <include
                 android:id="@+id/category_financial"
+                layout="@layout/item_category" />
+
+            <include
+                android:id="@+id/category_daily"
+                layout="@layout/item_category" />
+
+            <include
+                android:id="@+id/category_study"
+                layout="@layout/item_category" />
+
+            <include
+                android:id="@+id/category_investment"
+                layout="@layout/item_category" />
+
+            <include
+                android:id="@+id/category_other"
                 layout="@layout/item_category" />
 
         </com.example.couplecredit.widget.AdaptiveGridLayout>

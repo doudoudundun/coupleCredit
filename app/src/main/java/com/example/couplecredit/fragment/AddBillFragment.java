@@ -774,8 +774,6 @@ public class AddBillFragment extends Fragment {
             setCategoryStyle(rootView, R.id.category_shopping, "购物", 0, R.drawable.img_category_shopping);
             setCategoryStyle(rootView, R.id.category_transport, "交通", 0, R.drawable.img_category_transport);
             setCategoryStyle(rootView, R.id.category_hotel, "住宿", 0, R.drawable.img_category_hotel);
-            setCategoryStyle(rootView, R.id.category_daily, "日常", 0, R.drawable.img_category_daily);
-            setCategoryStyle(rootView, R.id.category_study, "学习", 0, R.drawable.img_category_study);
             setCategoryStyle(rootView, R.id.category_entertainment, "娱乐", 0, R.drawable.img_category_entertainment);
             setCategoryStyle(rootView, R.id.category_cosmetic, "化妆", 0, R.drawable.img_category_cosmetic);
             setCategoryStyle(rootView, R.id.category_travel, "旅游", 0, R.drawable.img_category_travel);
@@ -783,10 +781,12 @@ public class AddBillFragment extends Fragment {
             setCategoryStyle(rootView, R.id.category_member, "会员", 0, R.drawable.img_category_member);
             setCategoryStyle(rootView, R.id.category_communication, "通讯", 0, R.drawable.img_category_communication);
             setCategoryStyle(rootView, R.id.category_social, "人情", 0, R.drawable.img_category_social);
-            setCategoryStyle(rootView, R.id.category_investment, "投资", 0, R.drawable.img_category_investment);
             setCategoryStyle(rootView, R.id.category_parenting, "亲子", 0, R.drawable.img_category_parenting);
             setCategoryStyle(rootView, R.id.category_pet, "宠物", 0, R.drawable.img_category_pet);
             setCategoryStyle(rootView, R.id.category_decoration, "装修", 0, R.drawable.img_category_decoration);
+            setCategoryStyle(rootView, R.id.category_investment, "投资", 0, R.drawable.img_category_investment);
+            setCategoryStyle(rootView, R.id.category_daily, "日常", 0, R.drawable.img_category_daily);
+            setCategoryStyle(rootView, R.id.category_study, "学习", 0, R.drawable.img_category_study);
             setCategoryStyle(rootView, R.id.category_other, "其他", 0, R.drawable.img_category_other);
             
             // 显示所有支出分类项
@@ -905,8 +905,6 @@ public class AddBillFragment extends Fragment {
         setCategoryStyle(rootView, R.id.category_shopping, "购物", 0, R.drawable.img_category_shopping);
         setCategoryStyle(rootView, R.id.category_transport, "交通", 0, R.drawable.img_category_transport);
         setCategoryStyle(rootView, R.id.category_hotel, "住宿", 0, R.drawable.img_category_hotel);
-        setCategoryStyle(rootView, R.id.category_daily, "日常", 0, R.drawable.img_category_daily);
-        setCategoryStyle(rootView, R.id.category_study, "学习", 0, R.drawable.img_category_study);
         setCategoryStyle(rootView, R.id.category_entertainment, "娱乐", 0, R.drawable.img_category_entertainment);
         setCategoryStyle(rootView, R.id.category_cosmetic, "化妆", 0, R.drawable.img_category_cosmetic);
         setCategoryStyle(rootView, R.id.category_travel, "旅游", 0, R.drawable.img_category_travel);
@@ -914,10 +912,12 @@ public class AddBillFragment extends Fragment {
         setCategoryStyle(rootView, R.id.category_member, "会员", 0, R.drawable.img_category_member);
         setCategoryStyle(rootView, R.id.category_communication, "通讯", 0, R.drawable.img_category_communication);
         setCategoryStyle(rootView, R.id.category_social, "人情", 0, R.drawable.img_category_social);
-        setCategoryStyle(rootView, R.id.category_investment, "投资", 0, R.drawable.img_category_investment);
         setCategoryStyle(rootView, R.id.category_parenting, "亲子", 0, R.drawable.img_category_parenting);
         setCategoryStyle(rootView, R.id.category_pet, "宠物", 0, R.drawable.img_category_pet);
         setCategoryStyle(rootView, R.id.category_decoration, "装修", 0, R.drawable.img_category_decoration);
+        setCategoryStyle(rootView, R.id.category_investment, "投资", 0, R.drawable.img_category_investment);
+        setCategoryStyle(rootView, R.id.category_daily, "日常", 0, R.drawable.img_category_daily);
+        setCategoryStyle(rootView, R.id.category_study, "学习", 0, R.drawable.img_category_study);
         setCategoryStyle(rootView, R.id.category_other, "其他", 0, R.drawable.img_category_other);
 
         hideIncomeOnlyCategories(rootView);

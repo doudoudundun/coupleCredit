@@ -79,4 +79,9 @@ public interface ChatMessageDao {
      */
     @Query("SELECT COUNT(*) FROM chat_messages")
     int getMessageCount();
+    /**
+     * 根据内容和时间戳删除聊天消息
+     */
+    @Query("DELETE FROM chat_messages WHERE content = :content AND timestamp = :timestamp")
+    void deleteByContentAndTimestamp(String content, String timestamp);
 }
