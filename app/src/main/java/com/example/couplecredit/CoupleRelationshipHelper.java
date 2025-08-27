@@ -70,7 +70,7 @@ public class CoupleRelationshipHelper {
     }
 
     public interface CoupleInfoCallback {
-        void onCoupleFound(int coupleId, String coupleName);
+        void onCoupleFound(int coupleId, String coupleName, String coupleNickname);
         void onNoCoupleFound();
         void onError(String error);
     }
@@ -85,6 +85,12 @@ public class CoupleRelationshipHelper {
         void onNoRelationshipFound();
         void onError(String error);
     }
+    
+    public interface UserRoleCallback {
+        void onRoleFound(int ownerId); // 1=邀请者, 2=被邀请者
+        void onNoRelationshipFound();
+        void onError(String error);
+    }
 
     // 获取情侣信息
     public void getCoupleInfo(int userId, CoupleInfoCallback callback) {
@@ -92,6 +98,7 @@ public class CoupleRelationshipHelper {
             private String error = null;
             private int coupleId = -1;
             private String coupleName = null;
+            private String coupleNickname = null;
 
             @Override
             protected Void doInBackground(Void... voids) {
@@ -102,8 +109,9 @@ public class CoupleRelationshipHelper {
                 try {
                     connection = getConnection();
 
-                    // 查询当前用户的情侣关系
-                    String sql = "SELECT cr.user_id_1, cr.user_id_2, u1.username as name1, u2.username as name2 " +
+                    // 查询当前用户的情侣关系，包含昵称信息
+                    String sql = "SELECT cr.user_id_1, cr.user_id_2, u1.username as name1, u2.username as name2, " +
+                               "u1.nickname as nickname1, u2.nickname as nickname2 " +
                                "FROM couple_relationships cr " +
                                "JOIN users u1 ON cr.user_id_1 = u1.id " +
                                "JOIN users u2 ON cr.user_id_2 = u2.id " +
@@ -118,14 +126,18 @@ public class CoupleRelationshipHelper {
                         int user2Id = rs.getInt("user_id_2");
                         String name1 = rs.getString("name1");
                         String name2 = rs.getString("name2");
+                        String nickname1 = rs.getString("nickname1");
+                        String nickname2 = rs.getString("nickname2");
                         
                         // 确定情侣的ID和姓名（排除当前用户）
                         if (user1Id == userId) {
                             coupleId = user2Id;
                             coupleName = name2;
+                            coupleNickname = nickname2;
                         } else {
                             coupleId = user1Id;
                             coupleName = name1;
+                            coupleNickname = nickname1;
                         }
                     }
 
@@ -142,7 +154,7 @@ public class CoupleRelationshipHelper {
                 if (error != null) {
                     callback.onError(error);
                 } else if (coupleId != -1) {
-                    callback.onCoupleFound(coupleId, coupleName);
+                    callback.onCoupleFound(coupleId, coupleName, coupleNickname);
                 } else {
                     callback.onNoCoupleFound();
                 }
@@ -195,6 +207,66 @@ public class CoupleRelationshipHelper {
                     callback.onError(error);
                 } else if (hasRelationship) {
                     callback.onRelationshipIdFound(relationshipId);
+                } else {
+                    callback.onNoRelationshipFound();
+                }
+            }
+        }.execute();
+    }
+    
+    // 获取用户在情侣关系中的角色
+    public void getUserRole(int userId, UserRoleCallback callback) {
+        new AsyncTask<Void, Void, Void>() {
+            private String error = null;
+            private int ownerId = -1;
+            private boolean hasRelationship = false;
+
+            @Override
+            protected Void doInBackground(Void... voids) {
+                Connection connection = null;
+                PreparedStatement stmt = null;
+                ResultSet rs = null;
+                
+                try {
+                    connection = getConnection();
+                    
+                    // 查询用户在couple_relationships表中的角色
+                    String sql = "SELECT user_id_1, user_id_2 " +
+                               "FROM couple_relationships " +
+                               "WHERE (user_id_1 = ? OR user_id_2 = ?) AND status = 'active'";
+                    stmt = connection.prepareStatement(sql);
+                    stmt.setInt(1, userId);
+                    stmt.setInt(2, userId);
+                    rs = stmt.executeQuery();
+                    
+                    if (rs.next()) {
+                        int user1Id = rs.getInt("user_id_1");
+                        int user2Id = rs.getInt("user_id_2");
+                        
+                        // 判断用户角色：user_id_1是邀请者(ownerId=1)，user_id_2是被邀请者(ownerId=2)
+                        if (user1Id == userId) {
+                            ownerId = 1; // 邀请者
+                        } else if (user2Id == userId) {
+                            ownerId = 2; // 被邀请者
+                        }
+                        hasRelationship = true;
+                    }
+                    
+                } catch (Exception e) {
+                    error = handleException(e);
+                } finally {
+                    closeResources(connection, rs, stmt);
+                }
+                
+                return null;
+            }
+
+            @Override
+            protected void onPostExecute(Void result) {
+                if (error != null) {
+                    callback.onError(error);
+                } else if (hasRelationship) {
+                    callback.onRoleFound(ownerId);
                 } else {
                     callback.onNoRelationshipFound();
                 }

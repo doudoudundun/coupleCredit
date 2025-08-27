@@ -15,6 +15,10 @@ import com.example.couplecredit.BillDatabaseHelper;
 import com.example.couplecredit.BillProvider;
 import com.example.couplecredit.R;
 import com.example.couplecredit.function.Utils;
+import com.example.couplecredit.function.UserInfoManager;
+import java.util.List;
+import java.util.ArrayList;
+import java.util.Map;
 import com.transsion.widgetslib.widget.OSSegmentedTab;
 import com.github.mikephil.charting.charts.LineChart;
 import com.github.mikephil.charting.components.XAxis;
@@ -52,7 +56,16 @@ public class ReportFragment extends Fragment {
                 income_type = 0;
                 tv_trend_title.setText("支出趋势");
                 loadTrendData();
-                tv_remainer.setText("结余：￥" + String.format("%.2f", getRemainer()));
+                getRemainer(new RemainingCallback() {
+                @Override
+                public void onResult(double remaining) {
+                    if (getActivity() != null) {
+                        getActivity().runOnUiThread(() -> {
+                            tv_remainer.setText("结余：￥" + String.format("%.2f", remaining));
+                        });
+                    }
+                }
+            });
             } else if (position == 1) {
                 // 显示收入内容
                 income_type = 1;
@@ -158,18 +171,126 @@ public class ReportFragment extends Fragment {
     }
     
     private void loadTrendData() {
-        // 模拟收入趋势数据（实际应从数据库获取）
-        List<com.github.mikephil.charting.data.Entry> entries = new ArrayList<>();
-        // 获取当前月份的天数
-        Calendar calendar = Calendar.getInstance();
-        calendar.set(currentYear, currentMonth - 1, 1);
-        int daysInMonth = calendar.getActualMaximum(Calendar.DAY_OF_MONTH);
-        
-        // 为每一天都添加数据点，没有账单的日子显示0
-        for (int day = 1; day <= daysInMonth; day++) {
-            float count = getCountForDay(day, income_type);
-            entries.add(new Entry(day, count));
+        // 首先检查用户是否已登录
+        if (!UserInfoManager.isUserLoggedIn(getContext())) {
+            // 用户未登录，显示空数据
+            List<com.github.mikephil.charting.data.Entry> entries = new ArrayList<>();
+            Calendar calendar = Calendar.getInstance();
+            calendar.set(currentYear, currentMonth - 1, 1);
+            int daysInMonth = calendar.getActualMaximum(Calendar.DAY_OF_MONTH);
+            
+            // 为每一天都添加0值数据点
+            for (int day = 1; day <= daysInMonth; day++) {
+                entries.add(new Entry(day, 0));
+            }
+            updateChart(entries);
+            return;
         }
+        
+        // 获取当前用户信息和relationship状态
+        UserInfoManager.getCurrentUserInfo(getContext(), new UserInfoManager.UserInfoCallback() {
+            @Override
+            public void onUserInfoLoaded(int userId, String username, Integer relationshipId) {
+                // 优化：一次查询获取整月数据，避免多次数据库连接
+                loadMonthlyTrendData(userId, relationshipId);
+            }
+            
+            @Override
+            public void onError(String error) {
+                // 获取用户信息失败，显示空数据
+                List<com.github.mikephil.charting.data.Entry> entries = new ArrayList<>();
+                Calendar calendar = Calendar.getInstance();
+                calendar.set(currentYear, currentMonth - 1, 1);
+                int daysInMonth = calendar.getActualMaximum(Calendar.DAY_OF_MONTH);
+                
+                for (int day = 1; day <= daysInMonth; day++) {
+                    entries.add(new Entry(day, 0));
+                }
+                
+                if (getActivity() != null) {
+                    getActivity().runOnUiThread(() -> updateChart(entries));
+                }
+            }
+        });
+    }
+    
+    // 优化后的方法：一次查询获取整月趋势数据
+    private void loadMonthlyTrendData(int userId, Integer relationshipId) {
+        if (getContext() == null) {
+            return;
+        }
+        
+        BillDatabaseHelper billHelper = new BillDatabaseHelper(getContext());
+        
+        // 构建月份筛选条件
+        String monthPattern = String.format("%04d-%02d-%%", currentYear, currentMonth);
+        String monthSelection = "date LIKE ? AND income_type = ?";
+        String[] monthSelectionArgs = new String[]{monthPattern, String.valueOf(income_type)};
+        
+        billHelper.queryBillsWithUserFilter(userId, relationshipId, monthSelection, monthSelectionArgs, new BillDatabaseHelper.QueryCallback() {
+            @Override
+            public void onSuccess(List<Map<String, Object>> bills) {
+                // 获取当前月份的天数
+                Calendar calendar = Calendar.getInstance();
+                calendar.set(currentYear, currentMonth - 1, 1);
+                int daysInMonth = calendar.getActualMaximum(Calendar.DAY_OF_MONTH);
+                
+                // 初始化每日金额数组
+                float[] dailyAmounts = new float[daysInMonth + 1]; // 索引0不用，从1开始
+                
+                // 按日期分组统计金额
+                for (Map<String, Object> bill : bills) {
+                    String dateStr = (String) bill.get("date");
+                    Double amount = (Double) bill.get("amount");
+                    
+                    if (dateStr != null && amount != null) {
+                        try {
+                            // 提取日期中的天数
+                            String[] dateParts = dateStr.split("-");
+                            if (dateParts.length == 3) {
+                                int day = Integer.parseInt(dateParts[2]);
+                                if (day >= 1 && day <= daysInMonth) {
+                                    dailyAmounts[day] += amount.floatValue();
+                                }
+                            }
+                        } catch (NumberFormatException e) {
+                            android.util.Log.w("ReportFragment", "日期解析失败: " + dateStr);
+                        }
+                    }
+                }
+                
+                // 构建图表数据
+                List<com.github.mikephil.charting.data.Entry> entries = new ArrayList<>();
+                for (int day = 1; day <= daysInMonth; day++) {
+                    entries.add(new Entry(day, dailyAmounts[day]));
+                }
+                
+                if (getActivity() != null) {
+                    getActivity().runOnUiThread(() -> updateChart(entries));
+                }
+            }
+            
+            @Override
+            public void onError(String error) {
+                android.util.Log.e("ReportFragment", "查询月度趋势数据失败: " + error);
+                // 显示空数据
+                Calendar calendar = Calendar.getInstance();
+                calendar.set(currentYear, currentMonth - 1, 1);
+                int daysInMonth = calendar.getActualMaximum(Calendar.DAY_OF_MONTH);
+                
+                List<com.github.mikephil.charting.data.Entry> entries = new ArrayList<>();
+                for (int day = 1; day <= daysInMonth; day++) {
+                    entries.add(new Entry(day, 0));
+                }
+                
+                if (getActivity() != null) {
+                    getActivity().runOnUiThread(() -> updateChart(entries));
+                }
+            }
+        });
+    }
+    
+    private void updateChart(List<com.github.mikephil.charting.data.Entry> entries) {
         
         // 现在总是有数据点（包括0值），所以不需要检查空数据
         LineDataSet dataSet = new LineDataSet(entries, "金额");
@@ -188,66 +309,100 @@ public class ReportFragment extends Fragment {
         dataSet.setLineWidth(2f);
         dataSet.setCircleRadius(4f);
         dataSet.setDrawCircleHole(false);
+        dataSet.setDrawFilled(false);
+        
+        // 为非零金额显示数值标签
+        dataSet.setDrawValues(true);
         dataSet.setValueTextSize(10f);
-        dataSet.setDrawFilled(true);
-        dataSet.setFillAlpha(50);
+        dataSet.setValueTextColor(0xFF333333);
+        
+        // 自定义值格式化器，只显示非零值
+        dataSet.setValueFormatter(new ValueFormatter() {
+            @Override
+            public String getFormattedValue(float value) {
+                if (value == 0) {
+                    return ""; // 零值不显示
+                }
+                return String.format("%.0f", value); // 显示整数金额
+            }
+        });
         
         LineData lineData = new LineData(dataSet);
-        
-        // 检查TrendChart是否已初始化
-        if (TrendChart != null) {
-            TrendChart.setData(lineData);
-            // 添加从下到上的动画效果，持续时间300毫秒
-            TrendChart.animateY(300);
-            TrendChart.invalidate();
-        }
+        TrendChart.setData(lineData);
+        // 添加从下到上的动画效果，持续时间300毫秒
+        TrendChart.animateY(300);
+        TrendChart.invalidate(); // 刷新图表
     }
-    private double getRemainer(){
-        //获取当月天数
-        Calendar calendar = Calendar.getInstance();
-        calendar.set(currentYear, currentMonth - 1, 1);
-        int daysInMonth = calendar.getActualMaximum(Calendar.DAY_OF_MONTH);
-
-        double total = 0;
-        for (int day = 1; day <= daysInMonth; day++) {
-            float count = getCountForDay(day, 1)-getCountForDay(day, 0);
-            total += count;
-        }
-        return total;
-    }
-    private float getCountForDay(int day, int income_type) {
-        // 查询数据库获取指定日期的收入数据
-        String dateStr = String.format("%04d-%02d-%02d", currentYear, currentMonth, day);
-        
-        // 检查Context是否可用
-        if (getContext() == null) {
-            return 0;
+    private void getRemainer(RemainingCallback callback){
+        // 首先检查用户是否已登录
+        if (!UserInfoManager.isUserLoggedIn(getContext())) {
+            callback.onResult(0.0);
+            return;
         }
         
-        // 构建查询条件：日期匹配且为收入类型相同
-        String selection = BillDatabaseHelper.COLUMN_DATE + "=? AND " +
-                          BillDatabaseHelper.COLUMN_INCOME_TYPE + "=?";
-        String[] selectionArgs= new String[]{dateStr, String.valueOf(income_type)}; // 1表示收入，0表示支出;
-        
-        Uri uri = Uri.parse(BillProvider.CONTENT_URI + "/bills");
-        Cursor cursor = getContext().getContentResolver().query(
-            uri, 
-            new String[]{BillDatabaseHelper.COLUMN_AMOUNT}, 
-            selection, 
-            selectionArgs, 
-            null
-        );
-        float totalCount = 0;
-        if (cursor != null) {
-            while (cursor.moveToNext()) {
-                int amountIndex = cursor.getColumnIndex(BillDatabaseHelper.COLUMN_AMOUNT);
-                if (amountIndex != -1) {
-                    totalCount += cursor.getFloat(amountIndex);
-                }
+        // 获取当前用户信息
+        UserInfoManager.getCurrentUserInfo(getContext(), new UserInfoManager.UserInfoCallback() {
+            @Override
+            public void onUserInfoLoaded(int userId, String username, Integer relationshipId) {
+                // 优化：一次查询获取整月数据，避免多次数据库连接
+                getMonthlyRemaining(userId, relationshipId, callback);
             }
-            cursor.close();
+            
+            @Override
+            public void onError(String error) {
+                callback.onResult(0.0);
+            }
+        });
+    }
+    
+    // 优化后的方法：一次查询获取整月数据
+    private void getMonthlyRemaining(int userId, Integer relationshipId, RemainingCallback callback) {
+        if (getContext() == null) {
+            callback.onResult(0.0);
+            return;
         }
         
-        return totalCount;
+        BillDatabaseHelper billHelper = new BillDatabaseHelper(getContext());
+        
+        // 构建月份筛选条件
+        String monthPattern = String.format("%04d-%02d-%%", currentYear, currentMonth);
+        String monthSelection = "date LIKE ?";
+        String[] monthSelectionArgs = new String[]{monthPattern};
+        
+        billHelper.queryBillsWithUserFilter(userId, relationshipId, monthSelection, monthSelectionArgs, new BillDatabaseHelper.QueryCallback() {
+            @Override
+            public void onSuccess(List<Map<String, Object>> bills) {
+                double totalIncome = 0;
+                double totalExpense = 0;
+                
+                for (Map<String, Object> bill : bills) {
+                    Integer incomeType = (Integer) bill.get("income_type");
+                    Double amount = (Double) bill.get("amount");
+                    
+                    if (incomeType != null && amount != null) {
+                        if (incomeType == 1) {
+                            totalIncome += amount;
+                        } else if (incomeType == 0) {
+                            totalExpense += amount;
+                        }
+                    }
+                }
+                
+                callback.onResult(totalIncome - totalExpense);
+            }
+            
+            @Override
+            public void onError(String error) {
+                android.util.Log.e("ReportFragment", "查询月度账单失败: " + error);
+                callback.onResult(0.0);
+            }
+        });
     }
+    
+    // 回调接口
+    private interface RemainingCallback {
+        void onResult(double remaining);
+    }
+
+    
 }

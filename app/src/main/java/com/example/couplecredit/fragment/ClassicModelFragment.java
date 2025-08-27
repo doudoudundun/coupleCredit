@@ -165,11 +165,11 @@ public class ClassicModelFragment extends Fragment implements BillAdapter.OnItem
         billItems.clear();
         String monthPattern = String.format("%04d-%02d-%%", year, month);
         
-        android.util.Log.d("ClassicModelFragment", "生成的monthPattern: " + monthPattern);
+        // 生成月份查询模式
         
         // 首先检查用户是否已登录
         if (!UserInfoManager.isUserLoggedIn(getContext())) {
-            Log.d("ClassicModelFragment", "用户未登录，返回空账单列表");
+            // 用户未登录
             // 清空账单数据并更新UI
             if (getActivity() != null) {
                 getActivity().runOnUiThread(() -> {
@@ -189,7 +189,7 @@ public class ClassicModelFragment extends Fragment implements BillAdapter.OnItem
         UserInfoManager.getCurrentUserInfo(getContext(), new UserInfoManager.UserInfoCallback() {
             @Override
             public void onUserInfoLoaded(int userId, String username, Integer relationshipId) {
-                Log.d("ClassicModelFragment", "获取用户信息成功: userId=" + userId + ", relationshipId=" + relationshipId);
+                // 获取用户信息成功
                 
                 // 隐藏登录提示，显示账单列表
                 if (getActivity() != null) {
@@ -198,7 +198,9 @@ public class ClassicModelFragment extends Fragment implements BillAdapter.OnItem
                 
                 BillDatabaseHelper billHelper = new BillDatabaseHelper(getContext());
                 // 使用新的筛选查询方法
-                billHelper.queryBillsWithUserFilter(userId, relationshipId, monthPattern, new BillDatabaseHelper.QueryCallback() {
+                String dateSelection = "date LIKE ?";
+                String[] dateSelectionArgs = new String[]{monthPattern};
+                billHelper.queryBillsWithUserFilter(userId, relationshipId, dateSelection, dateSelectionArgs, new BillDatabaseHelper.QueryCallback() {
             @Override
             public void onSuccess(List<Map<String, Object>> results) {
                 if (getActivity() != null) {
@@ -210,7 +212,7 @@ public class ClassicModelFragment extends Fragment implements BillAdapter.OnItem
                             String timeStr = (String) row.get("time");
                             Integer ownerObj = (Integer) row.get("owner");
                             int owner = ownerObj != null ? ownerObj : 0;
-                            Log.d("ClassicModelFragment", "从数据库获取的owner值: " + ownerObj + ", 最终owner: " + owner);
+                            // 处理owner字段
                             Integer userIdObj = (Integer) row.get("userId");
                             int userId = userIdObj != null ? userIdObj : 0;
                             String type = (String) row.get("type");
@@ -662,7 +664,7 @@ public class ClassicModelFragment extends Fragment implements BillAdapter.OnItem
     }
     
     private void showLoginPrompt() {
-        Log.d("ClassicModelFragment", "显示登录提示");
+        // 显示登录提示
         if (tvLoginPrompt != null) {
             tvLoginPrompt.setVisibility(View.VISIBLE);
         }

@@ -52,7 +52,7 @@ public class UserInfoManager {
             CoupleRelationshipHelper coupleHelper = new CoupleRelationshipHelper();
             coupleHelper.getCoupleInfo(userId, new CoupleRelationshipHelper.CoupleInfoCallback() {
                 @Override
-                public void onCoupleFound(int coupleId, String coupleName) {
+                public void onCoupleFound(int coupleId, String coupleName, String coupleNickname) {
                     // 有情侣关系，需要获取relationship_id
                     coupleHelper.getUserRelationshipId(userId, new CoupleRelationshipHelper.RelationshipIdCallback() {
                         @Override
