@@ -751,6 +751,12 @@ public class AddBillFragment extends Fragment {
                     classicFragment.refreshBillData();
                 }
             }
+            
+            // 刷新ReportFragment的图表数据
+            ReportFragment reportFragment = mainActivity.getReportFragment();
+            if (reportFragment != null) {
+                reportFragment.refreshChartData();
+            }
         }
     }
     

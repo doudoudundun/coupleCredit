@@ -11,8 +11,7 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
 
-import com.example.couplecredit.BillDatabaseHelper;
-import com.example.couplecredit.BillProvider;
+import com.example.couplecredit.database.BillDatabaseHelper;
 import com.example.couplecredit.R;
 import com.example.couplecredit.function.Utils;
 import com.example.couplecredit.function.UserInfoManager;
@@ -28,12 +27,7 @@ import com.github.mikephil.charting.data.LineData;
 import com.github.mikephil.charting.data.LineDataSet;
 import com.github.mikephil.charting.formatter.ValueFormatter;
 
-import java.util.ArrayList;
 import java.util.Calendar;
-import java.util.List;
-
-import android.database.Cursor;
-import android.net.Uri;
 
 public class ReportFragment extends Fragment {
     private int currentYear;
@@ -403,6 +397,28 @@ public class ReportFragment extends Fragment {
     private interface RemainingCallback {
         void onResult(double remaining);
     }
-
     
+    /**
+     * 刷新图表数据
+     * 在账单数据发生变更时调用
+     */
+    public void refreshChartData() {
+        if (getContext() != null) {
+            // 重新加载趋势数据
+            loadTrendData();
+            // 重新加载结余数据（如果当前显示的是支出）
+            if (income_type == 0) {
+                getRemainer(new RemainingCallback() {
+                    @Override
+                    public void onResult(double remaining) {
+                        if (getActivity() != null) {
+                            getActivity().runOnUiThread(() -> {
+                                tv_remainer.setText("结余：￥" + String.format("%.2f", remaining));
+                            });
+                        }
+                    }
+                });
+            }
+        }
+    }
 }

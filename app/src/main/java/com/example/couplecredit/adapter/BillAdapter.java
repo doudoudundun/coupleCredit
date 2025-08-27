@@ -12,7 +12,7 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.example.couplecredit.BillBean;
 import com.example.couplecredit.R;
-import com.example.couplecredit.CoupleRelationshipHelper;
+import com.example.couplecredit.database.CoupleRelationshipHelper;
 import com.example.couplecredit.function.MySQLDatabaseHelper;
 import com.example.couplecredit.function.UserInfoManager;
 
@@ -30,6 +30,11 @@ public class BillAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
     private int currentUserId = -1;
     private Integer currentRelationshipId = null;
     private int currentUserRole = -1; // 1=邀请者, 2=被邀请者
+    
+    // 昵称缓存
+    private String currentUserNickname = null;
+    private String partnerNickname = null;
+    private boolean nicknamesCached = false;
     
     // 定义RecyclerView专用的点击监听器接口
     public interface OnItemClickListener {
@@ -59,21 +64,25 @@ public class BillAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
                         @Override
                         public void onRoleFound(int ownerId) {
                             currentUserRole = ownerId;
-                            notifyDataSetChanged(); // 刷新显示
+                            // 预加载昵称缓存
+                            preloadNicknames();
                         }
                         
                         @Override
                         public void onNoRelationshipFound() {
                             currentUserRole = 1; // 默认为1
+                            preloadNicknames();
                         }
                         
                         @Override
                         public void onError(String error) {
                             currentUserRole = 1; // 默认为1
+                            preloadNicknames();
                         }
                     });
                 } else {
                     currentUserRole = 1; // 无情侣关系时默认为1
+                    preloadNicknames();
                 }
             }
             
@@ -82,6 +91,7 @@ public class BillAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
                 // 获取失败时使用默认值
                 currentUserId = UserInfoManager.getCurrentUserId(context);
                 currentUserRole = 1;
+                preloadNicknames();
             }
         });
     }
@@ -101,19 +111,27 @@ public class BillAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
             case 1: // 邀请者
                 if (currentUserRole == 1) {
                     // 当前用户是邀请者，显示自己的昵称
-                    getUserNickname(currentUserId, tvOwner, "自己", isHelp);
+                    String text = (nicknamesCached && currentUserNickname != null) ? currentUserNickname : "自己";
+                    if (isHelp) text += "（帮）";
+                    tvOwner.setText(text);
                 } else {
                     // 当前用户是被邀请者，显示对方(邀请者)的昵称
-                    getPartnerNickname(tvOwner, "对方", isHelp);
+                    String text = (nicknamesCached && partnerNickname != null) ? partnerNickname : "对方";
+                    if (isHelp) text += "（帮）";
+                    tvOwner.setText(text);
                 }
                 break;
             case 2: // 被邀请者
                 if (currentUserRole == 2) {
                     // 当前用户是被邀请者，显示自己的昵称
-                    getUserNickname(currentUserId, tvOwner, "自己", isHelp);
+                    String text = (nicknamesCached && currentUserNickname != null) ? currentUserNickname : "自己";
+                    if (isHelp) text += "（帮）";
+                    tvOwner.setText(text);
                 } else {
                     // 当前用户是邀请者，显示对方(被邀请者)的昵称
-                    getPartnerNickname(tvOwner, "对方", isHelp);
+                    String text = (nicknamesCached && partnerNickname != null) ? partnerNickname : "对方";
+                    if (isHelp) text += "（帮）";
+                    tvOwner.setText(text);
                 }
                 break;
             case 3: // 共同开支
@@ -129,55 +147,68 @@ public class BillAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         }
     }
     
-    private void getUserNickname(int userId, TextView tvOwner, String defaultText, boolean isHelp) {
+    // 预加载昵称缓存，避免每次显示账单时都查询数据库
+    private void preloadNicknames() {
+        if (currentUserId == -1) {
+            nicknamesCached = true;
+            notifyDataSetChanged();
+            return;
+        }
+        
+        // 获取当前用户昵称
         MySQLDatabaseHelper dbHelper = new MySQLDatabaseHelper();
-        dbHelper.getUserNicknameById(userId, new MySQLDatabaseHelper.UserNicknameCallback() {
+        dbHelper.getUserNicknameById(currentUserId, new MySQLDatabaseHelper.UserNicknameCallback() {
             @Override
             public void onSuccess(String nickname) {
-                String text = nickname != null && !nickname.trim().isEmpty() ? nickname : defaultText;
-                if (isHelp) text += "（帮）";
-                tvOwner.setText(text);
+                currentUserNickname = (nickname != null && !nickname.trim().isEmpty()) ? nickname : "自己";
+                
+                // 如果有情侣关系，继续获取对方昵称
+                if (currentRelationshipId != null) {
+                    loadPartnerNickname();
+                } else {
+                    nicknamesCached = true;
+                    notifyDataSetChanged();
+                }
             }
             
             @Override
             public void onError(String error) {
-                String text = defaultText;
-                if (isHelp) text += "（帮）";
-                tvOwner.setText(text);
+                currentUserNickname = "自己";
+                
+                if (currentRelationshipId != null) {
+                    loadPartnerNickname();
+                } else {
+                    nicknamesCached = true;
+                    notifyDataSetChanged();
+                }
             }
         });
     }
     
-    private void getPartnerNickname(TextView tvOwner, String defaultText, boolean isHelp) {
-        if (currentUserId == -1) {
-            String text = defaultText;
-            if (isHelp) text += "（帮）";
-            tvOwner.setText(text);
-            return;
-        }
-        
+    private void loadPartnerNickname() {
         CoupleRelationshipHelper coupleHelper = new CoupleRelationshipHelper();
         coupleHelper.getCoupleInfo(currentUserId, new CoupleRelationshipHelper.CoupleInfoCallback() {
             @Override
             public void onCoupleFound(int coupleId, String coupleName, String coupleNickname) {
-                String displayName = (coupleNickname != null && !coupleNickname.trim().isEmpty()) ? coupleNickname : coupleName;
-                String text = displayName != null ? displayName : defaultText;
-                if (isHelp) text += "（帮）";
-                tvOwner.setText(text);
+                partnerNickname = (coupleNickname != null && !coupleNickname.trim().isEmpty()) ? coupleNickname : coupleName;
+                if (partnerNickname == null) partnerNickname = "对方";
+                
+                nicknamesCached = true;
+                notifyDataSetChanged();
             }
             
             @Override
             public void onNoCoupleFound() {
-                String text = defaultText;
-                if (isHelp) text += "（帮）";
-                tvOwner.setText(text);
+                partnerNickname = "对方";
+                nicknamesCached = true;
+                notifyDataSetChanged();
             }
             
             @Override
             public void onError(String error) {
-                String text = defaultText;
-                if (isHelp) text += "（帮）";
-                tvOwner.setText(text);
+                partnerNickname = "对方";
+                nicknamesCached = true;
+                notifyDataSetChanged();
             }
         });
     }

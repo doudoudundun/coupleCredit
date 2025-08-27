@@ -3,11 +3,13 @@ package com.example.couplecredit.function;
 import android.os.AsyncTask;
 import android.util.Log;
 
+import com.example.couplecredit.database.DatabaseConnectionPool;
+import com.example.couplecredit.database.DatabaseInitializer;
+
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
-import java.sql.Statement;
 
 /**
  * MySQL远程数据库操作工具类
@@ -16,6 +18,11 @@ import java.sql.Statement;
 public class MySQLDatabaseHelper {
     
     private static final String TAG = "MySQLDatabaseHelper";
+    
+    public MySQLDatabaseHelper() {
+        // 使用统一的连接池初始化工具
+        DatabaseInitializer.initializeConnectionPool(TAG);
+    }
     
     // 数据库连接配置
     private static final String DB_HOST = "101.37.68.240";
@@ -28,11 +35,33 @@ public class MySQLDatabaseHelper {
     private static final String DB_URL = "jdbc:mysql://" + DB_HOST + ":" + DB_PORT + "/" + DB_NAME + "?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC";
     
     /**
-     * 获取数据库连接
+     * 获取数据库连接（使用连接池）
      */
     private static Connection getConnection() throws SQLException, ClassNotFoundException {
-        Class.forName("com.mysql.jdbc.Driver");
-        return DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD);
+        try {
+            return DatabaseConnectionPool.getInstance().getConnection();
+        } catch (SQLException e) {
+            Log.w(TAG, "连接池获取连接失败，尝试直接连接: " + e.getMessage());
+            // 降级到直接连接
+            Class.forName("com.mysql.jdbc.Driver");
+            return DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD);
+        }
+    }
+    
+    /**
+     * 关闭数据库资源（连接归还到连接池）
+     */
+    private static void closeResources(Connection connection, PreparedStatement statement, java.sql.ResultSet resultSet) {
+        try {
+            if (resultSet != null) resultSet.close();
+            if (statement != null) statement.close();
+            if (connection != null) {
+                // 将连接归还到连接池而不是关闭
+                DatabaseConnectionPool.getInstance().returnConnection(connection);
+            }
+        } catch (SQLException e) {
+            Log.e(TAG, "关闭数据库资源失败", e);
+        }
     }
     
 
@@ -88,12 +117,7 @@ public class MySQLDatabaseHelper {
                     Log.e(TAG, "数据库连接失败: " + e.getMessage(), e);
                     return false;
                 } finally {
-                    try {
-                        if (preparedStatement != null) preparedStatement.close();
-                        if (connection != null) connection.close();
-                    } catch (SQLException e) {
-                        Log.e(TAG, "关闭数据库连接失败: " + e.getMessage());
-                    }
+                    closeResources(connection, preparedStatement, null);
                 }
             }
             
@@ -152,12 +176,7 @@ public class MySQLDatabaseHelper {
                     Log.e(TAG, "数据库连接失败: " + e.getMessage(), e);
                     return false;
                 } finally {
-                    try {
-                        if (preparedStatement != null) preparedStatement.close();
-                        if (connection != null) connection.close();
-                    } catch (SQLException e) {
-                        Log.e(TAG, "关闭数据库连接失败: " + e.getMessage());
-                    }
+                    closeResources(connection, preparedStatement, null);
                 }
             }
             
@@ -212,12 +231,7 @@ public class MySQLDatabaseHelper {
                     Log.e(TAG, "数据库连接失败: " + e.getMessage(), e);
                     return false;
                 } finally {
-                    try {
-                        if (preparedStatement != null) preparedStatement.close();
-                        if (connection != null) connection.close();
-                    } catch (SQLException e) {
-                        Log.e(TAG, "关闭数据库连接失败: " + e.getMessage());
-                    }
+                    closeResources(connection, preparedStatement, null);
                 }
             }
             
@@ -349,12 +363,7 @@ public class MySQLDatabaseHelper {
                     Log.e(TAG, "数据库连接失败: " + e.getMessage(), e);
                     return false;
                 } finally {
-                    try {
-                        if (preparedStatement != null) preparedStatement.close();
-                        if (connection != null) connection.close();
-                    } catch (SQLException e) {
-                        Log.e(TAG, "关闭数据库连接失败: " + e.getMessage());
-                    }
+                    closeResources(connection, preparedStatement, null);
                 }
             }
             
@@ -409,12 +418,7 @@ public class MySQLDatabaseHelper {
                     Log.e(TAG, "数据库连接失败: " + e.getMessage(), e);
                     return null;
                 } finally {
-                    try {
-                        if (preparedStatement != null) preparedStatement.close();
-                        if (connection != null) connection.close();
-                    } catch (SQLException e) {
-                        Log.e(TAG, "关闭数据库连接失败: " + e.getMessage());
-                    }
+                    closeResources(connection, preparedStatement, null);
                 }
             }
             

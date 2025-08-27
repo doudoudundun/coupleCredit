@@ -1,4 +1,4 @@
-package com.example.couplecredit;
+package com.example.couplecredit.database;
 
 import android.content.ContentValues;
 import android.content.Context;
@@ -41,28 +41,62 @@ public class BillDatabaseHelper {
     public static final String COLUMN_INCOME_TYPE = "income_type";//收入支出类型：0=支出，1=收入
     
     private Context context;
-
-
+    
+    // 简单的查询缓存
+    private static final Map<String, CacheEntry> queryCache = new HashMap<>();
+    private static final long CACHE_EXPIRY_MS = 30000; // 30秒缓存
+    
+    private static class CacheEntry {
+        final Cursor cursor;
+        final long timestamp;
+        
+        CacheEntry(Cursor cursor) {
+            this.cursor = cursor;
+            this.timestamp = System.currentTimeMillis();
+        }
+        
+        boolean isExpired() {
+            return System.currentTimeMillis() - timestamp > CACHE_EXPIRY_MS;
+        }
+    }
 
     public BillDatabaseHelper(Context context) {
         this.context = context;
+        // 使用统一的连接池初始化工具
+        DatabaseInitializer.initializeConnectionPool(TAG);
     }
     
-    // 获取数据库连接
+    // 获取数据库连接（使用连接池，带降级机制）
     private Connection getConnection() throws ClassNotFoundException, SQLException {
-        Log.d(TAG, "尝试连接数据库: " + DB_URL);
-        Class.forName("com.mysql.jdbc.Driver");
-        Connection connection = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD);
-        Log.d(TAG, "数据库连接成功");
-        return connection;
+        try {
+            return DatabaseConnectionPool.getInstance().getConnection();
+        } catch (SQLException e) {
+            Log.w(TAG, "连接池获取连接失败，尝试直接连接: " + e.getMessage());
+            
+            // 降级到直接连接
+            try {
+                Log.d(TAG, "尝试直接连接数据库: " + DB_URL);
+                Class.forName("com.mysql.jdbc.Driver");
+                DriverManager.setLoginTimeout(15);
+                Connection connection = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD);
+                Log.d(TAG, "直接数据库连接成功");
+                return connection;
+            } catch (SQLException directError) {
+                Log.e(TAG, "直接连接也失败", directError);
+                throw new SQLException("数据库连接完全失败: " + directError.getMessage(), directError);
+            }
+        }
     }
     
-    // 关闭数据库资源
+    // 关闭数据库资源（连接归还到连接池）
     private void closeResources(Connection connection, PreparedStatement statement, ResultSet resultSet) {
         try {
             if (resultSet != null) resultSet.close();
             if (statement != null) statement.close();
-            if (connection != null) connection.close();
+            if (connection != null) {
+                // 将连接归还到连接池而不是关闭
+                DatabaseConnectionPool.getInstance().returnConnection(connection);
+            }
         } catch (SQLException e) {
             Log.e(TAG, "关闭数据库资源失败", e);
         }
@@ -81,6 +115,22 @@ public class BillDatabaseHelper {
     
     // 查询账单数据
     public void queryBills(String selection, String[] selectionArgs, String sortOrder, BillQueryCallback callback) {
+        // 生成缓存键
+        String cacheKey = generateCacheKey(selection, selectionArgs, sortOrder);
+        
+        // 检查缓存
+        synchronized (queryCache) {
+            CacheEntry cached = queryCache.get(cacheKey);
+            if (cached != null && !cached.isExpired()) {
+                Log.d(TAG, "使用缓存数据，缓存键: " + cacheKey);
+                callback.onQuerySuccess(cached.cursor);
+                return;
+            } else if (cached != null) {
+                // 移除过期缓存
+                queryCache.remove(cacheKey);
+            }
+        }
+        
         new AsyncTask<Void, Void, Cursor>() {
             private String errorMessage = "";
             
@@ -89,17 +139,12 @@ public class BillDatabaseHelper {
                 Connection connection = null;
                 PreparedStatement statement = null;
                 ResultSet resultSet = null;
+                long startTime = System.currentTimeMillis();
                 
                 try {
                     connection = getConnection();
-                    
-                    // 先检查表结构
-                    String describeSQL = "DESCRIBE bills";
-                    PreparedStatement describeStmt = connection.prepareStatement(describeSQL);
-                    ResultSet describeResult = describeStmt.executeQuery();
-                    // 表结构检查
-                    describeResult.close();
-                    describeStmt.close();
+                    long connectionTime = System.currentTimeMillis();
+                    Log.d(TAG, "获取数据库连接耗时: " + (connectionTime - startTime) + "ms");
                     
                     StringBuilder sql = new StringBuilder("SELECT bill_id as _id, relationship_id, owner, user_id as userId, title, type, amount, date, time, income_type, is_help FROM bills");
                     
@@ -111,8 +156,7 @@ public class BillDatabaseHelper {
                         sql.append(" ORDER BY ").append(sortOrder);
                     }
                     
-                    // SQL查询执行
-                    
+                    Log.d(TAG, "执行SQL查询: " + sql.toString());
                     statement = connection.prepareStatement(sql.toString());
                     
                     if (selectionArgs != null) {
@@ -121,12 +165,17 @@ public class BillDatabaseHelper {
                         }
                     }
                     
+                    long queryStartTime = System.currentTimeMillis();
                     resultSet = statement.executeQuery();
+                    long queryTime = System.currentTimeMillis();
+                    Log.d(TAG, "SQL查询执行耗时: " + (queryTime - queryStartTime) + "ms");
                     
                     // 创建MatrixCursor来模拟SQLite的Cursor
                     String[] columns = {COLUMN_ID, "relationship_id", "owner", USER_ID, COLUMN_TITLE, COLUMN_TYPE, COLUMN_AMOUNT, COLUMN_DATE, COLUMN_TIME, COLUMN_INCOME_TYPE, "is_help"};
                     MatrixCursor cursor = new MatrixCursor(columns);
                     
+                    int rowCount = 0;
+                    long parseStartTime = System.currentTimeMillis();
                     while (resultSet.next()) {
                         Object[] row = new Object[columns.length];
                         row[0] = resultSet.getInt("_id");
@@ -141,7 +190,11 @@ public class BillDatabaseHelper {
                         row[9] = resultSet.getInt("income_type");
                         row[10] = resultSet.getInt("is_help");
                         cursor.addRow(row);
+                        rowCount++;
                     }
+                    long parseTime = System.currentTimeMillis();
+                    Log.d(TAG, "数据解析耗时: " + (parseTime - parseStartTime) + "ms, 记录数: " + rowCount);
+                    Log.d(TAG, "总查询耗时: " + (parseTime - startTime) + "ms");
                     
                     return cursor;
                     
@@ -157,12 +210,47 @@ public class BillDatabaseHelper {
             @Override
             protected void onPostExecute(Cursor cursor) {
                 if (cursor != null) {
+                    // 将结果添加到缓存
+                    synchronized (queryCache) {
+                        queryCache.put(cacheKey, new CacheEntry(cursor));
+                        // 清理过期缓存
+                        cleanExpiredCache();
+                    }
                     callback.onQuerySuccess(cursor);
                 } else {
                     callback.onQueryError(errorMessage);
                 }
             }
         }.execute();
+    }
+    
+    private String generateCacheKey(String selection, String[] selectionArgs, String sortOrder) {
+        StringBuilder key = new StringBuilder();
+        key.append(selection != null ? selection : "null");
+        key.append("|");
+        if (selectionArgs != null) {
+            for (String arg : selectionArgs) {
+                key.append(arg).append(",");
+            }
+        }
+        key.append("|");
+        key.append(sortOrder != null ? sortOrder : "null");
+        return key.toString();
+    }
+    
+    private void cleanExpiredCache() {
+        queryCache.entrySet().removeIf(entry -> entry.getValue().isExpired());
+    }
+    
+    /**
+     * 清空所有查询缓存
+     * 在账单数据发生变更时调用
+     */
+    public static void clearCache() {
+        synchronized (queryCache) {
+            queryCache.clear();
+            Log.d(TAG, "账单查询缓存已清空");
+        }
     }
     
     // 插入账单数据
@@ -235,6 +323,8 @@ public class BillDatabaseHelper {
             @Override
             protected void onPostExecute(Long id) {
                 if (id > 0) {
+                    // 清空缓存，因为数据已变更
+                    clearCache();
                     callback.onInsertSuccess(id);
                 } else {
                     callback.onInsertError(errorMessage);
@@ -296,6 +386,8 @@ public class BillDatabaseHelper {
             @Override
             protected void onPostExecute(Integer rowsDeleted) {
                 if (rowsDeleted > 0) {
+                    // 清空缓存，因为数据已变更
+                    clearCache();
                     callback.onDeleteSuccess(rowsDeleted);
                 } else {
                     callback.onDeleteError(errorMessage);
@@ -396,6 +488,8 @@ public class BillDatabaseHelper {
             @Override
             protected void onPostExecute(Integer rowsUpdated) {
                 if (rowsUpdated > 0) {
+                    // 清空缓存，因为数据已变更
+                    clearCache();
                     callback.onUpdateSuccess(rowsUpdated);
                 } else {
                     callback.onUpdateError(errorMessage);

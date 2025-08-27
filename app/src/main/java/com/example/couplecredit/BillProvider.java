@@ -5,9 +5,9 @@ import android.content.ContentUris;
 import android.content.ContentValues;
 import android.content.UriMatcher;
 import android.database.Cursor;
-import android.database.SQLException;
-import android.database.sqlite.SQLiteDatabase;
 import android.net.Uri;
+
+import com.example.couplecredit.database.BillDatabaseHelper;
 
 public class BillProvider extends ContentProvider {
     public static final String AUTHORITY = "com.example.couplecredit.billprovider";

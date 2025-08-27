@@ -2,7 +2,6 @@ package com.example.couplecredit.activity;
 
 import android.app.AlertDialog;
 import android.content.Intent;
-import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.EditText;
@@ -16,7 +15,7 @@ import androidx.appcompat.app.AppCompatActivity;
 import com.example.couplecredit.R;
 import com.example.couplecredit.function.MySQLDatabaseHelper;
 import com.example.couplecredit.function.UserInfoManager;
-import com.example.couplecredit.CoupleRelationshipHelper;
+import com.example.couplecredit.database.CoupleRelationshipHelper;
 
 public class UserSettingsActivity extends AppCompatActivity {
 
