@@ -6,17 +6,18 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#F0F0F0">
+    android:background="#F0F0F0"
+    android:fitsSystemWindows="true">
 
-    <!-- 顶部功能区域 - 添加上边距避免与模式切换按钮重叠 -->
+    <!-- 顶部功能区域 -->
     <LinearLayout
         android:id="@+id/top_section"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:background="#FFFFFF"
-        android:elevation="4dp"
-        android:layout_marginTop="50dp"
+        android:background="@android:color/transparent"
+        android:elevation="0dp"
+        android:layout_marginTop="0dp"
         app:layout_constraintTop_toTopOf="parent">
 
         <!-- 搜索功能区 -->
@@ -24,20 +25,20 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
-            android:padding="2dp"
+            android:padding="8dp"
             android:gravity="center_vertical">
 
             <!-- 搜索输入框 -->
             <EditText
                 android:id="@+id/et_search"
                 android:layout_width="0dp"
-                android:layout_height="32dp"
+                android:layout_height="36dp"
                 android:layout_weight="1"
                 android:background="@drawable/chat_bubble_background"
                 android:hint="搜索聊天记录"
-                android:paddingStart="10dp"
-                android:paddingEnd="10dp"
-                android:textSize="12sp"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:textSize="14sp"
                 android:inputType="text"
                 android:imeOptions="actionSearch" />
 
@@ -45,25 +46,24 @@
             <Button
                 android:id="@+id/btn_search"
                 android:layout_width="wrap_content"
-                android:layout_height="32dp"
-                android:layout_marginStart="6dp"
+                android:layout_height="36dp"
+                android:layout_marginStart="8dp"
                 android:text="搜索"
                 android:textSize="14sp"
                 android:textColor="#FFFFFF"
                 android:background="@drawable/bg_search_button"
-                android:paddingStart="12dp"
-                android:paddingEnd="12dp" />
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp" />
         </LinearLayout>
     </LinearLayout>
-
 
     <!-- 聊天消息列表 -->
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/rv_chat_messages"
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_marginTop="0dp"
-        android:layout_marginBottom="0dp"
+        android:clipToPadding="false"
+        android:paddingBottom="8dp"
         app:layout_constraintTop_toBottomOf="@id/top_section"
         app:layout_constraintBottom_toTopOf="@id/input_section" />
 
@@ -73,25 +73,28 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:background="#FFFFFF"
-        android:padding="2dp"
-        android:elevation="4dp"
+        android:background="@android:color/transparent"
         app:layout_constraintBottom_toBottomOf="parent">
 
         <!-- 消息输入框 -->
         <EditText
             android:id="@+id/et_message_input"
-            android:layout_width="0dp"
-            android:layout_height="40dp"
+            android:layout_width="305dp"
+            android:layout_height="wrap_content"
             android:layout_weight="1"
             android:background="@drawable/chat_bubble_background"
             android:hint="分享今天的收支或说点什么..."
-            android:paddingStart="12dp"
-            android:paddingEnd="12dp"
-            android:textSize="14sp"
-            android:maxLines="3"
+            android:imeOptions="actionSend"
             android:inputType="textMultiLine|textCapSentences"
-            android:imeOptions="actionSend" />
+            android:maxHeight="120dp"
+            android:maxLines="5"
+            android:minHeight="40dp"
+            android:paddingStart="12dp"
+            android:paddingTop="8dp"
+            android:paddingEnd="12dp"
+            android:paddingBottom="8dp"
+            android:scrollbars="vertical"
+            android:textSize="16sp" />
 
         <!-- 发送按钮 -->
         <Button
@@ -99,10 +102,10 @@
             android:layout_width="wrap_content"
             android:layout_height="40dp"
             android:layout_marginStart="8dp"
+            android:layout_gravity="bottom"
             android:text="发送"
             android:textSize="14sp"
             android:background="@drawable/bg_search_button"
-            android:radius="12dp"
             android:backgroundTint="#2196F3"
             android:textColor="#FFFFFF"
             android:paddingStart="16dp"
