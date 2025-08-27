@@ -219,6 +219,8 @@ public class ClassicModelFragment extends Fragment implements BillAdapter.OnItem
                             String title = (String) row.get("title");
                             Integer incomeTypeObj = (Integer) row.get("income_type");
                             int incomeType = incomeTypeObj != null ? incomeTypeObj : 0;
+                            Integer isHelpObj = (Integer) row.get("is_help");
+                            int isHelp = isHelpObj != null ? isHelpObj : 0;
 
                             // 解析日期字符串 (格式: 2025-08-15)
                             String[] dateParts = dateStr.split("-");
@@ -229,7 +231,7 @@ public class ClassicModelFragment extends Fragment implements BillAdapter.OnItem
                             // 根据类型设置图标
                             int iconResId = getIconForCategory(type);
 
-                            billItems.add(new BillBean(billId, amount, cur_year, cur_month, day, owner, userId, type, title, iconResId, incomeType, timeStr, title));
+                            billItems.add(new BillBean(billId, amount, cur_year, cur_month, day, owner, userId, type, title, iconResId, incomeType, timeStr, title, isHelp));
                         }
                         processAndDisplayData();
                         sumAmounts();

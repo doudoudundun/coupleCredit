@@ -33,6 +33,7 @@ mysql> desc bills;
 | income_type     | tinyint(1)    | NO   |     | NULL              |                                               |
 | created_at      | timestamp     | YES  |     | CURRENT_TIMESTAMP | DEFAULT_GENERATED                             |
 | updated_at      | timestamp     | YES  |     | CURRENT_TIMESTAMP | DEFAULT_GENERATED on update CURRENT_TIMESTAMP |
+| is_help         | tinyint(1)    | NO   |     | 0                 |                                               |
 +-----------------+---------------+------+-----+-------------------+-----------------------------------------------+
 
 mysql> desc couple_relationships;

@@ -42,6 +42,10 @@ public final class Utils {
                 values.put(BillDatabaseHelper.COLUMN_TIME, time);
                 values.put(BillDatabaseHelper.COLUMN_INCOME_TYPE, incomeType);
                 
+                // 根据billOwner设置is_help字段：自己和共同为0，对方为1
+                int isHelpValue = "对方".equals(billOwner) ? 1 : 0;
+                values.put("is_help", isHelpValue);
+                
                 // 添加relationship_id信息
                 if (relationshipId != null) {
                     values.put("relationship_id", relationshipId);
@@ -214,6 +218,10 @@ public final class Utils {
     }
     
     public static void updateBill(Context context, BillBean bill, String newDate, double newFare, String newNoteContent, String newTime, UpdateBillCallback callback) {
+        updateBill(context, bill, newDate, newFare, newNoteContent, newTime, null, callback);
+    }
+    
+    public static void updateBill(Context context, BillBean bill, String newDate, double newFare, String newNoteContent, String newTime, Integer isHelp, UpdateBillCallback callback) {
         // 使用bill_id作为唯一标识进行更新
         String selection = BillDatabaseHelper.COLUMN_ID + "=?";
         
@@ -227,6 +235,9 @@ public final class Utils {
         values.put(BillDatabaseHelper.COLUMN_AMOUNT, newFare);
         values.put(BillDatabaseHelper.COLUMN_TITLE, newNoteContent);
         values.put(BillDatabaseHelper.COLUMN_TIME, newTime);
+        if (isHelp != null) {
+            values.put("is_help", isHelp);
+        }
         
         BillDatabaseHelper billHelper = new BillDatabaseHelper(context);
         billHelper.updateBill(values, selection, selectionArgs, new BillDatabaseHelper.BillUpdateCallback() {

@@ -101,7 +101,7 @@ public class BillDatabaseHelper {
                     describeResult.close();
                     describeStmt.close();
                     
-                    StringBuilder sql = new StringBuilder("SELECT bill_id as _id, relationship_id, owner, user_id as userId, title, type, amount, date, time, income_type FROM bills");
+                    StringBuilder sql = new StringBuilder("SELECT bill_id as _id, relationship_id, owner, user_id as userId, title, type, amount, date, time, income_type, is_help FROM bills");
                     
                     if (selection != null && !selection.isEmpty()) {
                         sql.append(" WHERE ").append(selection);
@@ -124,7 +124,7 @@ public class BillDatabaseHelper {
                     resultSet = statement.executeQuery();
                     
                     // 创建MatrixCursor来模拟SQLite的Cursor
-                    String[] columns = {COLUMN_ID, "relationship_id", "owner", USER_ID, COLUMN_TITLE, COLUMN_TYPE, COLUMN_AMOUNT, COLUMN_DATE, COLUMN_TIME, COLUMN_INCOME_TYPE};
+                    String[] columns = {COLUMN_ID, "relationship_id", "owner", USER_ID, COLUMN_TITLE, COLUMN_TYPE, COLUMN_AMOUNT, COLUMN_DATE, COLUMN_TIME, COLUMN_INCOME_TYPE, "is_help"};
                     MatrixCursor cursor = new MatrixCursor(columns);
                     
                     while (resultSet.next()) {
@@ -139,6 +139,7 @@ public class BillDatabaseHelper {
                         row[7] = resultSet.getString("date");
                         row[8] = resultSet.getString("time");
                         row[9] = resultSet.getInt("income_type");
+                        row[10] = resultSet.getInt("is_help");
                         cursor.addRow(row);
                     }
                     
@@ -178,7 +179,7 @@ public class BillDatabaseHelper {
                 try {
                     connection = getConnection();
                     
-                    String sql = "INSERT INTO bills (relationship_id, owner, user_id, title, type, amount, date, time, income_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                    String sql = "INSERT INTO bills (relationship_id, owner, user_id, title, type, amount, date, time, income_type, is_help) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
                     statement = connection.prepareStatement(sql, PreparedStatement.RETURN_GENERATED_KEYS);
                     
                     // 动态设置relationship_id - 从ContentValues获取，如果没有则设为NULL
@@ -206,6 +207,10 @@ public class BillDatabaseHelper {
                     statement.setString(7, values.getAsString(COLUMN_DATE));
                     statement.setString(8, values.getAsString(COLUMN_TIME));
                     statement.setInt(9, values.getAsInteger(COLUMN_INCOME_TYPE));
+                    
+                    // 设置is_help字段，默认为0（正常记录）
+                    Integer isHelp = values.getAsInteger("is_help");
+                    statement.setInt(10, isHelp != null ? isHelp : 0);
                     
                     int rowsAffected = statement.executeUpdate();
                     
@@ -345,6 +350,10 @@ public class BillDatabaseHelper {
                         setParts.add("income_type = ?");
                         params.add(values.getAsInteger(COLUMN_INCOME_TYPE));
                     }
+                    if (values.containsKey("is_help")) {
+                        setParts.add("is_help = ?");
+                        params.add(values.getAsInteger("is_help"));
+                    }
                     
                     sql.append(String.join(", ", setParts));
                     
@@ -435,6 +444,7 @@ public class BillDatabaseHelper {
                         row.put("type", cursor.getString(cursor.getColumnIndexOrThrow("type")));
                         row.put("title", cursor.getString(cursor.getColumnIndexOrThrow("title")));
                         row.put("income_type", cursor.getInt(cursor.getColumnIndexOrThrow("income_type")));
+                        row.put("is_help", cursor.getInt(cursor.getColumnIndexOrThrow("is_help")));
                         results.add(row);
                     } while (cursor.moveToNext());
                     cursor.close();
@@ -512,6 +522,7 @@ public class BillDatabaseHelper {
                 } else {
                     // owner字段不存在
                         }
+                        row.put("is_help", cursor.getInt(cursor.getColumnIndexOrThrow("is_help")));
                         results.add(row);
                     } while (cursor.moveToNext());
                     cursor.close();
