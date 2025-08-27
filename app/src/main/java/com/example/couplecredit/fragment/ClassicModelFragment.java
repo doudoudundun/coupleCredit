@@ -1,7 +1,5 @@
 package com.example.couplecredit.fragment;
 
-import android.database.Cursor;
-import android.net.Uri;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.LayoutInflater;
@@ -23,8 +21,7 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.example.couplecredit.adapter.BillAdapter;
 import com.example.couplecredit.BillBean;
-import com.example.couplecredit.BillDatabaseHelper;
-import com.example.couplecredit.BillProvider;
+import com.example.couplecredit.database.BillDatabaseHelper;
 import com.example.couplecredit.activity.MainActivity;
 import com.example.couplecredit.R;
 import com.example.couplecredit.function.Utils;
@@ -165,7 +162,8 @@ public class ClassicModelFragment extends Fragment implements BillAdapter.OnItem
         billItems.clear();
         String monthPattern = String.format("%04d-%02d-%%", year, month);
         
-        // 生成月份查询模式
+        Log.d("ClassicModelFragment", "开始加载账单数据: " + year + "-" + month);
+        long loadStartTime = System.currentTimeMillis();
         
         // 首先检查用户是否已登录
         if (!UserInfoManager.isUserLoggedIn(getContext())) {
@@ -200,11 +198,17 @@ public class ClassicModelFragment extends Fragment implements BillAdapter.OnItem
                 // 使用新的筛选查询方法
                 String dateSelection = "date LIKE ?";
                 String[] dateSelectionArgs = new String[]{monthPattern};
+                
+                Log.d("ClassicModelFragment", "执行数据库查询，用户ID: " + userId + ", 关系ID: " + relationshipId);
                 billHelper.queryBillsWithUserFilter(userId, relationshipId, dateSelection, dateSelectionArgs, new BillDatabaseHelper.QueryCallback() {
             @Override
             public void onSuccess(List<Map<String, Object>> results) {
+                long dataLoadTime = System.currentTimeMillis();
+                Log.d("ClassicModelFragment", "数据库查询完成，耗时: " + (dataLoadTime - loadStartTime) + "ms, 结果数: " + results.size());
+                
                 if (getActivity() != null) {
                     getActivity().runOnUiThread(() -> {
+                        long uiStartTime = System.currentTimeMillis();
                         for (Map<String, Object> row : results) {
                             long billId = ((Number) row.get("_id")).longValue();
                             double amount = (Double) row.get("amount");
@@ -239,12 +243,19 @@ public class ClassicModelFragment extends Fragment implements BillAdapter.OnItem
                         if (billAdapter != null) {
                             billAdapter.notifyDataSetChanged();
                         }
+                        
+                        long uiEndTime = System.currentTimeMillis();
+                        Log.d("ClassicModelFragment", "UI更新完成，耗时: " + (uiEndTime - uiStartTime) + "ms");
+                        Log.d("ClassicModelFragment", "总加载耗时: " + (uiEndTime - loadStartTime) + "ms");
                     });
                 }
             }
 
             @Override
             public void onError(String error) {
+                long errorTime = System.currentTimeMillis();
+                Log.e("ClassicModelFragment", "数据库查询失败，耗时: " + (errorTime - loadStartTime) + "ms, 错误: " + error);
+                
                 if (getActivity() != null) {
                     getActivity().runOnUiThread(() -> {
                         Log.e("ClassicModelFragment", "加载账单数据失败: " + error);

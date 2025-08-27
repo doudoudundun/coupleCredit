@@ -3,17 +3,15 @@ package com.example.couplecredit.function;
 import android.app.DatePickerDialog;
 import android.app.Dialog;
 import android.content.Context;
-import android.net.Uri;
 import android.util.Log;
 import android.view.Window;
 import android.widget.NumberPicker;
 import android.widget.TextView;
 
 import com.example.couplecredit.BillBean;
-import com.example.couplecredit.BillDatabaseHelper;
-import com.example.couplecredit.BillProvider;
+import com.example.couplecredit.database.BillDatabaseHelper;
 import com.example.couplecredit.R;
-import com.example.couplecredit.function.UserInfoManager;
+import com.example.couplecredit.database.CoupleRelationshipHelper;
 
 import java.util.Calendar;
 
@@ -55,8 +53,8 @@ public final class Utils {
                 if ("自己".equals(billOwner)) {
                     // 为自己记账，需要查询自己在情侣关系中的角色
                     if (relationshipId != null) {
-                        com.example.couplecredit.CoupleRelationshipHelper coupleHelper = new com.example.couplecredit.CoupleRelationshipHelper();
-                        coupleHelper.getUserRole(userId, new com.example.couplecredit.CoupleRelationshipHelper.UserRoleCallback() {
+                        CoupleRelationshipHelper coupleHelper = new CoupleRelationshipHelper();
+                        coupleHelper.getUserRole(userId, new CoupleRelationshipHelper.UserRoleCallback() {
                             @Override
                             public void onRoleFound(int ownerId) {
                                 // 设置为自己
@@ -88,8 +86,8 @@ public final class Utils {
                     }
                 } else if ("对方".equals(billOwner) && relationshipId != null) {
                     // 为对方记账，需要查询对方在情侣关系中的角色
-                    com.example.couplecredit.CoupleRelationshipHelper coupleHelper = new com.example.couplecredit.CoupleRelationshipHelper();
-                    coupleHelper.getUserRole(userId, new com.example.couplecredit.CoupleRelationshipHelper.UserRoleCallback() {
+                    CoupleRelationshipHelper coupleHelper = new CoupleRelationshipHelper();
+                    coupleHelper.getUserRole(userId, new CoupleRelationshipHelper.UserRoleCallback() {
                         @Override
                         public void onRoleFound(int currentUserOwnerId) {
                             // 对方的角色与当前用户相反：如果当前用户是1(邀请者)，对方就是2(被邀请者)，反之亦然
@@ -233,7 +231,9 @@ public final class Utils {
         android.content.ContentValues values = new android.content.ContentValues();
         values.put(BillDatabaseHelper.COLUMN_DATE, newDate);
         values.put(BillDatabaseHelper.COLUMN_AMOUNT, newFare);
-        values.put(BillDatabaseHelper.COLUMN_TITLE, newNoteContent);
+        // 如果备注为空，使用原账单的categoryName作为title；否则使用备注内容
+        String titleToUpdate = (newNoteContent == null || newNoteContent.trim().isEmpty()) ? bill.getCategoryName() : newNoteContent;
+        values.put(BillDatabaseHelper.COLUMN_TITLE, titleToUpdate);
         values.put(BillDatabaseHelper.COLUMN_TIME, newTime);
         if (isHelp != null) {
             values.put("is_help", isHelp);

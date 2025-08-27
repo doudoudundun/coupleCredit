@@ -11,8 +11,7 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
 
-import com.example.couplecredit.BillDatabaseHelper;
-import com.example.couplecredit.BillProvider;
+import com.example.couplecredit.database.BillDatabaseHelper;
 import com.example.couplecredit.R;
 import com.example.couplecredit.function.Utils;
 import com.example.couplecredit.function.UserInfoManager;
@@ -28,12 +27,7 @@ import com.github.mikephil.charting.data.LineData;
 import com.github.mikephil.charting.data.LineDataSet;
 import com.github.mikephil.charting.formatter.ValueFormatter;
 
-import java.util.ArrayList;
 import java.util.Calendar;
-import java.util.List;
-
-import android.database.Cursor;
-import android.net.Uri;
 
 public class ReportFragment extends Fragment {
     private int currentYear;
