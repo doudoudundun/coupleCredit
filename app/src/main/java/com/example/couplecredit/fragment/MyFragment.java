@@ -15,10 +15,11 @@ import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
 
 import com.example.couplecredit.ChatBackgroundActivity;
-import com.example.couplecredit.activity.LoginActivity;
 import com.example.couplecredit.R;
+import com.example.couplecredit.activity.LoginActivity;
 import com.example.couplecredit.activity.ToastDemoActivity;
 import com.example.couplecredit.activity.UserSettingsActivity;
+import com.example.couplecredit.function.MySQLDatabaseHelper;
 import com.example.couplecredit.function.UserInfoManager;
 import android.content.SharedPreferences;
 import android.content.Context;
@@ -173,14 +174,40 @@ public class MyFragment extends Fragment {
      */
     private void updateLoginUI() {
         if (isLoggedIn && tvLoginText != null) {
-            // 已登录，显示用户信息
-            String htmlText = "<big><b>" + username + "</b></big><br><small>ID: " + userId + "</small>";
-            Spanned spannedText = Html.fromHtml(htmlText, Html.FROM_HTML_MODE_LEGACY);
-            tvLoginText.setText(spannedText);
-            
-            // 显示个人设置选项
-            llUserSettings.setVisibility(View.VISIBLE);
-            viewSettingsDivider.setVisibility(View.VISIBLE);
+            // 已登录，获取用户昵称并显示用户信息
+            MySQLDatabaseHelper.getUserNickname(username, new MySQLDatabaseHelper.UserNicknameCallback() {
+                @Override
+                public void onSuccess(String nickname) {
+                    if (getActivity() != null) {
+                        getActivity().runOnUiThread(() -> {
+                            String displayName = (nickname != null && !nickname.trim().isEmpty()) ? nickname : username;
+                            String htmlText = "<big><b>" + displayName + "</b></big><br><small>ID: " + userId + "</small>";
+                            Spanned spannedText = Html.fromHtml(htmlText, Html.FROM_HTML_MODE_LEGACY);
+                            tvLoginText.setText(spannedText);
+                            
+                            // 显示个人设置选项
+                            llUserSettings.setVisibility(View.VISIBLE);
+                            viewSettingsDivider.setVisibility(View.VISIBLE);
+                        });
+                    }
+                }
+                
+                @Override
+                public void onError(String error) {
+                    if (getActivity() != null) {
+                        getActivity().runOnUiThread(() -> {
+                            // 查询昵称失败，使用用户名显示
+                            String htmlText = "<big><b>" + username + "</b></big><br><small>ID: " + userId + "</small>";
+                            Spanned spannedText = Html.fromHtml(htmlText, Html.FROM_HTML_MODE_LEGACY);
+                            tvLoginText.setText(spannedText);
+                            
+                            // 显示个人设置选项
+                            llUserSettings.setVisibility(View.VISIBLE);
+                            viewSettingsDivider.setVisibility(View.VISIBLE);
+                        });
+                    }
+                }
+            });
         } else if (tvLoginText != null) {
             // 未登录，显示登录提示
             tvLoginText.setText("点我立即登录");

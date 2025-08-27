@@ -25,6 +25,7 @@ public final class BillBean {
     private int incomeType; // 0=支出，1=收入
     private String time; // 时间 HH:mm:ss
     private String title; // 备注
+    private int isHelp; // 0=正常记录，1=帮助记录
 
     public BillBean(long billId, double fare, int year, int month, int day, int userId, String categoryName,
                     String categoryDesc, int iconResId, int incomeType, String time, String title) {
@@ -40,6 +41,7 @@ public final class BillBean {
         this.incomeType = incomeType;
         this.time = time;
         this.title = title;
+        this.isHelp = 0; // 默认为正常记录
     }
 
     public BillBean(long billId, double fare, int year, int month, int day, int owner, int userId, String categoryName,
@@ -57,6 +59,25 @@ public final class BillBean {
         this.incomeType = incomeType;
         this.time = time;
         this.title = title;
+        this.isHelp = 0; // 默认为正常记录
+    }
+
+    public BillBean(long billId, double fare, int year, int month, int day, int owner, int userId, String categoryName,
+                    String categoryDesc, int iconResId, int incomeType, String time, String title, int isHelp) {
+        this.billId = billId;
+        this.fare = fare;
+        this.year = year;
+        this.month = month;
+        this.day = day;
+        this.owner = owner;
+        this.userId = userId;
+        this.categoryName = categoryName;
+        this.categoryDesc = categoryDesc;
+        this.iconResId = iconResId;
+        this.incomeType = incomeType;
+        this.time = time;
+        this.title = title;
+        this.isHelp = isHelp;
     }
 
     public int getIconResId() {
@@ -161,5 +182,13 @@ public final class BillBean {
 
     public void setOwner(int owner) {
         this.owner = owner;
+    }
+
+    public int getIsHelp() {
+        return isHelp;
+    }
+
+    public void setIsHelp(int isHelp) {
+        this.isHelp = isHelp;
     }
 }

@@ -260,10 +260,10 @@ public class AddBillFragment extends Fragment {
         LinearLayout categoryFood = view.findViewById(R.id.category_food);
         categoryFood.setOnClickListener(v -> {
             try {
-                Log.d("AddBillFragment", "Category food clicked");
+                // 分类点击
                 selectedCategory = isExpense ? "餐品" : "工资";
                 updateCategorySelection(view, categoryFood);
-                Log.d("AddBillFragment", "Category food selection completed");
+                // 分类选择完成
             } catch (Exception e) {
                 Log.e("AddBillFragment", "Error in category food click", e);
             }
@@ -539,18 +539,18 @@ public class AddBillFragment extends Fragment {
 
     private void updateCategorySelection(View rootView, LinearLayout selectedView) {
         try {
-            Log.d("AddBillFragment", "updateCategorySelection called");
+            // 更新分类选择
             
             // 重置所有分类的文字颜色
             resetCategoryTextColors(rootView);
-            Log.d("AddBillFragment", "resetCategoryTextColors completed");
+            // 重置文字颜色完成
             
             // 设置选中分类的文字颜色为黄色
             if (selectedView != null) {
                 TextView textView = selectedView.findViewById(R.id.tv_category_name);
                 if (textView != null) {
                     textView.setTextColor(getResources().getColor(android.R.color.holo_orange_light));
-                    Log.d("AddBillFragment", "Selected category text color set to yellow");
+                    // 设置选中颜色
                 } else {
                     Log.w("AddBillFragment", "TextView not found in selectedView");
                 }
@@ -564,7 +564,7 @@ public class AddBillFragment extends Fragment {
 
     private void resetCategoryTextColors(View rootView) {
         try {
-            Log.d("AddBillFragment", "resetCategoryTextColors called");
+            // 重置分类文字颜色
             
             // 重置所有分类文字颜色为默认颜色
             int defaultTextColor = getResources().getColor(android.R.color.darker_gray);
@@ -609,7 +609,7 @@ public class AddBillFragment extends Fragment {
                 }
             }
             
-            Log.d("AddBillFragment", "resetCategoryTextColors completed successfully");
+            // 重置完成
         } catch (Exception e) {
             Log.e("AddBillFragment", "Error in resetCategoryTextColors", e);
         }
@@ -750,6 +750,12 @@ public class AddBillFragment extends Fragment {
                 if (classicFragment != null) {
                     classicFragment.refreshBillData();
                 }
+            }
+            
+            // 刷新ReportFragment的图表数据
+            ReportFragment reportFragment = mainActivity.getReportFragment();
+            if (reportFragment != null) {
+                reportFragment.refreshChartData();
             }
         }
     }
@@ -999,7 +1005,7 @@ public class AddBillFragment extends Fragment {
             gridCategories.setPadding(spacing, spacing, spacing, spacing);
             
             // 记录日志用于调试
-            Log.d("AddBillFragment", "Screen density: " + density + ", Spacing: " + spacing + "px");
+            // 调整屏幕布局
             
         } catch (Exception e) {
             Log.e("AddBillFragment", "Error adjusting layout for screen size", e);
@@ -1025,6 +1031,6 @@ public class AddBillFragment extends Fragment {
         tvPartner = null;
         tvShared = null;
         
-        Log.d("AddBillFragment", "View destroyed and references cleaned");
+        // 清理视图引用
     }
 }

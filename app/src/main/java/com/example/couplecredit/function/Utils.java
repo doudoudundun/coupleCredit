@@ -3,17 +3,15 @@ package com.example.couplecredit.function;
 import android.app.DatePickerDialog;
 import android.app.Dialog;
 import android.content.Context;
-import android.net.Uri;
 import android.util.Log;
 import android.view.Window;
 import android.widget.NumberPicker;
 import android.widget.TextView;
 
 import com.example.couplecredit.BillBean;
-import com.example.couplecredit.BillDatabaseHelper;
-import com.example.couplecredit.BillProvider;
+import com.example.couplecredit.database.BillDatabaseHelper;
 import com.example.couplecredit.R;
-import com.example.couplecredit.function.UserInfoManager;
+import com.example.couplecredit.database.CoupleRelationshipHelper;
 
 import java.util.Calendar;
 
@@ -42,44 +40,93 @@ public final class Utils {
                 values.put(BillDatabaseHelper.COLUMN_TIME, time);
                 values.put(BillDatabaseHelper.COLUMN_INCOME_TYPE, incomeType);
                 
+                // 根据billOwner设置is_help字段：自己和共同为0，对方为1
+                int isHelpValue = "对方".equals(billOwner) ? 1 : 0;
+                values.put("is_help", isHelpValue);
+                
                 // 添加relationship_id信息
                 if (relationshipId != null) {
                     values.put("relationship_id", relationshipId);
                 }
                 
                 // 根据billOwner设置owner字段
-                int ownerValue;
                 if ("自己".equals(billOwner)) {
-                    ownerValue = userId; // 当前用户
+                    // 为自己记账，需要查询自己在情侣关系中的角色
+                    if (relationshipId != null) {
+                        CoupleRelationshipHelper coupleHelper = new CoupleRelationshipHelper();
+                        coupleHelper.getUserRole(userId, new CoupleRelationshipHelper.UserRoleCallback() {
+                            @Override
+                            public void onRoleFound(int ownerId) {
+                                // 设置为自己
+                                values.put("owner", ownerId);
+                                insertBillToDatabase(context, values, relationshipId, userId, callback);
+                            }
+                            
+                            @Override
+                            public void onNoRelationshipFound() {
+                                Log.e("Utils", "未找到情侣关系");
+                                if (callback != null) {
+                                    callback.onInsertError("未找到情侣关系");
+                                }
+                            }
+                            
+                            @Override
+                            public void onError(String error) {
+                                Log.e("Utils", "查询用户角色失败: " + error);
+                                if (callback != null) {
+                                    callback.onInsertError("查询用户角色失败: " + error);
+                                }
+                            }
+                        });
+                    } else {
+                        // 没有情侣关系，使用默认值1
+                        // 设置为自己(无关系)
+                        values.put("owner", 1);
+                        insertBillToDatabase(context, values, relationshipId, userId, callback);
+                    }
                 } else if ("对方".equals(billOwner) && relationshipId != null) {
-                    // 需要获取对方的用户ID，这里先设为特殊值表示对方
-                    ownerValue = -1; // 临时标记，后续需要查询对方ID
-                } else if ("共同".equals(billOwner)) {
-                    ownerValue = 0; // 0表示共同账单
+                    // 为对方记账，需要查询对方在情侣关系中的角色
+                    CoupleRelationshipHelper coupleHelper = new CoupleRelationshipHelper();
+                    coupleHelper.getUserRole(userId, new CoupleRelationshipHelper.UserRoleCallback() {
+                        @Override
+                        public void onRoleFound(int currentUserOwnerId) {
+                            // 对方的角色与当前用户相反：如果当前用户是1(邀请者)，对方就是2(被邀请者)，反之亦然
+                            int partnerOwnerId = (currentUserOwnerId == 1) ? 2 : 1;
+                            // 设置为对方
+                            values.put("owner", partnerOwnerId);
+                            insertBillToDatabase(context, values, relationshipId, userId, callback);
+                        }
+                        
+                        @Override
+                        public void onNoRelationshipFound() {
+                            Log.e("Utils", "未找到情侣关系，无法为对方记账");
+                            if (callback != null) {
+                                callback.onInsertError("未找到情侣关系，无法为对方记账");
+                            }
+                        }
+                        
+                        @Override
+                        public void onError(String error) {
+                            Log.e("Utils", "查询用户角色失败: " + error);
+                            if (callback != null) {
+                                callback.onInsertError("查询用户角色失败: " + error);
+                            }
+                        }
+                    });
+                    return; // 异步处理，直接返回
+                } else if ("共同".equals(billOwner) && relationshipId != null) {
+                    // 共同账单，owner设置为3
+                    // 设置为共同
+                    values.put("owner", 3);
+                    insertBillToDatabase(context, values, relationshipId, userId, callback);
                 } else {
-                    ownerValue = userId; // 默认为当前用户
+                    Log.e("Utils", "不支持的billOwner类型或缺少情侣关系: " + billOwner + ", relationshipId=" + relationshipId);
+                    if (callback != null) {
+                        callback.onInsertError("不支持的billOwner类型或缺少情侣关系: " + billOwner);
+                    }
                 }
-                android.util.Log.d("Utils", "设置owner字段: billOwner=" + billOwner + ", ownerValue=" + ownerValue + ", userId=" + userId);
-                values.put("owner", ownerValue);
 
-                BillDatabaseHelper billHelper = new BillDatabaseHelper(context);
-                billHelper.insertBill(values, new BillDatabaseHelper.BillInsertCallback() {
-                    @Override
-                    public void onInsertSuccess(long id) {
-                        Log.d("Utils", "账单插入成功，ID: " + id + ", 用户ID: " + userId + ", 关系ID: " + relationshipId);
-                        if (callback != null) {
-                            callback.onInsertSuccess(id);
-                        }
-                    }
-
-                    @Override
-                    public void onInsertError(String error) {
-                        Log.e("Utils", "账单插入失败: " + error);
-                        if (callback != null) {
-                            callback.onInsertError(error);
-                        }
-                    }
-                });
+                // 这部分代码已移动到insertBillToDatabase方法中
             }
             
             @Override
@@ -96,6 +143,31 @@ public final class Utils {
      * 插入账单（兼容旧版本）
      * @deprecated 请使用新版本的insertBill方法
      */
+    
+    // 辅助方法：执行实际的数据库插入操作
+    @Deprecated
+    private static void insertBillToDatabase(Context context, android.content.ContentValues values, Integer relationshipId, int userId, BillInsertCallback callback) {
+        BillDatabaseHelper billHelper = new BillDatabaseHelper(context);
+        billHelper.insertBill(values, new BillDatabaseHelper.BillInsertCallback() {
+            @Override
+            public void onInsertSuccess(long id) {
+                // 插入成功，清空缓存
+                BillDatabaseHelper.clearCache();
+                if (callback != null) {
+                    callback.onInsertSuccess(id);
+                }
+            }
+
+            @Override
+            public void onInsertError(String error) {
+                Log.e("Utils", "账单插入失败: " + error);
+                if (callback != null) {
+                    callback.onInsertError(error);
+                }
+            }
+        });
+    }
+    
     @Deprecated
     public static void insertBill(Context context,int userId, String title, String type, double amount, String date, String time, int incomeType) {
         insertBill(context, title, type, amount, date, time, incomeType, "自己", null);
@@ -124,13 +196,13 @@ public final class Utils {
         String selection = BillDatabaseHelper.COLUMN_ID + "=?";
         String[] selectionArgs = {String.valueOf(bill.getBillId())};
         
-        Log.d("Utils", "开始删除账单，ID: " + bill.getBillId());
-        Log.d("Utils", "删除条件: " + selection + ", 参数: " + java.util.Arrays.toString(selectionArgs));
+        // 删除账单
         
         dbHelper.deleteBill(selection, selectionArgs, new BillDatabaseHelper.BillDeleteCallback() {
             @Override
             public void onDeleteSuccess(int rowsDeleted) {
-                Log.d("Utils", "删除成功，影响行数: " + rowsDeleted);
+                // 删除成功，清空缓存
+                BillDatabaseHelper.clearCache();
                 if (callback != null) {
                     callback.onDeleteSuccess(rowsDeleted);
                 }
@@ -147,6 +219,10 @@ public final class Utils {
     }
     
     public static void updateBill(Context context, BillBean bill, String newDate, double newFare, String newNoteContent, String newTime, UpdateBillCallback callback) {
+        updateBill(context, bill, newDate, newFare, newNoteContent, newTime, null, callback);
+    }
+    
+    public static void updateBill(Context context, BillBean bill, String newDate, double newFare, String newNoteContent, String newTime, Integer isHelp, UpdateBillCallback callback) {
         // 使用bill_id作为唯一标识进行更新
         String selection = BillDatabaseHelper.COLUMN_ID + "=?";
         
@@ -158,13 +234,20 @@ public final class Utils {
         android.content.ContentValues values = new android.content.ContentValues();
         values.put(BillDatabaseHelper.COLUMN_DATE, newDate);
         values.put(BillDatabaseHelper.COLUMN_AMOUNT, newFare);
-        values.put(BillDatabaseHelper.COLUMN_TITLE, newNoteContent);
+        // 如果备注为空，使用原账单的categoryName作为title；否则使用备注内容
+        String titleToUpdate = (newNoteContent == null || newNoteContent.trim().isEmpty()) ? bill.getCategoryName() : newNoteContent;
+        values.put(BillDatabaseHelper.COLUMN_TITLE, titleToUpdate);
         values.put(BillDatabaseHelper.COLUMN_TIME, newTime);
+        if (isHelp != null) {
+            values.put("is_help", isHelp);
+        }
         
         BillDatabaseHelper billHelper = new BillDatabaseHelper(context);
         billHelper.updateBill(values, selection, selectionArgs, new BillDatabaseHelper.BillUpdateCallback() {
             @Override
             public void onUpdateSuccess(int rowsAffected) {
+                // 更新成功，清空缓存
+                BillDatabaseHelper.clearCache();
                 if (callback != null) {
                     callback.onUpdateSuccess(rowsAffected);
                 }

@@ -16,7 +16,7 @@ import android.widget.Toast;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 
-import com.example.couplecredit.CoupleRelationshipHelper;
+import com.example.couplecredit.database.CoupleRelationshipHelper;
 import com.example.couplecredit.R;
 import com.example.couplecredit.function.MySQLDatabaseHelper;
 

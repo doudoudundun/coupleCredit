@@ -73,7 +73,7 @@ public class HeadFragment extends Fragment {
         
         // 从SharedPreferences读取保存的模式状态
         isClassicMode = sharedPreferences.getBoolean(KEY_IS_CLASSIC_MODE, true);
-        Log.d("HeadFragment", "读取保存的模式状态: " + isClassicMode);
+        // 读取模式状态
         
         segmentedTab = view.findViewById(R.id.segmented_tab);
         fragmentManager = getChildFragmentManager();
@@ -119,7 +119,7 @@ public class HeadFragment extends Fragment {
         SharedPreferences.Editor editor = sharedPreferences.edit();
         editor.putBoolean(KEY_IS_CLASSIC_MODE, isClassic);
         editor.apply();
-        Log.d("HeadFragment", "保存模式状态: " + isClassic);
+        // 保存模式状态
     }
     
     // 提供获取ClassicModelFragment的方法

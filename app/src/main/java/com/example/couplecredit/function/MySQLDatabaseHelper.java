@@ -3,11 +3,13 @@ package com.example.couplecredit.function;
 import android.os.AsyncTask;
 import android.util.Log;
 
+import com.example.couplecredit.database.DatabaseConnectionPool;
+import com.example.couplecredit.database.DatabaseInitializer;
+
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
-import java.sql.Statement;
 
 /**
  * MySQL远程数据库操作工具类
@@ -16,6 +18,11 @@ import java.sql.Statement;
 public class MySQLDatabaseHelper {
     
     private static final String TAG = "MySQLDatabaseHelper";
+    
+    public MySQLDatabaseHelper() {
+        // 使用统一的连接池初始化工具
+        DatabaseInitializer.initializeConnectionPool(TAG);
+    }
     
     // 数据库连接配置
     private static final String DB_HOST = "101.37.68.240";
@@ -28,11 +35,33 @@ public class MySQLDatabaseHelper {
     private static final String DB_URL = "jdbc:mysql://" + DB_HOST + ":" + DB_PORT + "/" + DB_NAME + "?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC";
     
     /**
-     * 获取数据库连接
+     * 获取数据库连接（使用连接池）
      */
     private static Connection getConnection() throws SQLException, ClassNotFoundException {
-        Class.forName("com.mysql.jdbc.Driver");
-        return DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD);
+        try {
+            return DatabaseConnectionPool.getInstance().getConnection();
+        } catch (SQLException e) {
+            Log.w(TAG, "连接池获取连接失败，尝试直接连接: " + e.getMessage());
+            // 降级到直接连接
+            Class.forName("com.mysql.jdbc.Driver");
+            return DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD);
+        }
+    }
+    
+    /**
+     * 关闭数据库资源（连接归还到连接池）
+     */
+    private static void closeResources(Connection connection, PreparedStatement statement, java.sql.ResultSet resultSet) {
+        try {
+            if (resultSet != null) resultSet.close();
+            if (statement != null) statement.close();
+            if (connection != null) {
+                // 将连接归还到连接池而不是关闭
+                DatabaseConnectionPool.getInstance().returnConnection(connection);
+            }
+        } catch (SQLException e) {
+            Log.e(TAG, "关闭数据库资源失败", e);
+        }
     }
     
 
@@ -62,7 +91,7 @@ public class MySQLDatabaseHelper {
                     int rowsAffected = preparedStatement.executeUpdate();
                     
                     if (rowsAffected > 0) {
-                        Log.d(TAG, "用户注册信息插入成功: " + username);
+                        // 注册成功
                         return true;
                     } else {
                         errorMessage = "插入失败，没有行被影响";
@@ -88,12 +117,7 @@ public class MySQLDatabaseHelper {
                     Log.e(TAG, "数据库连接失败: " + e.getMessage(), e);
                     return false;
                 } finally {
-                    try {
-                        if (preparedStatement != null) preparedStatement.close();
-                        if (connection != null) connection.close();
-                    } catch (SQLException e) {
-                        Log.e(TAG, "关闭数据库连接失败: " + e.getMessage());
-                    }
+                    closeResources(connection, preparedStatement, null);
                 }
             }
             
@@ -136,7 +160,7 @@ public class MySQLDatabaseHelper {
                     if (resultSet.next()) {
                         // 返回用户ID而不是用户名
                         userInfo = String.valueOf(resultSet.getInt("id"));
-                        Log.d(TAG, "用户登录成功: " + username + ", ID: " + userInfo);
+                        // 登录成功
                         return true;
                     } else {
                         errorMessage = "用户名或密码错误";
@@ -152,12 +176,7 @@ public class MySQLDatabaseHelper {
                     Log.e(TAG, "数据库连接失败: " + e.getMessage(), e);
                     return false;
                 } finally {
-                    try {
-                        if (preparedStatement != null) preparedStatement.close();
-                        if (connection != null) connection.close();
-                    } catch (SQLException e) {
-                        Log.e(TAG, "关闭数据库连接失败: " + e.getMessage());
-                    }
+                    closeResources(connection, preparedStatement, null);
                 }
             }
             
@@ -196,7 +215,7 @@ public class MySQLDatabaseHelper {
                     int rowsAffected = preparedStatement.executeUpdate();
                     
                     if (rowsAffected > 0) {
-                        Log.d(TAG, "用户删除成功: " + username);
+                        // 删除成功
                         return true;
                     } else {
                         errorMessage = "用户不存在或删除失败";
@@ -212,12 +231,7 @@ public class MySQLDatabaseHelper {
                     Log.e(TAG, "数据库连接失败: " + e.getMessage(), e);
                     return false;
                 } finally {
-                    try {
-                        if (preparedStatement != null) preparedStatement.close();
-                        if (connection != null) connection.close();
-                    } catch (SQLException e) {
-                        Log.e(TAG, "关闭数据库连接失败: " + e.getMessage());
-                    }
+                    closeResources(connection, preparedStatement, null);
                 }
             }
             
@@ -271,7 +285,7 @@ public class MySQLDatabaseHelper {
                     int rowsAffected = updateStatement.executeUpdate();
                     
                     if (rowsAffected > 0) {
-                        Log.d(TAG, "密码修改成功: " + username);
+                        // 密码修改成功
                         return true;
                     } else {
                         errorMessage = "密码修改失败";
@@ -311,6 +325,117 @@ public class MySQLDatabaseHelper {
     }
     
     /**
+     * 更新用户昵称
+     */
+    public static void updateUserNickname(String username, String newNickname, DatabaseCallback callback) {
+        new AsyncTask<Void, Void, Boolean>() {
+            private String errorMessage = "";
+            
+            @Override
+            protected Boolean doInBackground(Void... voids) {
+                Connection connection = null;
+                PreparedStatement preparedStatement = null;
+                
+                try {
+                    connection = getConnection();
+                    
+                    String updateSQL = "UPDATE users SET nickname = ? WHERE username = ? AND status = 'active'";
+                    preparedStatement = connection.prepareStatement(updateSQL);
+                    preparedStatement.setString(1, newNickname);
+                    preparedStatement.setString(2, username);
+                    
+                    int rowsAffected = preparedStatement.executeUpdate();
+                    
+                    if (rowsAffected > 0) {
+                        // 更新成功
+                        return true;
+                    } else {
+                        errorMessage = "用户不存在或更新失败";
+                        return false;
+                    }
+                    
+                } catch (SQLException e) {
+                    errorMessage = "数据库错误: " + e.getMessage();
+                    Log.e(TAG, "更新用户昵称失败: " + e.getMessage(), e);
+                    return false;
+                } catch (Exception e) {
+                    errorMessage = "连接错误: " + e.getMessage();
+                    Log.e(TAG, "数据库连接失败: " + e.getMessage(), e);
+                    return false;
+                } finally {
+                    closeResources(connection, preparedStatement, null);
+                }
+            }
+            
+            @Override
+            protected void onPostExecute(Boolean success) {
+                if (callback != null) {
+                    if (success) {
+                        callback.onSuccess("昵称更新成功");
+                    } else {
+                        callback.onError("更新失败: " + errorMessage);
+                    }
+                }
+            }
+        }.execute();
+    }
+
+    /**
+     * 获取用户昵称
+     */
+    public static void getUserNickname(String username, UserNicknameCallback callback) {
+        new AsyncTask<Void, Void, String>() {
+            private String errorMessage = "";
+            
+            @Override
+            protected String doInBackground(Void... voids) {
+                Connection connection = null;
+                PreparedStatement preparedStatement = null;
+                
+                try {
+                    connection = getConnection();
+                    
+                    String selectSQL = "SELECT nickname FROM users WHERE username = ? AND status = 'active'";
+                    preparedStatement = connection.prepareStatement(selectSQL);
+                    preparedStatement.setString(1, username);
+                    
+                    java.sql.ResultSet resultSet = preparedStatement.executeQuery();
+                    
+                    if (resultSet.next()) {
+                        String nickname = resultSet.getString("nickname");
+                        return nickname; // 可能为null
+                    } else {
+                        errorMessage = "用户不存在";
+                        return null;
+                    }
+                    
+                } catch (SQLException e) {
+                    errorMessage = "数据库错误: " + e.getMessage();
+                    Log.e(TAG, "查询用户昵称失败: " + e.getMessage(), e);
+                    return null;
+                } catch (Exception e) {
+                    errorMessage = "连接错误: " + e.getMessage();
+                    Log.e(TAG, "数据库连接失败: " + e.getMessage(), e);
+                    return null;
+                } finally {
+                    closeResources(connection, preparedStatement, null);
+                }
+            }
+            
+            @Override
+            protected void onPostExecute(String nickname) {
+                if (callback != null) {
+                    if (errorMessage.isEmpty()) {
+                        callback.onSuccess(nickname);
+                    } else {
+                        callback.onError("查询失败: " + errorMessage);
+                    }
+                }
+            }
+        }.execute();
+    }
+
+    /**
      * 回调接口
      */
     public interface DatabaseCallback {
@@ -341,7 +466,7 @@ public class MySQLDatabaseHelper {
                     
                     if (resultSet.next()) {
                         int userId = resultSet.getInt("id");
-                        Log.d(TAG, "通过用户名查询到用户ID: " + username + " -> " + userId);
+                        // 查询用户ID成功
                         return userId;
                     } else {
                         errorMessage = "用户不存在";
@@ -392,6 +517,76 @@ public class MySQLDatabaseHelper {
      */
     public interface UserIdCallback {
         void onSuccess(int userId);
+        void onError(String error);
+    }
+    
+    /**
+     * 根据用户ID获取用户昵称
+     */
+    public static void getUserNicknameById(int userId, UserNicknameCallback callback) {
+        new AsyncTask<Void, Void, String>() {
+            private String errorMessage = "";
+            
+            @Override
+            protected String doInBackground(Void... voids) {
+                Connection connection = null;
+                PreparedStatement preparedStatement = null;
+                
+                try {
+                    connection = getConnection();
+                    
+                    String selectSQL = "SELECT nickname, username FROM users WHERE id = ? AND status = 'active'";
+                    preparedStatement = connection.prepareStatement(selectSQL);
+                    preparedStatement.setInt(1, userId);
+                    
+                    java.sql.ResultSet resultSet = preparedStatement.executeQuery();
+                    
+                    if (resultSet.next()) {
+                        String nickname = resultSet.getString("nickname");
+                        String username = resultSet.getString("username");
+                        // 如果昵称为空或null，返回用户名
+                        return (nickname != null && !nickname.trim().isEmpty()) ? nickname : username;
+                    } else {
+                        errorMessage = "用户不存在";
+                        return null;
+                    }
+                    
+                } catch (SQLException e) {
+                    errorMessage = "数据库错误: " + e.getMessage();
+                    Log.e(TAG, "查询用户昵称失败: " + e.getMessage(), e);
+                    return null;
+                } catch (Exception e) {
+                    errorMessage = "连接错误: " + e.getMessage();
+                    Log.e(TAG, "数据库连接失败: " + e.getMessage(), e);
+                    return null;
+                } finally {
+                    try {
+                        if (preparedStatement != null) preparedStatement.close();
+                        if (connection != null) connection.close();
+                    } catch (SQLException e) {
+                        Log.e(TAG, "关闭数据库连接失败: " + e.getMessage());
+                    }
+                }
+            }
+            
+            @Override
+            protected void onPostExecute(String displayName) {
+                if (callback != null) {
+                    if (errorMessage.isEmpty()) {
+                        callback.onSuccess(displayName);
+                    } else {
+                        callback.onError("查询失败: " + errorMessage);
+                    }
+                }
+            }
+        }.execute();
+    }
+
+    /**
+     * 用户昵称查询回调接口
+     */
+    public interface UserNicknameCallback {
+        void onSuccess(String nickname); // nickname可能为null
         void onError(String error);
     }
 }

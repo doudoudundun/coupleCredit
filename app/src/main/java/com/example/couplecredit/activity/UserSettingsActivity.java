@@ -2,9 +2,9 @@ package com.example.couplecredit.activity;
 
 import android.app.AlertDialog;
 import android.content.Intent;
-import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.view.View;
+import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
@@ -15,13 +15,14 @@ import androidx.appcompat.app.AppCompatActivity;
 import com.example.couplecredit.R;
 import com.example.couplecredit.function.MySQLDatabaseHelper;
 import com.example.couplecredit.function.UserInfoManager;
-import com.example.couplecredit.CoupleRelationshipHelper;
+import com.example.couplecredit.database.CoupleRelationshipHelper;
 
 public class UserSettingsActivity extends AppCompatActivity {
 
     // UI组件声明
     private TextView tvUserInfo;           // 用户信息显示
     private LinearLayout llCoupleBinding;  // 情侣绑定选项
+    private LinearLayout llChangeNickname; // 修改昵称选项
     private LinearLayout llChangePassword; // 修改密码选项
     private LinearLayout llSignOut;        // 退出登录选项
     private LinearLayout llLogout;         // 注销用户选项
@@ -77,6 +78,7 @@ public class UserSettingsActivity extends AppCompatActivity {
         ivCoupleAvatar = findViewById(R.id.iv_couple_avatar);
         llUnbindCouple = findViewById(R.id.ll_unbind_couple);
         llCoupleBinding = findViewById(R.id.ll_couple_binding);
+        llChangeNickname = findViewById(R.id.ll_change_nickname);
         llChangePassword = findViewById(R.id.ll_change_password);
         llSignOut = findViewById(R.id.ll_sign_out);
         llLogout = findViewById(R.id.ll_logout);
@@ -93,6 +95,9 @@ public class UserSettingsActivity extends AppCompatActivity {
             intent.putExtra("id", userId);
             startActivity(intent);
         });
+        
+        // 修改昵称点击事件
+        llChangeNickname.setOnClickListener(v -> showChangeNicknameDialog());
         
         // 修改密码点击事件
         llChangePassword.setOnClickListener(v -> {
@@ -118,8 +123,26 @@ public class UserSettingsActivity extends AppCompatActivity {
      */
     private void updateUserInfo() {
         if (username != null && userId != null) {
-            String userInfoText = "用户名: " + username + "\nID: " + userId;
-            tvUserInfo.setText(userInfoText);
+            // 获取用户昵称，如果有昵称则显示昵称，否则显示用户名
+            MySQLDatabaseHelper.getUserNickname(username, new MySQLDatabaseHelper.UserNicknameCallback() {
+                @Override
+                public void onSuccess(String nickname) {
+                    runOnUiThread(() -> {
+                        String displayName = (nickname != null && !nickname.trim().isEmpty()) ? nickname : username;
+                        String userInfoText = displayName + "\nID: " + userId;
+                        tvUserInfo.setText(userInfoText);
+                    });
+                }
+                
+                @Override
+                public void onError(String error) {
+                    runOnUiThread(() -> {
+                        // 查询昵称失败，使用用户名显示
+                        String userInfoText = "用户名: " + username + "\nID: " + userId;
+                        tvUserInfo.setText(userInfoText);
+                    });
+                }
+            });
         }
     }
     
@@ -131,11 +154,11 @@ public class UserSettingsActivity extends AppCompatActivity {
         int userIdInt = Integer.parseInt(userId);
         coupleHelper.getCoupleInfo(userIdInt, new CoupleRelationshipHelper.CoupleInfoCallback() {
             @Override
-            public void onCoupleFound(int coupleId, String coupleName) {
+            public void onCoupleFound(int coupleId, String coupleName, String coupleNickname) {
                 runOnUiThread(() -> {
-                    // 显示情侣信息和提示文本
-                    String coupleInfoText = "情侣用户名: " + coupleName;
-                    tvCoupleInfo.setText(coupleInfoText);
+                    // 显示情侣信息和提示文本，优先显示昵称
+                    String displayName = (coupleNickname != null && !coupleNickname.trim().isEmpty()) ? coupleNickname : coupleName;
+                    tvCoupleInfo.setText(displayName);
                     tvCoupleHint.setVisibility(View.VISIBLE);
                     llCoupleInfo.setVisibility(View.VISIBLE);
                     llUnbindCouple.setVisibility(View.VISIBLE);
@@ -279,6 +302,65 @@ public class UserSettingsActivity extends AppCompatActivity {
             public void onError(String error) {
                 runOnUiThread(() -> {
                     Toast.makeText(UserSettingsActivity.this, "注销失败: " + error, Toast.LENGTH_LONG).show();
+                });
+            }
+        });
+    }
+    
+    /**
+     * 显示修改昵称对话框
+     */
+    private void showChangeNicknameDialog() {
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("修改昵称");
+        
+        // 创建输入框
+        final EditText input = new EditText(this);
+        input.setHint("请输入新昵称");
+        builder.setView(input);
+        
+        builder.setPositiveButton("确定", (dialog, which) -> {
+            String newNickname = input.getText().toString().trim();
+            if (newNickname.isEmpty()) {
+                Toast.makeText(this, "昵称不能为空", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            if (newNickname.length() > 20) {
+                Toast.makeText(this, "昵称长度不能超过20个字符", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            updateNickname(newNickname);
+        });
+        
+        builder.setNegativeButton("取消", null);
+        builder.show();
+    }
+    
+    /**
+     * 更新用户昵称
+     */
+    private void updateNickname(String newNickname) {
+        if (username == null || username.isEmpty()) {
+            Toast.makeText(this, "用户信息异常，无法修改昵称", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        
+        Toast.makeText(this, "正在更新昵称...", Toast.LENGTH_SHORT).show();
+        
+        MySQLDatabaseHelper.updateUserNickname(username, newNickname, new MySQLDatabaseHelper.DatabaseCallback() {
+            @Override
+            public void onSuccess(String message) {
+                runOnUiThread(() -> {
+                    Toast.makeText(UserSettingsActivity.this, "昵称修改成功", Toast.LENGTH_SHORT).show();
+                    // 刷新用户信息显示
+                    updateUserInfo();
+                });
+            }
+            
+            @Override
+            public void onError(String error) {
+                runOnUiThread(() -> {
+                    Toast.makeText(UserSettingsActivity.this, "昵称修改失败: " + error, Toast.LENGTH_LONG).show();
                 });
             }
         });

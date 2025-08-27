@@ -1,4 +1,4 @@
-package com.example.couplecredit;
+package com.example.couplecredit.database;
 
 import android.os.AsyncTask;
 import android.util.Log;
@@ -18,10 +18,21 @@ public class CoupleRelationshipHelper {
     private static final String DB_PORT = "3306";
     private static final String DB_URL = "jdbc:mysql://" + DB_HOST + ":" + DB_PORT + "/" + DB_NAME + "?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC";
 
-    // 获取数据库连接
+    public CoupleRelationshipHelper() {
+        // 使用统一的连接池初始化工具
+        DatabaseInitializer.initializeConnectionPool(TAG);
+    }
+
+    // 获取数据库连接（使用连接池）
     private Connection getConnection() throws ClassNotFoundException, SQLException {
-        Class.forName("com.mysql.jdbc.Driver");
-        return DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD);
+        try {
+            return DatabaseConnectionPool.getInstance().getConnection();
+        } catch (SQLException e) {
+            Log.w(TAG, "连接池获取连接失败，尝试直接连接: " + e.getMessage());
+            // 降级到直接连接
+            Class.forName("com.mysql.jdbc.Driver");
+            return DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD);
+        }
     }
 
     // 关闭数据库资源
@@ -35,7 +46,10 @@ public class CoupleRelationshipHelper {
             for (PreparedStatement stmt : statements) {
                 if (stmt != null) stmt.close();
             }
-            if (connection != null) connection.close();
+            if (connection != null) {
+                // 将连接归还到连接池而不是关闭
+                DatabaseConnectionPool.getInstance().returnConnection(connection);
+            }
         } catch (SQLException e) {
             Log.e(TAG, "关闭数据库资源失败", e);
         }
@@ -70,7 +84,7 @@ public class CoupleRelationshipHelper {
     }
 
     public interface CoupleInfoCallback {
-        void onCoupleFound(int coupleId, String coupleName);
+        void onCoupleFound(int coupleId, String coupleName, String coupleNickname);
         void onNoCoupleFound();
         void onError(String error);
     }
@@ -85,6 +99,12 @@ public class CoupleRelationshipHelper {
         void onNoRelationshipFound();
         void onError(String error);
     }
+    
+    public interface UserRoleCallback {
+        void onRoleFound(int ownerId); // 1=邀请者, 2=被邀请者
+        void onNoRelationshipFound();
+        void onError(String error);
+    }
 
     // 获取情侣信息
     public void getCoupleInfo(int userId, CoupleInfoCallback callback) {
@@ -92,6 +112,7 @@ public class CoupleRelationshipHelper {
             private String error = null;
             private int coupleId = -1;
             private String coupleName = null;
+            private String coupleNickname = null;
 
             @Override
             protected Void doInBackground(Void... voids) {
@@ -102,8 +123,9 @@ public class CoupleRelationshipHelper {
                 try {
                     connection = getConnection();
 
-                    // 查询当前用户的情侣关系
-                    String sql = "SELECT cr.user_id_1, cr.user_id_2, u1.username as name1, u2.username as name2 " +
+                    // 查询当前用户的情侣关系，包含昵称信息
+                    String sql = "SELECT cr.user_id_1, cr.user_id_2, u1.username as name1, u2.username as name2, " +
+                               "u1.nickname as nickname1, u2.nickname as nickname2 " +
                                "FROM couple_relationships cr " +
                                "JOIN users u1 ON cr.user_id_1 = u1.id " +
                                "JOIN users u2 ON cr.user_id_2 = u2.id " +
@@ -118,14 +140,18 @@ public class CoupleRelationshipHelper {
                         int user2Id = rs.getInt("user_id_2");
                         String name1 = rs.getString("name1");
                         String name2 = rs.getString("name2");
+                        String nickname1 = rs.getString("nickname1");
+                        String nickname2 = rs.getString("nickname2");
                         
                         // 确定情侣的ID和姓名（排除当前用户）
                         if (user1Id == userId) {
                             coupleId = user2Id;
                             coupleName = name2;
+                            coupleNickname = nickname2;
                         } else {
                             coupleId = user1Id;
                             coupleName = name1;
+                            coupleNickname = nickname1;
                         }
                     }
 
@@ -142,7 +168,7 @@ public class CoupleRelationshipHelper {
                 if (error != null) {
                     callback.onError(error);
                 } else if (coupleId != -1) {
-                    callback.onCoupleFound(coupleId, coupleName);
+                    callback.onCoupleFound(coupleId, coupleName, coupleNickname);
                 } else {
                     callback.onNoCoupleFound();
                 }
@@ -156,7 +182,7 @@ public class CoupleRelationshipHelper {
             private String error = null;
             private int relationshipId = -1;
             private boolean hasRelationship = false;
-            
+
             @Override
             protected Void doInBackground(Void... voids) {
                 Connection connection = null;
@@ -187,6 +213,83 @@ public class CoupleRelationshipHelper {
                 }
                 
                 return null;
+             }
+             
+             @Override
+             protected void onPostExecute(Void result) {
+                 executeOptimizedCallback(callback, error, hasRelationship, relationshipId);
+             }
+         }.execute();
+     }
+    
+    // 优化版本的onPostExecute方法
+    private void executeOptimizedCallback(RelationshipIdCallback callback, String error, boolean hasRelationship, int relationshipId) {
+        if (error != null) {
+            callback.onError(error);
+        } else if (hasRelationship) {
+            callback.onRelationshipIdFound(relationshipId);
+        } else {
+            callback.onNoRelationshipFound();
+        }
+    }
+    
+    // 优化版本：使用连接池直接获取relationship_id
+    public void getUserRelationshipIdOptimized(int userId, RelationshipIdCallback callback) {
+        new AsyncTask<Void, Void, Void>() {
+            private String error = null;
+            private int relationshipId = -1;
+            private boolean hasRelationship = false;
+
+            @Override
+            protected Void doInBackground(Void... voids) {
+                long startTime = System.currentTimeMillis();
+                Connection connection = null;
+                PreparedStatement stmt = null;
+                ResultSet rs = null;
+                
+                try {
+                    // 使用连接池获取连接
+                     connection = DatabaseConnectionPool.getInstance().getConnection();
+                    long connectionTime = System.currentTimeMillis();
+                    Log.d(TAG, "获取连接耗时: " + (connectionTime - startTime) + "ms");
+                    
+                    // 查询用户的relationship_id
+                    String sql = "SELECT cr.relationship_id " +
+                               "FROM couple_relationships cr " +
+                               "WHERE (cr.user_id_1 = ? OR cr.user_id_2 = ?) AND cr.status = 'active'";
+                    stmt = connection.prepareStatement(sql);
+                    stmt.setInt(1, userId);
+                    stmt.setInt(2, userId);
+                    
+                    long queryStartTime = System.currentTimeMillis();
+                    rs = stmt.executeQuery();
+                    long queryTime = System.currentTimeMillis();
+                    Log.d(TAG, "关系查询耗时: " + (queryTime - queryStartTime) + "ms");
+                    
+                    if (rs.next()) {
+                        relationshipId = rs.getInt("relationship_id");
+                        hasRelationship = true;
+                    }
+                    
+                    long totalTime = System.currentTimeMillis();
+                    Log.d(TAG, "关系查询总耗时: " + (totalTime - startTime) + "ms, 结果: " + (hasRelationship ? relationshipId : "无关系"));
+                    
+                } catch (Exception e) {
+                    error = handleException(e);
+                    Log.e(TAG, "关系查询失败: " + error);
+                } finally {
+                    if (rs != null) try { rs.close(); } catch (SQLException ignored) {}
+                    if (stmt != null) try { stmt.close(); } catch (SQLException ignored) {}
+                    if (connection != null) {
+                        try {
+                             DatabaseConnectionPool.getInstance().returnConnection(connection);
+                         } catch (Exception e) {
+                             Log.e(TAG, "释放连接失败: " + e.getMessage());
+                         }
+                    }
+                }
+                
+                return null;
             }
             
             @Override
@@ -195,6 +298,66 @@ public class CoupleRelationshipHelper {
                     callback.onError(error);
                 } else if (hasRelationship) {
                     callback.onRelationshipIdFound(relationshipId);
+                } else {
+                    callback.onNoRelationshipFound();
+                }
+            }
+        }.execute();
+    }
+    
+    // 获取用户在情侣关系中的角色
+    public void getUserRole(int userId, UserRoleCallback callback) {
+        new AsyncTask<Void, Void, Void>() {
+            private String error = null;
+            private int ownerId = -1;
+            private boolean hasRelationship = false;
+
+            @Override
+            protected Void doInBackground(Void... voids) {
+                Connection connection = null;
+                PreparedStatement stmt = null;
+                ResultSet rs = null;
+                
+                try {
+                    connection = getConnection();
+                    
+                    // 查询用户在couple_relationships表中的角色
+                    String sql = "SELECT user_id_1, user_id_2 " +
+                               "FROM couple_relationships " +
+                               "WHERE (user_id_1 = ? OR user_id_2 = ?) AND status = 'active'";
+                    stmt = connection.prepareStatement(sql);
+                    stmt.setInt(1, userId);
+                    stmt.setInt(2, userId);
+                    rs = stmt.executeQuery();
+                    
+                    if (rs.next()) {
+                        int user1Id = rs.getInt("user_id_1");
+                        int user2Id = rs.getInt("user_id_2");
+                        
+                        // 判断用户角色：user_id_1是邀请者(ownerId=1)，user_id_2是被邀请者(ownerId=2)
+                        if (user1Id == userId) {
+                            ownerId = 1; // 邀请者
+                        } else if (user2Id == userId) {
+                            ownerId = 2; // 被邀请者
+                        }
+                        hasRelationship = true;
+                    }
+                    
+                } catch (Exception e) {
+                    error = handleException(e);
+                } finally {
+                    closeResources(connection, rs, stmt);
+                }
+                
+                return null;
+            }
+
+            @Override
+            protected void onPostExecute(Void result) {
+                if (error != null) {
+                    callback.onError(error);
+                } else if (hasRelationship) {
+                    callback.onRoleFound(ownerId);
                 } else {
                     callback.onNoRelationshipFound();
                 }

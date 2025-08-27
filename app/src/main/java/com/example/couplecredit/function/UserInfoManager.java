@@ -4,7 +4,7 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.util.Log;
 
-import com.example.couplecredit.CoupleRelationshipHelper;
+import com.example.couplecredit.database.CoupleRelationshipHelper;
 
 /**
  * 用户信息管理工具类
@@ -25,10 +25,34 @@ public class UserInfoManager {
         void onError(String error);
     }
     
+    // 缓存用户信息，避免重复网络请求
+    private static class UserInfoCache {
+        int userId;
+        String username;
+        Integer relationshipId;
+        long timestamp;
+        
+        UserInfoCache(int userId, String username, Integer relationshipId) {
+            this.userId = userId;
+            this.username = username;
+            this.relationshipId = relationshipId;
+            this.timestamp = System.currentTimeMillis();
+        }
+        
+        boolean isExpired() {
+            return System.currentTimeMillis() - timestamp > 300000; // 300秒过期
+        }
+    }
+    
+    private static UserInfoCache cachedUserInfo = null;
+    
     /**
      * 获取当前登录用户的完整信息（包括relationship_id）
      */
     public static void getCurrentUserInfo(Context context, UserInfoCallback callback) {
+        long startTime = System.currentTimeMillis();
+        Log.d(TAG, "开始获取用户信息");
+        
         SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
         boolean isLoggedIn = prefs.getBoolean(KEY_IS_LOGGED_IN, false);
         
@@ -48,40 +72,43 @@ public class UserInfoManager {
         try {
             int userId = Integer.parseInt(userIdStr);
             
-            // 查询用户的情侣关系信息
+            // 检查缓存
+            if (cachedUserInfo != null && 
+                cachedUserInfo.userId == userId && 
+                !cachedUserInfo.isExpired()) {
+                long cacheTime = System.currentTimeMillis();
+                Log.d(TAG, "使用缓存用户信息，耗时: " + (cacheTime - startTime) + "ms");
+                callback.onUserInfoLoaded(userId, username, cachedUserInfo.relationshipId);
+                return;
+            }
+            
+            // 使用优化的单次查询获取relationship_id
             CoupleRelationshipHelper coupleHelper = new CoupleRelationshipHelper();
-            coupleHelper.getCoupleInfo(userId, new CoupleRelationshipHelper.CoupleInfoCallback() {
+            coupleHelper.getUserRelationshipIdOptimized(userId, new CoupleRelationshipHelper.RelationshipIdCallback() {
                 @Override
-                public void onCoupleFound(int coupleId, String coupleName) {
-                    // 有情侣关系，需要获取relationship_id
-                    coupleHelper.getUserRelationshipId(userId, new CoupleRelationshipHelper.RelationshipIdCallback() {
-                        @Override
-                        public void onRelationshipIdFound(int relationshipId) {
-                            callback.onUserInfoLoaded(userId, username, relationshipId);
-                        }
-                        
-                        @Override
-                        public void onNoRelationshipFound() {
-                            callback.onUserInfoLoaded(userId, username, null);
-                        }
-                        
-                        @Override
-                        public void onError(String error) {
-                            Log.e(TAG, "获取relationship_id失败: " + error);
-                            callback.onUserInfoLoaded(userId, username, null);
-                        }
-                    });
+                public void onRelationshipIdFound(int relationshipId) {
+                    long endTime = System.currentTimeMillis();
+                    Log.d(TAG, "获取用户信息完成，耗时: " + (endTime - startTime) + "ms, relationshipId: " + relationshipId);
+                    
+                    // 更新缓存
+                    cachedUserInfo = new UserInfoCache(userId, username, relationshipId);
+                    callback.onUserInfoLoaded(userId, username, relationshipId);
                 }
                 
                 @Override
-                public void onNoCoupleFound() {
-                    // 没有情侣关系，relationship_id为null
+                public void onNoRelationshipFound() {
+                    long endTime = System.currentTimeMillis();
+                    Log.d(TAG, "获取用户信息完成，耗时: " + (endTime - startTime) + "ms, 无情侣关系");
+                    
+                    // 更新缓存
+                    cachedUserInfo = new UserInfoCache(userId, username, null);
                     callback.onUserInfoLoaded(userId, username, null);
                 }
                 
                 @Override
                 public void onError(String error) {
-                    Log.e(TAG, "查询情侣信息失败: " + error);
+                    long endTime = System.currentTimeMillis();
+                    Log.e(TAG, "获取用户信息失败，耗时: " + (endTime - startTime) + "ms, 错误: " + error);
                     callback.onUserInfoLoaded(userId, username, null);
                 }
             });
@@ -131,7 +158,11 @@ public class UserInfoManager {
     public static void clearUserInfo(Context context) {
         SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
         prefs.edit().clear().apply();
-        Log.d(TAG, "用户信息已清除");
+        
+        // 清空缓存
+        cachedUserInfo = null;
+        
+        Log.d(TAG, "用户信息和缓存已清除");
     }
     
 }

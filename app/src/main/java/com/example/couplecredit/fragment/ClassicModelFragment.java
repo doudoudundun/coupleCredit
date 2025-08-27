@@ -1,7 +1,5 @@
 package com.example.couplecredit.fragment;
 
-import android.database.Cursor;
-import android.net.Uri;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.LayoutInflater;
@@ -23,8 +21,7 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.example.couplecredit.adapter.BillAdapter;
 import com.example.couplecredit.BillBean;
-import com.example.couplecredit.BillDatabaseHelper;
-import com.example.couplecredit.BillProvider;
+import com.example.couplecredit.database.BillDatabaseHelper;
 import com.example.couplecredit.activity.MainActivity;
 import com.example.couplecredit.R;
 import com.example.couplecredit.function.Utils;
@@ -165,11 +162,12 @@ public class ClassicModelFragment extends Fragment implements BillAdapter.OnItem
         billItems.clear();
         String monthPattern = String.format("%04d-%02d-%%", year, month);
         
-        android.util.Log.d("ClassicModelFragment", "生成的monthPattern: " + monthPattern);
+        Log.d("ClassicModelFragment", "开始加载账单数据: " + year + "-" + month);
+        long loadStartTime = System.currentTimeMillis();
         
         // 首先检查用户是否已登录
         if (!UserInfoManager.isUserLoggedIn(getContext())) {
-            Log.d("ClassicModelFragment", "用户未登录，返回空账单列表");
+            // 用户未登录
             // 清空账单数据并更新UI
             if (getActivity() != null) {
                 getActivity().runOnUiThread(() -> {
@@ -189,7 +187,7 @@ public class ClassicModelFragment extends Fragment implements BillAdapter.OnItem
         UserInfoManager.getCurrentUserInfo(getContext(), new UserInfoManager.UserInfoCallback() {
             @Override
             public void onUserInfoLoaded(int userId, String username, Integer relationshipId) {
-                Log.d("ClassicModelFragment", "获取用户信息成功: userId=" + userId + ", relationshipId=" + relationshipId);
+                // 获取用户信息成功
                 
                 // 隐藏登录提示，显示账单列表
                 if (getActivity() != null) {
@@ -198,11 +196,19 @@ public class ClassicModelFragment extends Fragment implements BillAdapter.OnItem
                 
                 BillDatabaseHelper billHelper = new BillDatabaseHelper(getContext());
                 // 使用新的筛选查询方法
-                billHelper.queryBillsWithUserFilter(userId, relationshipId, monthPattern, new BillDatabaseHelper.QueryCallback() {
+                String dateSelection = "date LIKE ?";
+                String[] dateSelectionArgs = new String[]{monthPattern};
+                
+                Log.d("ClassicModelFragment", "执行数据库查询，用户ID: " + userId + ", 关系ID: " + relationshipId);
+                billHelper.queryBillsWithUserFilter(userId, relationshipId, dateSelection, dateSelectionArgs, new BillDatabaseHelper.QueryCallback() {
             @Override
             public void onSuccess(List<Map<String, Object>> results) {
+                long dataLoadTime = System.currentTimeMillis();
+                Log.d("ClassicModelFragment", "数据库查询完成，耗时: " + (dataLoadTime - loadStartTime) + "ms, 结果数: " + results.size());
+                
                 if (getActivity() != null) {
                     getActivity().runOnUiThread(() -> {
+                        long uiStartTime = System.currentTimeMillis();
                         for (Map<String, Object> row : results) {
                             long billId = ((Number) row.get("_id")).longValue();
                             double amount = (Double) row.get("amount");
@@ -210,13 +216,15 @@ public class ClassicModelFragment extends Fragment implements BillAdapter.OnItem
                             String timeStr = (String) row.get("time");
                             Integer ownerObj = (Integer) row.get("owner");
                             int owner = ownerObj != null ? ownerObj : 0;
-                            Log.d("ClassicModelFragment", "从数据库获取的owner值: " + ownerObj + ", 最终owner: " + owner);
+                            // 处理owner字段
                             Integer userIdObj = (Integer) row.get("userId");
                             int userId = userIdObj != null ? userIdObj : 0;
                             String type = (String) row.get("type");
                             String title = (String) row.get("title");
                             Integer incomeTypeObj = (Integer) row.get("income_type");
                             int incomeType = incomeTypeObj != null ? incomeTypeObj : 0;
+                            Integer isHelpObj = (Integer) row.get("is_help");
+                            int isHelp = isHelpObj != null ? isHelpObj : 0;
 
                             // 解析日期字符串 (格式: 2025-08-15)
                             String[] dateParts = dateStr.split("-");
@@ -227,7 +235,7 @@ public class ClassicModelFragment extends Fragment implements BillAdapter.OnItem
                             // 根据类型设置图标
                             int iconResId = getIconForCategory(type);
 
-                            billItems.add(new BillBean(billId, amount, cur_year, cur_month, day, owner, userId, type, title, iconResId, incomeType, timeStr, title));
+                            billItems.add(new BillBean(billId, amount, cur_year, cur_month, day, owner, userId, type, title, iconResId, incomeType, timeStr, title, isHelp));
                         }
                         processAndDisplayData();
                         sumAmounts();
@@ -235,12 +243,19 @@ public class ClassicModelFragment extends Fragment implements BillAdapter.OnItem
                         if (billAdapter != null) {
                             billAdapter.notifyDataSetChanged();
                         }
+                        
+                        long uiEndTime = System.currentTimeMillis();
+                        Log.d("ClassicModelFragment", "UI更新完成，耗时: " + (uiEndTime - uiStartTime) + "ms");
+                        Log.d("ClassicModelFragment", "总加载耗时: " + (uiEndTime - loadStartTime) + "ms");
                     });
                 }
             }
 
             @Override
             public void onError(String error) {
+                long errorTime = System.currentTimeMillis();
+                Log.e("ClassicModelFragment", "数据库查询失败，耗时: " + (errorTime - loadStartTime) + "ms, 错误: " + error);
+                
                 if (getActivity() != null) {
                     getActivity().runOnUiThread(() -> {
                         Log.e("ClassicModelFragment", "加载账单数据失败: " + error);
@@ -528,6 +543,14 @@ public class ClassicModelFragment extends Fragment implements BillAdapter.OnItem
                             if (rowsAffected > 0) {
                                 // 更新成功，刷新数据
                                 refreshBillData();
+                                // 刷新ReportFragment的图表数据
+                                if (getActivity() instanceof MainActivity) {
+                                    MainActivity mainActivity = (MainActivity) getActivity();
+                                    ReportFragment reportFragment = mainActivity.getReportFragment();
+                                    if (reportFragment != null) {
+                                        reportFragment.refreshChartData();
+                                    }
+                                }
                             }
                         });
                     }
@@ -637,6 +660,14 @@ public class ClassicModelFragment extends Fragment implements BillAdapter.OnItem
                                     if (rowsDeleted > 0) {
                                         // 删除成功，刷新数据
                                         refreshBillData();
+                                        // 刷新ReportFragment的图表数据
+                                        if (getActivity() instanceof MainActivity) {
+                                            MainActivity mainActivity = (MainActivity) getActivity();
+                                            ReportFragment reportFragment = mainActivity.getReportFragment();
+                                            if (reportFragment != null) {
+                                                reportFragment.refreshChartData();
+                                            }
+                                        }
                                         // 关闭主对话框
                                         if (mDialog != null) {
                                             mDialog.dismiss();
@@ -662,7 +693,7 @@ public class ClassicModelFragment extends Fragment implements BillAdapter.OnItem
     }
     
     private void showLoginPrompt() {
-        Log.d("ClassicModelFragment", "显示登录提示");
+        // 显示登录提示
         if (tvLoginPrompt != null) {
             tvLoginPrompt.setVisibility(View.VISIBLE);
         }
