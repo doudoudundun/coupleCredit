@@ -10,23 +10,34 @@ import android.widget.TextView;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
 
 import com.example.couplecredit.database.BillDatabaseHelper;
 import com.example.couplecredit.database.CoupleRelationshipHelper;
 import com.example.couplecredit.R;
 import com.example.couplecredit.function.Utils;
 import com.example.couplecredit.function.UserInfoManager;
+import com.example.couplecredit.adapter.ReportAdapter;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Map;
+import java.util.HashMap;
+import android.database.Cursor;
 import com.transsion.widgetslib.widget.OSSegmentedTab;
 import com.github.mikephil.charting.charts.LineChart;
+import com.github.mikephil.charting.charts.PieChart;
 import com.github.mikephil.charting.components.XAxis;
 import com.github.mikephil.charting.components.YAxis;
 import com.github.mikephil.charting.data.Entry;
 import com.github.mikephil.charting.data.LineData;
 import com.github.mikephil.charting.data.LineDataSet;
+import com.github.mikephil.charting.data.PieData;
+import com.github.mikephil.charting.data.PieDataSet;
+import com.github.mikephil.charting.data.PieEntry;
 import com.github.mikephil.charting.formatter.ValueFormatter;
+import com.github.mikephil.charting.formatter.PercentFormatter;
+import com.github.mikephil.charting.utils.ColorTemplate;
 
 import java.util.Calendar;
 
@@ -38,12 +49,27 @@ public class ReportFragment extends Fragment {
     private TextView tv_remainer;
     private TextView tv_total_amount;
     private TextView tv_filter_all, tv_filter_self, tv_filter_partner, tv_filter_shared;
+    private TextView tv_filter_all_pie, tv_filter_self_pie, tv_filter_partner_pie, tv_filter_shared_pie;
     private OSSegmentedTab segmentedTab;
     private List<String> currentTabs = new ArrayList<>();
     private LineChart TrendChart;
     private LinearLayout TrendContainer;
+    private RecyclerView rvReportContent;
+    private ReportAdapter reportAdapter;
+    private PieChart currentPieChart;
+    private TextView currentTitleView;
     private int income_type;
-    private String currentFilter = "all"; // 当前筛选状态
+    private String currentChartFilter = "all"; // 折线图当前筛选状态
+    private String currentPieFilter = "all"; // 饼图当前筛选状态
+    
+    // 缓存当月账单数据
+    private List<Map<String, Object>> monthlyBills = new ArrayList<>();
+    
+    // 月度数据加载回调接口
+    private interface MonthlyDataCallback {
+        void onDataLoaded();
+        void onError(String error);
+    }
     private int currentUserId = -1;
     private Integer currentRelationshipId = null;
     private int currentUserRole = -1; // 1=邀请者, 2=被邀请者
@@ -55,8 +81,11 @@ public class ReportFragment extends Fragment {
             if (position == 0) {
                 // 显示支出内容
                 income_type = 0;
-                tv_trend_title.setText("支出趋势");
+                if (tv_trend_title != null) {
+                    tv_trend_title.setText("支出趋势");
+                }
                 loadTrendData();
+                 // 饼状图会在其自己的filter状态下自动刷新
                 getRemainer(new RemainingCallback() {
                 @Override
                 public void onResult(double remaining) {
@@ -70,8 +99,11 @@ public class ReportFragment extends Fragment {
             } else if (position == 1) {
                 // 显示收入内容
                 income_type = 1;
-                tv_trend_title.setText("收入趋势");
+                if (tv_trend_title != null) {
+                    tv_trend_title.setText("收入趋势");
+                }
                 loadTrendData();
+            // 饼状图会在其自己的filter状态下自动刷新
             }
         }
     };
@@ -99,20 +131,55 @@ public class ReportFragment extends Fragment {
             currentYear = year;
             currentMonth = month;
         }
-        tv_trend_title = view.findViewById(R.id.tv_trend_title);
         tv_month_choose = view.findViewById(R.id.tv_month_choose);
         tv_remainer = view.findViewById(R.id.tv_remainer);
-        tv_total_amount = view.findViewById(R.id.tv_total_amount);
         
-        // 初始化筛选按钮
-        tv_filter_all = view.findViewById(R.id.tv_filter_all);
-        tv_filter_self = view.findViewById(R.id.tv_filter_self);
-        tv_filter_partner = view.findViewById(R.id.tv_filter_partner);
-        tv_filter_shared = view.findViewById(R.id.tv_filter_shared);
+        // 初始化RecyclerView
+        rvReportContent = view.findViewById(R.id.rv_report_content);
+        rvReportContent.setLayoutManager(new LinearLayoutManager(getContext()));
         
-        setupFilterButtons();
-        // 设置初始选中状态
-        selectFilter("all", tv_filter_all);
+        // 创建Adapter并设置回调
+        reportAdapter = new ReportAdapter(new ReportAdapter.ChartViewHolderCallback() {
+            @Override
+            public void onChartViewHolderCreated(ReportAdapter.ChartViewHolder holder) {
+                // 保存图表相关的View引用
+                tv_trend_title = holder.tvTrendTitle;
+                tv_total_amount = holder.tvTotalAmount;
+                tv_filter_all = holder.tvFilterAll;
+                tv_filter_self = holder.tvFilterSelf;
+                tv_filter_partner = holder.tvFilterPartner;
+                tv_filter_shared = holder.tvFilterShared;
+                TrendChart = holder.trendChart;
+                TrendContainer = holder.llTrendContainer;
+                
+                // 设置筛选按钮和图表
+                setupFilterButtons();
+                setupTrendChart();
+                selectChartFilter("all", tv_filter_all);
+            }
+        }, new ReportAdapter.AdditionalViewHolderCallback() {
+            @Override
+            public void onAdditionalViewHolderCreated(ReportAdapter.AdditionalViewHolder holder) {
+                // 保存引用
+                currentPieChart = holder.pieChartCategory;
+                currentTitleView = holder.tvAdditionalTitle;
+                tv_filter_all_pie = holder.tvFilterAllPie;
+                tv_filter_self_pie = holder.tvFilterSelfPie;
+                tv_filter_partner_pie = holder.tvFilterPartnerPie;
+                tv_filter_shared_pie = holder.tvFilterSharedPie;
+                
+                // 设置饼状图filter按钮
+                setupPieFilterButtons();
+                selectPieFilter("all", tv_filter_all_pie);
+                
+                // 设置饼状图
+                setupPieChart(holder.pieChartCategory);
+                
+                // 加载饼状图数据
+                loadCategoryData(holder.pieChartCategory, holder.tvAdditionalTitle);
+            }
+        });
+        rvReportContent.setAdapter(reportAdapter);
         tv_month_choose.setText(currentYear + "年" + currentMonth + "月 >");
         tv_month_choose.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -122,6 +189,7 @@ public class ReportFragment extends Fragment {
                     currentYear = selectedYear;
                     currentMonth = selectedMonth;
                     loadTrendData();
+                    refreshPieChart();
                 });
             }
         });
@@ -131,11 +199,6 @@ public class ReportFragment extends Fragment {
             currentTabs.add("收入");
         }
         setupSegmentedTab();
-        
-        // 初始化收入趋势图表
-        TrendContainer = view.findViewById(R.id.ll_trend_container);
-        TrendChart = view.findViewById(R.id.trend_chart);
-        setupTrendChart();
         
         // 初始化用户信息
         initUserInfo();
@@ -209,54 +272,84 @@ public class ReportFragment extends Fragment {
     
     private void setupFilterButtons() {
         // 设置点击监听器
-        tv_filter_all.setOnClickListener(v -> selectFilter("all", tv_filter_all));
-        tv_filter_self.setOnClickListener(v -> selectFilter("self", tv_filter_self));
-        tv_filter_partner.setOnClickListener(v -> selectFilter("partner", tv_filter_partner));
-        tv_filter_shared.setOnClickListener(v -> selectFilter("shared", tv_filter_shared));
+        if (tv_filter_all != null) {
+            tv_filter_all.setOnClickListener(v -> {
+                selectChartFilter("all", tv_filter_all);
+            });
+        }
+        if (tv_filter_self != null) {
+            tv_filter_self.setOnClickListener(v -> {
+                selectChartFilter("self", tv_filter_self);
+            });
+        }
+        if (tv_filter_partner != null) {
+            tv_filter_partner.setOnClickListener(v -> {
+                selectChartFilter("partner", tv_filter_partner);
+            });
+        }
+        if (tv_filter_shared != null) {
+            tv_filter_shared.setOnClickListener(v -> {
+                selectChartFilter("shared", tv_filter_shared);
+            });
+        }
     }
     
-    private void selectFilter(String filterType, TextView selectedView) {
+    private void selectChartFilter(String filterType, TextView selectedView) {
         // 重置所有按钮样式
-        resetFilterButtons();
+        resetChartFilterButtons();
         
-        // 根据按钮位置设置选中样式
-        if (selectedView == tv_filter_all) {
-            selectedView.setBackgroundResource(R.drawable.filter_button_left_selected);
-        } else if (selectedView == tv_filter_self) {
-            selectedView.setBackgroundResource(R.drawable.filter_button_middle_selected);
-        } else if (selectedView == tv_filter_partner) {
-            selectedView.setBackgroundResource(R.drawable.filter_button_middle_selected);
-        } else if (selectedView == tv_filter_shared) {
-            selectedView.setBackgroundResource(R.drawable.filter_button_right_selected);
+        if (selectedView != null) {
+            // 根据按钮位置设置选中样式
+            if (selectedView == tv_filter_all) {
+                selectedView.setBackgroundResource(R.drawable.filter_button_left_selected);
+            } else if (selectedView == tv_filter_self) {
+                selectedView.setBackgroundResource(R.drawable.filter_button_middle_selected);
+            } else if (selectedView == tv_filter_partner) {
+                selectedView.setBackgroundResource(R.drawable.filter_button_middle_selected);
+            } else if (selectedView == tv_filter_shared) {
+                selectedView.setBackgroundResource(R.drawable.filter_button_right_selected);
+            }
+            selectedView.setTextColor(getResources().getColor(android.R.color.white));
+            selectedView.setElevation(8f); // 提升选中按钮到最上层
         }
-        selectedView.setTextColor(getResources().getColor(android.R.color.white));
-        selectedView.setElevation(8f); // 提升选中按钮到最上层
         
         // 保存当前筛选状态
-        currentFilter = filterType;
+        currentChartFilter = filterType;
         
         // 重新加载数据
         loadTrendData();
     }
     
-    private void resetFilterButtons() {
+    private void resetChartFilterButtons() {
         int defaultTextColor = getResources().getColor(android.R.color.darker_gray);
         
-        tv_filter_all.setBackgroundResource(R.drawable.filter_button_left_unselected);
-        tv_filter_all.setTextColor(defaultTextColor);
-        tv_filter_all.setElevation(2f);
-        tv_filter_self.setBackgroundResource(R.drawable.filter_button_middle_unselected);
-        tv_filter_self.setTextColor(defaultTextColor);
-        tv_filter_self.setElevation(1f);
-        tv_filter_partner.setBackgroundResource(R.drawable.filter_button_middle_unselected);
-        tv_filter_partner.setTextColor(defaultTextColor);
-        tv_filter_partner.setElevation(1f);
-        tv_filter_shared.setBackgroundResource(R.drawable.filter_button_right_unselected);
-        tv_filter_shared.setTextColor(defaultTextColor);
-        tv_filter_shared.setElevation(1f);
+        if (tv_filter_all != null) {
+            tv_filter_all.setBackgroundResource(R.drawable.filter_button_left_unselected);
+            tv_filter_all.setTextColor(defaultTextColor);
+            tv_filter_all.setElevation(2f);
+        }
+        if (tv_filter_self != null) {
+            tv_filter_self.setBackgroundResource(R.drawable.filter_button_middle_unselected);
+            tv_filter_self.setTextColor(defaultTextColor);
+            tv_filter_self.setElevation(1f);
+        }
+        if (tv_filter_partner != null) {
+            tv_filter_partner.setBackgroundResource(R.drawable.filter_button_middle_unselected);
+            tv_filter_partner.setTextColor(defaultTextColor);
+            tv_filter_partner.setElevation(1f);
+        }
+        if (tv_filter_shared != null) {
+            tv_filter_shared.setBackgroundResource(R.drawable.filter_button_right_unselected);
+            tv_filter_shared.setTextColor(defaultTextColor);
+            tv_filter_shared.setElevation(1f);
+        }
     }
     
     private void setupTrendChart() {
+        if (TrendChart == null) {
+            return;
+        }
+        
         // 配置图表样式
         TrendChart.getDescription().setEnabled(false);
         TrendChart.setTouchEnabled(true);
@@ -303,8 +396,23 @@ public class ReportFragment extends Fragment {
         UserInfoManager.getCurrentUserInfo(getContext(), new UserInfoManager.UserInfoCallback() {
             @Override
             public void onUserInfoLoaded(int userId, String username, Integer relationshipId) {
-                // 优化：一次查询获取整月数据，避免多次数据库连接
-                loadMonthlyTrendData(userId, relationshipId);
+                // 统一加载月度数据，然后更新两个图表
+                loadMonthlyBillsData(userId, relationshipId, new MonthlyDataCallback() {
+                    @Override
+                    public void onDataLoaded() {
+                        // 数据加载完成后，更新折线图
+                        loadMonthlyTrendData(userId, relationshipId);
+                        // 同时更新饼状图（如果有当前饼状图实例）
+                        if (currentPieChart != null && currentTitleView != null) {
+                            loadMonthlyCategoryData(userId, relationshipId, currentPieChart, currentTitleView);
+                        }
+                    }
+                    
+                    @Override
+                    public void onError(String error) {
+                        handleTrendDataError(error);
+                    }
+                });
             }
             
             @Override
@@ -329,94 +437,111 @@ public class ReportFragment extends Fragment {
         });
     }
     
-    // 优化后的方法：一次查询获取整月趋势数据
+    // 基于缓存数据的折线图数据加载
     private void loadMonthlyTrendData(int userId, Integer relationshipId) {
-        if (getContext() == null) {
-            return;
-        }
+        // 获取当前月份的天数
+        Calendar calendar = Calendar.getInstance();
+        calendar.set(currentYear, currentMonth - 1, 1);
+        int daysInMonth = calendar.getActualMaximum(Calendar.DAY_OF_MONTH);
         
-        BillDatabaseHelper billHelper = new BillDatabaseHelper(getContext());
+        // 初始化每日金额数组
+        float[] dailyAmounts = new float[daysInMonth + 1]; // 索引0不用，从1开始
         
-        // 构建月份筛选条件
-        String monthPattern = String.format("%04d-%02d-%%", currentYear, currentMonth);
-        String monthSelection = "date LIKE ? AND income_type = ?";
-        String[] monthSelectionArgs = new String[]{monthPattern, String.valueOf(income_type)};
-        
-        billHelper.queryBillsWithUserFilter(userId, relationshipId, monthSelection, monthSelectionArgs, new BillDatabaseHelper.QueryCallback() {
-            @Override
-            public void onSuccess(List<Map<String, Object>> bills) {
-                // 获取当前月份的天数
-                Calendar calendar = Calendar.getInstance();
-                calendar.set(currentYear, currentMonth - 1, 1);
-                int daysInMonth = calendar.getActualMaximum(Calendar.DAY_OF_MONTH);
-                
-                // 初始化每日金额数组
-                float[] dailyAmounts = new float[daysInMonth + 1]; // 索引0不用，从1开始
-                
-                // 按日期分组统计金额
-                for (Map<String, Object> bill : bills) {
-                    // 根据筛选条件过滤账单
-                    if (!shouldIncludeBill(bill)) {
-                        continue;
-                    }
-                    
-                    String dateStr = (String) bill.get("date");
-                    Double amount = (Double) bill.get("amount");
-                    
-                    if (dateStr != null && amount != null) {
-                        try {
-                            // 提取日期中的天数
-                            String[] dateParts = dateStr.split("-");
-                            if (dateParts.length == 3) {
-                                int day = Integer.parseInt(dateParts[2]);
-                                if (day >= 1 && day <= daysInMonth) {
-                                    dailyAmounts[day] += amount.floatValue();
-                                }
-                            }
-                        } catch (NumberFormatException e) {
-                            android.util.Log.w("ReportFragment", "日期解析失败: " + dateStr);
-                        }
-                    }
-                }
-                
-                // 构建图表数据
-                List<com.github.mikephil.charting.data.Entry> entries = new ArrayList<>();
-                float totalAmount = 0;
-                for (int day = 1; day <= daysInMonth; day++) {
-                    entries.add(new Entry(day, dailyAmounts[day]));
-                    totalAmount += dailyAmounts[day];
-                }
-                
-                final float finalTotalAmount = totalAmount;
-                if (getActivity() != null) {
-                    getActivity().runOnUiThread(() -> {
-                        updateChart(entries);
-                        updateTotalAmount(finalTotalAmount);
-                    });
-                }
+        // 按日期分组统计金额
+        for (Map<String, Object> bill : monthlyBills) {
+            // 根据筛选条件过滤账单
+            if (!shouldIncludeBillWithFilter(bill, currentChartFilter)) {
+                continue;
             }
             
-            @Override
-            public void onError(String error) {
-                android.util.Log.e("ReportFragment", "查询月度趋势数据失败: " + error);
-                // 显示空数据
-                Calendar calendar = Calendar.getInstance();
-                calendar.set(currentYear, currentMonth - 1, 1);
-                int daysInMonth = calendar.getActualMaximum(Calendar.DAY_OF_MONTH);
-                
-                List<com.github.mikephil.charting.data.Entry> entries = new ArrayList<>();
-                for (int day = 1; day <= daysInMonth; day++) {
-                    entries.add(new Entry(day, 0));
-                }
-                
-                if (getActivity() != null) {
-                    getActivity().runOnUiThread(() -> updateChart(entries));
+            String dateStr = (String) bill.get("date");
+            Double amount = (Double) bill.get("amount");
+            
+            if (dateStr != null && amount != null) {
+                try {
+                    // 解析日期，获取天数
+                    String[] dateParts = dateStr.split("-");
+                    if (dateParts.length >= 3) {
+                        int day = Integer.parseInt(dateParts[2]);
+                        if (day >= 1 && day <= daysInMonth) {
+                            dailyAmounts[day] += amount.floatValue();
+                        }
+                    }
+                } catch (NumberFormatException e) {
+                    // 忽略格式错误的日期
                 }
             }
-        });
+        }
+        
+        // 创建图表数据
+        List<Entry> entries = new ArrayList<>();
+        float totalAmount = 0;
+        
+        for (int day = 1; day <= daysInMonth; day++) {
+            entries.add(new Entry(day, dailyAmounts[day]));
+            totalAmount += dailyAmounts[day];
+        }
+        
+        // 声明为final变量供lambda使用
+        final float finalTotalAmount = totalAmount;
+        
+        // 更新UI
+        if (getActivity() != null) {
+            getActivity().runOnUiThread(() -> {
+                updateChart(entries);
+                updateTotalAmount(finalTotalAmount);
+            });
+        }
+    }
+    
+    // 旧的错误处理方法保留
+    private void handleTrendDataError(String error) {
+        if (getActivity() != null) {
+            getActivity().runOnUiThread(() -> {
+                // 显示空图表
+                updateChart(new ArrayList<>());
+                updateTotalAmount(0);
+            });
+        }
+    }
+    
+    // 旧的方法签名保留以防其他地方调用
+    private void loadMonthlyTrendDataOld(int userId, Integer relationshipId) {
+        // 现在直接调用新的基于缓存的方法
+        loadMonthlyTrendData(userId, relationshipId);
+    }
+    
+    // 保留原有的错误处理逻辑
+    private void onTrendDataError(String error) {
+        android.util.Log.e("ReportFragment", "查询月度趋势数据失败: " + error);
+        // 显示空数据
+        Calendar calendar = Calendar.getInstance();
+        calendar.set(currentYear, currentMonth - 1, 1);
+        int daysInMonth = calendar.getActualMaximum(Calendar.DAY_OF_MONTH);
+        
+        List<com.github.mikephil.charting.data.Entry> entries = new ArrayList<>();
+        for (int day = 1; day <= daysInMonth; day++) {
+            entries.add(new Entry(day, 0));
+        }
+        
+        if (getActivity() != null) {
+            getActivity().runOnUiThread(() -> updateChart(entries));
+        }
     }
     
     private void updateChart(List<com.github.mikephil.charting.data.Entry> entries) {
+        if (TrendChart == null) {
+            return;
+        }
+        
+        // 计算总金额并更新显示
+        double totalAmount = 0;
+        for (Entry entry : entries) {
+            totalAmount += entry.getY();
+        }
+        if (tv_total_amount != null) {
+            tv_total_amount.setText("总计：￥" + String.format("%.2f", totalAmount));
+        }
         
         // 现在总是有数据点（包括0值），所以不需要检查空数据
         LineDataSet dataSet = new LineDataSet(entries, "金额");
@@ -556,7 +681,12 @@ public class ReportFragment extends Fragment {
     
     // 根据当前筛选条件判断是否包含该账单
     private boolean shouldIncludeBill(Map<String, Object> bill) {
-        if ("all".equals(currentFilter)) {
+        return shouldIncludeBillWithFilter(bill, currentChartFilter);
+    }
+    
+    // 根据指定筛选条件判断是否包含该账单
+    private boolean shouldIncludeBillWithFilter(Map<String, Object> bill, String filterType) {
+        if ("all".equals(filterType)) {
             return true;
         }
         
@@ -568,7 +698,7 @@ public class ReportFragment extends Fragment {
         // 参考BillAdapter中setOwnerText的逻辑
         if (currentRelationshipId == null) {
             // 无情侣关系时，所有账单都是"自己"的
-            return "self".equals(currentFilter);
+            return "self".equals(filterType);
         }
         
         String billType;
@@ -584,6 +714,371 @@ public class ReportFragment extends Fragment {
             return false;
         }
         
-        return billType.equals(currentFilter);
+        return billType.equals(filterType);
+    }
+    
+    // 设置饼状图样式
+    private void setupPieChart(PieChart pieChart) {
+        if (pieChart == null) return;
+        
+        // 设置基本属性
+        pieChart.setUsePercentValues(true);
+        pieChart.getDescription().setEnabled(false);
+        pieChart.setExtraOffsets(50, 50, 50, 50); // 增加外边距为标签留出空间
+        
+        // 设置饼状图绘制半径为100dp，加上外边距
+        float density = getResources().getDisplayMetrics().density;
+        int radiusInPx = (int) (150 * density);
+        int offsetInPx = (int) (50 * density); // 外边距50dp
+        int totalSize = radiusInPx * 2 + offsetInPx * 2; // 直径 + 两边外边距
+        pieChart.setMinimumWidth(totalSize);
+        pieChart.setMinimumHeight(totalSize);
+        pieChart.getLayoutParams().width = totalSize;
+        pieChart.getLayoutParams().height = totalSize;
+        
+        // XML布局已经设置了居中，无需手动调整边距
+        
+        // 设置拖拽和缩放
+        pieChart.setDragDecelerationFrictionCoef(0.95f);
+        pieChart.setDrawHoleEnabled(true);
+        pieChart.setHoleColor(android.graphics.Color.WHITE);
+        pieChart.setHoleRadius(58f);
+        pieChart.setTransparentCircleRadius(61f);
+        
+        // 设置中心文字
+        pieChart.setDrawCenterText(true);
+        pieChart.setCenterText("类目占比");
+        pieChart.setCenterTextSize(16f);
+        pieChart.setCenterTextColor(android.graphics.Color.parseColor("#333333"));
+        
+        // 设置旋转 - 从0°开始
+        pieChart.setRotationAngle(0);
+        pieChart.setRotationEnabled(true);
+        pieChart.setHighlightPerTapEnabled(true);
+        
+        // 隐藏图例
+        pieChart.getLegend().setEnabled(false);
+        
+        // 设置标签显示在外部
+        pieChart.setDrawEntryLabels(true);
+        pieChart.setEntryLabelColor(android.graphics.Color.parseColor("#333333"));
+        pieChart.setEntryLabelTextSize(12f);
+    }
+    
+    // 加载类别数据
+    private void loadCategoryData(PieChart pieChart, TextView titleView) {
+        if (getContext() == null || pieChart == null) {
+            return;
+        }
+        
+        // 设置当前饼状图实例
+        currentPieChart = pieChart;
+        currentTitleView = titleView;
+        
+        // 获取当前用户信息
+        UserInfoManager.getCurrentUserInfo(getContext(), new UserInfoManager.UserInfoCallback() {
+            @Override
+            public void onUserInfoLoaded(int userId, String username, Integer relationshipId) {
+                // 先加载月度账单数据，然后加载类别数据
+                loadMonthlyBillsData(userId, relationshipId, new MonthlyDataCallback() {
+                    @Override
+                    public void onDataLoaded() {
+                        loadMonthlyCategoryData(userId, relationshipId, pieChart, titleView);
+                    }
+                    
+                    @Override
+                    public void onError(String error) {
+                        if (getActivity() != null) {
+                            getActivity().runOnUiThread(() -> {
+                                setupEmptyPieChart(pieChart);
+                            });
+                        }
+                    }
+                });
+            }
+            
+            @Override
+            public void onError(String error) {
+                // 显示空数据
+                if (getActivity() != null) {
+                    getActivity().runOnUiThread(() -> {
+                        setupEmptyPieChart(pieChart);
+                    });
+                }
+            }
+        });
+    }
+    
+    // 统一加载当月账单数据
+    private void loadMonthlyBillsData(int userId, Integer relationshipId, MonthlyDataCallback callback) {
+        if (getContext() == null) {
+            return;
+        }
+        
+        BillDatabaseHelper billHelper = new BillDatabaseHelper(getContext());
+        
+        // 构建月份筛选条件
+        String monthPattern = String.format("%04d-%02d-%%", currentYear, currentMonth);
+        String monthSelection = "date LIKE ? AND income_type = ?";
+        String[] monthSelectionArgs = new String[]{monthPattern, String.valueOf(income_type)};
+        
+        billHelper.queryBills(monthSelection, monthSelectionArgs, "date DESC, time DESC", new BillDatabaseHelper.BillQueryCallback() {
+            @Override
+            public void onQuerySuccess(Cursor cursor) {
+                monthlyBills.clear();
+                if (cursor != null && cursor.moveToFirst()) {
+                    do {
+                        Map<String, Object> bill = new HashMap<>();
+                        bill.put("_id", cursor.getLong(cursor.getColumnIndexOrThrow("_id")));
+                        bill.put("amount", cursor.getDouble(cursor.getColumnIndexOrThrow("amount")));
+                        bill.put("date", cursor.getString(cursor.getColumnIndexOrThrow("date")));
+                        bill.put("time", cursor.getString(cursor.getColumnIndexOrThrow("time")));
+                        bill.put("owner", cursor.getInt(cursor.getColumnIndexOrThrow("owner")));
+                        bill.put("userId", cursor.getInt(cursor.getColumnIndexOrThrow("userId")));
+                        bill.put("type", cursor.getString(cursor.getColumnIndexOrThrow("type")));
+                        bill.put("title", cursor.getString(cursor.getColumnIndexOrThrow("title")));
+                        bill.put("income_type", cursor.getInt(cursor.getColumnIndexOrThrow("income_type")));
+                        bill.put("is_help", cursor.getInt(cursor.getColumnIndexOrThrow("is_help")));
+                        monthlyBills.add(bill);
+                    } while (cursor.moveToNext());
+                    cursor.close();
+                }
+                
+                // 设置当前用户信息
+                currentUserId = userId;
+                currentRelationshipId = relationshipId;
+                
+                // 数据加载完成，执行回调
+                if (callback != null) {
+                    callback.onDataLoaded();
+                }
+            }
+            
+            @Override
+            public void onQueryError(String error) {
+                monthlyBills.clear();
+                currentUserId = userId;
+                currentRelationshipId = relationshipId;
+                if (callback != null) {
+                    callback.onError(error);
+                }
+            }
+        });
+    }
+    
+    // 基于缓存数据加载月度类别数据
+    private void loadMonthlyCategoryData(int userId, Integer relationshipId, PieChart pieChart, TextView titleView) {
+        // 统计各类别金额
+        Map<String, Float> categoryAmounts = new HashMap<>();
+        float totalAmount = 0;
+        
+        for (Map<String, Object> bill : monthlyBills) {
+            // 根据筛选条件过滤账单
+            if (!shouldIncludeBillWithFilter(bill, currentPieFilter)) {
+                continue;
+            }
+            
+            String category = (String) bill.get("type");
+            Double amount = (Double) bill.get("amount");
+            
+            if (category != null && amount != null) {
+                float amountFloat = amount.floatValue();
+                categoryAmounts.put(category, categoryAmounts.getOrDefault(category, 0f) + amountFloat);
+                totalAmount += amountFloat;
+            }
+        }
+        
+        // 声明为final变量供lambda使用
+        final Map<String, Float> finalCategoryAmounts = categoryAmounts;
+        final float finalTotalAmount = totalAmount;
+        
+        if (getActivity() != null) {
+            getActivity().runOnUiThread(() -> {
+                updatePieChart(pieChart, finalCategoryAmounts, finalTotalAmount, titleView);
+            });
+        }
+    }
+    
+    // 更新饼状图数据
+    private void updatePieChart(PieChart pieChart, Map<String, Float> categoryAmounts, float totalAmount, TextView titleView) {
+        if (pieChart == null) return;
+        
+        if (categoryAmounts.isEmpty() || totalAmount == 0) {
+            setupEmptyPieChart(pieChart);
+            return;
+        }
+        
+        // 转换为列表并按金额排序
+        List<Map.Entry<String, Float>> sortedEntries = new ArrayList<>(categoryAmounts.entrySet());
+        sortedEntries.sort((a, b) -> Float.compare(b.getValue(), a.getValue()));
+        
+        // 创建饼状图数据
+        List<PieEntry> entries = new ArrayList<>();
+        List<Integer> colors = new ArrayList<>();
+        
+        // 预定义颜色
+        int[] pieColors = {
+            android.graphics.Color.parseColor("#FF6B6B"),
+            android.graphics.Color.parseColor("#4ECDC4"),
+            android.graphics.Color.parseColor("#45B7D1"),
+            android.graphics.Color.parseColor("#96CEB4"),
+            android.graphics.Color.parseColor("#CCCCCC") // 其他类别的颜色
+        };
+        
+        // 只显示前四大类别，其他归为"其他"
+        float othersAmount = 0f;
+        int maxCategories = 4;
+        
+        for (int i = 0; i < sortedEntries.size(); i++) {
+            Map.Entry<String, Float> entry = sortedEntries.get(i);
+            if (i < maxCategories) {
+                float percentage = (entry.getValue() / totalAmount) * 100;
+                entries.add(new PieEntry(percentage, entry.getKey()));
+                colors.add(pieColors[i]);
+            } else {
+                othersAmount += entry.getValue();
+            }
+        }
+        
+        // 如果有其他类别，添加"其他"项
+        if (othersAmount > 0) {
+            float othersPercentage = (othersAmount / totalAmount) * 100;
+            entries.add(new PieEntry(othersPercentage, "其他"));
+            colors.add(pieColors[4]); // 使用灰色
+        }
+        
+        // 创建数据集
+        PieDataSet dataSet = new PieDataSet(entries, "");
+        dataSet.setColors(colors);
+        dataSet.setValueTextSize(12f);
+        dataSet.setValueTextColor(android.graphics.Color.parseColor("#333333"));
+        dataSet.setValueFormatter(new PercentFormatter(pieChart));
+        dataSet.setSliceSpace(2f);
+        dataSet.setSelectionShift(5f);
+        
+        // 设置标签位置在外部，用虚线连接
+        dataSet.setValueLinePart1OffsetPercentage(80f); // 第一段线的偏移
+        dataSet.setValueLinePart1Length(0.3f); // 第一段线的长度
+        dataSet.setValueLinePart2Length(0.4f); // 第二段线的长度
+        dataSet.setValueLineColor(android.graphics.Color.parseColor("#CCCCCC")); // 连接线颜色
+        dataSet.setValueLineWidth(1f); // 连接线宽度
+        dataSet.setUsingSliceColorAsValueLineColor(false); // 不使用扇形颜色作为连接线颜色
+        dataSet.setYValuePosition(PieDataSet.ValuePosition.OUTSIDE_SLICE); // 标签位置在外部
+        dataSet.setXValuePosition(PieDataSet.ValuePosition.OUTSIDE_SLICE); // 标签位置在外部
+        
+        // 创建数据
+        PieData data = new PieData(dataSet);
+        pieChart.setData(data);
+        pieChart.invalidate();
+        
+        // 更新标题
+        if (titleView != null) {
+            String typeText = (income_type == 0) ? "支出" : "收入";
+            titleView.setText(typeText + "类目占比");
+        }
+    }
+    
+    // 设置空饼状图
+    private void setupEmptyPieChart(PieChart pieChart) {
+        if (pieChart == null) return;
+        
+        List<PieEntry> entries = new ArrayList<>();
+        entries.add(new PieEntry(100f, "暂无数据"));
+        
+        PieDataSet dataSet = new PieDataSet(entries, "");
+        dataSet.setColor(android.graphics.Color.parseColor("#E0E0E0"));
+        dataSet.setValueTextSize(14f);
+        dataSet.setValueTextColor(android.graphics.Color.parseColor("#999999"));
+        dataSet.setValueFormatter(new ValueFormatter() {
+            @Override
+            public String getFormattedValue(float value) {
+                return "";
+            }
+        });
+        
+        PieData data = new PieData(dataSet);
+        pieChart.setData(data);
+        pieChart.setCenterText("暂无数据");
+        pieChart.invalidate();
+    }
+    
+    // 刷新饼状图
+    private void refreshPieChart() {
+        if (currentPieChart != null && currentTitleView != null) {
+            loadCategoryData(currentPieChart, currentTitleView);
+        }
+    }
+    
+    // 设置饼状图filter按钮
+    private void setupPieFilterButtons() {
+        if (tv_filter_all_pie != null) {
+            tv_filter_all_pie.setOnClickListener(v -> {
+                selectPieFilter("all", tv_filter_all_pie);
+                refreshPieChart();
+            });
+        }
+        
+        if (tv_filter_self_pie != null) {
+            tv_filter_self_pie.setOnClickListener(v -> {
+                selectPieFilter("self", tv_filter_self_pie);
+                refreshPieChart();
+            });
+        }
+        
+        if (tv_filter_partner_pie != null) {
+            tv_filter_partner_pie.setOnClickListener(v -> {
+                selectPieFilter("partner", tv_filter_partner_pie);
+                refreshPieChart();
+            });
+        }
+        
+        if (tv_filter_shared_pie != null) {
+            tv_filter_shared_pie.setOnClickListener(v -> {
+                selectPieFilter("shared", tv_filter_shared_pie);
+                refreshPieChart();
+            });
+        }
+    }
+    
+    private void selectPieFilter(String filterType, TextView selectedView) {
+        // 重置所有按钮样式
+        resetPieFilterButtons();
+        
+        if (selectedView != null) {
+            if (selectedView == tv_filter_all_pie) {
+                selectedView.setBackgroundResource(R.drawable.filter_button_left_selected);
+            } else if (selectedView == tv_filter_self_pie) {
+                selectedView.setBackgroundResource(R.drawable.filter_button_middle_selected);
+            } else if (selectedView == tv_filter_partner_pie) {
+                selectedView.setBackgroundResource(R.drawable.filter_button_middle_selected);
+            } else if (selectedView == tv_filter_shared_pie) {
+                selectedView.setBackgroundResource(R.drawable.filter_button_right_selected);
+            }
+            selectedView.setTextColor(getResources().getColor(android.R.color.white));
+        }
+        
+        // 保存当前筛选状态
+        currentPieFilter = filterType;
+    }
+    
+    private void resetPieFilterButtons() {
+        int defaultTextColor = getResources().getColor(android.R.color.darker_gray);
+        
+        if (tv_filter_all_pie != null) {
+            tv_filter_all_pie.setBackgroundResource(R.drawable.filter_button_left_unselected);
+            tv_filter_all_pie.setTextColor(defaultTextColor);
+        }
+        if (tv_filter_self_pie != null) {
+            tv_filter_self_pie.setBackgroundResource(R.drawable.filter_button_middle_unselected);
+            tv_filter_self_pie.setTextColor(defaultTextColor);
+        }
+        if (tv_filter_partner_pie != null) {
+            tv_filter_partner_pie.setBackgroundResource(R.drawable.filter_button_middle_unselected);
+            tv_filter_partner_pie.setTextColor(defaultTextColor);
+        }
+        if (tv_filter_shared_pie != null) {
+            tv_filter_shared_pie.setBackgroundResource(R.drawable.filter_button_right_unselected);
+            tv_filter_shared_pie.setTextColor(defaultTextColor);
+        }
     }
 }
