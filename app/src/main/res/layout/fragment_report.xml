@@ -65,6 +65,15 @@
             android:textSize="16sp"
             android:textStyle="bold"
             android:layout_marginBottom="16dp" />
+        <TextView
+            android:id="@+id/tv_total_amount"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="总计：￥0.00"
+            android:textColor="#666666"
+            android:textSize="12sp"
+            android:layout_marginLeft="8dp"
+            android:layout_marginBottom="16dp" />
         </LinearLayout>
 
         <!-- 这里放置图表视图 -->

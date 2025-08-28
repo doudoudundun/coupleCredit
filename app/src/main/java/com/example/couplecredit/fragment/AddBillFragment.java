@@ -54,12 +54,11 @@ import com.example.couplecredit.widget.AdaptiveGridLayout;
 
 public class AddBillFragment extends Fragment {
 
-    private static final int REQUEST_IMAGE_PICK = 1001;
     private static final int REQUEST_PERMISSION = 1002;
 
     private TextView tvAmountDisplay;// 显示当前输入金额
     private EditText etNote;// 备注输入框
-    private TextView tvDate, tvPhoto, tvSelf, tvPartner, tvShared;
+    private TextView tvDate, tvSelf, tvPartner, tvShared;
 //    private View indicatorExpense, indicatorIncome;
     private AdaptiveGridLayout gridCategories; // 替换原来的GridLayout
 
@@ -126,7 +125,7 @@ public class AddBillFragment extends Fragment {
         
         // 底部操作按钮
         tvDate = view.findViewById(R.id.tv_date);
-        tvPhoto = view.findViewById(R.id.tv_photo);
+
         tvSelf = view.findViewById(R.id.tv_self);
         tvPartner = view.findViewById(R.id.tv_partner);
         tvShared = view.findViewById(R.id.tv_shared);
@@ -169,7 +168,7 @@ public class AddBillFragment extends Fragment {
         tvDate.setOnClickListener(v -> showDatePicker());
         
         // 照片选择
-        tvPhoto.setOnClickListener(v -> selectPhoto());
+
         
         // 账单归属选择
         tvSelf.setOnClickListener(v -> selectOwner("自己", tvSelf));
@@ -215,44 +214,15 @@ public class AddBillFragment extends Fragment {
         tvShared.setTextColor(defaultTextColor);
     }
     
-    private void selectPhoto() {
-        // 检查权限
-        if (ContextCompat.checkSelfPermission(getContext(), Manifest.permission.READ_EXTERNAL_STORAGE) 
-                != PackageManager.PERMISSION_GRANTED) {
-            ActivityCompat.requestPermissions(getActivity(), 
-                    new String[]{Manifest.permission.READ_EXTERNAL_STORAGE}, REQUEST_PERMISSION);
-            return;
-        }
-        
-        // 打开相册
-        Intent intent = new Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
-        startActivityForResult(intent, REQUEST_IMAGE_PICK);
-    }
+
     
-    @Override
-    public void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
-        super.onActivityResult(requestCode, resultCode, data);
-        
-        if (requestCode == REQUEST_IMAGE_PICK && resultCode == Activity.RESULT_OK && data != null) {
-            Uri selectedImage = data.getData();
-            if (selectedImage != null) {
-                Toast.makeText(getActivity(), "照片选择成功", Toast.LENGTH_SHORT).show();
-                // 这里可以添加显示选中照片的逻辑
-            }
-        }
-    }
+
     
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         
-        if (requestCode == REQUEST_PERMISSION) {
-            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                selectPhoto();
-            } else {
-                Toast.makeText(getActivity(), "需要存储权限才能选择照片", Toast.LENGTH_SHORT).show();
-            }
-        }
+
     }
 
     private void setupCategoryListeners(View view) {
@@ -1026,7 +996,7 @@ public class AddBillFragment extends Fragment {
         tvAmountDisplay = null;
         etNote = null;
         tvDate = null;
-        tvPhoto = null;
+
         tvSelf = null;
         tvPartner = null;
         tvShared = null;

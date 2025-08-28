@@ -35,6 +35,7 @@ public class ReportFragment extends Fragment {
     private TextView tv_month_choose;
     private TextView tv_trend_title;
     private TextView tv_remainer;
+    private TextView tv_total_amount;
     private OSSegmentedTab segmentedTab;
     private List<String> currentTabs = new ArrayList<>();
     private LineChart TrendChart;
@@ -95,6 +96,7 @@ public class ReportFragment extends Fragment {
         tv_trend_title = view.findViewById(R.id.tv_trend_title);
         tv_month_choose = view.findViewById(R.id.tv_month_choose);
         tv_remainer = view.findViewById(R.id.tv_remainer);
+        tv_total_amount = view.findViewById(R.id.tv_total_amount);
         tv_month_choose.setText(currentYear + "年" + currentMonth + "月 >");
         tv_month_choose.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -130,8 +132,14 @@ public class ReportFragment extends Fragment {
         }
         loadTrendData();
     }
-
-
+    
+    private void updateTotalAmount(float totalAmount) {
+        if (tv_total_amount != null) {
+            String typeText = (income_type == 0) ? "支出" : "收入";
+            tv_total_amount.setText(typeText + ":￥" + String.format("%.2f", totalAmount));
+        }
+    }
+    
     private void setupSegmentedTab() {
         segmentedTab.addTabs(currentTabs);
         // 设置选中监听
@@ -202,7 +210,10 @@ public class ReportFragment extends Fragment {
                 }
                 
                 if (getActivity() != null) {
-                    getActivity().runOnUiThread(() -> updateChart(entries));
+                    getActivity().runOnUiThread(() -> {
+                        updateChart(entries);
+                        updateTotalAmount(0);
+                    });
                 }
             }
         });
@@ -255,12 +266,18 @@ public class ReportFragment extends Fragment {
                 
                 // 构建图表数据
                 List<com.github.mikephil.charting.data.Entry> entries = new ArrayList<>();
+                float totalAmount = 0;
                 for (int day = 1; day <= daysInMonth; day++) {
                     entries.add(new Entry(day, dailyAmounts[day]));
+                    totalAmount += dailyAmounts[day];
                 }
                 
+                final float finalTotalAmount = totalAmount;
                 if (getActivity() != null) {
-                    getActivity().runOnUiThread(() -> updateChart(entries));
+                    getActivity().runOnUiThread(() -> {
+                        updateChart(entries);
+                        updateTotalAmount(finalTotalAmount);
+                    });
                 }
             }
             
