@@ -17,27 +17,30 @@ public class ChatMessage {
     private String content;     // 消息内容
     private String timestamp;   // 时间戳
     private int avatarResId;    // 头像资源ID
+    private String avatarUri;   // 头像URI（新增）
     private boolean isLiked;    // 是否被点赞
     private boolean isSentByMe; // 是否是本人发送的消息
     
     // ==================== 构造函数 ====================
     
     /**
-     * 完整构造函数
-     *
-     * @param username    用户名
-     * @param content     消息内容
-     * @param timestamp   时间戳
-     * @param avatarResId 头像资源ID
-     * @param isSentByMe  是否是本人发送
+     * 完整构造函数（支持头像URI）
      */
-    public ChatMessage(String username, String content, String timestamp, int avatarResId, boolean isSentByMe) {
+    public ChatMessage(String username, String content, String timestamp, int avatarResId, String avatarUri, boolean isSentByMe) {
         this.username = username;
         this.content = content;
         this.timestamp = timestamp;
         this.avatarResId = avatarResId;
-        this.isLiked = false;  // 默认未点赞
+        this.avatarUri = avatarUri;
+        this.isLiked = false;
         this.isSentByMe = isSentByMe;
+    }
+    
+    /**
+     * 完整构造函数
+     */
+    public ChatMessage(String username, String content, String timestamp, int avatarResId, boolean isSentByMe) {
+        this(username, content, timestamp, avatarResId, null, isSentByMe);
     }
     
     /**
@@ -85,6 +88,30 @@ public class ChatMessage {
      */
     public int getAvatarResId() {
         return avatarResId;
+    }
+    
+    /**
+     * 获取头像URI
+     * @return 头像URI
+     */
+    public String getAvatarUri() {
+        return avatarUri;
+    }
+    
+    /**
+     * 设置头像URI
+     * @param avatarUri 头像URI
+     */
+    public void setAvatarUri(String avatarUri) {
+        this.avatarUri = avatarUri;
+    }
+    
+    /**
+     * 是否有自定义头像URI
+     * @return true如果有自定义头像URI
+     */
+    public boolean hasCustomAvatar() {
+        return avatarUri != null && !avatarUri.isEmpty();
     }
     
     /**

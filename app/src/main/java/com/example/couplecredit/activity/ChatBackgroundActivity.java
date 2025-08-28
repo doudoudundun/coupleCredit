@@ -1,4 +1,4 @@
-package com.example.couplecredit;
+package com.example.couplecredit.activity;
 
 import android.Manifest;
 import android.content.Intent;
@@ -21,7 +21,9 @@ import androidx.core.content.ContextCompat;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 
+import com.example.couplecredit.R;
 import com.example.couplecredit.adapter.BackgroundImageAdapter;
+import com.example.couplecredit.utils.BackgroundUpdateManager;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -128,14 +130,36 @@ public class ChatBackgroundActivity extends AppCompatActivity {
         
         // 预设背景图片点击事件
         gvBackgroundImages.setOnItemClickListener((parent, view, position, id) -> {
-            // 获取选中的背景资源ID
-            int selectedBackground = backgroundImages.get(position);
-            // 保存选择的背景
-            saveChatBackground(selectedBackground);
-            // 显示成功提示
-            Toast.makeText(this, "背景设置成功", Toast.LENGTH_SHORT).show();
-            // 关闭当前页面
-            finish();
+            try {
+                // 添加调试日志
+                android.util.Log.d("ChatBackground", "GridView item clicked: position=" + position);
+                
+                // 检查位置是否有效
+                if (position < 0 || position >= backgroundImages.size()) {
+                    Toast.makeText(this, "选择的背景无效", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                
+                // 获取选中的背景资源ID
+                int selectedBackground = backgroundImages.get(position);
+                android.util.Log.d("ChatBackground", "Selected background resource ID: " + selectedBackground);
+                
+                // 保存选择的背景
+                saveChatBackground(selectedBackground);
+                
+                // 发送背景更新广播
+                BackgroundUpdateManager.notifyBackgroundUpdated(this, selectedBackground);
+                
+                // 显示成功提示
+                Toast.makeText(this, "背景设置成功", Toast.LENGTH_SHORT).show();
+                
+                // 关闭当前页面
+                finish();
+                
+            } catch (Exception e) {
+                android.util.Log.e("ChatBackground", "Error setting background", e);
+                Toast.makeText(this, "设置背景失败: " + e.getMessage(), Toast.LENGTH_LONG).show();
+            }
         });
     }
     
@@ -144,17 +168,32 @@ public class ChatBackgroundActivity extends AppCompatActivity {
      * @return true表示有权限，false表示没有权限
      */
     private boolean checkPermission() {
-        return ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE) 
-                == PackageManager.PERMISSION_GRANTED;
+        // Android 13 (API 33) 及以上版本使用 READ_MEDIA_IMAGES
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            return ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_IMAGES)
+                    == PackageManager.PERMISSION_GRANTED;
+        } else {
+            // Android 13 以下版本使用 READ_EXTERNAL_STORAGE
+            return ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE)
+                    == PackageManager.PERMISSION_GRANTED;
+        }
     }
-    
+
     /**
      * 请求读取外部存储权限
      */
     private void requestPermission() {
-        ActivityCompat.requestPermissions(this, 
-                new String[]{Manifest.permission.READ_EXTERNAL_STORAGE}, 
-                REQUEST_PERMISSION);
+        // Android 13 (API 33) 及以上版本请求 READ_MEDIA_IMAGES
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            ActivityCompat.requestPermissions(this,
+                    new String[]{Manifest.permission.READ_MEDIA_IMAGES},
+                    REQUEST_PERMISSION);
+        } else {
+            // Android 13 以下版本请求 READ_EXTERNAL_STORAGE
+            ActivityCompat.requestPermissions(this,
+                    new String[]{Manifest.permission.READ_EXTERNAL_STORAGE},
+                    REQUEST_PERMISSION);
+        }
     }
     
     /**
@@ -170,8 +209,14 @@ public class ChatBackgroundActivity extends AppCompatActivity {
      * @param backgroundResId 背景资源ID
      */
     private void saveChatBackground(int backgroundResId) {
+        android.util.Log.d("ChatBackground", "开始保存预设背景，资源ID: " + backgroundResId);
         SharedPreferences prefs = getSharedPreferences("chat_settings", MODE_PRIVATE);
-        prefs.edit().putInt("chat_background", backgroundResId).apply();
+        boolean success = prefs.edit().putInt("chat_background", backgroundResId).commit();
+        android.util.Log.d("ChatBackground", "保存结果: " + success);
+        
+        // 验证保存是否成功
+        int savedValue = prefs.getInt("chat_background", -1);
+        android.util.Log.d("ChatBackground", "验证保存的值: " + savedValue);
     }
     
     /**
@@ -198,6 +243,8 @@ public class ChatBackgroundActivity extends AppCompatActivity {
             if (selectedImageUri != null) {
                 // 保存选择的图片URI
                 saveChatBackground(selectedImageUri.toString());
+                // 发送背景更新广播
+                BackgroundUpdateManager.notifyBackgroundUpdated(this, selectedImageUri.toString());
                 Toast.makeText(this, "背景设置成功", Toast.LENGTH_SHORT).show();
                 finish();
             }

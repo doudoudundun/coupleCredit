@@ -15,8 +15,13 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.example.couplecredit.R;
 import com.example.couplecredit.model.ChatMessage;
+import com.example.couplecredit.function.LikeButton;
 
 import java.util.List;
+
+import com.bumptech.glide.Glide;
+import com.bumptech.glide.load.resource.bitmap.CircleCrop;
+import com.example.couplecredit.function.UserInfoManager;
 
 /**
  * 聊天消息RecyclerView适配器
@@ -169,14 +174,10 @@ public class ChatMessageAdapter extends RecyclerView.Adapter<ChatMessageAdapter.
      */
     class MessageViewHolder extends RecyclerView.ViewHolder {
         
-        // UI组件声明
         private TextView tvUsername, tvMessageContent, tvTimestamp;
-        private ImageView ivAvatar, ivLike;
+        private ImageView ivAvatar;
+        private LikeButton likeButton;
         
-        /**
-         * 构造函数，初始化UI组件
-         * @param itemView 消息项视图
-         */
         public MessageViewHolder(@NonNull View itemView) {
             super(itemView);
             
@@ -185,7 +186,7 @@ public class ChatMessageAdapter extends RecyclerView.Adapter<ChatMessageAdapter.
             tvMessageContent = itemView.findViewById(R.id.tv_message_content);
             tvTimestamp = itemView.findViewById(R.id.tv_timestamp);
             ivAvatar = itemView.findViewById(R.id.iv_avatar);
-            ivLike = itemView.findViewById(R.id.iv_like);
+            likeButton = itemView.findViewById(R.id.likeButton);
         }
         
         /**
@@ -198,29 +199,34 @@ public class ChatMessageAdapter extends RecyclerView.Adapter<ChatMessageAdapter.
             tvUsername.setText(message.getUsername());
             tvMessageContent.setText(message.getContent());
             tvTimestamp.setText(message.getTimestamp());
-            ivAvatar.setImageResource(message.getAvatarResId());
+            
+            // 加载头像（优先使用自定义头像URI）
+            if (message.hasCustomAvatar()) {
+                Glide.with(context)
+                    .load(message.getAvatarUri())
+                    .transform(new CircleCrop())
+                    .placeholder(message.getAvatarResId())
+                    .error(message.getAvatarResId())
+                    .into(ivAvatar);
+            } else {
+                ivAvatar.setImageResource(message.getAvatarResId());
+            }
             
             // 设置点赞状态
             updateLikeButton(message.isLiked());
             
             // 设置点赞按钮点击事件
-            ivLike.setOnClickListener(v -> {
-                // 切换点赞状态
-                boolean newLikeStatus = !message.isLiked();
-                message.setLiked(newLikeStatus);
-                
-                // 更新UI
-                updateLikeButton(newLikeStatus);
-                
-                // 通知外部监听器
-                if (listener != null) {
-                    listener.onLikeStatusChanged(message, position, newLikeStatus);
-                }
-                
-                // 显示点赞状态提示
-                String statusText = newLikeStatus ? "已点赞" : "取消点赞";
-                Toast.makeText(context, statusText, Toast.LENGTH_SHORT).show();
-            });
+            if (likeButton != null) {
+                likeButton.setOnLikeClickListener(isLiked -> {
+                    // 切换点赞状态
+                    message.setLiked(isLiked);
+                    
+                    // 通知监听器
+                    if (listener != null) {
+                        listener.onLikeStatusChanged(message, position, isLiked);
+                    }
+                });
+            }
             
             // 设置长按监听器，显示弹出菜单
             itemView.setOnLongClickListener(v -> {
@@ -236,15 +242,35 @@ public class ChatMessageAdapter extends RecyclerView.Adapter<ChatMessageAdapter.
          * @param isLiked 是否已点赞
          */
         private void updateLikeButton(boolean isLiked) {
-            if (isLiked) {
-                // 已点赞状态：使用实心爱心，红色
-                ivLike.setImageResource(R.drawable.ic_favorite_filled);
-                ivLike.setColorFilter(ContextCompat.getColor(context, R.color.like_color));
-            } else {
-                // 未点赞状态：使用空心爱心，灰色
-                ivLike.setImageResource(R.drawable.ic_favorite_outline);
-                ivLike.setColorFilter(ContextCompat.getColor(context, R.color.unlike_color));
+            if (likeButton != null) {
+                likeButton.setLiked(isLiked);
             }
+        }
+    }
+
+    /**
+     * 更新指定用户的头像
+     * @param userId 用户ID
+     * @param avatarUri 新头像URI
+     */
+    public void updateUserAvatar(String userId, String avatarUri) {
+        if (messages == null) return;
+        
+        boolean hasUpdates = false;
+        int currentUserId = UserInfoManager.getCurrentUserId(context);
+        String currentUsername = UserInfoManager.getCurrentUsername(context);
+        
+        for (ChatMessage message : messages) {
+            // 如果是当前用户的消息，更新头像
+            if (userId.equals(String.valueOf(currentUserId)) && 
+                (message.isSentByMe() || message.getUsername().equals(currentUsername))) {
+                message.setAvatarUri(avatarUri);
+                hasUpdates = true;
+            }
+        }
+        
+        if (hasUpdates) {
+            notifyDataSetChanged();
         }
     }
 }

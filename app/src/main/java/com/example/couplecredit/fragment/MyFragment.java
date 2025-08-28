@@ -1,20 +1,34 @@
 package com.example.couplecredit.fragment;
 
+import android.Manifest;
+import android.app.Activity;
 import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
+import android.provider.MediaStore;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
+import android.widget.Toast;
 import android.text.Html;
 import android.text.Spanned;
+import android.content.SharedPreferences;
+import android.content.Context;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
 import androidx.fragment.app.Fragment;
 
-import com.example.couplecredit.ChatBackgroundActivity;
+import com.bumptech.glide.Glide;
+import com.bumptech.glide.load.resource.bitmap.CircleCrop;
+import com.example.couplecredit.activity.ChatBackgroundActivity;
 import com.example.couplecredit.R;
 import com.example.couplecredit.activity.LoginActivity;
 import com.example.couplecredit.activity.ToastDemoActivity;
@@ -22,8 +36,7 @@ import com.example.couplecredit.activity.UserSettingsActivity;
 import com.example.couplecredit.function.MySQLDatabaseHelper;
 import com.example.couplecredit.function.NicknameCache;
 import com.example.couplecredit.function.UserInfoManager;
-import android.content.SharedPreferences;
-import android.content.Context;
+import com.example.couplecredit.utils.AvatarUpdateManager;
 
 /**
  * 我的页面Fragment
@@ -38,12 +51,18 @@ public class MyFragment extends Fragment {
     private LinearLayout llUserSettings;    // 个人设置选项容器
     private TextView tvLoginText;           // 登录文本
     private View viewSettingsDivider;       // 设置分割线
+    private ImageView ivUserAvatar;         // 用户头像
     
     // 用户信息
     private String username;
     private String userId;
     private boolean isLoggedIn = false;
     
+    // 权限和图片选择相关常量
+    private static final int REQUEST_PERMISSION_READ_EXTERNAL_STORAGE = 1001;
+    private static final int REQUEST_IMAGE_PICK = 1002;
+    private static final String PREF_AVATAR_URI = "avatar_uri_";
+
     /**
      * 创建Fragment视图
      */
@@ -53,7 +72,7 @@ public class MyFragment extends Fragment {
         // 填充布局文件
         return inflater.inflate(R.layout.fragment_my, container, false);
     }
-    
+
     /**
      * 视图创建完成后的初始化工作
      */
@@ -75,8 +94,10 @@ public class MyFragment extends Fragment {
         setupListeners();
         // 更新UI显示
         updateLoginUI();
+        // 加载保存的头像
+        loadSavedAvatar();
     }
-    
+
     /**
      * 初始化UI组件
      * @param view 根视图
@@ -88,6 +109,7 @@ public class MyFragment extends Fragment {
         llUserSettings = view.findViewById(R.id.ll_user_settings);
         tvLoginText = view.findViewById(R.id.tv_login_text);
         viewSettingsDivider = view.findViewById(R.id.view_settings_divider);
+        ivUserAvatar = view.findViewById(R.id.iv_user_avatar);
     }
     
     /**
@@ -131,8 +153,170 @@ public class MyFragment extends Fragment {
             intent.putExtra("id", userId);
             startActivity(intent);
         });
+        
+        // 设置头像点击事件
+        ivUserAvatar.setOnClickListener(v -> {
+            openImagePicker();
+        });
     }
     
+    /**
+     * 打开图片选择器
+     */
+    private void openImagePicker() {
+        // 检查权限
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            // Android 13及以上使用新的媒体权限
+            if (ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.READ_MEDIA_IMAGES) 
+                    != PackageManager.PERMISSION_GRANTED) {
+                ActivityCompat.requestPermissions(requireActivity(), 
+                        new String[]{Manifest.permission.READ_MEDIA_IMAGES}, 
+                        REQUEST_PERMISSION_READ_EXTERNAL_STORAGE);
+                return;
+            }
+        } else {
+            // Android 12及以下使用传统权限
+            if (ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.READ_EXTERNAL_STORAGE) 
+                    != PackageManager.PERMISSION_GRANTED) {
+                ActivityCompat.requestPermissions(requireActivity(), 
+                        new String[]{Manifest.permission.READ_EXTERNAL_STORAGE}, 
+                        REQUEST_PERMISSION_READ_EXTERNAL_STORAGE);
+                return;
+            }
+        }
+        
+        // 权限已授予，打开图片选择器
+        launchImagePicker();
+    }
+    
+    /**
+     * 启动图片选择器
+     */
+    private void launchImagePicker() {
+        Intent intent = new Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
+        intent.setType("image/*");
+        
+        // 检查是否有应用可以处理这个Intent
+        if (intent.resolveActivity(requireActivity().getPackageManager()) != null) {
+            startActivityForResult(intent, REQUEST_IMAGE_PICK);
+        } else {
+            Toast.makeText(getContext(), "没有找到可用的图片选择应用", Toast.LENGTH_SHORT).show();
+        }
+    }
+    
+    /**
+     * 处理权限请求结果
+     */
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        
+        if (requestCode == REQUEST_PERMISSION_READ_EXTERNAL_STORAGE) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                // 权限被授予，打开图片选择器
+                launchImagePicker();
+            } else {
+                // 权限被拒绝
+                Toast.makeText(getContext(), "需要存储权限才能选择头像", Toast.LENGTH_SHORT).show();
+            }
+        }
+    }
+    
+    /**
+     * 处理Activity结果
+     */
+    @Override
+    public void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        
+        if (requestCode == REQUEST_IMAGE_PICK && resultCode == Activity.RESULT_OK && data != null) {
+            Uri selectedImageUri = data.getData();
+            if (selectedImageUri != null) {
+                // 设置头像
+                setUserAvatar(selectedImageUri);
+                // 保存头像URI
+                saveAvatarUri(selectedImageUri);
+            }
+        }
+    }
+    
+    /**
+     * 设置用户头像
+     * @param imageUri 图片URI
+     * @param showToast 是否显示Toast提示
+     */
+    private void setUserAvatar(Uri imageUri, boolean showToast) {
+        if (imageUri != null && ivUserAvatar != null) {
+            try {
+                // 使用Glide加载并设置头像
+                Glide.with(this)
+                    .load(imageUri)
+                    .transform(new CircleCrop())
+                    .placeholder(R.drawable.ic_profile)
+                    .error(R.drawable.ic_profile)
+                    .into(ivUserAvatar);
+                
+                // 只有用户主动设置时才保存和发送广播
+                if (showToast) {
+                    // 保存头像URI到SharedPreferences
+                    saveAvatarUri(imageUri);
+                    
+                    // 发送头像更新广播
+                    if (isLoggedIn && userId != null) {
+                        AvatarUpdateManager.notifyAvatarUpdated(getContext(), userId, imageUri.toString());
+                    }
+                    
+                    Toast.makeText(getContext(), "头像设置成功", Toast.LENGTH_SHORT).show();
+                }
+                
+            } catch (Exception e) {
+                e.printStackTrace();
+                if (showToast) {
+                    Toast.makeText(getContext(), "头像设置失败", Toast.LENGTH_SHORT).show();
+                }
+            }
+        }
+    }
+    
+    /**
+     * 设置用户头像（用户主动设置时调用）
+     * @param imageUri 图片URI
+     */
+    private void setUserAvatar(Uri imageUri) {
+        setUserAvatar(imageUri, true);
+    }
+    
+    /**
+     * 保存头像URI到SharedPreferences
+     * @param uri 图片URI
+     */
+    private void saveAvatarUri(Uri uri) {
+        if (getContext() != null && userId != null) {
+            SharedPreferences prefs = getContext().getSharedPreferences("user_avatars", Context.MODE_PRIVATE);
+            prefs.edit().putString(PREF_AVATAR_URI + userId, uri.toString()).apply();
+        }
+    }
+    
+    /**
+     * 加载保存的头像
+     */
+    private void loadSavedAvatar() {
+        if (getContext() != null && userId != null) {
+            SharedPreferences prefs = getContext().getSharedPreferences("user_avatars", Context.MODE_PRIVATE);
+            String savedUriString = prefs.getString(PREF_AVATAR_URI + userId, null);
+            
+            if (savedUriString != null) {
+                try {
+                    Uri savedUri = Uri.parse(savedUriString);
+                    setUserAvatar(savedUri, false); // 不显示Toast
+                } catch (Exception e) {
+                    // 如果加载失败，使用默认头像
+                    ivUserAvatar.setImageResource(R.drawable.ic_default_avatar);
+                }
+            }
+        }
+    }
+
     @Override
     public void onResume() {
         super.onResume();
@@ -144,94 +328,90 @@ public class MyFragment extends Fragment {
      * 检查用户登录状态
      */
     private void checkUserLoginStatus() {
-        if (getActivity() != null) {
-            // 使用UserInfoManager检查登录状态
-            boolean isLoggedIn = UserInfoManager.isUserLoggedIn(getActivity());
-            
-            if (isLoggedIn) {
-                // 从UserInfoManager读取用户信息
-                username = UserInfoManager.getCurrentUsername(getActivity());
-                int userIdInt = UserInfoManager.getCurrentUserId(getActivity());
-                if (userIdInt != -1) {
-                    userId = String.valueOf(userIdInt);
-                    this.isLoggedIn = true;
-                } else {
-                    this.isLoggedIn = false;
-                }
-            } else {
-                // 清空用户信息
-                username = null;
-                userId = null;
-                this.isLoggedIn = false;
-            }
-            
-            // 更新UI显示
-            updateLoginUI();
+        // 从UserInfoManager获取当前用户信息
+        String currentUsername = UserInfoManager.getCurrentUsername(getContext());
+        String currentUserId = UserInfoManager.getCurrentUserId(getContext()) != -1 ? 
+                String.valueOf(UserInfoManager.getCurrentUserId(getContext())) : null;
+        
+        // 更新本地状态
+        if (currentUsername != null && currentUserId != null) {
+            username = currentUsername;
+            userId = currentUserId;
+            isLoggedIn = true;
+        } else {
+            username = null;
+            userId = null;
+            isLoggedIn = false;
         }
+        
+        // 更新UI
+        updateLoginUI();
+        // 重新加载头像
+        loadSavedAvatar();
     }
     
     /**
-     * 更新登录UI显示
+     * 更新登录相关UI显示
      */
     private void updateLoginUI() {
-        if (isLoggedIn && tvLoginText != null) {
-            // 已登录，首先尝试从缓存获取昵称
-            String cachedNickname = NicknameCache.getCachedNickname(getContext(), username);
-            
-            if (cachedNickname != null) {
-                // 使用缓存的昵称
-                String displayName = cachedNickname;
-                String htmlText = "<big><b>" + displayName + "</b></big><br><small>ID: " + userId + "</small>";
-                Spanned spannedText = Html.fromHtml(htmlText, Html.FROM_HTML_MODE_LEGACY);
-                tvLoginText.setText(spannedText);
-                
-                // 显示个人设置选项
-                llUserSettings.setVisibility(View.VISIBLE);
-                viewSettingsDivider.setVisibility(View.VISIBLE);
-            } else {
-                // 缓存不存在或已过期，查询数据库
-                MySQLDatabaseHelper.getUserNickname(username, new MySQLDatabaseHelper.UserNicknameCallback() {
-                    @Override
-                    public void onSuccess(String nickname) {
-                        if (getActivity() != null) {
-                            getActivity().runOnUiThread(() -> {
-                                String displayName = (nickname != null && !nickname.trim().isEmpty()) ? nickname : username;
-                                
-                                // 缓存昵称
-                                NicknameCache.cacheNickname(getContext(), username, displayName);
-                                
-                                String htmlText = "<big><b>" + displayName + "</b></big><br><small>ID: " + userId + "</small>";
-                                Spanned spannedText = Html.fromHtml(htmlText, Html.FROM_HTML_MODE_LEGACY);
-                                tvLoginText.setText(spannedText);
-                                
-                                // 显示个人设置选项
-                                llUserSettings.setVisibility(View.VISIBLE);
-                                viewSettingsDivider.setVisibility(View.VISIBLE);
-                            });
-                        }
-                    }
+        if (isLoggedIn && username != null && userId != null) {
+            // 已登录，查询并显示用户昵称
+            if (getContext() != null) {
+                // 先尝试从缓存获取昵称
+                String cachedNickname = NicknameCache.getCachedNickname(getContext(), username);
+                if (cachedNickname != null) {
+                    String htmlText = "<big><b>" + cachedNickname + "</b></big><br><small>ID: " + userId + "</small>";
+                    Spanned spannedText = Html.fromHtml(htmlText, Html.FROM_HTML_MODE_LEGACY);
+                    tvLoginText.setText(spannedText);
                     
-                    @Override
-                    public void onError(String error) {
-                        if (getActivity() != null) {
-                            getActivity().runOnUiThread(() -> {
-                                // 查询昵称失败，使用用户名显示
-                                String displayName = username;
-                                
-                                // 缓存用户名作为显示名称
-                                NicknameCache.cacheNickname(getContext(), username, displayName);
-                                
-                                String htmlText = "<big><b>" + displayName + "</b></big><br><small>ID: " + userId + "</small>";
-                                Spanned spannedText = Html.fromHtml(htmlText, Html.FROM_HTML_MODE_LEGACY);
-                                tvLoginText.setText(spannedText);
-                                
-                                // 显示个人设置选项
-                                llUserSettings.setVisibility(View.VISIBLE);
-                                viewSettingsDivider.setVisibility(View.VISIBLE);
-                            });
+                    // 显示个人设置选项
+                    llUserSettings.setVisibility(View.VISIBLE);
+                    viewSettingsDivider.setVisibility(View.VISIBLE);
+                } else {
+                    // 缓存中没有，从数据库查询
+                    MySQLDatabaseHelper.getUserNickname(username, new MySQLDatabaseHelper.UserNicknameCallback() {
+                        @Override
+                        public void onSuccess(String nickname) {
+                            if (getActivity() != null) {
+                                getActivity().runOnUiThread(() -> {
+                                    String displayName = (nickname != null && !nickname.trim().isEmpty()) ? nickname : username;
+                                    
+                                    // 缓存昵称
+                                    NicknameCache.cacheNickname(getContext(), username, displayName);
+                                    
+                                    String htmlText = "<big><b>" + displayName + "</b></big><br><small>ID: " + userId + "</small>";
+                                    Spanned spannedText = Html.fromHtml(htmlText, Html.FROM_HTML_MODE_LEGACY);
+                                    tvLoginText.setText(spannedText);
+                                    
+                                    // 显示个人设置选项
+                                    llUserSettings.setVisibility(View.VISIBLE);
+                                    viewSettingsDivider.setVisibility(View.VISIBLE);
+                                });
+                            }
                         }
-                    }
-                });
+                        
+                        @Override
+                        public void onError(String error) {
+                            if (getActivity() != null) {
+                                getActivity().runOnUiThread(() -> {
+                                    // 查询昵称失败，使用用户名显示
+                                    String displayName = username;
+                                    
+                                    // 缓存用户名作为显示名称
+                                    NicknameCache.cacheNickname(getContext(), username, displayName);
+                                    
+                                    String htmlText = "<big><b>" + displayName + "</b></big><br><small>ID: " + userId + "</small>";
+                                    Spanned spannedText = Html.fromHtml(htmlText, Html.FROM_HTML_MODE_LEGACY);
+                                    tvLoginText.setText(spannedText);
+                                    
+                                    // 显示个人设置选项
+                                    llUserSettings.setVisibility(View.VISIBLE);
+                                    viewSettingsDivider.setVisibility(View.VISIBLE);
+                                });
+                            }
+                        }
+                    });
+                }
             }
         } else if (tvLoginText != null) {
             // 未登录，显示登录提示
@@ -240,7 +420,9 @@ public class MyFragment extends Fragment {
             // 隐藏个人设置选项
             llUserSettings.setVisibility(View.GONE);
             viewSettingsDivider.setVisibility(View.GONE);
+            
+            // 重置头像为默认头像
+            ivUserAvatar.setImageResource(R.drawable.ic_default_avatar);
         }
     }
-
 }
