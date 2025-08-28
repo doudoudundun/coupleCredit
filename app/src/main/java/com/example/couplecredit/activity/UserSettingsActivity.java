@@ -12,6 +12,13 @@ import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
+import android.provider.MediaStore;
+import android.content.pm.PackageManager;
+import android.os.Build;
+import androidx.core.content.ContextCompat;
+import androidx.core.app.ActivityCompat;
+import android.Manifest;
+import android.app.Activity;
 
 import androidx.appcompat.app.AppCompatActivity;
 
@@ -21,6 +28,7 @@ import com.example.couplecredit.R;
 import com.example.couplecredit.function.MySQLDatabaseHelper;
 import com.example.couplecredit.function.NicknameCache;
 import com.example.couplecredit.function.UserInfoManager;
+import com.example.couplecredit.utils.AvatarUpdateManager;
 import com.example.couplecredit.database.CoupleRelationshipHelper;
 
 public class UserSettingsActivity extends AppCompatActivity {
@@ -29,6 +37,7 @@ public class UserSettingsActivity extends AppCompatActivity {
     private TextView tvUserInfo;           // 用户信息显示
     private LinearLayout llCoupleBinding;  // 情侣绑定选项
     private LinearLayout llChangeNickname; // 修改昵称选项
+    private LinearLayout llChangeProfile;  // 修改头像选项
     private LinearLayout llChangePassword; // 修改密码选项
     private LinearLayout llSignOut;        // 退出登录选项
     private LinearLayout llLogout;         // 注销用户选项
@@ -39,6 +48,11 @@ public class UserSettingsActivity extends AppCompatActivity {
     // 用户信息
     private String username;
     private String userId;
+    
+    // 权限和图片选择相关常量
+    private static final int REQUEST_PERMISSION_READ_EXTERNAL_STORAGE = 1001;
+    private static final int REQUEST_IMAGE_PICK = 1002;
+    private static final String PREF_AVATAR_URI = "avatar_uri_";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -74,7 +88,7 @@ public class UserSettingsActivity extends AppCompatActivity {
         // 加载保存的头像
         loadSavedAvatar();
     }
-    
+
     /**
      * 初始化UI组件
      */
@@ -88,11 +102,12 @@ public class UserSettingsActivity extends AppCompatActivity {
         llUnbindCouple = findViewById(R.id.ll_unbind_couple);
         llCoupleBinding = findViewById(R.id.ll_couple_binding);
         llChangeNickname = findViewById(R.id.ll_change_nickname);
+        llChangeProfile = findViewById(R.id.ll_change_profile);
         llChangePassword = findViewById(R.id.ll_change_password);
         llSignOut = findViewById(R.id.ll_sign_out);
         llLogout = findViewById(R.id.ll_logout);
     }
-    
+
     /**
      * 设置点击事件监听器
      */
@@ -107,6 +122,9 @@ public class UserSettingsActivity extends AppCompatActivity {
         
         // 修改昵称点击事件
         llChangeNickname.setOnClickListener(v -> showChangeNicknameDialog());
+        
+        // 修改头像点击事件
+        llChangeProfile.setOnClickListener(v -> openImagePicker());
         
         // 修改密码点击事件
         llChangePassword.setOnClickListener(v -> {
@@ -125,6 +143,122 @@ public class UserSettingsActivity extends AppCompatActivity {
         llLogout.setOnClickListener(v -> {
             showLogoutDialog();
         });
+    }
+    
+    /**
+     * 打开图片选择器
+     */
+    private void openImagePicker() {
+        // 检查权限
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            // Android 13及以上使用新的媒体权限
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_IMAGES) 
+                    != PackageManager.PERMISSION_GRANTED) {
+                ActivityCompat.requestPermissions(this, 
+                        new String[]{Manifest.permission.READ_MEDIA_IMAGES}, 
+                        REQUEST_PERMISSION_READ_EXTERNAL_STORAGE);
+                return;
+            }
+        } else {
+            // Android 12及以下使用传统权限
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE) 
+                    != PackageManager.PERMISSION_GRANTED) {
+                ActivityCompat.requestPermissions(this, 
+                        new String[]{Manifest.permission.READ_EXTERNAL_STORAGE}, 
+                        REQUEST_PERMISSION_READ_EXTERNAL_STORAGE);
+                return;
+            }
+        }
+        
+        // 权限已授予，打开图片选择器
+        launchImagePicker();
+    }
+    
+    /**
+     * 启动图片选择器
+     */
+    private void launchImagePicker() {
+        Intent intent = new Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
+        intent.setType("image/*");
+        
+        // 检查是否有应用可以处理这个Intent
+        if (intent.resolveActivity(getPackageManager()) != null) {
+            startActivityForResult(intent, REQUEST_IMAGE_PICK);
+        } else {
+            Toast.makeText(this, "没有找到可用的图片选择应用", Toast.LENGTH_SHORT).show();
+        }
+    }
+    
+    /**
+     * 处理权限请求结果
+     */
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        
+        if (requestCode == REQUEST_PERMISSION_READ_EXTERNAL_STORAGE) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                // 权限被授予，打开图片选择器
+                launchImagePicker();
+            } else {
+                // 权限被拒绝
+                Toast.makeText(this, "需要存储权限才能选择头像", Toast.LENGTH_SHORT).show();
+            }
+        }
+    }
+    
+    /**
+     * 处理Activity结果
+     */
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        
+        if (requestCode == REQUEST_IMAGE_PICK && resultCode == Activity.RESULT_OK && data != null) {
+            Uri selectedImageUri = data.getData();
+            if (selectedImageUri != null) {
+                // 设置头像
+                setUserAvatar(selectedImageUri);
+                // 保存头像URI
+                saveAvatarUri(selectedImageUri);
+                // 发送头像更新广播
+                if (userId != null) {
+                    AvatarUpdateManager.notifyAvatarUpdated(this, userId, selectedImageUri.toString());
+                }
+                Toast.makeText(this, "头像设置成功", Toast.LENGTH_SHORT).show();
+            }
+        }
+    }
+    
+    /**
+     * 保存头像URI到SharedPreferences
+     * @param uri 图片URI
+     */
+    private void saveAvatarUri(Uri uri) {
+        if (userId != null) {
+            SharedPreferences prefs = getSharedPreferences("user_avatars", Context.MODE_PRIVATE);
+            prefs.edit().putString(PREF_AVATAR_URI + userId, uri.toString()).apply();
+        }
+    }
+    
+    /**
+     * 加载保存的头像
+     */
+    private void loadSavedAvatar() {
+        if (userId != null) {
+            SharedPreferences prefs = getSharedPreferences("user_avatars", Context.MODE_PRIVATE);
+            String savedUriString = prefs.getString(PREF_AVATAR_URI + userId, null);
+            
+            if (savedUriString != null) {
+                try {
+                    Uri savedUri = Uri.parse(savedUriString);
+                    setUserAvatar(savedUri);
+                } catch (Exception e) {
+                    // 如果加载失败，使用默认头像
+                    ivUserAvatar.setImageResource(R.drawable.ic_default_avatar);
+                }
+            }
+        }
     }
     
     /**
@@ -377,29 +511,6 @@ public class UserSettingsActivity extends AppCompatActivity {
                 });
             }
         });
-    }
-    
-    /**
-     * 加载保存的头像
-     */
-    private void loadSavedAvatar() {
-        if (userId != null) {
-            SharedPreferences prefs = getSharedPreferences("user_avatars", Context.MODE_PRIVATE);
-            String savedUriString = prefs.getString("avatar_uri_" + userId, null);
-            
-            if (savedUriString != null) {
-                try {
-                    Uri savedUri = Uri.parse(savedUriString);
-                    setUserAvatar(savedUri);
-                } catch (Exception e) {
-                    // 如果加载失败，使用默认头像
-                    ivUserAvatar.setImageResource(R.drawable.ic_default_avatar);
-                }
-            } else {
-                // 没有保存的头像，使用默认头像
-                ivUserAvatar.setImageResource(R.drawable.ic_default_avatar);
-            }
-        }
     }
     
     /**
