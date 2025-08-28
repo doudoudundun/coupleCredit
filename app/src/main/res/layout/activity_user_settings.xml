@@ -36,15 +36,16 @@
         android:gravity="center_vertical">
 
         <!-- 用户头像 -->
+
+        <!-- 用户信息文本 -->
         <ImageView
             android:id="@+id/iv_user_avatar"
             android:layout_width="48dp"
             android:layout_height="48dp"
-            android:src="@drawable/ic_default_avatar"
             android:layout_marginEnd="12dp"
-            android:contentDescription="用户头像" />
+            android:contentDescription="用户头像"
+            android:src="@drawable/ic_default_avatar" />
 
-        <!-- 用户信息文本 -->
         <TextView
             android:id="@+id/tv_user_info"
             android:layout_width="0dp"

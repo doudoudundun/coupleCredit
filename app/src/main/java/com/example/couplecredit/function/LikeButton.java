@@ -2,10 +2,13 @@ package com.example.couplecredit.function;
 
 import android.animation.AnimatorSet;
 import android.animation.ObjectAnimator;
+import android.animation.ValueAnimator;
 import android.content.Context;
 import android.graphics.Color;
 import android.util.AttributeSet;
 import android.view.View;
+import android.view.animation.AccelerateDecelerateInterpolator;
+import android.view.animation.BounceInterpolator;
 import android.view.animation.OvershootInterpolator;
 import android.widget.ImageView;
 import android.widget.RelativeLayout;
@@ -22,6 +25,7 @@ public class LikeButton extends RelativeLayout {
     private OnLikeClickListener onLikeClickListener;
     private List<ImageView> floatingHearts;
     private Random random;
+    private boolean isAnimating = false;
 
     public interface OnLikeClickListener {
         void onLikeClick(boolean isLiked);
@@ -63,7 +67,9 @@ public class LikeButton extends RelativeLayout {
         setOnClickListener(new OnClickListener() {
             @Override
             public void onClick(View v) {
-                toggleLike();
+                if (!isAnimating) {
+                    toggleLike();
+                }
             }
         });
     }
@@ -72,9 +78,9 @@ public class LikeButton extends RelativeLayout {
         isLiked = !isLiked;
         
         if (isLiked) {
-            performLikeAnimation();
+            performEnhancedLikeAnimation();
         } else {
-            performUnlikeAnimation();
+            performEnhancedUnlikeAnimation();
         }
         
         if (onLikeClickListener != null) {
@@ -82,94 +88,199 @@ public class LikeButton extends RelativeLayout {
         }
     }
 
-    private void performLikeAnimation() {
-        // 切换到实心图标
-        heartIcon.setImageResource(R.drawable.ic_heart_filled);
+    private void performEnhancedLikeAnimation() {
+        isAnimating = true;
         
-        // 主心形缩放动画
-        ObjectAnimator scaleX = ObjectAnimator.ofFloat(heartIcon, "scaleX", 1.0f, 1.3f, 1.0f);
-        ObjectAnimator scaleY = ObjectAnimator.ofFloat(heartIcon, "scaleY", 1.0f, 1.3f, 1.0f);
+        // 阶段1：快速缩小准备
+        ObjectAnimator shrinkX = ObjectAnimator.ofFloat(heartIcon, "scaleX", 1.0f, 0.7f);
+        ObjectAnimator shrinkY = ObjectAnimator.ofFloat(heartIcon, "scaleY", 1.0f, 0.7f);
         
-        AnimatorSet scaleSet = new AnimatorSet();
-        scaleSet.playTogether(scaleX, scaleY);
-        scaleSet.setDuration(500);
-        scaleSet.setInterpolator(new OvershootInterpolator());
+        AnimatorSet shrinkSet = new AnimatorSet();
+        shrinkSet.playTogether(shrinkX, shrinkY);
+        shrinkSet.setDuration(100);
+        shrinkSet.setInterpolator(new AccelerateDecelerateInterpolator());
+        
+        shrinkSet.addListener(new android.animation.AnimatorListenerAdapter() {
+            @Override
+            public void onAnimationEnd(android.animation.Animator animation) {
+                // 阶段2：切换图标并爆炸式放大
+                heartIcon.setImageResource(R.drawable.ic_heart_filled);
+                performExplosionAnimation();
+            }
+        });
+        
+        shrinkSet.start();
+    }
+    
+    private void performExplosionAnimation() {
+        // 爆炸式放大动画
+        ObjectAnimator explodeX = ObjectAnimator.ofFloat(heartIcon, "scaleX", 0.7f, 1.6f, 1.0f);
+        ObjectAnimator explodeY = ObjectAnimator.ofFloat(heartIcon, "scaleY", 0.7f, 1.6f, 1.0f);
         
         // 旋转动画
         ObjectAnimator rotation = ObjectAnimator.ofFloat(heartIcon, "rotation", 0f, 360f);
-        rotation.setDuration(500);
         
-        // 组合动画
-        AnimatorSet mainAnimSet = new AnimatorSet();
-        mainAnimSet.playTogether(scaleSet, rotation);
-        mainAnimSet.start();
+        // 颜色闪烁效果（通过alpha实现）
+        ValueAnimator colorFlash = ValueAnimator.ofFloat(0.6f, 1.0f, 0.8f, 1.0f);
+        colorFlash.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
+            @Override
+            public void onAnimationUpdate(ValueAnimator animation) {
+                float alpha = (Float) animation.getAnimatedValue();
+                heartIcon.setAlpha(alpha);
+            }
+        });
         
-        // 创建飘散的小心形
-        createFloatingHearts();
+        AnimatorSet explodeSet = new AnimatorSet();
+        explodeSet.playTogether(explodeX, explodeY, rotation, colorFlash);
+        explodeSet.setDuration(600);
+        explodeSet.setInterpolator(new BounceInterpolator());
+        
+        explodeSet.addListener(new android.animation.AnimatorListenerAdapter() {
+            @Override
+            public void onAnimationEnd(android.animation.Animator animation) {
+                heartIcon.setAlpha(1.0f);
+                isAnimating = false;
+            }
+        });
+        
+        explodeSet.start();
+        
+        // 同时创建增强版飘散效果
+        createEnhancedFloatingHearts();
     }
 
-    private void performUnlikeAnimation() {
-        // 切换到空心图标
-        heartIcon.setImageResource(R.drawable.ic_heart_empty);
+    private void performEnhancedUnlikeAnimation() {
+        isAnimating = true;
         
-        // 简单的缩放动画
-        ObjectAnimator scaleX = ObjectAnimator.ofFloat(heartIcon, "scaleX", 1.0f, 0.8f, 1.0f);
-        ObjectAnimator scaleY = ObjectAnimator.ofFloat(heartIcon, "scaleY", 1.0f, 0.8f, 1.0f);
+        // 反向动画：先旋转缩小
+        ObjectAnimator scaleX = ObjectAnimator.ofFloat(heartIcon, "scaleX", 1.0f, 0.3f, 1.0f);
+        ObjectAnimator scaleY = ObjectAnimator.ofFloat(heartIcon, "scaleY", 1.0f, 0.3f, 1.0f);
+        ObjectAnimator rotation = ObjectAnimator.ofFloat(heartIcon, "rotation", 0f, -180f, 0f);
         
-        AnimatorSet scaleSet = new AnimatorSet();
-        scaleSet.playTogether(scaleX, scaleY);
-        scaleSet.setDuration(300);
-        scaleSet.start();
+        // 透明度变化
+        ValueAnimator alphaAnim = ValueAnimator.ofFloat(1.0f, 0.3f, 1.0f);
+        alphaAnim.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
+            @Override
+            public void onAnimationUpdate(ValueAnimator animation) {
+                float alpha = (Float) animation.getAnimatedValue();
+                heartIcon.setAlpha(alpha);
+            }
+        });
+        
+        AnimatorSet unlikeSet = new AnimatorSet();
+        unlikeSet.playTogether(scaleX, scaleY, rotation, alphaAnim);
+        unlikeSet.setDuration(400);
+        unlikeSet.setInterpolator(new OvershootInterpolator());
+        
+        unlikeSet.addListener(new android.animation.AnimatorListenerAdapter() {
+            @Override
+            public void onAnimationStart(android.animation.Animator animation) {
+                // 在动画中途切换图标
+                heartIcon.postDelayed(new Runnable() {
+                    @Override
+                    public void run() {
+                        heartIcon.setImageResource(R.drawable.ic_heart_empty);
+                    }
+                }, 200);
+            }
+            
+            @Override
+            public void onAnimationEnd(android.animation.Animator animation) {
+                heartIcon.setAlpha(1.0f);
+                isAnimating = false;
+            }
+        });
+        
+        unlikeSet.start();
     }
 
-    private void createFloatingHearts() {
-        int[] colors = {Color.parseColor("#FF69B4"), Color.parseColor("#FF1493"), 
-                       Color.parseColor("#FF6347"), Color.parseColor("#FF4500"),
-                       Color.parseColor("#FFB6C1"), Color.parseColor("#FFC0CB")};
+    private void createEnhancedFloatingHearts() {
+        // 更丰富的颜色组合
+        int[] colors = {
+            Color.parseColor("#FF69B4"), // 热粉色
+            Color.parseColor("#FF1493"), // 深粉色
+            Color.parseColor("#FF6347"), // 番茄红
+            Color.parseColor("#FF4500"), // 橙红色
+            Color.parseColor("#FFB6C1"), // 浅粉色
+            Color.parseColor("#FFC0CB"), // 粉色
+            Color.parseColor("#FF69B4"), // 热粉色
+            Color.parseColor("#FF20B2")  // 亮粉色
+        };
         
-        for (int i = 0; i < 6; i++) {
+        // 创建更多的飘散心形
+        for (int i = 0; i < 8; i++) {
             ImageView floatingHeart = new ImageView(getContext());
             floatingHeart.setImageResource(R.drawable.ic_heart_filled);
             floatingHeart.setColorFilter(colors[i % colors.length]);
             
-            LayoutParams params = new LayoutParams(60, 60);
+            // 随机大小
+            int size = 40 + random.nextInt(30);
+            LayoutParams params = new LayoutParams(size, size);
             params.addRule(RelativeLayout.CENTER_IN_PARENT);
             floatingHeart.setLayoutParams(params);
             
             addView(floatingHeart);
             floatingHearts.add(floatingHeart);
             
-            animateFloatingHeart(floatingHeart, i);
+            animateEnhancedFloatingHeart(floatingHeart, i);
         }
     }
 
-    private void animateFloatingHeart(ImageView heart, int index) {
-        // 随机方向和距离
-        float angle = (float) (Math.PI * 2 * index / 6); // 均匀分布
-        float distance = 100 + random.nextFloat() * 50;
+    private void animateEnhancedFloatingHeart(ImageView heart, int index) {
+        // 更自然的分布角度
+        float baseAngle = (float) (Math.PI * 2 * index / 8);
+        float angleVariation = (random.nextFloat() - 0.5f) * 0.5f;
+        float angle = baseAngle + angleVariation;
+        
+        // 随机距离和轨迹
+        float distance = 120 + random.nextFloat() * 80;
         float endX = (float) (Math.cos(angle) * distance);
-        float endY = (float) (Math.sin(angle) * distance);
+        float endY = (float) (Math.sin(angle) * distance) - 20; // 稍微向上偏移
         
-        // 移动动画
-        ObjectAnimator moveX = ObjectAnimator.ofFloat(heart, "translationX", 0f, endX);
-        ObjectAnimator moveY = ObjectAnimator.ofFloat(heart, "translationY", 0f, endY);
+        // 曲线路径动画
+        float midX = endX * 0.5f + (random.nextFloat() - 0.5f) * 40;
+        float midY = endY * 0.3f - 30;
         
-        // 缩放动画
-        ObjectAnimator scaleX = ObjectAnimator.ofFloat(heart, "scaleX", 0.5f, 1.0f, 0f);
-        ObjectAnimator scaleY = ObjectAnimator.ofFloat(heart, "scaleY", 0.5f, 1.0f, 0f);
+        // 分阶段移动动画
+        ObjectAnimator moveX1 = ObjectAnimator.ofFloat(heart, "translationX", 0f, midX);
+        ObjectAnimator moveY1 = ObjectAnimator.ofFloat(heart, "translationY", 0f, midY);
+        ObjectAnimator moveX2 = ObjectAnimator.ofFloat(heart, "translationX", midX, endX);
+        ObjectAnimator moveY2 = ObjectAnimator.ofFloat(heart, "translationY", midY, endY);
+        
+        // 复杂的缩放动画
+        ObjectAnimator scaleX = ObjectAnimator.ofFloat(heart, "scaleX", 0.3f, 1.2f, 0.8f, 0f);
+        ObjectAnimator scaleY = ObjectAnimator.ofFloat(heart, "scaleY", 0.3f, 1.2f, 0.8f, 0f);
         
         // 透明度动画
-        ObjectAnimator alpha = ObjectAnimator.ofFloat(heart, "alpha", 1.0f, 0f);
+        ObjectAnimator alpha = ObjectAnimator.ofFloat(heart, "alpha", 0f, 1.0f, 0.8f, 0f);
         
         // 旋转动画
-        ObjectAnimator rotation = ObjectAnimator.ofFloat(heart, "rotation", 0f, 360f);
+        ObjectAnimator rotation = ObjectAnimator.ofFloat(heart, "rotation", 0f, 720f + random.nextFloat() * 360f);
         
-        AnimatorSet animSet = new AnimatorSet();
-        animSet.playTogether(moveX, moveY, scaleX, scaleY, alpha, rotation);
-        animSet.setDuration(1000 + random.nextInt(500));
-        animSet.setStartDelay(index * 50);
+        // 第一阶段动画
+        AnimatorSet firstStage = new AnimatorSet();
+        firstStage.playTogether(moveX1, moveY1);
+        firstStage.setDuration(400);
+        firstStage.setInterpolator(new AccelerateDecelerateInterpolator());
         
-        animSet.addListener(new android.animation.AnimatorListenerAdapter() {
+        // 第二阶段动画
+        AnimatorSet secondStage = new AnimatorSet();
+        secondStage.playTogether(moveX2, moveY2);
+        secondStage.setDuration(600);
+        secondStage.setInterpolator(new AccelerateDecelerateInterpolator());
+        
+        // 整体效果动画
+        AnimatorSet effectSet = new AnimatorSet();
+        effectSet.playTogether(scaleX, scaleY, alpha, rotation);
+        effectSet.setDuration(1000);
+        
+        // 组合所有动画
+        AnimatorSet finalSet = new AnimatorSet();
+        finalSet.playSequentially(firstStage, secondStage);
+        finalSet.playTogether(effectSet);
+        finalSet.setStartDelay(index * 60 + random.nextInt(100));
+        
+        finalSet.addListener(new android.animation.AnimatorListenerAdapter() {
             @Override
             public void onAnimationEnd(android.animation.Animator animation) {
                 removeView(heart);
@@ -177,7 +288,7 @@ public class LikeButton extends RelativeLayout {
             }
         });
         
-        animSet.start();
+        finalSet.start();
     }
 
     public void setOnLikeClickListener(OnLikeClickListener listener) {
@@ -189,6 +300,8 @@ public class LikeButton extends RelativeLayout {
     }
 
     public void setLiked(boolean liked) {
+        if (isAnimating) return; // 防止动画期间状态被外部修改
+        
         this.isLiked = liked;
         if (liked) {
             heartIcon.setImageResource(R.drawable.ic_heart_filled);

@@ -1,6 +1,9 @@
 package com.example.couplecredit.fragment;
 
+import android.content.BroadcastReceiver;
 import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.graphics.Rect;
 import android.graphics.drawable.Drawable;
@@ -26,14 +29,18 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
 import androidx.lifecycle.ViewModelProvider;
+import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.example.couplecredit.R;
 import com.example.couplecredit.adapter.ChatMessageAdapter;
+import com.example.couplecredit.function.UserInfoManager;
 import com.example.couplecredit.manager.MessagePopupManager;
 import com.example.couplecredit.model.ChatMessage;
 import com.example.couplecredit.repository.ChatRepository;
+import com.example.couplecredit.utils.AvatarUpdateManager;
+import com.example.couplecredit.utils.BackgroundUpdateManager;
 import com.example.couplecredit.viewmodel.ChatViewModel;
 
 import java.text.SimpleDateFormat;
@@ -85,6 +92,41 @@ public class ChatModelFragment extends Fragment {
     private Runnable searchRunnable; // 搜索任务
     private View inputSection;               // 输入区域引用
     private int bottomNavHeight = 0;         // 底部导航栏高度
+    
+    // ======================== 背景更新广播接收器 ========================
+    private BroadcastReceiver backgroundUpdateReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            android.util.Log.d("ChatModelFragment", "收到背景更新广播");
+            if (BackgroundUpdateManager.ACTION_BACKGROUND_UPDATED.equals(intent.getAction())) {
+                android.util.Log.d("ChatModelFragment", "广播动作匹配，开始重新加载背景");
+                // 重新加载聊天背景
+                if (rootView != null) {
+                    android.util.Log.d("ChatModelFragment", "rootView不为空，调用loadChatBackground");
+                    loadChatBackground(rootView);
+                } else {
+                    android.util.Log.e("ChatModelFragment", "rootView为空，无法加载背景");
+                }
+            } else {
+                android.util.Log.w("ChatModelFragment", "广播动作不匹配: " + intent.getAction());
+            }
+        }
+    };
+    
+    // ======================== 头像更新广播接收器 ========================
+    private BroadcastReceiver avatarUpdateReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            if (AvatarUpdateManager.ACTION_AVATAR_UPDATED.equals(intent.getAction())) {
+                String userId = intent.getStringExtra(AvatarUpdateManager.EXTRA_USER_ID);
+                String avatarUri = intent.getStringExtra(AvatarUpdateManager.EXTRA_AVATAR_URI);
+                
+                if (userId != null && avatarUri != null && messageAdapter != null) {
+                    messageAdapter.updateUserAvatar(userId, avatarUri);
+                }
+            }
+        }
+    };
     
     // ======================== 生命周期方法 ========================
     
@@ -358,6 +400,8 @@ public class ChatModelFragment extends Fragment {
         viewModel.getAllMessages().observe(getViewLifecycleOwner(), messages -> {
             if (messages != null && !isSearchMode) {
                 messageAdapter.updateMessages(messages);
+                // 为当前用户的消息设置头像URI
+                loadCurrentUserAvatarForMessages();
                 // 滚动到最新消息
                 if (!messages.isEmpty()) {
                     rvChatMessages.scrollToPosition(messages.size() - 1);
@@ -494,10 +538,12 @@ public class ChatModelFragment extends Fragment {
      * @param rootView 根视图
      */
     private void loadChatBackground(View rootView) {
+        android.util.Log.d("ChatModelFragment", "开始加载聊天背景");
         SharedPreferences prefs = requireActivity().getSharedPreferences("chat_settings", Context.MODE_PRIVATE);
         
         // 检查是否有自定义背景URI
         String backgroundUri = prefs.getString("chat_background_uri", null);
+        android.util.Log.d("ChatModelFragment", "自定义背景URI: " + backgroundUri);
         if (backgroundUri != null) {
             try {
                 // 应用自定义背景图片
@@ -505,31 +551,40 @@ public class ChatModelFragment extends Fragment {
                 Drawable drawable = Drawable.createFromStream(
                     requireActivity().getContentResolver().openInputStream(uri), null);
                 if (drawable != null) {
+                    android.util.Log.d("ChatModelFragment", "成功加载自定义背景");
                     rootView.setBackground(drawable);
                     return;
                 }
             } catch (Exception e) {
+                android.util.Log.e("ChatModelFragment", "加载自定义背景失败", e);
                 // 如果加载自定义背景失败，继续尝试预设背景
             }
         }
         
-        // 检查是否有预设背景 - 修改键名为 "chat_background"
+        // 检查是否有预设背景
         int backgroundResId = prefs.getInt("chat_background", -1);
+        android.util.Log.d("ChatModelFragment", "预设背景资源ID: " + backgroundResId);
         if (backgroundResId != -1) {
             try {
+                android.util.Log.d("ChatModelFragment", "开始设置预设背景: " + backgroundResId);
                 rootView.setBackgroundResource(backgroundResId);
+                android.util.Log.d("ChatModelFragment", "预设背景设置成功");
                 return;
             } catch (Exception e) {
+                android.util.Log.e("ChatModelFragment", "设置预设背景失败", e);
                 // 如果加载预设背景失败，使用默认背景
             }
         }
         
         // 检查是否有纯色背景
         int backgroundColor = prefs.getInt("chat_background_color", -1);
+        android.util.Log.d("ChatModelFragment", "纯色背景: " + backgroundColor);
         if (backgroundColor != -1) {
             rootView.setBackgroundColor(backgroundColor);
+            android.util.Log.d("ChatModelFragment", "纯色背景设置成功");
+        } else {
+            android.util.Log.d("ChatModelFragment", "没有任何背景设置，保持默认背景");
         }
-        // 如果没有任何背景设置，保持默认背景
     }
     
     /**
@@ -628,5 +683,68 @@ public class ChatModelFragment extends Fragment {
     private void onKeyboardHidden() {
         // 键盘隐藏时的处理逻辑（如果需要）
     }
+    
+    @Override
+    public void onResume() {
+        super.onResume();
+        
+        android.util.Log.d("ChatModelFragment", "注册头像更新广播接收器");
+        // 注册头像更新广播接收器
+        IntentFilter avatarFilter = new IntentFilter(AvatarUpdateManager.ACTION_AVATAR_UPDATED);
+        LocalBroadcastManager.getInstance(requireContext())
+            .registerReceiver(avatarUpdateReceiver, avatarFilter);
+            
+        android.util.Log.d("ChatModelFragment", "注册背景更新广播接收器");
+        // 注册背景更新广播接收器
+        IntentFilter backgroundFilter = new IntentFilter(BackgroundUpdateManager.ACTION_BACKGROUND_UPDATED);
+        LocalBroadcastManager.getInstance(requireContext())
+            .registerReceiver(backgroundUpdateReceiver, backgroundFilter);
+        
+        // ... existing code ...
+    }
+    
+    /**
+     * 为当前用户的消息加载头像URI
+     */
+    private void loadCurrentUserAvatarForMessages() {
+        if (getContext() == null) return;
+        
+        try {
+            // 获取当前用户信息
+            int currentUserId = UserInfoManager.getCurrentUserId(getContext());
+            String currentUsername = UserInfoManager.getCurrentUsername(getContext());
+            
+            if (currentUserId > 0) {
+                // 从SharedPreferences加载保存的头像URI
+                SharedPreferences prefs = getContext().getSharedPreferences("user_avatars", Context.MODE_PRIVATE);
+                String savedUriString = prefs.getString("avatar_uri_" + currentUserId, null);
+                
+                if (savedUriString != null && messageAdapter != null) {
+                    // 更新当前用户的消息头像
+                    messageAdapter.updateUserAvatar(String.valueOf(currentUserId), savedUriString);
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+    
+    @Override
+    public void onPause() {
+        super.onPause();
+        
+        android.util.Log.d("ChatModelFragment", "注销头像更新广播接收器");
+        // 注销头像更新广播接收器
+        LocalBroadcastManager.getInstance(requireContext())
+            .unregisterReceiver(avatarUpdateReceiver);
+            
+        android.util.Log.d("ChatModelFragment", "注销背景更新广播接收器");
+        // 注销背景更新广播接收器
+        LocalBroadcastManager.getInstance(requireContext())
+            .unregisterReceiver(backgroundUpdateReceiver);
+        
+        // ... existing code ...
+    }
+    
 }
 

@@ -2,6 +2,9 @@ package com.example.couplecredit.activity;
 
 import android.app.AlertDialog;
 import android.content.Intent;
+import android.content.SharedPreferences;
+import android.content.Context;
+import android.net.Uri;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.EditText;
@@ -12,6 +15,8 @@ import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
 
+import com.bumptech.glide.Glide;
+import com.bumptech.glide.load.resource.bitmap.CircleCrop;
 import com.example.couplecredit.R;
 import com.example.couplecredit.function.MySQLDatabaseHelper;
 import com.example.couplecredit.function.NicknameCache;
@@ -65,6 +70,9 @@ public class UserSettingsActivity extends AppCompatActivity {
         
         // 加载情侣信息
         loadCoupleInfo();
+        
+        // 加载保存的头像
+        loadSavedAvatar();
     }
     
     /**
@@ -369,5 +377,50 @@ public class UserSettingsActivity extends AppCompatActivity {
                 });
             }
         });
+    }
+    
+    /**
+     * 加载保存的头像
+     */
+    private void loadSavedAvatar() {
+        if (userId != null) {
+            SharedPreferences prefs = getSharedPreferences("user_avatars", Context.MODE_PRIVATE);
+            String savedUriString = prefs.getString("avatar_uri_" + userId, null);
+            
+            if (savedUriString != null) {
+                try {
+                    Uri savedUri = Uri.parse(savedUriString);
+                    setUserAvatar(savedUri);
+                } catch (Exception e) {
+                    // 如果加载失败，使用默认头像
+                    ivUserAvatar.setImageResource(R.drawable.ic_default_avatar);
+                }
+            } else {
+                // 没有保存的头像，使用默认头像
+                ivUserAvatar.setImageResource(R.drawable.ic_default_avatar);
+            }
+        }
+    }
+    
+    /**
+     * 设置用户头像
+     * @param imageUri 图片URI
+     */
+    private void setUserAvatar(Uri imageUri) {
+        if (imageUri != null && ivUserAvatar != null) {
+            try {
+                // 使用Glide加载并设置头像
+                Glide.with(this)
+                    .load(imageUri)
+                    .transform(new CircleCrop())
+                    .placeholder(R.drawable.ic_default_avatar)
+                    .error(R.drawable.ic_default_avatar)
+                    .into(ivUserAvatar);
+            } catch (Exception e) {
+                e.printStackTrace();
+                // 如果加载失败，使用默认头像
+                ivUserAvatar.setImageResource(R.drawable.ic_default_avatar);
+            }
+        }
     }
 }

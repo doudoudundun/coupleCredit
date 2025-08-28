@@ -17,10 +17,9 @@
         <!-- 用户头像 -->
         <ImageView
             android:id="@+id/iv_avatar"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
+            android:layout_width="60dp"
+            android:layout_height="60dp"
             android:src="@drawable/ic_profile"
-            android:background="@drawable/circle_bg_gray"
             android:padding="8dp"
             android:layout_marginEnd="12dp" />
 
@@ -84,20 +83,12 @@
                     android:maxLines="10"
                     android:ellipsize="none" />
 
-
                 <!-- 点赞按钮 -->
-                <ImageView
-                    android:id="@+id/iv_like"
+                <com.example.couplecredit.function.LikeButton
+                    android:id="@+id/likeButton"
                     android:layout_width="24dp"
                     android:layout_height="24dp"
-                    android:background="@drawable/circle_bg_pink"
-                    android:clickable="true"
-                    android:focusable="true"
-                    android:padding="4dp"
-                    android:layout_marginStart="16dp"
-                    android:src="@drawable/ic_favorite_outline" />
-
-
+                    android:layout_marginStart="16dp"/>
 
             </LinearLayout>
 

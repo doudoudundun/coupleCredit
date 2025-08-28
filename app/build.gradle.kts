@@ -78,5 +78,9 @@ dependencies {
     
     // MultiDex支持
     implementation("androidx.multidex:multidex:2.0.1")
-
+    // 在dependencies块中添加
+    implementation("com.github.bumptech.glide:glide:4.15.1")
+    
+    // LocalBroadcastManager支持
+    implementation("androidx.localbroadcastmanager:localbroadcastmanager:1.1.0")
 }
