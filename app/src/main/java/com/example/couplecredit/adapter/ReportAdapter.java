@@ -100,6 +100,7 @@ public class ReportAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder>
         public TextView tvAdditionalTitle;
         public TextView tvFilterAllPie, tvFilterSelfPie, tvFilterPartnerPie, tvFilterSharedPie;
         public PieChart pieChartCategory;
+        public RecyclerView rvCategoryList;
         
         public AdditionalViewHolder(@NonNull View itemView) {
             super(itemView);
@@ -110,6 +111,7 @@ public class ReportAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder>
             tvFilterPartnerPie = itemView.findViewById(R.id.tv_filter_partner_pie);
             tvFilterSharedPie = itemView.findViewById(R.id.tv_filter_shared_pie);
             pieChartCategory = itemView.findViewById(R.id.pie_chart_category);
+            rvCategoryList = itemView.findViewById(R.id.rv_category_list);
         }
     }
 }

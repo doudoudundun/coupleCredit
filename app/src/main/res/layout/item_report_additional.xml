@@ -56,7 +56,7 @@
                     android:paddingLeft="8dp"
                     android:paddingRight="8dp"
                     android:paddingTop="6dp"
-                    android:paddingBottom="6dp"
+                    android:paddingBottom="8dp"
                     android:elevation="2dp" />
                     
                 <TextView
@@ -70,7 +70,7 @@
                     android:paddingLeft="8dp"
                     android:paddingRight="8dp"
                     android:paddingTop="6dp"
-                    android:paddingBottom="6dp"
+                    android:paddingBottom="8dp"
                     android:layout_marginLeft="-2dp"
                     android:elevation="1dp" />
                     
@@ -85,7 +85,7 @@
                     android:paddingLeft="8dp"
                     android:paddingRight="8dp"
                     android:paddingTop="6dp"
-                    android:paddingBottom="6dp"
+                    android:paddingBottom="8dp"
                     android:layout_marginLeft="-2dp"
                     android:elevation="1dp" />
                     
@@ -100,7 +100,7 @@
                     android:paddingLeft="8dp"
                     android:paddingRight="8dp"
                     android:paddingTop="6dp"
-                    android:paddingBottom="6dp"
+                    android:paddingBottom="8dp"
                     android:layout_marginLeft="-2dp"
                     android:elevation="1dp" />
                     
@@ -113,8 +113,16 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_gravity="center"
-            android:layout_marginTop="-24dp"
+            android:layout_marginTop="-8dp"
             android:layout_marginBottom="-24dp"/>
+            
+        <!-- 分类列表 -->
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/rv_category_list"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="-10dp"
+            android:nestedScrollingEnabled="false" />
 
     </LinearLayout>
 

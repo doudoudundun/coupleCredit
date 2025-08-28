@@ -19,6 +19,7 @@ import com.example.couplecredit.R;
 import com.example.couplecredit.function.Utils;
 import com.example.couplecredit.function.UserInfoManager;
 import com.example.couplecredit.adapter.ReportAdapter;
+import com.example.couplecredit.adapter.CategoryDetailAdapter;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Map;
@@ -58,6 +59,8 @@ public class ReportFragment extends Fragment {
     private ReportAdapter reportAdapter;
     private PieChart currentPieChart;
     private TextView currentTitleView;
+    private RecyclerView rvCategoryList;
+    private CategoryDetailAdapter categoryDetailAdapter;
     private int income_type;
     private String currentChartFilter = "all"; // 折线图当前筛选状态
     private String currentPieFilter = "all"; // 饼图当前筛选状态
@@ -85,7 +88,8 @@ public class ReportFragment extends Fragment {
                     tv_trend_title.setText("支出趋势");
                 }
                 loadTrendData();
-                 // 饼状图会在其自己的filter状态下自动刷新
+                // 刷新饼状图和类目列表
+                refreshPieChart();
                 getRemainer(new RemainingCallback() {
                 @Override
                 public void onResult(double remaining) {
@@ -103,7 +107,8 @@ public class ReportFragment extends Fragment {
                     tv_trend_title.setText("收入趋势");
                 }
                 loadTrendData();
-            // 饼状图会在其自己的filter状态下自动刷新
+                // 刷新饼状图和类目列表
+                refreshPieChart();
             }
         }
     };
@@ -163,6 +168,7 @@ public class ReportFragment extends Fragment {
                 // 保存引用
                 currentPieChart = holder.pieChartCategory;
                 currentTitleView = holder.tvAdditionalTitle;
+                rvCategoryList = holder.rvCategoryList;
                 tv_filter_all_pie = holder.tvFilterAllPie;
                 tv_filter_self_pie = holder.tvFilterSelfPie;
                 tv_filter_partner_pie = holder.tvFilterPartnerPie;
@@ -174,6 +180,9 @@ public class ReportFragment extends Fragment {
                 
                 // 设置饼状图
                 setupPieChart(holder.pieChartCategory);
+                
+                // 设置分类列表
+                setupCategoryList();
                 
                 // 加载饼状图数据
                 loadCategoryData(holder.pieChartCategory, holder.tvAdditionalTitle);
@@ -402,10 +411,7 @@ public class ReportFragment extends Fragment {
                     public void onDataLoaded() {
                         // 数据加载完成后，更新折线图
                         loadMonthlyTrendData(userId, relationshipId);
-                        // 同时更新饼状图（如果有当前饼状图实例）
-                        if (currentPieChart != null && currentTitleView != null) {
-                            loadMonthlyCategoryData(userId, relationshipId, currentPieChart, currentTitleView);
-                        }
+                        // 饼状图有自己独立的过滤器和刷新机制，不需要在这里更新
                     }
                     
                     @Override
@@ -724,7 +730,7 @@ public class ReportFragment extends Fragment {
         // 设置基本属性
         pieChart.setUsePercentValues(true);
         pieChart.getDescription().setEnabled(false);
-        pieChart.setExtraOffsets(30, -100, 30, -100); // 左，上，右，下边距，单独缩短上边距
+        pieChart.setExtraOffsets(30, 0, 30, 0); // 左，上，右，下边距，单独缩短上边距
         
         // 设置饼状图绘制半径为80dp，加上外边距
         float density = getResources().getDisplayMetrics().density;
@@ -852,8 +858,9 @@ public class ReportFragment extends Fragment {
     
     // 基于缓存数据加载月度类别数据
     private void loadMonthlyCategoryData(int userId, Integer relationshipId, PieChart pieChart, TextView titleView) {
-        // 统计各类别金额
+        // 统计各类别金额和数量
         Map<String, Float> categoryAmounts = new HashMap<>();
+        Map<String, Integer> categoryCounts = new HashMap<>();
         float totalAmount = 0;
         
         for (Map<String, Object> bill : monthlyBills) {
@@ -868,17 +875,20 @@ public class ReportFragment extends Fragment {
             if (category != null && amount != null) {
                 float amountFloat = amount.floatValue();
                 categoryAmounts.put(category, categoryAmounts.getOrDefault(category, 0f) + amountFloat);
+                categoryCounts.put(category, categoryCounts.getOrDefault(category, 0) + 1);
                 totalAmount += amountFloat;
             }
         }
         
         // 声明为final变量供lambda使用
         final Map<String, Float> finalCategoryAmounts = categoryAmounts;
+        final Map<String, Integer> finalCategoryCounts = categoryCounts;
         final float finalTotalAmount = totalAmount;
         
         if (getActivity() != null) {
             getActivity().runOnUiThread(() -> {
                 updatePieChart(pieChart, finalCategoryAmounts, finalTotalAmount, titleView);
+                updateCategoryList(finalCategoryAmounts, finalCategoryCounts, finalTotalAmount);
             });
         }
     }
@@ -999,6 +1009,43 @@ public class ReportFragment extends Fragment {
         pieChart.invalidate();
     }
     
+    // 设置分类列表
+    private void setupCategoryList() {
+        if (rvCategoryList != null) {
+            categoryDetailAdapter = new CategoryDetailAdapter(getContext(), new ArrayList<>());
+            rvCategoryList.setLayoutManager(new LinearLayoutManager(getContext()));
+            rvCategoryList.setAdapter(categoryDetailAdapter);
+        }
+    }
+    
+    private void updateCategoryList(Map<String, Float> categoryAmounts, Map<String, Integer> categoryCounts, float totalAmount) {
+        if (categoryDetailAdapter == null) {
+            return;
+        }
+        
+        List<CategoryDetailAdapter.CategoryDetail> categoryDetails = new ArrayList<>();
+        
+        // 如果有数据，则添加到列表中
+        if (!categoryAmounts.isEmpty()) {
+            for (Map.Entry<String, Float> entry : categoryAmounts.entrySet()) {
+                String category = entry.getKey();
+                float amount = entry.getValue();
+                int count = categoryCounts.getOrDefault(category, 0);
+                float percentage = totalAmount > 0 ? (amount / totalAmount) * 100 : 0;
+                
+                categoryDetails.add(new CategoryDetailAdapter.CategoryDetail(
+                    category, count, amount, percentage, 0
+                ));
+            }
+            
+            // 按金额降序排序
+            categoryDetails.sort((a, b) -> Float.compare(b.getAmount(), a.getAmount()));
+        }
+        
+        // 无论有没有数据都更新适配器，没有数据时传入空列表清空显示
+        categoryDetailAdapter.updateData(categoryDetails);
+    }
+    
     // 刷新饼状图
     private void refreshPieChart() {
         if (currentPieChart != null && currentTitleView != null) {
@@ -1052,6 +1099,7 @@ public class ReportFragment extends Fragment {
                 selectedView.setBackgroundResource(R.drawable.filter_button_right_selected);
             }
             selectedView.setTextColor(getResources().getColor(android.R.color.white));
+            selectedView.setElevation(8f); // 提升选中按钮到最上层
         }
         
         // 保存当前筛选状态
@@ -1064,18 +1112,22 @@ public class ReportFragment extends Fragment {
         if (tv_filter_all_pie != null) {
             tv_filter_all_pie.setBackgroundResource(R.drawable.filter_button_left_unselected);
             tv_filter_all_pie.setTextColor(defaultTextColor);
+            tv_filter_all_pie.setElevation(2f);
         }
         if (tv_filter_self_pie != null) {
             tv_filter_self_pie.setBackgroundResource(R.drawable.filter_button_middle_unselected);
             tv_filter_self_pie.setTextColor(defaultTextColor);
+            tv_filter_self_pie.setElevation(1f);
         }
         if (tv_filter_partner_pie != null) {
             tv_filter_partner_pie.setBackgroundResource(R.drawable.filter_button_middle_unselected);
             tv_filter_partner_pie.setTextColor(defaultTextColor);
+            tv_filter_partner_pie.setElevation(1f);
         }
         if (tv_filter_shared_pie != null) {
             tv_filter_shared_pie.setBackgroundResource(R.drawable.filter_button_right_unselected);
             tv_filter_shared_pie.setTextColor(defaultTextColor);
+            tv_filter_shared_pie.setElevation(1f);
         }
     }
 }
