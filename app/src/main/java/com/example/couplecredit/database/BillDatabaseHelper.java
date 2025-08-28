@@ -180,7 +180,7 @@ public class BillDatabaseHelper {
                         Object[] row = new Object[columns.length];
                         row[0] = resultSet.getInt("_id");
                         row[1] = resultSet.getInt("relationship_id");
-                        row[2] = resultSet.getString("owner");
+                        row[2] = resultSet.getInt("owner");
                         row[3] = resultSet.getInt("userId");
                         row[4] = resultSet.getString("title");
                         row[5] = resultSet.getString("type");
@@ -612,9 +612,9 @@ public class BillDatabaseHelper {
                         int ownerColumnIndex = cursor.getColumnIndex("owner");
                         if (ownerColumnIndex != -1) {
                             row.put("owner", cursor.getInt(ownerColumnIndex));
-                            // 获取owner字段
-                } else {
-                    // owner字段不存在
+                        } else {
+                            // owner字段不存在，设置默认值
+                            row.put("owner", 1);
                         }
                         row.put("is_help", cursor.getInt(cursor.getColumnIndexOrThrow("is_help")));
                         results.add(row);

@@ -27,7 +27,7 @@
                 android:textColor="#333333"
                 android:textSize="16sp"
                 android:textStyle="bold"
-                android:layout_marginBottom="16dp" />
+                android:layout_marginBottom="0dp" />
                 
             <!-- 筛选按钮组 -->
             <LinearLayout
@@ -36,7 +36,7 @@
                 android:orientation="horizontal"
                 android:layout_marginLeft="16dp"
                 android:layout_marginRight="4dp"
-                android:layout_marginBottom="16dp"
+                android:layout_marginBottom="0dp"
                 android:gravity="right">
                 
                 <!-- 间隔View -->
@@ -112,7 +112,9 @@
             android:id="@+id/pie_chart_category"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_gravity="center" />
+            android:layout_gravity="center"
+            android:layout_marginTop="-24dp"
+            android:layout_marginBottom="-24dp"/>
 
     </LinearLayout>
 

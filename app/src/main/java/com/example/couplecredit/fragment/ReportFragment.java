@@ -580,8 +580,8 @@ public class ReportFragment extends Fragment {
         
         LineData lineData = new LineData(dataSet);
         TrendChart.setData(lineData);
-        // 添加从下到上的动画效果，持续时间300毫秒
-        TrendChart.animateY(300);
+        // 添加从下到上的动画效果，持续时间500毫秒
+        TrendChart.animateY(500);
         TrendChart.invalidate(); // 刷新图表
     }
     private void getRemainer(RemainingCallback callback){
@@ -724,12 +724,12 @@ public class ReportFragment extends Fragment {
         // 设置基本属性
         pieChart.setUsePercentValues(true);
         pieChart.getDescription().setEnabled(false);
-        pieChart.setExtraOffsets(50, 50, 50, 50); // 增加外边距为标签留出空间
+        pieChart.setExtraOffsets(30, -100, 30, -100); // 左，上，右，下边距，单独缩短上边距
         
-        // 设置饼状图绘制半径为100dp，加上外边距
+        // 设置饼状图绘制半径为80dp，加上外边距
         float density = getResources().getDisplayMetrics().density;
-        int radiusInPx = (int) (150 * density);
-        int offsetInPx = (int) (50 * density); // 外边距50dp
+        int radiusInPx = (int) (145 * density);
+        int offsetInPx = (int) (30 * density); // 外边距30dp
         int totalSize = radiusInPx * 2 + offsetInPx * 2; // 直径 + 两边外边距
         pieChart.setMinimumWidth(totalSize);
         pieChart.setMinimumHeight(totalSize);
@@ -822,27 +822,11 @@ public class ReportFragment extends Fragment {
         String monthSelection = "date LIKE ? AND income_type = ?";
         String[] monthSelectionArgs = new String[]{monthPattern, String.valueOf(income_type)};
         
-        billHelper.queryBills(monthSelection, monthSelectionArgs, "date DESC, time DESC", new BillDatabaseHelper.BillQueryCallback() {
+        billHelper.queryBillsWithUserFilter(userId, relationshipId, monthSelection, monthSelectionArgs, new BillDatabaseHelper.QueryCallback() {
             @Override
-            public void onQuerySuccess(Cursor cursor) {
+            public void onSuccess(List<Map<String, Object>> bills) {
                 monthlyBills.clear();
-                if (cursor != null && cursor.moveToFirst()) {
-                    do {
-                        Map<String, Object> bill = new HashMap<>();
-                        bill.put("_id", cursor.getLong(cursor.getColumnIndexOrThrow("_id")));
-                        bill.put("amount", cursor.getDouble(cursor.getColumnIndexOrThrow("amount")));
-                        bill.put("date", cursor.getString(cursor.getColumnIndexOrThrow("date")));
-                        bill.put("time", cursor.getString(cursor.getColumnIndexOrThrow("time")));
-                        bill.put("owner", cursor.getInt(cursor.getColumnIndexOrThrow("owner")));
-                        bill.put("userId", cursor.getInt(cursor.getColumnIndexOrThrow("userId")));
-                        bill.put("type", cursor.getString(cursor.getColumnIndexOrThrow("type")));
-                        bill.put("title", cursor.getString(cursor.getColumnIndexOrThrow("title")));
-                        bill.put("income_type", cursor.getInt(cursor.getColumnIndexOrThrow("income_type")));
-                        bill.put("is_help", cursor.getInt(cursor.getColumnIndexOrThrow("is_help")));
-                        monthlyBills.add(bill);
-                    } while (cursor.moveToNext());
-                    cursor.close();
-                }
+                monthlyBills.addAll(bills);
                 
                 // 设置当前用户信息
                 currentUserId = userId;
@@ -855,7 +839,7 @@ public class ReportFragment extends Fragment {
             }
             
             @Override
-            public void onQueryError(String error) {
+            public void onError(String error) {
                 monthlyBills.clear();
                 currentUserId = userId;
                 currentRelationshipId = relationshipId;
@@ -969,6 +953,13 @@ public class ReportFragment extends Fragment {
         // 创建数据
         PieData data = new PieData(dataSet);
         pieChart.setData(data);
+        
+        // 设置中心文字为总金额
+        String formattedAmount = "￥" + String.format("%.2f", totalAmount);
+        pieChart.setCenterText(formattedAmount);
+        
+        // 添加从头加载的动画效果
+        pieChart.animateY(800); // Y轴动画，持续800毫秒
         pieChart.invalidate();
         
         // 更新标题
@@ -998,7 +989,13 @@ public class ReportFragment extends Fragment {
         
         PieData data = new PieData(dataSet);
         pieChart.setData(data);
-        pieChart.setCenterText("暂无数据");
+        
+        // 设置中心文字为0金额
+        String formattedAmount = "￥" + String.format("%.2f", 0f);
+        pieChart.setCenterText(formattedAmount);
+        
+        // 添加动画效果
+        pieChart.animateY(800);
         pieChart.invalidate();
     }
     
