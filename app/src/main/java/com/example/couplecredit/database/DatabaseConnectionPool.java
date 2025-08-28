@@ -25,7 +25,7 @@ public class DatabaseConnectionPool {
     private static final String DB_URL = "jdbc:mysql://" + DB_HOST + ":" + DB_PORT + "/" + DB_NAME + "?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC";
     
     // 连接池配置
-    private static final int POOL_SIZE = 5; // 连接池大小
+    private static final int POOL_SIZE = 7; // 连接池大小
     private static final int CONNECTION_TIMEOUT = 10; // 获取连接超时时间（秒）
     
     private static DatabaseConnectionPool instance;
@@ -206,7 +206,7 @@ public class DatabaseConnectionPool {
         // 在后台线程执行预连接创建，避免阻塞主线程
         new Thread(() -> {
             try {
-                int coreConnections = Math.max(1, POOL_SIZE / 2);
+                int coreConnections = 4; // 预热时创建4个连接
                 int currentSize = connectionPool.size();
                 
                 if (currentSize < coreConnections) {

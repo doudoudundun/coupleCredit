@@ -14,6 +14,7 @@ import com.example.couplecredit.BillBean;
 import com.example.couplecredit.R;
 import com.example.couplecredit.database.CoupleRelationshipHelper;
 import com.example.couplecredit.function.MySQLDatabaseHelper;
+import com.example.couplecredit.function.NicknameCache;
 import com.example.couplecredit.function.UserInfoManager;
 
 import java.util.List;
@@ -155,12 +156,31 @@ public class BillAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
             return;
         }
         
-        // 获取当前用户昵称
+        // 先尝试从缓存获取当前用户昵称
+        String cachedNickname = NicknameCache.getCachedNickname(context, String.valueOf(currentUserId));
+        if (cachedNickname != null) {
+            currentUserNickname = cachedNickname;
+            
+            // 如果有情侣关系，继续获取对方昵称
+            if (currentRelationshipId != null) {
+                loadPartnerNickname();
+            } else {
+                nicknamesCached = true;
+                notifyDataSetChanged();
+            }
+            return;
+        }
+        
+        // 缓存不存在或过期，查询数据库
         MySQLDatabaseHelper dbHelper = new MySQLDatabaseHelper();
         dbHelper.getUserNicknameById(currentUserId, new MySQLDatabaseHelper.UserNicknameCallback() {
             @Override
             public void onSuccess(String nickname) {
-                currentUserNickname = (nickname != null && !nickname.trim().isEmpty()) ? nickname : "自己";
+                String displayName = (nickname != null && !nickname.trim().isEmpty()) ? nickname : "自己";
+                currentUserNickname = displayName;
+                
+                // 缓存昵称
+                NicknameCache.cacheNickname(context, String.valueOf(currentUserId), displayName);
                 
                 // 如果有情侣关系，继续获取对方昵称
                 if (currentRelationshipId != null) {
@@ -174,6 +194,9 @@ public class BillAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
             @Override
             public void onError(String error) {
                 currentUserNickname = "自己";
+                
+                // 即使查询失败也缓存默认值
+                NicknameCache.cacheNickname(context, String.valueOf(currentUserId), "自己");
                 
                 if (currentRelationshipId != null) {
                     loadPartnerNickname();

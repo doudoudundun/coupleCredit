@@ -14,6 +14,7 @@ import androidx.appcompat.app.AppCompatActivity;
 
 import com.example.couplecredit.R;
 import com.example.couplecredit.function.MySQLDatabaseHelper;
+import com.example.couplecredit.function.NicknameCache;
 import com.example.couplecredit.function.UserInfoManager;
 import com.example.couplecredit.database.CoupleRelationshipHelper;
 
@@ -352,6 +353,10 @@ public class UserSettingsActivity extends AppCompatActivity {
             public void onSuccess(String message) {
                 runOnUiThread(() -> {
                     Toast.makeText(UserSettingsActivity.this, "昵称修改成功", Toast.LENGTH_SHORT).show();
+                    
+                    // 清空昵称缓存，确保下次获取最新昵称
+                    NicknameCache.clearNicknameCache(UserSettingsActivity.this, username);
+                    
                     // 刷新用户信息显示
                     updateUserInfo();
                 });
