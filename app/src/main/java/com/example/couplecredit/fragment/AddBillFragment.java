@@ -198,19 +198,18 @@ public class AddBillFragment extends Fragment {
         resetOwnerButtons();
         
         // 设置选中样式
-        selectedView.setBackgroundColor(getResources().getColor(android.R.color.holo_orange_light));
+        selectedView.setBackgroundResource(R.drawable.blue_rounded_background);
         selectedView.setTextColor(getResources().getColor(android.R.color.white));
     }
     
     private void resetOwnerButtons() {
-        int defaultBg = getResources().getColor(android.R.color.darker_gray);
-        int defaultTextColor = getResources().getColor(android.R.color.black);
+        int defaultTextColor = getResources().getColor(android.R.color.darker_gray);
         
-        tvSelf.setBackgroundColor(defaultBg);
+        tvSelf.setBackgroundResource(R.drawable.gray_rounded_background);
         tvSelf.setTextColor(defaultTextColor);
-        tvPartner.setBackgroundColor(defaultBg);
+        tvPartner.setBackgroundResource(R.drawable.gray_rounded_background);
         tvPartner.setTextColor(defaultTextColor);
-        tvShared.setBackgroundColor(defaultBg);
+        tvShared.setBackgroundResource(R.drawable.gray_rounded_background);
         tvShared.setTextColor(defaultTextColor);
     }
     
@@ -585,52 +584,6 @@ public class AddBillFragment extends Fragment {
         }
     }
 
-//    @SuppressLint("ResourceType")
-//    private void resetCategoryBackgrounds(View rootView) {
-//        try {
-//            Log.d("AddBillFragment", "resetCategoryBackgrounds called");
-//
-//            // 重置所有分类背景
-//            int defaultBackground = android.R.attr.selectableItemBackground;
-//
-//            LinearLayout[] categories = {
-//                rootView.findViewById(R.id.category_food),
-//                rootView.findViewById(R.id.category_drink),
-//                rootView.findViewById(R.id.category_fruit),
-//                rootView.findViewById(R.id.category_shopping),
-//                rootView.findViewById(R.id.category_transport),
-//                rootView.findViewById(R.id.category_hotel),
-//                rootView.findViewById(R.id.category_daily),
-//                rootView.findViewById(R.id.category_study),
-//                rootView.findViewById(R.id.category_entertainment),
-//                rootView.findViewById(R.id.category_cosmetic),
-//                rootView.findViewById(R.id.category_travel),
-//                rootView.findViewById(R.id.category_medical),
-//                rootView.findViewById(R.id.category_member),
-//                rootView.findViewById(R.id.category_communication),
-//                rootView.findViewById(R.id.category_social),
-//                rootView.findViewById(R.id.category_investment),
-//                rootView.findViewById(R.id.category_parenting),
-//                rootView.findViewById(R.id.category_pet),
-//                rootView.findViewById(R.id.category_decoration),
-//                rootView.findViewById(R.id.category_other)
-//            };
-//
-//            for (int i = 0; i < categories.length; i++) {
-//                LinearLayout category = categories[i];
-//                if (category != null) {
-//                    category.setBackgroundResource(defaultBackground);
-//                } else {
-//                    Log.w("AddBillFragment", "Category at index " + i + " is null");
-//                }
-//            }
-//
-//            Log.d("AddBillFragment", "resetCategoryBackgrounds completed successfully");
-//        } catch (Exception e) {
-//            Log.e("AddBillFragment", "Error in resetCategoryBackgrounds", e);
-//        }
-//    }
-
     private void saveBill() {
         String note = etNote.getText().toString().trim();
         
@@ -747,7 +700,7 @@ public class AddBillFragment extends Fragment {
         // 重置UI状态
         updateAmountDisplay();
         resetOwnerButtons();
-        tvSelf.setBackgroundColor(getResources().getColor(android.R.color.holo_orange_light));
+        tvSelf.setBackgroundResource(R.drawable.blue_rounded_background);
         tvSelf.setTextColor(getResources().getColor(android.R.color.white));
         
         if (getView() != null) {
