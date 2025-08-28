@@ -18,7 +18,7 @@
         android:theme="@style/OS.Theme.AppCompat.xos.NoActionBar">
         <activity
             android:name=".activity.MainActivity"
-            android:windowSoftInputMode="adjustResize"
+            android:windowSoftInputMode="adjustPan"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
