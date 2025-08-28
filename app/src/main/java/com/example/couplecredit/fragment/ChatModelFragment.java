@@ -83,6 +83,8 @@ public class ChatModelFragment extends Fragment {
     private ViewTreeObserver.OnGlobalLayoutListener keyboardLayoutListener; // 键盘监听器
     private Handler searchHandler = new Handler(Looper.getMainLooper()); // 搜索延迟处理器
     private Runnable searchRunnable; // 搜索任务
+    private View inputSection;               // 输入区域引用
+    private int bottomNavHeight = 0;         // 底部导航栏高度
     
     // ======================== 生命周期方法 ========================
     
@@ -166,6 +168,17 @@ public class ChatModelFragment extends Fragment {
         etSearch = view.findViewById(R.id.et_search);
         btnSend = view.findViewById(R.id.btn_send);
         btnSearch = view.findViewById(R.id.btn_search);
+        inputSection = view.findViewById(R.id.input_section);
+        
+        // 获取底部导航栏高度
+        if (getActivity() != null) {
+            View bottomNav = getActivity().findViewById(R.id.bottom_nav);
+            if (bottomNav != null) {
+                bottomNav.post(() -> {
+                    bottomNavHeight = bottomNav.getHeight();
+                });
+            }
+        }
     }
     
     /**
@@ -470,7 +483,7 @@ public class ChatModelFragment extends Fragment {
                 }
             }
         };
-        requireActivity().getOnBackPressedDispatcher().addCallback(this, backPressedCallback);
+        requireActivity().getOnBackPressedDispatcher().addCallback(getViewLifecycleOwner(), backPressedCallback);
     }
     
     // ======================== 背景设置 ========================
@@ -545,12 +558,45 @@ public class ChatModelFragment extends Fragment {
                     int threshold = (int) (150 * getResources().getDisplayMetrics().density);
                     
                     if (keypadHeight > threshold) {
-                        // 键盘弹出
-                        onKeyboardShown(keypadHeight);
-                    } else {
-                        // 键盘隐藏
-                        onKeyboardHidden();
+                    // 键盘弹出
+                    // 手动调整输入框位置：上移键盘高度减去底部导航栏高度
+                    int adjustHeight = keypadHeight - bottomNavHeight;
+                    
+                    // 调整输入区域位置
+                    if (inputSection != null) {
+                        inputSection.setTranslationY(-adjustHeight);
                     }
+                    
+                    // 调整RecyclerView底部边距，为上移的输入框让出空间
+                    if (rvChatMessages != null) {
+                        rvChatMessages.setPadding(
+                            rvChatMessages.getPaddingLeft(),
+                            rvChatMessages.getPaddingTop(),
+                            rvChatMessages.getPaddingRight(),
+                            adjustHeight + 8 // 原始padding + 调整高度
+                        );
+                    }
+                    
+                    onKeyboardShown(keypadHeight);
+                } else {
+                    // 键盘隐藏
+                    // 恢复输入区域位置
+                    if (inputSection != null) {
+                        inputSection.setTranslationY(0);
+                    }
+                    
+                    // 恢复RecyclerView底部边距
+                    if (rvChatMessages != null) {
+                        rvChatMessages.setPadding(
+                            rvChatMessages.getPaddingLeft(),
+                            rvChatMessages.getPaddingTop(),
+                            rvChatMessages.getPaddingRight(),
+                            8 // 恢复原始padding
+                        );
+                    }
+                    
+                    onKeyboardHidden();
+                }
                     
                     previousHeight = keypadHeight;
                 }
