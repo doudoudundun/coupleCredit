@@ -6,8 +6,13 @@ import android.graphics.Rect;
 import android.graphics.drawable.Drawable;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
+import android.text.Editable;
 import android.text.TextUtils;
+import android.text.TextWatcher;
 import android.view.LayoutInflater;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewTreeObserver;
@@ -76,6 +81,8 @@ public class ChatModelFragment extends Fragment {
     // ======================== 新增变量 ========================
     private View rootView;                   // 根视图引用
     private ViewTreeObserver.OnGlobalLayoutListener keyboardLayoutListener; // 键盘监听器
+    private Handler searchHandler = new Handler(Looper.getMainLooper()); // 搜索延迟处理器
+    private Runnable searchRunnable; // 搜索任务
     
     // ======================== 生命周期方法 ========================
     
@@ -131,16 +138,17 @@ public class ChatModelFragment extends Fragment {
     public void onDestroyView() {
         super.onDestroyView();
         
-        // 清理资源
-        if (viewModel != null) {
-            viewModel.cleanup();
+        // 清理搜索Handler
+        if (searchHandler != null && searchRunnable != null) {
+            searchHandler.removeCallbacks(searchRunnable);
         }
         
-        // 移除键盘监听器
-        if (keyboardLayoutListener != null && rootView != null) {
+        // 清理键盘监听器
+        if (rootView != null && keyboardLayoutListener != null) {
             rootView.getViewTreeObserver().removeOnGlobalLayoutListener(keyboardLayoutListener);
         }
         
+        // 清理返回键监听器
         if (backPressedCallback != null) {
             backPressedCallback.remove();
         }
@@ -197,6 +205,42 @@ public class ChatModelFragment extends Fragment {
         // 搜索按钮点击事件
         btnSearch.setOnClickListener(v -> performSearch());
         
+        // 搜索输入框文本变化监听 - 实现实时搜索
+        etSearch.addTextChangedListener(new TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
+                // 文本变化前的处理（通常不需要实现）
+            }
+            
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+                // 取消之前的搜索任务
+                if (searchRunnable != null) {
+                    searchHandler.removeCallbacks(searchRunnable);
+                }
+                
+                // 创建新的搜索任务
+                searchRunnable = () -> {
+                    String searchText = s.toString().trim();
+                    if (!TextUtils.isEmpty(searchText)) {
+                        // 执行搜索
+                        viewModel.searchMessages(searchText);
+                    } else {
+                        // 如果搜索框为空，退出搜索模式
+                        viewModel.exitSearchMode();
+                    }
+                };
+                
+                // 延迟300毫秒执行搜索，避免频繁搜索
+                searchHandler.postDelayed(searchRunnable, 300);
+            }
+            
+            @Override
+            public void afterTextChanged(Editable s) {
+                // 文本变化后的处理（通常不需要实现）
+            }
+        });
+        
         // 输入框焦点监听
         etMessageInput.setOnFocusChangeListener((v, hasFocus) -> {
             if (hasFocus) {
@@ -208,6 +252,34 @@ public class ChatModelFragment extends Fragment {
                 });
             }
         });
+        
+        // 添加根视图触摸事件监听器 - 点击空白区域隐藏键盘
+        if (rootView != null) {
+            rootView.setOnTouchListener((v, event) -> {
+                if (event.getAction() == MotionEvent.ACTION_DOWN) {
+                    // 获取触摸点坐标
+                    float x = event.getX();
+                    float y = event.getY();
+                    
+                    // 检查是否点击在输入框或按钮上
+                    if (!isTouchInsideView(etMessageInput, x, y) && 
+                        !isTouchInsideView(etSearch, x, y) &&
+                        !isTouchInsideView(btnSend, x, y) &&
+                        !isTouchInsideView(btnSearch, x, y)) {
+                        
+                        // 清除输入框焦点
+                        etMessageInput.clearFocus();
+                        etSearch.clearFocus();
+                        
+                        // 隐藏键盘
+                        hideKeyboard();
+                        
+                        return true; // 消费触摸事件
+                    }
+                }
+                return false; // 不消费触摸事件，让其他组件正常处理
+            });
+        }
         
         // 设置弹出菜单操作监听器
         popupManager.setOnMenuActionListener(new MessagePopupManager.OnMenuActionListener() {
@@ -233,6 +305,35 @@ public class ChatModelFragment extends Fragment {
                 Toast.makeText(getContext(), "记账功能开发中...", Toast.LENGTH_SHORT).show();
             }
         });
+    }
+    
+    /**
+     * 检查触摸点是否在指定视图内
+     * @param view 要检查的视图
+     * @param x 触摸点X坐标
+     * @param y 触摸点Y坐标
+     * @return 是否在视图内
+     */
+    private boolean isTouchInsideView(View view, float x, float y) {
+        if (view == null || view.getVisibility() != View.VISIBLE) {
+            return false;
+        }
+        
+        int[] location = new int[2];
+        view.getLocationOnScreen(location);
+        
+        // 获取根视图在屏幕上的位置
+        int[] rootLocation = new int[2];
+        rootView.getLocationOnScreen(rootLocation);
+        
+        // 计算相对于根视图的坐标
+        float relativeX = x + rootLocation[0];
+        float relativeY = y + rootLocation[1];
+        
+        return relativeX >= location[0] && 
+               relativeX <= location[0] + view.getWidth() &&
+               relativeY >= location[1] && 
+               relativeY <= location[1] + view.getHeight();
     }
     
     /**
