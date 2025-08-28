@@ -12,6 +12,7 @@ import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
 
 import com.example.couplecredit.database.BillDatabaseHelper;
+import com.example.couplecredit.database.CoupleRelationshipHelper;
 import com.example.couplecredit.R;
 import com.example.couplecredit.function.Utils;
 import com.example.couplecredit.function.UserInfoManager;
@@ -36,11 +37,16 @@ public class ReportFragment extends Fragment {
     private TextView tv_trend_title;
     private TextView tv_remainer;
     private TextView tv_total_amount;
+    private TextView tv_filter_all, tv_filter_self, tv_filter_partner, tv_filter_shared;
     private OSSegmentedTab segmentedTab;
     private List<String> currentTabs = new ArrayList<>();
     private LineChart TrendChart;
     private LinearLayout TrendContainer;
     private int income_type;
+    private String currentFilter = "all"; // 当前筛选状态
+    private int currentUserId = -1;
+    private Integer currentRelationshipId = null;
+    private int currentUserRole = -1; // 1=邀请者, 2=被邀请者
 
     private OSSegmentedTab.OnTabSelectedListener onTabSelectedListener = new OSSegmentedTab.OnTabSelectedListener() {
         @Override
@@ -97,6 +103,16 @@ public class ReportFragment extends Fragment {
         tv_month_choose = view.findViewById(R.id.tv_month_choose);
         tv_remainer = view.findViewById(R.id.tv_remainer);
         tv_total_amount = view.findViewById(R.id.tv_total_amount);
+        
+        // 初始化筛选按钮
+        tv_filter_all = view.findViewById(R.id.tv_filter_all);
+        tv_filter_self = view.findViewById(R.id.tv_filter_self);
+        tv_filter_partner = view.findViewById(R.id.tv_filter_partner);
+        tv_filter_shared = view.findViewById(R.id.tv_filter_shared);
+        
+        setupFilterButtons();
+        // 设置初始选中状态
+        selectFilter("all", tv_filter_all);
         tv_month_choose.setText(currentYear + "年" + currentMonth + "月 >");
         tv_month_choose.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -120,7 +136,52 @@ public class ReportFragment extends Fragment {
         TrendContainer = view.findViewById(R.id.ll_trend_container);
         TrendChart = view.findViewById(R.id.trend_chart);
         setupTrendChart();
+        
+        // 初始化用户信息
+        initUserInfo();
 
+    }
+    
+    private void initUserInfo() {
+        // 获取用户基本信息
+        currentUserId = UserInfoManager.getCurrentUserId(getContext());
+        
+        // 异步获取完整用户信息（包括关系ID和角色）
+        UserInfoManager.getCurrentUserInfo(getContext(), new UserInfoManager.UserInfoCallback() {
+            @Override
+            public void onUserInfoLoaded(int userId, String username, Integer relationshipId) {
+                currentRelationshipId = relationshipId;
+                
+                // 如果有情侣关系，获取用户角色
+                if (relationshipId != null) {
+                    CoupleRelationshipHelper coupleHelper = new CoupleRelationshipHelper();
+                    coupleHelper.getUserRole(userId, new CoupleRelationshipHelper.UserRoleCallback() {
+                        @Override
+                        public void onRoleFound(int ownerId) {
+                            currentUserRole = ownerId;
+                        }
+                        
+                        @Override
+                        public void onNoRelationshipFound() {
+                            currentUserRole = 1; // 默认为1
+                        }
+                        
+                        @Override
+                        public void onError(String error) {
+                            currentUserRole = 1; // 默认为1
+                        }
+                    });
+                } else {
+                    currentUserRole = 1; // 无情侣关系时默认为1
+                }
+            }
+            
+            @Override
+            public void onError(String error) {
+                currentRelationshipId = null;
+                currentUserRole = 1;
+            }
+        });
     }
     
     // 公共方法：更新月份显示
@@ -144,6 +205,55 @@ public class ReportFragment extends Fragment {
         segmentedTab.addTabs(currentTabs);
         // 设置选中监听
         segmentedTab.setOnTabSelectedListener(onTabSelectedListener);
+    }
+    
+    private void setupFilterButtons() {
+        // 设置点击监听器
+        tv_filter_all.setOnClickListener(v -> selectFilter("all", tv_filter_all));
+        tv_filter_self.setOnClickListener(v -> selectFilter("self", tv_filter_self));
+        tv_filter_partner.setOnClickListener(v -> selectFilter("partner", tv_filter_partner));
+        tv_filter_shared.setOnClickListener(v -> selectFilter("shared", tv_filter_shared));
+    }
+    
+    private void selectFilter(String filterType, TextView selectedView) {
+        // 重置所有按钮样式
+        resetFilterButtons();
+        
+        // 根据按钮位置设置选中样式
+        if (selectedView == tv_filter_all) {
+            selectedView.setBackgroundResource(R.drawable.filter_button_left_selected);
+        } else if (selectedView == tv_filter_self) {
+            selectedView.setBackgroundResource(R.drawable.filter_button_middle_selected);
+        } else if (selectedView == tv_filter_partner) {
+            selectedView.setBackgroundResource(R.drawable.filter_button_middle_selected);
+        } else if (selectedView == tv_filter_shared) {
+            selectedView.setBackgroundResource(R.drawable.filter_button_right_selected);
+        }
+        selectedView.setTextColor(getResources().getColor(android.R.color.white));
+        selectedView.setElevation(8f); // 提升选中按钮到最上层
+        
+        // 保存当前筛选状态
+        currentFilter = filterType;
+        
+        // 重新加载数据
+        loadTrendData();
+    }
+    
+    private void resetFilterButtons() {
+        int defaultTextColor = getResources().getColor(android.R.color.darker_gray);
+        
+        tv_filter_all.setBackgroundResource(R.drawable.filter_button_left_unselected);
+        tv_filter_all.setTextColor(defaultTextColor);
+        tv_filter_all.setElevation(2f);
+        tv_filter_self.setBackgroundResource(R.drawable.filter_button_middle_unselected);
+        tv_filter_self.setTextColor(defaultTextColor);
+        tv_filter_self.setElevation(1f);
+        tv_filter_partner.setBackgroundResource(R.drawable.filter_button_middle_unselected);
+        tv_filter_partner.setTextColor(defaultTextColor);
+        tv_filter_partner.setElevation(1f);
+        tv_filter_shared.setBackgroundResource(R.drawable.filter_button_right_unselected);
+        tv_filter_shared.setTextColor(defaultTextColor);
+        tv_filter_shared.setElevation(1f);
     }
     
     private void setupTrendChart() {
@@ -245,6 +355,11 @@ public class ReportFragment extends Fragment {
                 
                 // 按日期分组统计金额
                 for (Map<String, Object> bill : bills) {
+                    // 根据筛选条件过滤账单
+                    if (!shouldIncludeBill(bill)) {
+                        continue;
+                    }
+                    
                     String dateStr = (String) bill.get("date");
                     Double amount = (Double) bill.get("amount");
                     
@@ -437,5 +552,38 @@ public class ReportFragment extends Fragment {
                 });
             }
         }
+    }
+    
+    // 根据当前筛选条件判断是否包含该账单
+    private boolean shouldIncludeBill(Map<String, Object> bill) {
+        if ("all".equals(currentFilter)) {
+            return true;
+        }
+        
+        Integer owner = (Integer) bill.get("owner");
+        if (owner == null) {
+            return false;
+        }
+        
+        // 参考BillAdapter中setOwnerText的逻辑
+        if (currentRelationshipId == null) {
+            // 无情侣关系时，所有账单都是"自己"的
+            return "self".equals(currentFilter);
+        }
+        
+        String billType;
+        if (owner == 3) {
+            billType = "shared"; // 共同账单
+        } else if (owner == 1) {
+            // 邀请者的账单
+            billType = (currentUserRole == 1) ? "self" : "partner";
+        } else if (owner == 2) {
+            // 被邀请者的账单
+            billType = (currentUserRole == 2) ? "self" : "partner";
+        } else {
+            return false;
+        }
+        
+        return billType.equals(currentFilter);
     }
 }
