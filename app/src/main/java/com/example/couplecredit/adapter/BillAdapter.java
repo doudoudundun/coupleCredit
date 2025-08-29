@@ -238,23 +238,15 @@ public class BillAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
     
     @Override
     public int getItemViewType(int position) {
-        Object item = items.get(position);
-        if (item instanceof Map) {
-            return TYPE_DATE_HEADER;
-        } else if (item instanceof BillBean) {
-            return TYPE_BILL_ITEM;
-        }
-        return TYPE_BILL_ITEM;
+        // 根据ClassicModelFragment的处理方式，所有项都是日期分组
+        return TYPE_DATE_HEADER;
     }
 
     @NonNull
     @Override
     public RecyclerView.ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
-        if (viewType == TYPE_DATE_HEADER) {
-            View view = LayoutInflater.from(context).inflate(R.layout.item_date_header, parent, false);
-            return new DateHeaderViewHolder(view);
-        }
-        return null;
+        View view = LayoutInflater.from(context).inflate(R.layout.item_date_header, parent, false);
+        return new DateHeaderViewHolder(view);
     }
 
     @Override

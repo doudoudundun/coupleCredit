@@ -332,7 +332,7 @@ public class AddBillFragment extends Fragment {
         // 社交
         LinearLayout categorySocial = view.findViewById(R.id.category_social);
         categorySocial.setOnClickListener(v -> {
-            selectedCategory = "社交";
+            selectedCategory = "人情";
             updateCategorySelection(view, categorySocial);
         });
 
@@ -346,7 +346,7 @@ public class AddBillFragment extends Fragment {
         // 育儿
         LinearLayout categoryParenting = view.findViewById(R.id.category_parenting);
         categoryParenting.setOnClickListener(v -> {
-            selectedCategory = "育儿";
+            selectedCategory = "亲子";
             updateCategorySelection(view, categoryParenting);
         });
 

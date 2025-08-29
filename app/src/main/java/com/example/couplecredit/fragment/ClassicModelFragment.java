@@ -453,7 +453,7 @@ public class ClassicModelFragment extends Fragment implements BillAdapter.OnItem
         });
     }
 
-    private void processDialog(BillBean bill){
+    public void processDialog(BillBean bill){
 
         double fare = bill.getFare();
         String incomeType = bill.getIncomeType() == 1 ? "收入" : "支出";

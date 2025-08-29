@@ -41,6 +41,7 @@ import com.github.mikephil.charting.formatter.PercentFormatter;
 import com.github.mikephil.charting.utils.ColorTemplate;
 
 import java.util.Calendar;
+import java.util.Random;
 
 public class ReportFragment extends Fragment {
     private int currentYear;
@@ -197,6 +198,11 @@ public class ReportFragment extends Fragment {
                     tv_month_choose.setText(selectedYear + "年" + selectedMonth + "月 >");
                     currentYear = selectedYear;
                     currentMonth = selectedMonth;
+                    // 更新CategoryDetailAdapter的年月信息
+                    if (categoryDetailAdapter != null) {
+                        categoryDetailAdapter.updateYearMonth(currentYear, currentMonth);
+                        android.util.Log.d("ReportFragment", "月份选择器更新CategoryDetailAdapter年月信息: " + currentYear + "年" + currentMonth + "月");
+                    }
                     loadTrendData();
                     refreshPieChart();
                 });
@@ -262,6 +268,13 @@ public class ReportFragment extends Fragment {
         currentMonth = month;
         if (tv_month_choose != null) {
             tv_month_choose.setText(currentYear + "年" + currentMonth + "月 >");
+        }
+        // 更新CategoryDetailAdapter的年月信息
+        if (categoryDetailAdapter != null) {
+            categoryDetailAdapter.updateYearMonth(currentYear, currentMonth);
+            android.util.Log.d("ReportFragment", "更新CategoryDetailAdapter年月信息: " + currentYear + "年" + currentMonth + "月");
+        } else {
+            android.util.Log.w("ReportFragment", "categoryDetailAdapter为null，无法更新年月信息");
         }
         loadTrendData();
     }
@@ -669,6 +682,8 @@ public class ReportFragment extends Fragment {
         if (getContext() != null) {
             // 重新加载趋势数据
             loadTrendData();
+            // 重新加载饼状图数据
+            refreshPieChart();
             // 重新加载结余数据（如果当前显示的是支出）
             if (income_type == 0) {
                 getRemainer(new RemainingCallback() {
@@ -887,19 +902,21 @@ public class ReportFragment extends Fragment {
         
         if (getActivity() != null) {
             getActivity().runOnUiThread(() -> {
-                updatePieChart(pieChart, finalCategoryAmounts, finalTotalAmount, titleView);
-                updateCategoryList(finalCategoryAmounts, finalCategoryCounts, finalTotalAmount);
+                Map<String, Integer> categoryColors = updatePieChart(pieChart, finalCategoryAmounts, finalTotalAmount, titleView);
+                updateCategoryList(finalCategoryAmounts, finalCategoryCounts, finalTotalAmount, categoryColors);
             });
         }
     }
     
     // 更新饼状图数据
-    private void updatePieChart(PieChart pieChart, Map<String, Float> categoryAmounts, float totalAmount, TextView titleView) {
-        if (pieChart == null) return;
+    private Map<String, Integer> updatePieChart(PieChart pieChart, Map<String, Float> categoryAmounts, float totalAmount, TextView titleView) {
+        Map<String, Integer> categoryColors = new HashMap<>();
+        
+        if (pieChart == null) return categoryColors;
         
         if (categoryAmounts.isEmpty() || totalAmount == 0) {
             setupEmptyPieChart(pieChart);
-            return;
+            return categoryColors;
         }
         
         // 转换为列表并按金额排序
@@ -929,6 +946,7 @@ public class ReportFragment extends Fragment {
                 float percentage = (entry.getValue() / totalAmount) * 100;
                 entries.add(new PieEntry(percentage, entry.getKey()));
                 colors.add(pieColors[i]);
+                categoryColors.put(entry.getKey(), pieColors[i]);
             } else {
                 othersAmount += entry.getValue();
             }
@@ -938,7 +956,9 @@ public class ReportFragment extends Fragment {
         if (othersAmount > 0) {
             float othersPercentage = (othersAmount / totalAmount) * 100;
             entries.add(new PieEntry(othersPercentage, "其他"));
-            colors.add(pieColors[4]); // 使用灰色
+            int randomColor = generateRandomColor(); // 使用随机颜色
+            colors.add(randomColor);
+            categoryColors.put("其他", randomColor);
         }
         
         // 创建数据集
@@ -977,6 +997,8 @@ public class ReportFragment extends Fragment {
             String typeText = (income_type == 0) ? "支出" : "收入";
             titleView.setText(typeText + "类目占比");
         }
+        
+        return categoryColors;
     }
     
     // 设置空饼状图
@@ -1012,13 +1034,13 @@ public class ReportFragment extends Fragment {
     // 设置分类列表
     private void setupCategoryList() {
         if (rvCategoryList != null) {
-            categoryDetailAdapter = new CategoryDetailAdapter(getContext(), new ArrayList<>());
+            categoryDetailAdapter = new CategoryDetailAdapter(getContext(), new ArrayList<>(), currentYear, currentMonth);
             rvCategoryList.setLayoutManager(new LinearLayoutManager(getContext()));
             rvCategoryList.setAdapter(categoryDetailAdapter);
         }
     }
     
-    private void updateCategoryList(Map<String, Float> categoryAmounts, Map<String, Integer> categoryCounts, float totalAmount) {
+    private void updateCategoryList(Map<String, Float> categoryAmounts, Map<String, Integer> categoryCounts, float totalAmount, Map<String, Integer> categoryColors) {
         if (categoryDetailAdapter == null) {
             return;
         }
@@ -1033,8 +1055,16 @@ public class ReportFragment extends Fragment {
                 int count = categoryCounts.getOrDefault(category, 0);
                 float percentage = totalAmount > 0 ? (amount / totalAmount) * 100 : 0;
                 
+                // 如果没有颜色映射，生成随机颜色
+                int color;
+                if (categoryColors.containsKey(category)) {
+                    color = categoryColors.get(category);
+                } else {
+                    color = generateRandomColor();
+                }
+                
                 categoryDetails.add(new CategoryDetailAdapter.CategoryDetail(
-                    category, count, amount, percentage, 0
+                    category, count, amount, percentage, color
                 ));
             }
             
@@ -1129,5 +1159,15 @@ public class ReportFragment extends Fragment {
             tv_filter_shared_pie.setTextColor(defaultTextColor);
             tv_filter_shared_pie.setElevation(1f);
         }
+    }
+
+    // 生成随机颜色
+    private int generateRandomColor() {
+        Random random = new Random();
+        // 生成较为鲜艳的颜色，避免过于暗淡
+        int red = random.nextInt(156) + 100;   // 100-255
+        int green = random.nextInt(156) + 100; // 100-255
+        int blue = random.nextInt(156) + 100;  // 100-255
+        return android.graphics.Color.rgb(red, green, blue);
     }
 }

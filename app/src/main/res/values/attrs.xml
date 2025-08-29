@@ -12,4 +12,8 @@
         <!-- 垂直间距 -->
         <attr name="verticalSpacing" format="dimension" />
     </declare-styleable>
+    <declare-styleable name="FullscreenAttrs">
+        <attr name="fullscreenBackgroundColor" format="color" />
+        <attr name="fullscreenTextColor" format="color" />
+    </declare-styleable>
 </resources>
