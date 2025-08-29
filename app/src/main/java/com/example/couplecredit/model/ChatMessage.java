@@ -14,6 +14,7 @@ public class ChatMessage {
     // ==================== 属性字段 ====================
     
     private String username;    // 用户名
+    private String userId;      // 用户ID（新增）
     private String content;     // 消息内容
     private String timestamp;   // 时间戳
     private int avatarResId;    // 头像资源ID
@@ -24,10 +25,11 @@ public class ChatMessage {
     // ==================== 构造函数 ====================
     
     /**
-     * 完整构造函数（支持头像URI）
+     * 完整构造函数（支持头像URI和用户ID）
      */
-    public ChatMessage(String username, String content, String timestamp, int avatarResId, String avatarUri, boolean isSentByMe) {
+    public ChatMessage(String username, String userId, String content, String timestamp, int avatarResId, String avatarUri, boolean isSentByMe) {
         this.username = username;
+        this.userId = userId;
         this.content = content;
         this.timestamp = timestamp;
         this.avatarResId = avatarResId;
@@ -40,7 +42,7 @@ public class ChatMessage {
      * 完整构造函数
      */
     public ChatMessage(String username, String content, String timestamp, int avatarResId, boolean isSentByMe) {
-        this(username, content, timestamp, avatarResId, null, isSentByMe);
+        this(username, null, content, timestamp, avatarResId, null, isSentByMe);
     }
     
     /**
@@ -146,6 +148,22 @@ public class ChatMessage {
      */
     public void setSentByMe(boolean sentByMe) {
         isSentByMe = sentByMe;
+    }
+    
+    /**
+     * 获取用户ID
+     * @return 用户ID
+     */
+    public String getUserId() {
+        return userId;
+    }
+    
+    /**
+     * 设置用户ID
+     * @param userId 用户ID
+     */
+    public void setUserId(String userId) {
+        this.userId = userId;
     }
     
     // ==================== 工具方法 ====================

@@ -34,6 +34,7 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.example.couplecredit.R;
+import com.example.couplecredit.activity.UserSettingsActivity;
 import com.example.couplecredit.adapter.ChatMessageAdapter;
 import com.example.couplecredit.function.UserInfoManager;
 import com.example.couplecredit.manager.MessagePopupManager;
@@ -242,6 +243,15 @@ public class ChatModelFragment extends Fragment {
             public void onMessageLongClick(View anchorView, ChatMessage message, int position) {
                 // 显示弹出菜单
                 popupManager.showMessagePopupMenu(anchorView, message, position);
+            }
+            
+            @Override
+            public void onAvatarClick(ChatMessage message, int position) {
+                // 头像点击事件 - 跳转到个人设置页面
+                Intent intent = new Intent(getActivity(), UserSettingsActivity.class);
+                intent.putExtra("username", message.getUsername());
+                intent.putExtra("id", message.getUserId());
+                startActivity(intent);
             }
         });
         

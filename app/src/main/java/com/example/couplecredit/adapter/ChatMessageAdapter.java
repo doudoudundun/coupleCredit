@@ -66,6 +66,13 @@ public class ChatMessageAdapter extends RecyclerView.Adapter<ChatMessageAdapter.
          * @param position 消息位置
          */
         void onMessageLongClick(View anchorView, ChatMessage message, int position);
+        
+        /**
+         * 头像点击回调
+         * @param message 消息对象
+         * @param position 消息位置
+         */
+        void onAvatarClick(ChatMessage message, int position);
     }
     
     /**
@@ -211,6 +218,13 @@ public class ChatMessageAdapter extends RecyclerView.Adapter<ChatMessageAdapter.
             } else {
                 ivAvatar.setImageResource(message.getAvatarResId());
             }
+            
+            // 设置头像点击事件
+            ivAvatar.setOnClickListener(v -> {
+                if (listener != null) {
+                    listener.onAvatarClick(message, position);
+                }
+            });
             
             // 设置点赞状态
             updateLikeButton(message.isLiked());
