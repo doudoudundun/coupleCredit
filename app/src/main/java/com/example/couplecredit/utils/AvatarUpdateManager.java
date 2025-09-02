@@ -20,7 +20,7 @@ public class AvatarUpdateManager {
      * @param userId 用户ID
      * @param avatarUri 新头像URI
      */
-    public static void notifyAvatarUpdated(Context context, String userId, String avatarUri) {
+    public static void notifyAvatarUpdated(Context context, int userId, String avatarUri) {
         Intent intent = new Intent(ACTION_AVATAR_UPDATED);
         intent.putExtra(EXTRA_USER_ID, userId);
         intent.putExtra(EXTRA_AVATAR_URI, avatarUri);

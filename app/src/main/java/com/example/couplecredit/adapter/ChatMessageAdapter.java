@@ -267,7 +267,7 @@ public class ChatMessageAdapter extends RecyclerView.Adapter<ChatMessageAdapter.
      * @param userId 用户ID
      * @param avatarUri 新头像URI
      */
-    public void updateUserAvatar(String userId, String avatarUri) {
+    public void updateUserAvatar(int userId, String avatarUri) {
         if (messages == null) return;
         
         boolean hasUpdates = false;
@@ -276,7 +276,7 @@ public class ChatMessageAdapter extends RecyclerView.Adapter<ChatMessageAdapter.
         
         for (ChatMessage message : messages) {
             // 如果是当前用户的消息，更新头像
-            if (userId.equals(String.valueOf(currentUserId)) && 
+            if (userId == currentUserId && 
                 (message.isSentByMe() || message.getUsername().equals(currentUsername))) {
                 message.setAvatarUri(avatarUri);
                 hasUpdates = true;

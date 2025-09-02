@@ -119,10 +119,10 @@ public class ChatModelFragment extends Fragment {
         @Override
         public void onReceive(Context context, Intent intent) {
             if (AvatarUpdateManager.ACTION_AVATAR_UPDATED.equals(intent.getAction())) {
-                String userId = intent.getStringExtra(AvatarUpdateManager.EXTRA_USER_ID);
+                int userId = intent.getIntExtra(AvatarUpdateManager.EXTRA_USER_ID, -1);
                 String avatarUri = intent.getStringExtra(AvatarUpdateManager.EXTRA_AVATAR_URI);
                 
-                if (userId != null && avatarUri != null && messageAdapter != null) {
+                if (userId != -1 && avatarUri != null && messageAdapter != null) {
                     messageAdapter.updateUserAvatar(userId, avatarUri);
                 }
             }
@@ -138,6 +138,26 @@ public class ChatModelFragment extends Fragment {
         ChatRepository repository = new ChatRepository(requireContext());
         ChatViewModel.Factory factory = new ChatViewModel.Factory(requireActivity().getApplication(), repository);
         viewModel = new ViewModelProvider(this, factory).get(ChatViewModel.class);
+        
+        // 获取用户信息并设置到ViewModel
+        UserInfoManager.getCurrentUserInfo(requireContext(), new UserInfoManager.UserInfoCallback() {
+            @Override
+            public void onUserInfoLoaded(int userId, String username, Integer relationshipId) {
+                // 设置用户信息到ViewModel
+                if (relationshipId != null) {
+                    viewModel.setUserInfo(userId, relationshipId);
+                } else {
+                    android.util.Log.w("ChatModelFragment", "relationshipId为null，使用默认值");
+                    viewModel.setUserInfo(userId, -1);
+                }
+            }
+            
+            @Override
+            public void onError(String error) {
+                android.util.Log.w("ChatModelFragment", "获取用户信息失败: " + error);
+                // 使用默认值或提示用户登录
+            }
+        });
         
         // 初始化弹出菜单管理器
         popupManager = new MessagePopupManager(requireContext());
@@ -464,6 +484,58 @@ public class ChatModelFragment extends Fragment {
             // 可以在这里显示/隐藏加载指示器
             // 例如：progressBar.setVisibility(isLoading ? View.VISIBLE : View.GONE);
         });
+        
+        // ==================== 新增：云端同步功能监听 ====================
+        
+        // 观察云端同步开关状态
+        viewModel.getIsCloudSyncEnabled().observe(getViewLifecycleOwner(), isEnabled -> {
+            // 可以在这里更新UI显示同步状态
+            // 例如：显示同步开关状态、更新菜单项等
+        });
+        
+        // 观察网络状态
+        viewModel.getIsNetworkAvailable().observe(getViewLifecycleOwner(), isAvailable -> {
+            if (!isAvailable) {
+                Toast.makeText(getContext(), "网络连接不可用，已切换到离线模式", Toast.LENGTH_SHORT).show();
+            }
+        });
+        
+        // 观察云端同步状态
+        viewModel.getSyncStatusMessage().observe(getViewLifecycleOwner(), syncStatus -> {
+            if (syncStatus != null) {
+                switch (syncStatus) {
+                    case "SYNCING":
+                        // 显示同步中状态
+                        break;
+                    case "SYNCED":
+                        // 显示同步完成状态
+                        break;
+                    case "SYNC_FAILED":
+                        // 显示同步失败状态
+                        break;
+                    case "OFFLINE":
+                        // 显示离线状态
+                        break;
+                }
+            }
+        });
+        
+        // 观察同步进度
+        viewModel.getSyncProgress().observe(getViewLifecycleOwner(), progress -> {
+            // 可以在这里更新进度条显示
+            // 例如：progressBar.setProgress(progress);
+            if (progress != null && progress > 0 && progress < 100) {
+                // 显示同步进度
+                // Toast.makeText(getContext(), "同步进度: " + progress + "%", Toast.LENGTH_SHORT).show();
+            }
+        });
+        
+        // 观察同步错误
+        viewModel.getSyncError().observe(getViewLifecycleOwner(), errorMsg -> {
+            if (errorMsg != null && !errorMsg.isEmpty()) {
+                Toast.makeText(getContext(), "同步错误: " + errorMsg, Toast.LENGTH_LONG).show();
+            }
+        });
     }
     
     // ======================== 用户交互方法 ========================
@@ -731,7 +803,7 @@ public class ChatModelFragment extends Fragment {
                 
                 if (savedUriString != null && messageAdapter != null) {
                     // 更新当前用户的消息头像
-                    messageAdapter.updateUserAvatar(String.valueOf(currentUserId), savedUriString);
+                    messageAdapter.updateUserAvatar(currentUserId, savedUriString);
                 }
             }
         } catch (Exception e) {

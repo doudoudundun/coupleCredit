@@ -33,10 +33,13 @@ import com.example.couplecredit.R;
 import com.example.couplecredit.activity.LoginActivity;
 import com.example.couplecredit.activity.ToastDemoActivity;
 import com.example.couplecredit.activity.UserSettingsActivity;
+import com.example.couplecredit.api.AvatarUploadApi;
 import com.example.couplecredit.function.MySQLDatabaseHelper;
 import com.example.couplecredit.function.NicknameCache;
 import com.example.couplecredit.function.UserInfoManager;
+import com.example.couplecredit.utils.AvatarCacheManager;
 import com.example.couplecredit.utils.AvatarUpdateManager;
+import android.util.Log;
 
 /**
  * 我的页面Fragment
@@ -71,6 +74,43 @@ public class MyFragment extends Fragment {
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
         // 填充布局文件
         return inflater.inflate(R.layout.fragment_my, container, false);
+    }
+    
+    /**
+     * 上传头像到服务器
+     * @param imageUri 图片URI
+     */
+    private void uploadAvatarToServer(Uri imageUri) {
+        if (isLoggedIn && userId != null) {
+            try {
+                int userIdInt = Integer.parseInt(userId);
+                
+                AvatarUploadApi.uploadAvatar(getContext(), userIdInt, imageUri, new AvatarUploadApi.AvatarUploadCallback() {
+                     @Override
+                     public void onUploadSuccess(String avatarUrl) {
+                         if (getActivity() != null) {
+                             getActivity().runOnUiThread(() -> {
+                                 Toast.makeText(getContext(), "头像上传成功", Toast.LENGTH_SHORT).show();
+                                 // 发送头像更新广播
+                                 AvatarUpdateManager.notifyAvatarUpdated(getContext(), userIdInt, imageUri.toString());
+                             });
+                         }
+                     }
+                     
+                     @Override
+                     public void onUploadError(String error) {
+                         if (getActivity() != null) {
+                             getActivity().runOnUiThread(() -> {
+                                 Toast.makeText(getContext(), "头像上传失败: " + error, Toast.LENGTH_SHORT).show();
+                             });
+                         }
+                     }
+                 });
+            } catch (NumberFormatException e) {
+                Log.e("MyFragment", "Invalid userId format: " + userId, e);
+                Toast.makeText(getContext(), "用户ID格式错误", Toast.LENGTH_SHORT).show();
+            }
+        }
     }
 
     /**
@@ -156,7 +196,13 @@ public class MyFragment extends Fragment {
         
         // 设置头像点击事件
         ivUserAvatar.setOnClickListener(v -> {
-            openImagePicker();
+            if (isLoggedIn) {
+                openImagePicker();
+            } else {
+                // 未登录时点击头像跳转到登录页面
+                Intent intent = new Intent(getActivity(), LoginActivity.class);
+                startActivity(intent);
+            }
         });
     }
     
@@ -232,7 +278,9 @@ public class MyFragment extends Fragment {
         if (requestCode == REQUEST_IMAGE_PICK && resultCode == Activity.RESULT_OK && data != null) {
             Uri selectedImageUri = data.getData();
             if (selectedImageUri != null) {
-                // 设置头像
+                // 上传头像到服务器
+                uploadAvatarToServer(selectedImageUri);
+                // 设置本地头像显示
                 setUserAvatar(selectedImageUri);
                 // 保存头像URI
                 saveAvatarUri(selectedImageUri);
@@ -263,7 +311,12 @@ public class MyFragment extends Fragment {
                     
                     // 发送头像更新广播
                     if (isLoggedIn && userId != null) {
-                        AvatarUpdateManager.notifyAvatarUpdated(getContext(), userId, imageUri.toString());
+                        try {
+                            int userIdInt = Integer.parseInt(userId);
+                            AvatarUpdateManager.notifyAvatarUpdated(getContext(), userIdInt, imageUri.toString());
+                        } catch (NumberFormatException e) {
+                            e.printStackTrace();
+                        }
                     }
                     
                     Toast.makeText(getContext(), "头像设置成功", Toast.LENGTH_SHORT).show();
@@ -301,19 +354,25 @@ public class MyFragment extends Fragment {
      * 加载保存的头像
      */
     private void loadSavedAvatar() {
-        if (getContext() != null && userId != null) {
-            SharedPreferences prefs = getContext().getSharedPreferences("user_avatars", Context.MODE_PRIVATE);
-            String savedUriString = prefs.getString(PREF_AVATAR_URI + userId, null);
-            
-            if (savedUriString != null) {
-                try {
-                    Uri savedUri = Uri.parse(savedUriString);
-                    setUserAvatar(savedUri, false); // 不显示Toast
-                } catch (Exception e) {
-                    // 如果加载失败，使用默认头像
-                    ivUserAvatar.setImageResource(R.drawable.ic_default_avatar);
-                }
+        if (getContext() != null && userId != null && isLoggedIn) {
+            try {
+                int userIdInt = Integer.parseInt(userId);
+                
+                // 获取本地保存的头像URI
+                SharedPreferences prefs = getContext().getSharedPreferences("user_avatars", Context.MODE_PRIVATE);
+                String savedUri = prefs.getString(PREF_AVATAR_URI + userId, null);
+                
+                // 使用AvatarCacheManager加载头像（优先服务器，其次本地）
+                AvatarCacheManager.getInstance(getContext()).loadAvatar(
+                    getContext(), ivUserAvatar, userIdInt, savedUri
+                );
+            } catch (NumberFormatException e) {
+                // 如果userId格式错误，显示默认头像
+                ivUserAvatar.setImageResource(R.drawable.ic_default_avatar);
             }
+        } else {
+            // 未登录或用户信息不完整，显示默认头像
+            ivUserAvatar.setImageResource(R.drawable.ic_default_avatar);
         }
     }
 

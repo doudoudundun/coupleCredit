@@ -6,6 +6,7 @@ import android.content.SharedPreferences;
 import android.content.Context;
 import android.net.Uri;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.View;
 import android.widget.EditText;
 import android.widget.ImageView;
@@ -25,9 +26,11 @@ import androidx.appcompat.app.AppCompatActivity;
 import com.bumptech.glide.Glide;
 import com.bumptech.glide.load.resource.bitmap.CircleCrop;
 import com.example.couplecredit.R;
+import com.example.couplecredit.api.AvatarUploadApi;
 import com.example.couplecredit.function.MySQLDatabaseHelper;
 import com.example.couplecredit.function.NicknameCache;
 import com.example.couplecredit.function.UserInfoManager;
+import com.example.couplecredit.utils.AvatarCacheManager;
 import com.example.couplecredit.utils.AvatarUpdateManager;
 import com.example.couplecredit.database.CoupleRelationshipHelper;
 
@@ -217,15 +220,12 @@ public class UserSettingsActivity extends AppCompatActivity {
         if (requestCode == REQUEST_IMAGE_PICK && resultCode == Activity.RESULT_OK && data != null) {
             Uri selectedImageUri = data.getData();
             if (selectedImageUri != null) {
-                // 设置头像
+                // 上传头像到服务器
+                uploadAvatarToServer(selectedImageUri);
+                // 设置本地头像显示
                 setUserAvatar(selectedImageUri);
                 // 保存头像URI
                 saveAvatarUri(selectedImageUri);
-                // 发送头像更新广播
-                if (userId != null) {
-                    AvatarUpdateManager.notifyAvatarUpdated(this, userId, selectedImageUri.toString());
-                }
-                Toast.makeText(this, "头像设置成功", Toast.LENGTH_SHORT).show();
             }
         }
     }
@@ -278,7 +278,7 @@ public class UserSettingsActivity extends AppCompatActivity {
                 }
                 
                 @Override
-                public void onError(String error) {
+                 public void onUploadError(String error) {
                     runOnUiThread(() -> {
                         // 查询昵称失败，使用用户名显示
                         String userInfoText = "用户名: " + username + "\nID: " + userId;
@@ -511,6 +511,43 @@ public class UserSettingsActivity extends AppCompatActivity {
                 });
             }
         });
+    }
+    
+    /**
+     * 上传头像到服务器
+     * @param imageUri 图片URI
+     */
+    private void uploadAvatarToServer(Uri imageUri) {
+        if (userId == null) {
+            Toast.makeText(this, "用户信息异常，无法上传头像", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        
+        try {
+            int userIdInt = Integer.parseInt(userId);
+            AvatarUploadApi.uploadAvatar(this, userIdInt, imageUri, new AvatarUploadApi.AvatarUploadCallback() {
+                @Override
+                 public void onUploadSuccess(String avatarUrl) {
+                    runOnUiThread(() -> {
+                        // 清除旧的头像缓存
+                         AvatarCacheManager.getInstance(UserSettingsActivity.this).clearUserAvatarCache(userIdInt);
+                        // 发送头像更新广播
+                        AvatarUpdateManager.notifyAvatarUpdated(UserSettingsActivity.this, userIdInt, avatarUrl);
+                        Toast.makeText(UserSettingsActivity.this, "头像上传成功", Toast.LENGTH_SHORT).show();
+                    });
+                }
+                
+                @Override
+                public void onError(String error) {
+                    runOnUiThread(() -> {
+                        Toast.makeText(UserSettingsActivity.this, "头像上传失败: " + error, Toast.LENGTH_SHORT).show();
+                    });
+                }
+            });
+        } catch (NumberFormatException e) {
+            Log.e("UserSettingsActivity", "Invalid userId format: " + userId, e);
+            Toast.makeText(this, "用户ID格式错误", Toast.LENGTH_SHORT).show();
+        }
     }
     
     /**

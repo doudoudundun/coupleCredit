@@ -14,7 +14,7 @@ public class ChatMessage {
     // ==================== 属性字段 ====================
     
     private String username;    // 用户名
-    private String userId;      // 用户ID（新增）
+    private int userId;          // 用户ID（新增）
     private String content;     // 消息内容
     private String timestamp;   // 时间戳
     private int avatarResId;    // 头像资源ID
@@ -22,12 +22,17 @@ public class ChatMessage {
     private boolean isLiked;    // 是否被点赞
     private boolean isSentByMe; // 是否是本人发送的消息
     
+    // ==================== 新增字段 ====================
+    private long id;            // 消息ID
+    private long relationshipId; // 关系ID
+    private String messageType; // 消息类型
+    
     // ==================== 构造函数 ====================
     
     /**
      * 完整构造函数（支持头像URI和用户ID）
      */
-    public ChatMessage(String username, String userId, String content, String timestamp, int avatarResId, String avatarUri, boolean isSentByMe) {
+    public ChatMessage(String username, int userId, String content, String timestamp, int avatarResId, String avatarUri, boolean isSentByMe) {
         this.username = username;
         this.userId = userId;
         this.content = content;
@@ -42,7 +47,7 @@ public class ChatMessage {
      * 完整构造函数
      */
     public ChatMessage(String username, String content, String timestamp, int avatarResId, boolean isSentByMe) {
-        this(username, null, content, timestamp, avatarResId, null, isSentByMe);
+        this(username, 0, content, timestamp, avatarResId, null, isSentByMe);
     }
     
     /**
@@ -94,24 +99,21 @@ public class ChatMessage {
     
     /**
      * 获取头像URI
-     * @return 头像URI
+     * @return 头像URI字符串
      */
     public String getAvatarUri() {
         return avatarUri;
     }
     
-    /**
-     * 设置头像URI
-     * @param avatarUri 头像URI
-     */
     public void setAvatarUri(String avatarUri) {
         this.avatarUri = avatarUri;
     }
     
-    /**
-     * 是否有自定义头像URI
-     * @return true如果有自定义头像URI
-     */
+    // 添加getAvatarUrl()方法作为getAvatarUri()的别名，解决编译错误
+    public String getAvatarUrl() {
+        return getAvatarUri();
+    }
+    
     public boolean hasCustomAvatar() {
         return avatarUri != null && !avatarUri.isEmpty();
     }
@@ -154,19 +156,104 @@ public class ChatMessage {
      * 获取用户ID
      * @return 用户ID
      */
-    public String getUserId() {
+    public int getUserId() {
         return userId;
     }
-    
+
     /**
      * 设置用户ID
      * @param userId 用户ID
      */
-    public void setUserId(String userId) {
+    public void setUserId(int userId) {
         this.userId = userId;
     }
     
-    // ==================== 工具方法 ====================
+    // ==================== 新增：缺失的setter方法 ====================
+    
+    /**
+     * 获取消息ID
+     * @return 消息ID
+     */
+    public long getId() {
+        return id;
+    }
+    
+    /**
+     * 设置消息ID
+     * @param id 消息ID
+     */
+    public void setId(long id) {
+        this.id = id;
+    }
+    
+    /**
+     * 获取关系ID
+     * @return 关系ID
+     */
+    public long getRelationshipId() {
+        return relationshipId;
+    }
+    
+    /**
+     * 设置关系ID
+     * @param relationshipId 关系ID
+     */
+    public void setRelationshipId(long relationshipId) {
+        this.relationshipId = relationshipId;
+    }
+    
+    /**
+     * 获取消息类型
+     * @return 消息类型
+     */
+    public String getMessageType() {
+        return messageType;
+    }
+    
+    /**
+     * 设置消息类型
+     * @param messageType 消息类型
+     */
+    public void setMessageType(String messageType) {
+        this.messageType = messageType;
+    }
+    
+    /**
+     * 设置用户名
+     * @param username 用户名
+     */
+    public void setUsername(String username) {
+        this.username = username;
+    }
+    
+    /**
+     * 设置消息内容
+     * @param content 消息内容
+     */
+    public void setContent(String content) {
+        this.content = content;
+    }
+    
+    /**
+     * 设置时间戳
+     * @param timestamp 时间戳
+     */
+    public void setTimestamp(String timestamp) {
+        this.timestamp = timestamp;
+    }
+    
+    /**
+     * 设置头像资源ID
+     * @param avatarResId 头像资源ID
+     */
+    public void setAvatarResId(int avatarResId) {
+        this.avatarResId = avatarResId;
+    }
+    
+    
+    /**
+     * 工具方法 ====================
+     */
     
     /**
      * 重写toString方法，便于调试

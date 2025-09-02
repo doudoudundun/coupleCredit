@@ -62,6 +62,9 @@ dependencies {
     // 添加图表库依赖
     implementation("com.github.PhilJay:MPAndroidChart:v3.1.0")
     
+    // 添加 Gson 依赖
+    implementation("com.google.code.gson:gson:2.10.1")
+    
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
