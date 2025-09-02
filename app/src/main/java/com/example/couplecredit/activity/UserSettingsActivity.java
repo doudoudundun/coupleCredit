@@ -278,7 +278,7 @@ public class UserSettingsActivity extends AppCompatActivity {
                 }
                 
                 @Override
-                 public void onUploadError(String error) {
+                public void onError(String error) {
                     runOnUiThread(() -> {
                         // 查询昵称失败，使用用户名显示
                         String userInfoText = "用户名: " + username + "\nID: " + userId;
@@ -538,7 +538,7 @@ public class UserSettingsActivity extends AppCompatActivity {
                 }
                 
                 @Override
-                public void onError(String error) {
+                public void onUploadError(String error) {
                     runOnUiThread(() -> {
                         Toast.makeText(UserSettingsActivity.this, "头像上传失败: " + error, Toast.LENGTH_SHORT).show();
                     });

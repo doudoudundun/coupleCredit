@@ -48,24 +48,6 @@ mysql> desc couple_relationships;
 | last_synced_at  | timestamp                  | YES  |     | NULL              |                   |
 +-----------------+----------------------------+------+-----+-------------------+-------------------+
 
-mysql> desc chat_messages;
-+-----------------+--------------------------------------+------+-----+-------------------+-----------------------------------------------+
-| Field           | Type                                 | Null | Key | Default           | Extra                                         |
-+-----------------+--------------------------------------+------+-----+-------------------+-----------------------------------------------+
-| id              | bigint                               | NO   | PRI | NULL              | auto_increment                                |
-| relationship_id | int unsigned                         | NO   | MUL | NULL              |                                               |
-| user_id         | int                                  | NO   |     | NULL              |                                               |
-| username        | varchar(50)                          | NO   |     | NULL              |                                               |
-| content         | text                                 | NO   | MUL | NULL              |                                               |
-| message_type    | enum('text','image','file','system') | YES  |     | text              |                                               |
-| display_time    | varchar(20)                          | NO   |     | NULL              |                                               |
-| avatar_res_id   | int                                  | YES  |     | NULL              |                                               |
-| avatar_url      | varchar(500)                         | YES  |     | NULL              |                                               |
-| is_liked        | tinyint(1)                           | YES  |     | 0                 |                                               |
-| is_deleted      | tinyint(1)                           | YES  |     | 0                 |                                               |
-| created_at      | bigint                               | NO   |     | NULL              |                                               |
-| updated_at      | timestamp                            | YES  |     | CURRENT_TIMESTAMP | DEFAULT_GENERATED on update CURRENT_TIMESTAMP |
-+-----------------+--------------------------------------+------+-----+-------------------+-----------------------------------------------+
 
 mysql> desc chat_messages;
 +-------------------+--------------------------------------+------+-----+-------------------+-----------------------------------------------+

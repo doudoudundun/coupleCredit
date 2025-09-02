@@ -22,6 +22,9 @@ import java.util.List;
 import com.bumptech.glide.Glide;
 import com.bumptech.glide.load.resource.bitmap.CircleCrop;
 import com.example.couplecredit.function.UserInfoManager;
+import com.example.couplecredit.utils.AvatarCacheManager;
+import com.example.couplecredit.function.MySQLDatabaseHelper;
+import com.example.couplecredit.function.NicknameCache;
 
 /**
  * 聊天消息RecyclerView适配器
@@ -203,12 +206,18 @@ public class ChatMessageAdapter extends RecyclerView.Adapter<ChatMessageAdapter.
          */
         public void bind(ChatMessage message, int position) {
             // 设置基本信息
-            tvUsername.setText(message.getUsername());
+            loadAndDisplayNickname(message);
             tvMessageContent.setText(message.getContent());
             tvTimestamp.setText(message.getTimestamp());
             
-            // 加载头像（优先使用自定义头像URI）
-            if (message.hasCustomAvatar()) {
+            // 使用AvatarCacheManager加载头像（支持服务器同步）
+            if (message.getUserId() > 0) {
+                // 使用AvatarCacheManager加载头像，优先从服务器获取最新头像
+                AvatarCacheManager.getInstance(context).loadAvatar(
+                    context, ivAvatar, message.getUserId(), message.getAvatarUri()
+                );
+            } else if (message.hasCustomAvatar()) {
+                // 如果没有用户ID但有自定义头像URI，使用Glide加载
                 Glide.with(context)
                     .load(message.getAvatarUri())
                     .transform(new CircleCrop())
@@ -216,6 +225,7 @@ public class ChatMessageAdapter extends RecyclerView.Adapter<ChatMessageAdapter.
                     .error(message.getAvatarResId())
                     .into(ivAvatar);
             } else {
+                // 使用默认头像
                 ivAvatar.setImageResource(message.getAvatarResId());
             }
             
@@ -260,8 +270,59 @@ public class ChatMessageAdapter extends RecyclerView.Adapter<ChatMessageAdapter.
                 likeButton.setLiked(isLiked);
             }
         }
+        
+        /**
+         * 加载并显示用户昵称
+         * @param message 聊天消息对象
+         */
+        private void loadAndDisplayNickname(ChatMessage message) {
+            String username = message.getUsername();
+            
+            // 如果有用户ID，优先使用用户ID查询昵称
+            if (message.getUserId() > 0) {
+                // 先尝试从缓存获取昵称
+                String cachedNickname = NicknameCache.getCachedNickname(context, username);
+                if (cachedNickname != null) {
+                    tvUsername.setText(cachedNickname);
+                    return;
+                }
+                
+                // 缓存中没有，从数据库查询
+                MySQLDatabaseHelper.getUserNicknameById(message.getUserId(), new MySQLDatabaseHelper.UserNicknameCallback() {
+                    @Override
+                    public void onSuccess(String nickname) {
+                        if (context instanceof android.app.Activity) {
+                            ((android.app.Activity) context).runOnUiThread(() -> {
+                                if (nickname != null && !nickname.trim().isEmpty()) {
+                                    tvUsername.setText(nickname);
+                                    // 缓存昵称
+                                    NicknameCache.cacheNickname(context, username, nickname);
+                                } else {
+                                    tvUsername.setText(username);
+                                }
+                            });
+                        }
+                    }
+                    
+                    @Override
+                    public void onError(String error) {
+                        if (context instanceof android.app.Activity) {
+                            ((android.app.Activity) context).runOnUiThread(() -> {
+                                // 查询失败，显示用户名
+                                tvUsername.setText(username);
+                            });
+                        }
+                    }
+                });
+            } else {
+                // 没有用户ID，直接显示用户名
+                tvUsername.setText(username);
+            }
+        }
     }
 
+
+    
     /**
      * 更新指定用户的头像
      * @param userId 用户ID

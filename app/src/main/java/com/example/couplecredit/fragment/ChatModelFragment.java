@@ -267,11 +267,15 @@ public class ChatModelFragment extends Fragment {
             
             @Override
             public void onAvatarClick(ChatMessage message, int position) {
-                // 头像点击事件 - 跳转到个人设置页面
-                Intent intent = new Intent(getActivity(), UserSettingsActivity.class);
-                intent.putExtra("username", message.getUsername());
-                intent.putExtra("id", message.getUserId());
-                startActivity(intent);
+                // 头像点击事件 - 只有点击当前用户（左侧）头像才跳转到个人设置页面
+                if (message.isSentByMe()) {
+                    // 当前用户的消息，跳转到个人设置页面
+                    Intent intent = new Intent(getActivity(), UserSettingsActivity.class);
+                    intent.putExtra("username", message.getUsername());
+                    intent.putExtra("id", message.getUserId());
+                    startActivity(intent);
+                }
+                // 伴侣的头像点击不做任何操作
             }
         });
         
@@ -443,6 +447,8 @@ public class ChatModelFragment extends Fragment {
         viewModel.getSearchResults().observe(getViewLifecycleOwner(), searchResults -> {
             if (searchResults != null && isSearchMode) {
                 messageAdapter.updateMessages(searchResults);
+                // 为搜索结果中的当前用户消息设置头像URI
+                loadCurrentUserAvatarForMessages();
                 // 搜索结果不需要滚动到底部，保持当前位置
             }
         });

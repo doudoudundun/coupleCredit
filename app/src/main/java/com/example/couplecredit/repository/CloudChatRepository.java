@@ -5,6 +5,8 @@ import android.util.Log;
 
 import com.example.couplecredit.function.UserInfoManager;
 import com.example.couplecredit.model.ChatMessage;
+import com.example.couplecredit.function.MySQLDatabaseHelper;
+import com.example.couplecredit.function.NicknameCache;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -282,9 +284,11 @@ public class CloudChatRepository {
                     
                     ChatMessage message = new ChatMessage(
                         getUsernameById(messageUserId), // 根据user_id获取用户名
+                        messageUserId, // 设置用户ID
                         rs.getString("content"),
                         rs.getString("display_time"),
                         getAvatarResourceId(messageUserId), // 根据user_id获取头像资源ID
+                        null, // avatarUri
                         isSentByMe
                     );
                     
@@ -575,11 +579,65 @@ public class CloudChatRepository {
      * @return 用户名
      */
     private String getUsernameById(int userId) {
-        // 简化实现：如果是当前用户，返回当前用户名；否则返回"伴侣"
+        // 优先从缓存获取昵称
+        String cachedNickname = null;
+        if (userId == currentUserId && currentUsername != null) {
+            cachedNickname = NicknameCache.getCachedNickname(context, currentUsername);
+            if (cachedNickname != null) {
+                return cachedNickname;
+            }
+        }
+        
+        // 缓存中没有，尝试从数据库获取昵称（同步方式）
+        try {
+            String nickname = getUserNicknameByIdSync(userId);
+            if (nickname != null && !nickname.isEmpty()) {
+                // 缓存昵称
+                if (userId == currentUserId && currentUsername != null) {
+                    NicknameCache.cacheNickname(context, currentUsername, nickname);
+                }
+                return nickname;
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "获取用户昵称失败: " + e.getMessage());
+        }
+        
+        // 如果获取昵称失败，返回默认值
         if (userId == currentUserId) {
-            return currentUsername;
+            return currentUsername != null ? currentUsername : "我";
         } else {
-            return "伴侣"; // 实际应该从数据库查询或缓存中获取
+            return "伴侣";
+        }
+    }
+    
+    /**
+     * 同步获取用户昵称（仅在数据库线程中调用）
+     * @param userId 用户ID
+     * @return 用户昵称，如果没有昵称则返回用户名
+     */
+    private String getUserNicknameByIdSync(int userId) throws SQLException {
+        Connection conn = null;
+        PreparedStatement stmt = null;
+        ResultSet rs = null;
+        
+        try {
+            conn = getConnection();
+            String sql = "SELECT nickname, username FROM users WHERE id = ? AND status = 'active'";
+            stmt = conn.prepareStatement(sql);
+            stmt.setInt(1, userId);
+            
+            rs = stmt.executeQuery();
+            
+            if (rs.next()) {
+                String nickname = rs.getString("nickname");
+                String username = rs.getString("username");
+                // 如果昵称为空或null，返回用户名
+                return (nickname != null && !nickname.trim().isEmpty()) ? nickname : username;
+            } else {
+                return null;
+            }
+        } finally {
+            closeResources(conn, stmt, rs);
         }
     }
     
