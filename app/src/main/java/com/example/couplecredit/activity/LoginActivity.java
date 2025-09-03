@@ -1,6 +1,7 @@
 package com.example.couplecredit.activity;
 
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.Button;
@@ -9,6 +10,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
 import com.example.couplecredit.R;
 import com.example.couplecredit.function.MySQLDatabaseHelper;
@@ -100,6 +102,10 @@ public class LoginActivity extends AppCompatActivity {
                     editor.putString("id", userInfo);
                     editor.putBoolean("isLoggedIn", true);
                     editor.apply();
+                    
+                    // 发送登录成功广播
+                    Intent broadcastIntent = new Intent("com.example.couplecredit.USER_LOGIN");
+                    LocalBroadcastManager.getInstance(LoginActivity.this).sendBroadcast(broadcastIntent);
                     
                     Toast.makeText(LoginActivity.this, "登录成功！", Toast.LENGTH_SHORT).show();
                     // 登录成功，跳转到主界面

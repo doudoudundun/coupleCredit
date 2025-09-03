@@ -129,6 +129,23 @@ public class ChatModelFragment extends Fragment {
         }
     };
     
+    // ======================== 登录状态变化广播接收器 ========================
+    private BroadcastReceiver loginStatusReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            if ("com.example.couplecredit.USER_LOGOUT".equals(intent.getAction())) {
+                // 用户退出登录，隐藏聊天界面并完全清空数据
+                hideChatInterface();
+                if (viewModel != null) {
+                    viewModel.clearChatMessages(true); // 完全清理数据库
+                }
+            } else if ("com.example.couplecredit.USER_LOGIN".equals(intent.getAction())) {
+                // 用户重新登录，检查登录状态并更新UI
+                checkLoginStatusAndUpdateUI();
+            }
+        }
+    };
+    
     // ======================== 生命周期方法 ========================
     
     @Override
@@ -195,8 +212,61 @@ public class ChatModelFragment extends Fragment {
         // 加载聊天背景
         loadChatBackground(view);
         
-        // 初始化数据
-        viewModel.initializeData();
+        // 检查用户登录状态并相应地显示界面
+        checkLoginStatusAndUpdateUI();
+    }
+    
+    /**
+     * 检查登录状态并更新UI显示
+     */
+    private void checkLoginStatusAndUpdateUI() {
+        if (UserInfoManager.isUserLoggedIn(requireContext())) {
+            // 用户已登录，显示聊天界面并初始化数据
+            showChatInterface();
+            viewModel.initializeData();
+        } else {
+            // 用户未登录，隐藏聊天界面并清空数据
+            hideChatInterface();
+            if (viewModel != null) {
+                viewModel.clearChatMessages(true); // 完全清理数据
+            }
+        }
+    }
+    
+    /**
+     * 显示聊天界面
+     */
+    private void showChatInterface() {
+        if (rvChatMessages != null) {
+            rvChatMessages.setVisibility(View.VISIBLE);
+        }
+        if (etMessageInput != null) {
+            etMessageInput.setVisibility(View.VISIBLE);
+        }
+        if (btnSend != null) {
+            btnSend.setVisibility(View.VISIBLE);
+        }
+        if (inputSection != null) {
+            inputSection.setVisibility(View.VISIBLE);
+        }
+    }
+    
+    /**
+     * 隐藏聊天界面
+     */
+    private void hideChatInterface() {
+        if (rvChatMessages != null) {
+            rvChatMessages.setVisibility(View.GONE);
+        }
+        if (etMessageInput != null) {
+            etMessageInput.setVisibility(View.GONE);
+        }
+        if (btnSend != null) {
+            btnSend.setVisibility(View.GONE);
+        }
+        if (inputSection != null) {
+            inputSection.setVisibility(View.GONE);
+        }
     }
     
     @Override
@@ -269,6 +339,12 @@ public class ChatModelFragment extends Fragment {
             public void onAvatarClick(ChatMessage message, int position) {
                 // 头像点击事件 - 只有点击当前用户（左侧）头像才跳转到个人设置页面
                 if (message.isSentByMe()) {
+                    // 检查用户是否已登录
+                    if (!UserInfoManager.isUserLoggedIn(getContext())) {
+                        Toast.makeText(getContext(), "请先登录", Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                    
                     // 当前用户的消息，跳转到个人设置页面
                     Intent intent = new Intent(getActivity(), UserSettingsActivity.class);
                     intent.putExtra("username", message.getUsername());
@@ -773,8 +849,8 @@ public class ChatModelFragment extends Fragment {
     }
     
     @Override
-    public void onResume() {
-        super.onResume();
+    public void onStart() {
+        super.onStart();
         
         android.util.Log.d("ChatModelFragment", "注册头像更新广播接收器");
         // 注册头像更新广播接收器
@@ -788,7 +864,21 @@ public class ChatModelFragment extends Fragment {
         LocalBroadcastManager.getInstance(requireContext())
             .registerReceiver(backgroundUpdateReceiver, backgroundFilter);
         
-        // ... existing code ...
+        // 注册登录状态变化广播接收器
+        IntentFilter loginFilter = new IntentFilter();
+        loginFilter.addAction("com.example.couplecredit.USER_LOGOUT");
+        loginFilter.addAction("com.example.couplecredit.USER_LOGIN");
+        LocalBroadcastManager.getInstance(requireContext())
+            .registerReceiver(loginStatusReceiver, loginFilter);
+        android.util.Log.d("ChatModelFragment", "注册登录状态变化广播接收器");
+    }
+    
+    @Override
+    public void onResume() {
+        super.onResume();
+        
+        // 检查登录状态并更新UI
+        checkLoginStatusAndUpdateUI();
     }
     
     /**
@@ -821,6 +911,13 @@ public class ChatModelFragment extends Fragment {
     public void onPause() {
         super.onPause();
         
+        // ... existing code ...
+    }
+    
+    @Override
+    public void onStop() {
+        super.onStop();
+        
         android.util.Log.d("ChatModelFragment", "注销头像更新广播接收器");
         // 注销头像更新广播接收器
         LocalBroadcastManager.getInstance(requireContext())
@@ -831,7 +928,10 @@ public class ChatModelFragment extends Fragment {
         LocalBroadcastManager.getInstance(requireContext())
             .unregisterReceiver(backgroundUpdateReceiver);
         
-        // ... existing code ...
+        // 注销登录状态变化广播接收器
+        LocalBroadcastManager.getInstance(requireContext())
+            .unregisterReceiver(loginStatusReceiver);
+        android.util.Log.d("ChatModelFragment", "注销登录状态变化广播接收器");
     }
     
 }

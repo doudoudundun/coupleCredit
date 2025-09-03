@@ -14,6 +14,7 @@ import com.example.couplecredit.service.ChatSyncService;
 import com.example.couplecredit.utils.NetworkStateManager;
 import com.example.couplecredit.service.OfflineCacheManager;
 import com.example.couplecredit.service.OfflineService;
+import com.example.couplecredit.function.UserInfoManager;
 
 import java.text.SimpleDateFormat;
 import java.util.Date;
@@ -84,14 +85,13 @@ public class ChatViewModel extends AndroidViewModel {
         syncService.setCurrentUserInfo(currentUserId, currentRelationshipId);
         repository.setCurrentUserId(currentUserId);
         
-        // 初始化加载消息
-        initializeData();
-        
         // 监听同步状态
         observeSyncStatus();
         
         // 监听网络状态和离线缓存状态
         observeNetworkAndOfflineStatus();
+        
+        // 注意：不在构造函数中自动初始化数据，由Fragment根据登录状态决定是否调用
     }
     
     /**
@@ -113,14 +113,13 @@ public class ChatViewModel extends AndroidViewModel {
         syncService.setCurrentUserInfo(currentUserId, currentRelationshipId);
         chatRepository.setCurrentUserId(currentUserId);
         
-        // 初始化加载消息
-        initializeData();
-        
         // 监听同步状态
         observeSyncStatus();
         
         // 监听网络状态和离线缓存状态
         observeNetworkAndOfflineStatus();
+        
+        // 注意：不在构造函数中自动初始化数据，由Fragment根据登录状态决定是否调用
     }
     
     // ==================== 数据访问方法 ====================
@@ -254,6 +253,11 @@ public class ChatViewModel extends AndroidViewModel {
      * 用于Fragment中的数据初始化调用
      */
     public void initializeData() {
+        // 检查用户登录状态，未登录则不加载聊天信息
+        if (!UserInfoManager.isUserLoggedIn(getApplication())) {
+            return;
+        }
+        
         // 加载消息数据
         loadMessages();
         
@@ -283,7 +287,7 @@ public class ChatViewModel extends AndroidViewModel {
     public void loadMessages() {
         isLoading.postValue(true);
         chatRepository.loadAllMessages();
-        chatRepository.saveDefaultMessages();
+        // 已移除默认消息加载：chatRepository.saveDefaultMessages();
         isLoading.postValue(false);
     }
     
@@ -647,6 +651,41 @@ public class ChatViewModel extends AndroidViewModel {
      */
     public void clearErrorMessage() {
         errorMessage.postValue(null);
+    }
+    
+    /**
+     * 清空聊天消息显示（用于退出登录时）
+     */
+    public void clearChatMessages() {
+        clearChatMessages(true); // 默认完全清理，包括数据库
+    }
+    
+    /**
+     * 清空聊天消息
+     * @param clearDatabase 是否同时清空本地数据库
+     */
+    public void clearChatMessages(boolean clearDatabase) {
+        // 清空消息列表
+        chatRepository.clearAllMessages(clearDatabase);
+        
+        // 重置UI状态
+        isSearchMode.postValue(false);
+        searchKeyword.postValue("");
+        messageInput.postValue("");
+        isLoading.postValue(false);
+        
+        // 清除错误和成功消息
+        errorMessage.postValue(null);
+        successMessage.postValue(null);
+        
+        // 重置同步状态
+        syncStatusMessage.postValue(null);
+        syncProgress.postValue(0);
+        
+        // 重置离线状态
+        pendingMessagesCount.postValue(0);
+        failedMessagesCount.postValue(0);
+        offlineStatusMessage.postValue(null);
     }
     
     /**

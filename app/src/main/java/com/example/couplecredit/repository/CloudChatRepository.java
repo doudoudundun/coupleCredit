@@ -119,19 +119,27 @@ public class CloudChatRepository {
                            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
                 
                 stmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS);
-                // 确保有有效的关系ID
-                if (currentRelationshipId <= 0) {
-                    Log.w(TAG, "关系ID无效，尝试重新获取用户信息");
+                
+                // 确保有有效的用户ID
+                if (currentUserId <= 0) {
+                    Log.w(TAG, "用户ID无效，尝试重新获取用户信息");
                     initializeUserInfo();
-                    if (currentRelationshipId <= 0) {
+                    if (currentUserId <= 0) {
                         if (callback != null) {
-                            callback.onError(new SQLException("无效的关系ID，用户可能未绑定情侣关系"));
+                            callback.onError(new SQLException("无效的用户ID，用户未登录"));
                         }
                         return;
                     }
                 }
                 
-                stmt.setInt(1, currentRelationshipId);  // 关系ID
+                // 根据用户是否绑定情侣关系设置relationship_id
+                if (currentRelationshipId > 0) {
+                    stmt.setInt(1, currentRelationshipId);  // 已绑定情侣关系
+                    Log.d(TAG, "插入情侣聊天消息，relationshipId: " + currentRelationshipId);
+                } else {
+                    stmt.setNull(1, java.sql.Types.INTEGER);  // 单身用户，设置为NULL
+                    Log.d(TAG, "插入单身用户个人消息，userId: " + currentUserId);
+                }
                 stmt.setInt(2, userId);                 // 用户ID
                 stmt.setString(3, message.getContent()); // 消息内容
                 stmt.setString(4, "text");              // 消息类型，默认为文本
@@ -248,13 +256,13 @@ public class CloudChatRepository {
             ResultSet rs = null;
             
             try {
-                // 确保有有效的关系ID
-                if (currentRelationshipId <= 0) {
-                    Log.w(TAG, "关系ID无效，尝试重新获取用户信息");
+                // 确保有有效的用户ID
+                if (currentUserId <= 0) {
+                    Log.w(TAG, "用户ID无效，尝试重新获取用户信息");
                     initializeUserInfo();
-                    if (currentRelationshipId <= 0) {
+                    if (currentUserId <= 0) {
                         if (callback != null) {
-                            callback.onError(new SQLException("无效的关系ID，用户可能未绑定情侣关系"));
+                            callback.onError(new SQLException("无效的用户ID，用户未登录"));
                         }
                         return;
                     }
@@ -262,15 +270,30 @@ public class CloudChatRepository {
                 
                 conn = getConnection();
                 
-                // 查询当前关系的所有未删除消息，按创建时间升序排列
-                String sql = "SELECT id, user_id, content, message_type, display_time, " +
-                           "avatar_url, is_liked, created_at, bill_id, is_bill_candidate " +
-                           "FROM chat_messages " +
-                           "WHERE relationship_id = ? AND is_deleted = 0 " +
-                           "ORDER BY created_at ASC";
+                String sql;
                 
-                stmt = conn.prepareStatement(sql);
-                stmt.setInt(1, currentRelationshipId);
+                // 根据用户是否绑定情侣关系选择不同的查询策略
+                if (currentRelationshipId > 0) {
+                    // 已绑定情侣关系：查询当前关系的所有消息
+                    sql = "SELECT id, user_id, content, message_type, display_time, " +
+                          "avatar_url, is_liked, created_at, bill_id, is_bill_candidate " +
+                          "FROM chat_messages " +
+                          "WHERE relationship_id = ? AND is_deleted = 0 " +
+                          "ORDER BY created_at ASC";
+                    stmt = conn.prepareStatement(sql);
+                    stmt.setInt(1, currentRelationshipId);
+                    Log.d(TAG, "查询情侣聊天消息，relationshipId: " + currentRelationshipId);
+                } else {
+                    // 未绑定情侣关系：查询当前用户的个人消息
+                    sql = "SELECT id, user_id, content, message_type, display_time, " +
+                          "avatar_url, is_liked, created_at, bill_id, is_bill_candidate " +
+                          "FROM chat_messages " +
+                          "WHERE user_id = ? AND (relationship_id IS NULL OR relationship_id = 0) AND is_deleted = 0 " +
+                          "ORDER BY created_at ASC";
+                    stmt = conn.prepareStatement(sql);
+                    stmt.setInt(1, currentUserId);
+                    Log.d(TAG, "查询单身用户个人消息，userId: " + currentUserId);
+                }
                 
                 rs = stmt.executeQuery();
                 
@@ -332,15 +355,29 @@ public class CloudChatRepository {
             try {
                 conn = getConnection();
                 
-                // 根据内容和时间戳更新点赞状态
-                String sql = "UPDATE chat_messages SET is_liked = ? " +
-                           "WHERE relationship_id = ? AND content = ? AND display_time = ? AND is_deleted = 0";
+                // 根据用户是否绑定情侣关系选择不同的更新语句
+                String sql;
+                if (currentRelationshipId > 0) {
+                    // 已绑定情侣关系，更新情侣聊天消息
+                    sql = "UPDATE chat_messages SET is_liked = ? " +
+                          "WHERE relationship_id = ? AND content = ? AND display_time = ? AND is_deleted = 0";
+                } else {
+                    // 单身用户，更新个人消息
+                    sql = "UPDATE chat_messages SET is_liked = ? " +
+                          "WHERE user_id = ? AND (relationship_id IS NULL OR relationship_id = 0) AND content = ? AND display_time = ? AND is_deleted = 0";
+                }
                 
                 stmt = conn.prepareStatement(sql);
                 stmt.setBoolean(1, isLiked);
-                stmt.setInt(2, currentRelationshipId);
-                stmt.setString(3, messageContent);
-                stmt.setString(4, timestamp);
+                if (currentRelationshipId > 0) {
+                    stmt.setInt(2, currentRelationshipId);
+                    stmt.setString(3, messageContent);
+                    stmt.setString(4, timestamp);
+                } else {
+                    stmt.setInt(2, currentUserId);
+                    stmt.setString(3, messageContent);
+                    stmt.setString(4, timestamp);
+                }
                 
                 int affectedRows = stmt.executeUpdate();
                 
@@ -381,14 +418,28 @@ public class CloudChatRepository {
             try {
                 conn = getConnection();
                 
-                // 软删除：设置is_deleted标志为true
-                String sql = "UPDATE chat_messages SET is_deleted = 1 " +
-                           "WHERE relationship_id = ? AND content = ? AND display_time = ? AND is_deleted = 0";
+                // 根据用户是否绑定情侣关系选择不同的删除语句
+                String sql;
+                if (currentRelationshipId > 0) {
+                    // 已绑定情侣关系，删除情侣聊天消息
+                    sql = "UPDATE chat_messages SET is_deleted = 1 " +
+                          "WHERE relationship_id = ? AND content = ? AND display_time = ? AND is_deleted = 0";
+                } else {
+                    // 单身用户，删除个人消息
+                    sql = "UPDATE chat_messages SET is_deleted = 1 " +
+                          "WHERE user_id = ? AND (relationship_id IS NULL OR relationship_id = 0) AND content = ? AND display_time = ? AND is_deleted = 0";
+                }
                 
                 stmt = conn.prepareStatement(sql);
-                stmt.setInt(1, currentRelationshipId);
-                stmt.setString(2, messageContent);
-                stmt.setString(3, timestamp);
+                if (currentRelationshipId > 0) {
+                    stmt.setInt(1, currentRelationshipId);
+                    stmt.setString(2, messageContent);
+                    stmt.setString(3, timestamp);
+                } else {
+                    stmt.setInt(1, currentUserId);
+                    stmt.setString(2, messageContent);
+                    stmt.setString(3, timestamp);
+                }
                 
                 int affectedRows = stmt.executeUpdate();
                 
@@ -429,16 +480,32 @@ public class CloudChatRepository {
             try {
                 conn = getConnection();
                 
-                // 在内容和用户名中搜索关键词
-                String sql = "SELECT id, user_id, username, content, message_type, display_time, " +
-                           "avatar_res_id, avatar_url, is_liked, created_at " +
-                           "FROM chat_messages " +
-                           "WHERE relationship_id = ? AND is_deleted = 0 " +
-                           "AND (content LIKE ? OR username LIKE ?) " +
-                           "ORDER BY created_at ASC";
+                // 根据用户是否绑定情侣关系选择不同的查询语句
+                String sql;
+                if (currentRelationshipId > 0) {
+                    // 已绑定情侣关系，查询情侣聊天消息
+                    sql = "SELECT id, user_id, username, content, message_type, display_time, " +
+                          "avatar_res_id, avatar_url, is_liked, created_at " +
+                          "FROM chat_messages " +
+                          "WHERE relationship_id = ? AND is_deleted = 0 " +
+                          "AND (content LIKE ? OR username LIKE ?) " +
+                          "ORDER BY created_at ASC";
+                } else {
+                    // 单身用户，查询个人消息
+                    sql = "SELECT id, user_id, username, content, message_type, display_time, " +
+                          "avatar_res_id, avatar_url, is_liked, created_at " +
+                          "FROM chat_messages " +
+                          "WHERE user_id = ? AND (relationship_id IS NULL OR relationship_id = 0) AND is_deleted = 0 " +
+                          "AND (content LIKE ? OR username LIKE ?) " +
+                          "ORDER BY created_at ASC";
+                }
                 
                 stmt = conn.prepareStatement(sql);
-                stmt.setInt(1, currentRelationshipId);
+                if (currentRelationshipId > 0) {
+                    stmt.setInt(1, currentRelationshipId);
+                } else {
+                    stmt.setInt(1, currentUserId);
+                }
                 String searchPattern = "%" + keyword + "%";
                 stmt.setString(2, searchPattern);
                 stmt.setString(3, searchPattern);

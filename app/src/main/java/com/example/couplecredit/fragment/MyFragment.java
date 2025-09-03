@@ -85,27 +85,27 @@ public class MyFragment extends Fragment {
             try {
                 int userIdInt = Integer.parseInt(userId);
                 
-                AvatarUploadApi.uploadAvatar(getContext(), userIdInt, imageUri, new AvatarUploadApi.AvatarUploadCallback() {
-                     @Override
-                     public void onUploadSuccess(String avatarUrl) {
-                         if (getActivity() != null) {
-                             getActivity().runOnUiThread(() -> {
-                                 Toast.makeText(getContext(), "头像上传成功", Toast.LENGTH_SHORT).show();
-                                 // 发送头像更新广播
-                                 AvatarUpdateManager.notifyAvatarUpdated(getContext(), userIdInt, imageUri.toString());
-                             });
-                         }
-                     }
-                     
-                     @Override
-                     public void onUploadError(String error) {
-                         if (getActivity() != null) {
-                             getActivity().runOnUiThread(() -> {
-                                 Toast.makeText(getContext(), "头像上传失败: " + error, Toast.LENGTH_SHORT).show();
-                             });
-                         }
-                     }
-                 });
+                AvatarUploadApi.uploadAvatar(getContext(), userIdInt, imageUri, new AvatarUploadApi.UploadCallback() {
+                    @Override
+                    public void onSuccess(String avatarUrl) {
+                        if (getActivity() != null) {
+                            getActivity().runOnUiThread(() -> {
+                                Toast.makeText(getContext(), "头像上传成功", Toast.LENGTH_SHORT).show();
+                                // 发送头像更新广播
+                                AvatarUpdateManager.notifyAvatarUpdated(getContext(), userIdInt, imageUri.toString());
+                            });
+                        }
+                    }
+                    
+                    @Override
+                    public void onError(String error) {
+                        if (getActivity() != null) {
+                            getActivity().runOnUiThread(() -> {
+                                Toast.makeText(getContext(), "头像上传失败: " + error, Toast.LENGTH_SHORT).show();
+                            });
+                        }
+                    }
+                });
             } catch (NumberFormatException e) {
                 Log.e("MyFragment", "Invalid userId format: " + userId, e);
                 Toast.makeText(getContext(), "用户ID格式错误", Toast.LENGTH_SHORT).show();

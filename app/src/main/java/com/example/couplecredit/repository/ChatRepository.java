@@ -7,6 +7,7 @@ import android.util.Log;
 import androidx.lifecycle.LiveData;
 import androidx.lifecycle.MutableLiveData;
 
+import com.example.couplecredit.R;
 import com.example.couplecredit.database.ChatDatabase;
 import com.example.couplecredit.database.ChatMessageDao;
 import com.example.couplecredit.database.ChatMessageEntity;
@@ -488,28 +489,12 @@ public class ChatRepository {
     }
     
     /**
-     * 保存默认消息到数据库
+     * 保存默认消息到数据库（已禁用）
+     * 注释：根据用户需求，不再加载默认消息
      */
     public void saveDefaultMessages() {
-        // 检查ExecutorService状态
-        if (databaseExecutor.isShutdown() || databaseExecutor.isTerminated()) {
-            Log.w(TAG, "DatabaseExecutor已关闭，无法保存默认消息");
-            return;
-        }
-        
-        databaseExecutor.execute(() -> {
-            try {
-                // 检查数据库是否为空
-                int count = chatMessageDao.getMessageCount();
-                if (count == 0) {
-                    List<ChatMessageEntity> defaultMessages = createDefaultMessages();
-                    chatMessageDao.insertMessages(defaultMessages);
-                    loadAllMessages();
-                }
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-        });
+        // 已禁用默认消息加载功能
+        Log.d(TAG, "默认消息加载功能已禁用");
     }
     
     // ==================== 私有辅助方法 ====================
@@ -532,8 +517,8 @@ public class ChatRepository {
                 Log.d(TAG, "从本地加载了 " + messages.size() + " 条消息");
             } catch (Exception e) {
                 Log.e(TAG, "从本地加载消息失败", e);
-                // 如果本地数据库为空或出错，加载默认消息
-                loadDefaultMessages();
+                // 如果本地数据库为空或出错，返回空列表
+                allMessagesLiveData.postValue(new ArrayList<>());
             }
         });
     }
@@ -792,26 +777,60 @@ public class ChatRepository {
     }
     
     /**
-     * 加载默认消息
+     * 加载默认消息（已禁用）
+     * 注释：根据用户需求，不再加载默认消息
      */
     private void loadDefaultMessages() {
-        List<ChatMessage> defaultMessages = new ArrayList<>();
-        defaultMessages.add(new ChatMessage("小美", "今天天气真好呢！", "10:30", android.R.drawable.ic_dialog_email, false));
-        defaultMessages.add(new ChatMessage("我", "是啊，要不要出去走走？", "10:32", android.R.drawable.ic_dialog_info, true));
-        defaultMessages.add(new ChatMessage("小美", "好主意！去哪里呢？", "10:33", android.R.drawable.ic_dialog_email, false));
-        allMessagesLiveData.postValue(defaultMessages);
+        // 已禁用默认消息加载功能，返回空列表
+        Log.d(TAG, "默认消息加载功能已禁用");
+        allMessagesLiveData.postValue(new ArrayList<>());
     }
     
     /**
-     * 创建默认消息实体
-     * @return 默认消息实体列表
+     * 创建默认消息实体（已禁用）
+     * 注释：根据用户需求，不再创建默认消息
+     * @return 空的消息实体列表
      */
     private List<ChatMessageEntity> createDefaultMessages() {
-        List<ChatMessageEntity> messages = new ArrayList<>();
-        messages.add(new ChatMessageEntity("小美", "今天天气真好呢！", "10:30", android.R.drawable.ic_dialog_email, false));
-        messages.add(new ChatMessageEntity("我", "是啊，要不要出去走走？", "10:32", android.R.drawable.ic_dialog_info, true));
-        messages.add(new ChatMessageEntity("小美", "好主意！去哪里呢？", "10:33", android.R.drawable.ic_dialog_email, false));
-        return messages;
+        // 已禁用默认消息创建功能，返回空列表
+        Log.d(TAG, "默认消息创建功能已禁用");
+        return new ArrayList<>();
+    }
+    
+    /**
+     * 清空聊天消息显示（用于退出登录时）
+     * 注意：只清空UI显示，不删除本地数据库数据，以便重新登录时能恢复
+     */
+    public void clearAllMessages() {
+        clearAllMessages(false);
+    }
+    
+    /**
+     * 清空聊天消息
+     * @param clearDatabase 是否同时清空本地数据库
+     */
+    public void clearAllMessages(boolean clearDatabase) {
+        // 清空LiveData中的消息列表
+        allMessagesLiveData.postValue(new ArrayList<>());
+        searchResultsLiveData.postValue(new ArrayList<>());
+        
+        // 重置同步状态
+        syncStatusLiveData.postValue(false);
+        syncErrorLiveData.postValue(null);
+        
+        if (clearDatabase) {
+            // 清空本地数据库
+            databaseExecutor.execute(() -> {
+                try {
+                    chatMessageDao.deleteAllMessages();
+                    Log.d(TAG, "聊天消息显示和本地数据库已完全清空");
+                } catch (Exception e) {
+                    Log.e(TAG, "清空本地数据库失败: " + e.getMessage(), e);
+                }
+            });
+        } else {
+            Log.d(TAG, "聊天消息显示已清空（保留本地数据）");
+        }
     }
     
     /**

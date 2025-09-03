@@ -22,6 +22,7 @@ import android.Manifest;
 import android.app.Activity;
 
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
 import com.bumptech.glide.Glide;
 import com.bumptech.glide.load.resource.bitmap.CircleCrop;
@@ -33,6 +34,7 @@ import com.example.couplecredit.function.UserInfoManager;
 import com.example.couplecredit.utils.AvatarCacheManager;
 import com.example.couplecredit.utils.AvatarUpdateManager;
 import com.example.couplecredit.database.CoupleRelationshipHelper;
+import com.example.couplecredit.activity.LoginActivity;
 
 public class UserSettingsActivity extends AppCompatActivity {
 
@@ -74,6 +76,15 @@ public class UserSettingsActivity extends AppCompatActivity {
             if (userIdInt != -1) {
                 userId = String.valueOf(userIdInt);
             }
+        }
+        
+        // 检查用户是否已登录，如果未登录则直接返回登录页面
+        if (username == null || userId == null || !UserInfoManager.isUserLoggedIn(this)) {
+            Toast.makeText(this, "请先登录", Toast.LENGTH_SHORT).show();
+            Intent loginIntent = new Intent(this, LoginActivity.class);
+            startActivity(loginIntent);
+            finish();
+            return;
         }
         
         // 初始化UI组件
@@ -402,6 +413,10 @@ public class UserSettingsActivity extends AppCompatActivity {
         // 使用UserInfoManager清除用户信息
         UserInfoManager.clearUserInfo(this);
 
+        // 发送退出登录广播
+        Intent broadcastIntent = new Intent("com.example.couplecredit.USER_LOGOUT");
+        LocalBroadcastManager.getInstance(this).sendBroadcast(broadcastIntent);
+
         Toast.makeText(this, "已退出登录", Toast.LENGTH_SHORT).show();
 
         // 跳转到登录界面
@@ -430,6 +445,10 @@ public class UserSettingsActivity extends AppCompatActivity {
                 runOnUiThread(() -> {
                     // 使用UserInfoManager清空用户登录状态
                     UserInfoManager.clearUserInfo(UserSettingsActivity.this);
+                    
+                    // 发送退出登录广播
+                    Intent broadcastIntent = new Intent("com.example.couplecredit.USER_LOGOUT");
+                    LocalBroadcastManager.getInstance(UserSettingsActivity.this).sendBroadcast(broadcastIntent);
                     
                     Toast.makeText(UserSettingsActivity.this, "账户注销成功", Toast.LENGTH_SHORT).show();
                     
