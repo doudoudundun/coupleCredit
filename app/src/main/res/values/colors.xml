@@ -16,4 +16,11 @@
     <color name="light_blue_A200">#FF40C4FF</color>
     <color name="light_blue_A400">#FF00B0FF</color>
     <color name="black_overlay">#66000000</color>      <!-- 未点赞状态：灰色 -->
+    
+    <!-- 聊天记账弹窗颜色 -->
+    <color name="primary_color">#07C160</color>       <!-- 主色调：绿色 -->
+    <color name="accent_color">#FF4081</color>        <!-- 强调色：粉红色 -->
+    <color name="border_color">#E0E0E0</color>        <!-- 边框颜色：浅灰色 -->
+    <color name="border_light">#F0F0F0</color>       <!-- 浅边框颜色 -->
+    <color name="text_secondary">#757575</color>     <!-- 次要文本颜色：深灰色 -->
 </resources>

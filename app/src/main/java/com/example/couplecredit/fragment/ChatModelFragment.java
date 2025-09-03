@@ -36,6 +36,7 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.example.couplecredit.R;
 import com.example.couplecredit.activity.UserSettingsActivity;
 import com.example.couplecredit.adapter.ChatMessageAdapter;
+import com.example.couplecredit.dialog.ChatBillingDialog;
 import com.example.couplecredit.function.UserInfoManager;
 import com.example.couplecredit.manager.MessagePopupManager;
 import com.example.couplecredit.model.ChatMessage;
@@ -467,7 +468,27 @@ public class ChatModelFragment extends Fragment {
             
             @Override
             public void onBillingAction(ChatMessage message) {
-                Toast.makeText(getContext(), "记账功能开发中...", Toast.LENGTH_SHORT).show();
+                // 打开聊天记账弹窗
+                if (getContext() != null) {
+                    ChatBillingDialog dialog = new ChatBillingDialog(getContext(), message);
+                    
+                    // 设置账单保存监听器
+                    dialog.setOnBillSavedListener(new ChatBillingDialog.OnBillSavedListener() {
+                        @Override
+                        public void onBillSaved(long billId) {
+                            // 账单保存成功，可以在这里添加额外的处理逻辑
+                            // 例如：刷新统计数据、发送广播通知等
+                        }
+                        
+                        @Override
+                        public void onBillSaveError(String error) {
+                            // 账单保存失败，显示错误信息
+                            Toast.makeText(getContext(), "保存失败: " + error, Toast.LENGTH_SHORT).show();
+                        }
+                    });
+                    
+                    dialog.show();
+                }
             }
         });
     }

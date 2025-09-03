@@ -292,6 +292,7 @@ public final class Utils {
             }
         }
         
+        // 使用简单的DatePickerDialog实现，参考ChatBillingDialog的成功实现
         DatePickerDialog datePickerDialog = new DatePickerDialog(
                 context,
                 (view, selectedYear, selectedMonth, selectedDay) -> {
@@ -304,18 +305,11 @@ public final class Utils {
                 year, month, day
         );
 
+        // 设置对话框标题
         datePickerDialog.setTitle("选择日期");
-        datePickerDialog.show();
         
-        // 设置按钮颜色
-        if (datePickerDialog.getButton(DatePickerDialog.BUTTON_POSITIVE) != null) {
-            datePickerDialog.getButton(DatePickerDialog.BUTTON_POSITIVE).setTextColor(
-                    context.getResources().getColor(android.R.color.holo_blue_dark));
-        }
-        if (datePickerDialog.getButton(DatePickerDialog.BUTTON_NEGATIVE) != null) {
-            datePickerDialog.getButton(DatePickerDialog.BUTTON_NEGATIVE).setTextColor(
-                    context.getResources().getColor(android.R.color.holo_red_dark));
-        }
+        // 直接显示，不进行额外的按钮设置，避免冲突
+        datePickerDialog.show();
     }
     public interface MonthPickerCallback{
         void onMonthSelected(int year, int month);

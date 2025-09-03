@@ -28,6 +28,7 @@ import com.example.couplecredit.activity.MainActivity;
 import com.example.couplecredit.R;
 import com.example.couplecredit.function.CustomToast;
 import com.example.couplecredit.function.Utils;
+import com.example.couplecredit.utils.CategoryIconMapper;
 import com.transsion.widgetslib.widget.tablayout.OSTabLayout;
 import com.transsion.widgetslib.widget.tablayout.TabLayout;
 
@@ -712,27 +713,30 @@ public class AddBillFragment extends Fragment {
         // 显示所有支出分类项
         View rootView = getView();
         if (rootView != null) {
-            // 恢复支出分类的原始样式 - 统一使用img_category_food图标，移除背景
-            setCategoryStyle(rootView, R.id.category_food, "餐品", 0, R.drawable.img_category_food);
-            setCategoryStyle(rootView, R.id.category_drink, "饮品", 0, R.drawable.img_category_drink);
-            setCategoryStyle(rootView, R.id.category_fruit, "水果", 0, R.drawable.img_category_fruit);
-            setCategoryStyle(rootView, R.id.category_shopping, "购物", 0, R.drawable.img_category_shopping);
-            setCategoryStyle(rootView, R.id.category_transport, "交通", 0, R.drawable.img_category_transport);
-            setCategoryStyle(rootView, R.id.category_hotel, "住宿", 0, R.drawable.img_category_hotel);
-            setCategoryStyle(rootView, R.id.category_entertainment, "娱乐", 0, R.drawable.img_category_entertainment);
-            setCategoryStyle(rootView, R.id.category_cosmetic, "化妆", 0, R.drawable.img_category_cosmetic);
-            setCategoryStyle(rootView, R.id.category_travel, "旅游", 0, R.drawable.img_category_travel);
-            setCategoryStyle(rootView, R.id.category_medical, "医疗", 0, R.drawable.img_category_medical);
-            setCategoryStyle(rootView, R.id.category_member, "会员", 0, R.drawable.img_category_member);
-            setCategoryStyle(rootView, R.id.category_communication, "通讯", 0, R.drawable.img_category_communication);
-            setCategoryStyle(rootView, R.id.category_social, "人情", 0, R.drawable.img_category_social);
-            setCategoryStyle(rootView, R.id.category_parenting, "亲子", 0, R.drawable.img_category_parenting);
-            setCategoryStyle(rootView, R.id.category_pet, "宠物", 0, R.drawable.img_category_pet);
-            setCategoryStyle(rootView, R.id.category_decoration, "装修", 0, R.drawable.img_category_decoration);
-            setCategoryStyle(rootView, R.id.category_investment, "投资", 0, R.drawable.img_category_investment);
-            setCategoryStyle(rootView, R.id.category_daily, "日常", 0, R.drawable.img_category_daily);
-            setCategoryStyle(rootView, R.id.category_study, "学习", 0, R.drawable.img_category_study);
-            setCategoryStyle(rootView, R.id.category_other, "其他", 0, R.drawable.img_category_other);
+            // 使用CategoryIconMapper获取标准化的支出分类和图标
+            // String[] expenseCategories = CategoryIconMapper.getExpenseCategories();
+            
+            // 为支出分类设置样式 - 使用CategoryIconMapper获取对应图标
+            setCategoryStyle(rootView, R.id.category_food, "餐品", 0, 0);
+            setCategoryStyle(rootView, R.id.category_drink, "饮品", 0, 0);
+            setCategoryStyle(rootView, R.id.category_fruit, "水果", 0, 0);
+            setCategoryStyle(rootView, R.id.category_shopping, "购物", 0, 0);
+            setCategoryStyle(rootView, R.id.category_transport, "交通", 0, 0);
+            setCategoryStyle(rootView, R.id.category_hotel, "住宿", 0, 0);
+            setCategoryStyle(rootView, R.id.category_entertainment, "娱乐", 0, 0);
+            setCategoryStyle(rootView, R.id.category_cosmetic, "化妆", 0, 0);
+            setCategoryStyle(rootView, R.id.category_travel, "旅游", 0, 0);
+            setCategoryStyle(rootView, R.id.category_medical, "医疗", 0, 0);
+            setCategoryStyle(rootView, R.id.category_member, "会员", 0, 0);
+            setCategoryStyle(rootView, R.id.category_communication, "通讯", 0, 0);
+            setCategoryStyle(rootView, R.id.category_social, "人情", 0, 0);
+            setCategoryStyle(rootView, R.id.category_parenting, "亲子", 0, 0);
+            setCategoryStyle(rootView, R.id.category_pet, "宠物", 0, 0);
+            setCategoryStyle(rootView, R.id.category_decoration, "装修", 0, 0);
+            setCategoryStyle(rootView, R.id.category_investment, "投资", 0, 0);
+            setCategoryStyle(rootView, R.id.category_daily, "日常", 0, 0);
+            setCategoryStyle(rootView, R.id.category_study, "学习", 0, 0);
+            setCategoryStyle(rootView, R.id.category_other, "其他", 0, 0);
             
             // 显示所有支出分类项
             rootView.findViewById(R.id.category_food).setVisibility(View.VISIBLE);
@@ -814,12 +818,12 @@ public class AddBillFragment extends Fragment {
     private void showIncomeOnlyCategories(View rootView) {
         // 显示收入分类项，重用现有的分类项并修改样式
         
-        // 为收入分类设置样式 - 保持各自的图标资源，移除背景
-        setCategoryStyle(rootView, R.id.category_salary, "工资", 0, R.drawable.img_category_salary);
-        setCategoryStyle(rootView, R.id.category_cashgift, "礼金", 0, R.drawable.img_category_cashgift);
-        setCategoryStyle(rootView, R.id.category_parttime, "兼职", 0, R.drawable.img_category_parttime);
-        setCategoryStyle(rootView, R.id.category_financial, "理财", 0, R.drawable.img_category_financial);
-        setCategoryStyle(rootView, R.id.category_other, "其他", 0, R.drawable.img_category_other);
+        // 为收入分类设置样式 - 使用CategoryIconMapper获取对应图标
+        setCategoryStyle(rootView, R.id.category_salary, "工资", 0, 0);
+        setCategoryStyle(rootView, R.id.category_cashgift, "礼金", 0, 0);
+        setCategoryStyle(rootView, R.id.category_parttime, "兼职", 0, 0);
+        setCategoryStyle(rootView, R.id.category_financial, "理财", 0, 0);
+        setCategoryStyle(rootView, R.id.category_other, "其他", 0, 0);
     
         // 显示收入分类项（只显示这5个）
         rootView.findViewById(R.id.category_salary).setVisibility(View.VISIBLE);
@@ -843,27 +847,27 @@ public class AddBillFragment extends Fragment {
     }
     
     private void initializeCategoryStyles(View rootView) {
-        // 为每个分类项设置统一样式 - 使用img_category_food图标，移除背景颜色
-        setCategoryStyle(rootView, R.id.category_food, "餐品", 0, R.drawable.img_category_food);
-        setCategoryStyle(rootView, R.id.category_drink, "饮品", 0, R.drawable.img_category_drink);
-        setCategoryStyle(rootView, R.id.category_fruit, "水果", 0, R.drawable.img_category_fruit);
-        setCategoryStyle(rootView, R.id.category_shopping, "购物", 0, R.drawable.img_category_shopping);
-        setCategoryStyle(rootView, R.id.category_transport, "交通", 0, R.drawable.img_category_transport);
-        setCategoryStyle(rootView, R.id.category_hotel, "住宿", 0, R.drawable.img_category_hotel);
-        setCategoryStyle(rootView, R.id.category_entertainment, "娱乐", 0, R.drawable.img_category_entertainment);
-        setCategoryStyle(rootView, R.id.category_cosmetic, "化妆", 0, R.drawable.img_category_cosmetic);
-        setCategoryStyle(rootView, R.id.category_travel, "旅游", 0, R.drawable.img_category_travel);
-        setCategoryStyle(rootView, R.id.category_medical, "医疗", 0, R.drawable.img_category_medical);
-        setCategoryStyle(rootView, R.id.category_member, "会员", 0, R.drawable.img_category_member);
-        setCategoryStyle(rootView, R.id.category_communication, "通讯", 0, R.drawable.img_category_communication);
-        setCategoryStyle(rootView, R.id.category_social, "人情", 0, R.drawable.img_category_social);
-        setCategoryStyle(rootView, R.id.category_parenting, "亲子", 0, R.drawable.img_category_parenting);
-        setCategoryStyle(rootView, R.id.category_pet, "宠物", 0, R.drawable.img_category_pet);
-        setCategoryStyle(rootView, R.id.category_decoration, "装修", 0, R.drawable.img_category_decoration);
-        setCategoryStyle(rootView, R.id.category_investment, "投资", 0, R.drawable.img_category_investment);
-        setCategoryStyle(rootView, R.id.category_daily, "日常", 0, R.drawable.img_category_daily);
-        setCategoryStyle(rootView, R.id.category_study, "学习", 0, R.drawable.img_category_study);
-        setCategoryStyle(rootView, R.id.category_other, "其他", 0, R.drawable.img_category_other);
+        // 为每个分类项设置统一样式 - 使用CategoryIconMapper获取对应图标
+        setCategoryStyle(rootView, R.id.category_food, "餐品", 0, 0);
+        setCategoryStyle(rootView, R.id.category_drink, "饮品", 0, 0);
+        setCategoryStyle(rootView, R.id.category_fruit, "水果", 0, 0);
+        setCategoryStyle(rootView, R.id.category_shopping, "购物", 0, 0);
+        setCategoryStyle(rootView, R.id.category_transport, "交通", 0, 0);
+        setCategoryStyle(rootView, R.id.category_hotel, "住宿", 0, 0);
+        setCategoryStyle(rootView, R.id.category_entertainment, "娱乐", 0, 0);
+        setCategoryStyle(rootView, R.id.category_cosmetic, "化妆", 0, 0);
+        setCategoryStyle(rootView, R.id.category_travel, "旅游", 0, 0);
+        setCategoryStyle(rootView, R.id.category_medical, "医疗", 0, 0);
+        setCategoryStyle(rootView, R.id.category_member, "会员", 0, 0);
+        setCategoryStyle(rootView, R.id.category_communication, "通讯", 0, 0);
+        setCategoryStyle(rootView, R.id.category_social, "人情", 0, 0);
+        setCategoryStyle(rootView, R.id.category_parenting, "亲子", 0, 0);
+        setCategoryStyle(rootView, R.id.category_pet, "宠物", 0, 0);
+        setCategoryStyle(rootView, R.id.category_decoration, "装修", 0, 0);
+        setCategoryStyle(rootView, R.id.category_investment, "投资", 0, 0);
+        setCategoryStyle(rootView, R.id.category_daily, "日常", 0, 0);
+        setCategoryStyle(rootView, R.id.category_study, "学习", 0, 0);
+        setCategoryStyle(rootView, R.id.category_other, "其他", 0, 0);
 
         hideIncomeOnlyCategories(rootView);
     }
@@ -897,10 +901,12 @@ public class AddBillFragment extends Fragment {
                 Log.w("AddBillFragment", "FrameLayout not found in category: " + categoryId);
             }
             
-            // 设置图标
+            // 设置图标 - 使用CategoryIconMapper获取标准图标
             ImageView imageView = categoryView.findViewById(R.id.iv_category_icon);
             if (imageView != null) {
-                imageView.setImageResource(iconRes);
+                // 如果传入的iconRes为0，则使用CategoryIconMapper获取标准图标
+                int finalIconRes = (iconRes == 0) ? CategoryIconMapper.getIconForCategory(text) : iconRes;
+                imageView.setImageResource(finalIconRes);
             } else {
                 Log.w("AddBillFragment", "ImageView not found in category: " + categoryId);
             }

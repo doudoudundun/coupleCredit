@@ -21,6 +21,7 @@ import com.example.couplecredit.activity.MainActivity;
 import com.example.couplecredit.function.Utils;
 import com.example.couplecredit.database.BillDatabaseHelper;
 import com.example.couplecredit.function.UserInfoManager;
+import com.example.couplecredit.utils.CategoryIconMapper;
 import com.transsion.widgetslib.dialog.PromptDialog;
 
 import java.text.SimpleDateFormat;
@@ -301,62 +302,23 @@ public class CategoriesBillViewActivity extends AppCompatActivity {
     }
     
     private int getIconForCategory(String category) {
+        // 处理一些历史数据的分类名称映射
+        String mappedCategory = category;
         switch (category) {
             case "餐品":
-            case "餐饮":
-                return R.drawable.img_category_food;
-            case "饮品":
-                return R.drawable.img_category_drink;
-            case "水果":
-                return R.drawable.img_category_fruit;
-            case "购物":
-                return R.drawable.img_category_shopping;
-            case "交通":
-                return R.drawable.img_category_transport;
-            case "住宿":
-                return R.drawable.img_category_hotel;
-            case "日常":
-                return R.drawable.img_category_daily;
-            case "学习":
-                return R.drawable.img_category_study;
-            case "娱乐":
-                return R.drawable.img_category_entertainment;
-            case "化妆":
-                return R.drawable.img_category_cosmetic;
-            case "旅游":
-                return R.drawable.img_category_travel;
-            case "医疗":
-                return R.drawable.img_category_medical;
-            case "会员":
-                return R.drawable.img_category_member;
-            case "通讯":
-                return R.drawable.img_category_communication;
-            case "人情":
+                mappedCategory = "餐饮";
+                break;
             case "社交":
-                return R.drawable.img_category_social;
-            case "投资":
-                return R.drawable.img_category_investment;
-            case "亲子":
+                mappedCategory = "人情";
+                break;
             case "育儿":
-                return R.drawable.img_category_parenting;
-            case "宠物":
-                return R.drawable.img_category_pet;
-            case "装修":
-                return R.drawable.img_category_decoration;
-            // 收入分类
-            case "工资":
-                return R.drawable.img_category_salary;
-            case "礼金":
-                return R.drawable.img_category_cashgift;
-            case "兼职":
-                return R.drawable.img_category_parttime;
-            case "理财":
-                return R.drawable.img_category_financial;
-            case "其他":
+                mappedCategory = "亲子";
+                break;
             case "生活":
-                return R.drawable.img_category_other;
-            default:
-                return R.drawable.img_category_other;
+                mappedCategory = "其他";
+                break;
         }
+        
+        return CategoryIconMapper.getIconForCategory(mappedCategory);
     }
 }
