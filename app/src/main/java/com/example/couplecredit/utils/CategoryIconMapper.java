@@ -44,7 +44,7 @@ public class CategoryIconMapper {
     private static final Map<String, Integer> CATEGORY_ICON_MAP = new HashMap<>();
     static {
         // 支出分类图标
-        CATEGORY_ICON_MAP.put("餐饮", R.drawable.img_category_food);
+        CATEGORY_ICON_MAP.put("餐品", R.drawable.img_category_food);
         CATEGORY_ICON_MAP.put("饮品", R.drawable.img_category_drink);
         CATEGORY_ICON_MAP.put("水果", R.drawable.img_category_fruit);
         CATEGORY_ICON_MAP.put("购物", R.drawable.img_category_shopping);
@@ -66,8 +66,11 @@ public class CategoryIconMapper {
         
         // 收入分类图标
         CATEGORY_ICON_MAP.put("工资", R.drawable.img_category_salary);
-        CATEGORY_ICON_MAP.put("礼金", R.drawable.img_category_cashgift);
+        CATEGORY_ICON_MAP.put("奖金", R.drawable.img_category_salary); // 使用工资图标
+        CATEGORY_ICON_MAP.put("投资收益", R.drawable.img_category_investment);
         CATEGORY_ICON_MAP.put("兼职", R.drawable.img_category_parttime);
+        CATEGORY_ICON_MAP.put("礼金", R.drawable.img_category_cashgift);
+        CATEGORY_ICON_MAP.put("退款", R.drawable.img_category_other); // 使用其他图标
         CATEGORY_ICON_MAP.put("理财", R.drawable.img_category_financial);
         
         // 通用分类图标
