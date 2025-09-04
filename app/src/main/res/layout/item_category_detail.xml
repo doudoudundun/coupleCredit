@@ -63,26 +63,26 @@
     </LinearLayout>
 
 <!--    &lt;!&ndash; 下半部分：进度条 &ndash;&gt;-->
-<!--    <ProgressBar-->
-<!--        android:id="@+id/progress_category_percentage"-->
-<!--        style="?android:attr/progressBarStyleHorizontal"-->
-<!--        android:layout_width="match_parent"-->
-<!--        android:layout_height="6dp"-->
-<!--        android:layout_marginTop="8dp"-->
-<!--        android:layout_marginStart="42dp"-->
-<!--        android:max="100"-->
-<!--        android:progress="20" />-->
-
-    <com.transsion.widgetslib.widget.seekbar.OSSeekbar
-        android:id="@+id/percentage_seekbar"
+    <ProgressBar
+        android:id="@+id/progress_category_percentage"
+        style="?android:attr/progressBarStyleHorizontal"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+        android:layout_height="6dp"
+        android:layout_marginTop="8dp"
         android:layout_marginStart="42dp"
-        app:osSeekbarMax="100"
-        app:osSeekbarMin="0"
-        app:osSeekbarProgress="20"
-        app:osSeekbarSecondTrackColor="@color/os_color_pink60"
-        app:osSeekbarNoThumb="true"/>
+        android:max="100"
+        android:progress="20" />
+
+<!--    <com.transsion.widgetslib.widget.seekbar.OSSeekbar-->
+<!--        android:id="@+id/percentage_seekbar"-->
+<!--        android:layout_width="match_parent"-->
+<!--        android:layout_height="wrap_content"-->
+<!--        android:layout_marginStart="42dp"-->
+<!--        app:osSeekbarMax="100"-->
+<!--        app:osSeekbarMin="0"-->
+<!--        app:osSeekbarProgress="20"-->
+<!--        app:osSeekbarSecondTrackColor="@color/os_color_pink60"-->
+<!--        app:osSeekbarNoThumb="true"/>-->
 
 
 </LinearLayout>

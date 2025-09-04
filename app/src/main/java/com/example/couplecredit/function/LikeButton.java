@@ -300,7 +300,14 @@ public class LikeButton extends RelativeLayout {
     }
 
     public void setLiked(boolean liked) {
-        if (isAnimating) return; // 防止动画期间状态被外部修改
+        // 如果状态相同，直接返回
+        if (this.isLiked == liked) return;
+        
+        // 如果正在动画中，等待动画结束后再设置状态
+        if (isAnimating) {
+            post(() -> setLiked(liked));
+            return;
+        }
         
         this.isLiked = liked;
         if (liked) {

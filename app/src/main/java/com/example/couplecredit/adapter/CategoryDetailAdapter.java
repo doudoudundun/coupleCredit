@@ -77,17 +77,17 @@ public class CategoryDetailAdapter extends RecyclerView.Adapter<CategoryDetailAd
         holder.ivCategoryIcon.setImageResource(iconRes);
         
         // 设置进度条
-//        holder.progressCategoryPercentage.setProgress((int) detail.getPercentage());
-        holder.seekbarCategoryPercentage.setProgress((int) detail.getPercentage());
-        holder.seekbarCategoryPercentage.setNoThumb(true);
+        holder.progressCategoryPercentage.setProgress((int) detail.getPercentage());
+//        holder.seekbarCategoryPercentage.setProgress((int) detail.getPercentage());
+//        holder.seekbarCategoryPercentage.setNoThumb(true);
         // 设置进度条颜色，如果没有颜色映射则使用固定的随机颜色
         int progressColor = detail.getColor();
         if (progressColor == 0) {
             progressColor = getOrGenerateColorForCategory(detail.getCategoryName());
         }
 
-        holder.seekbarCategoryPercentage.setSecondTrackColor(progressColor);
-//        holder.progressCategoryPercentage.setProgressTintList(ColorStateList.valueOf(progressColor));
+//        holder.seekbarCategoryPercentage.setSecondTrackColor(progressColor);
+        holder.progressCategoryPercentage.setProgressTintList(ColorStateList.valueOf(progressColor));
         
         // 设置点击事件
         holder.itemView.setOnClickListener(v -> {
@@ -177,7 +177,7 @@ public class CategoryDetailAdapter extends RecyclerView.Adapter<CategoryDetailAd
         TextView tvCategoryPercentage;
         ImageView ivCategoryIcon;
         ProgressBar progressCategoryPercentage;
-        OSSeekbar seekbarCategoryPercentage;
+//        OSSeekbar seekbarCategoryPercentage;
 
         public CategoryViewHolder(@NonNull View itemView) {
             super(itemView);
@@ -186,8 +186,7 @@ public class CategoryDetailAdapter extends RecyclerView.Adapter<CategoryDetailAd
             tvCategoryAmount = itemView.findViewById(R.id.tv_category_amount);
             tvCategoryPercentage = itemView.findViewById(R.id.tv_category_percentage);
             ivCategoryIcon = itemView.findViewById(R.id.iv_category_icon);
-//            progressCategoryPercentage = itemView.findViewById(R.id.progress_category_percentage);
-            seekbarCategoryPercentage = itemView.findViewById(R.id.percentage_seekbar);
+            progressCategoryPercentage = itemView.findViewById(R.id.progress_category_percentage);
         }
     }
     

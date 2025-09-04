@@ -523,31 +523,7 @@ public class ReportFragment extends Fragment {
             });
         }
     }
-    
-    // 旧的方法签名保留以防其他地方调用
-    private void loadMonthlyTrendDataOld(int userId, Integer relationshipId) {
-        // 现在直接调用新的基于缓存的方法
-        loadMonthlyTrendData(userId, relationshipId);
-    }
-    
-    // 保留原有的错误处理逻辑
-    private void onTrendDataError(String error) {
-        android.util.Log.e("ReportFragment", "查询月度趋势数据失败: " + error);
-        // 显示空数据
-        Calendar calendar = Calendar.getInstance();
-        calendar.set(currentYear, currentMonth - 1, 1);
-        int daysInMonth = calendar.getActualMaximum(Calendar.DAY_OF_MONTH);
-        
-        List<com.github.mikephil.charting.data.Entry> entries = new ArrayList<>();
-        for (int day = 1; day <= daysInMonth; day++) {
-            entries.add(new Entry(day, 0));
-        }
-        
-        if (getActivity() != null) {
-            getActivity().runOnUiThread(() -> updateChart(entries));
-        }
-    }
-    
+
     private void updateChart(List<com.github.mikephil.charting.data.Entry> entries) {
         if (TrendChart == null) {
             return;
@@ -769,8 +745,9 @@ public class ReportFragment extends Fragment {
         // 设置中心文字
         pieChart.setDrawCenterText(true);
         pieChart.setCenterText("类目占比");
-        pieChart.setCenterTextSize(16f);
+        pieChart.setCenterTextSize(24f);
         pieChart.setCenterTextColor(android.graphics.Color.parseColor("#333333"));
+        pieChart.setCenterTextTypeface(android.graphics.Typeface.DEFAULT_BOLD);
         
         // 设置旋转 - 从0°开始
         pieChart.setRotationAngle(0);
@@ -987,6 +964,7 @@ public class ReportFragment extends Fragment {
         // 设置中心文字为总金额
         String formattedAmount = "￥" + String.format("%.2f", totalAmount);
         pieChart.setCenterText(formattedAmount);
+        pieChart.setCenterTextTypeface(android.graphics.Typeface.DEFAULT_BOLD);
         
         // 添加从头加载的动画效果
         pieChart.animateY(800); // Y轴动画，持续800毫秒
@@ -1025,6 +1003,7 @@ public class ReportFragment extends Fragment {
         // 设置中心文字为0金额
         String formattedAmount = "￥" + String.format("%.2f", 0f);
         pieChart.setCenterText(formattedAmount);
+        pieChart.setCenterTextTypeface(android.graphics.Typeface.DEFAULT_BOLD);
         
         // 添加动画效果
         pieChart.animateY(800);

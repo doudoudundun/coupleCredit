@@ -239,8 +239,11 @@ public class ChatMessageAdapter extends RecyclerView.Adapter<ChatMessageAdapter.
             // 设置点赞状态
             updateLikeButton(message.isLiked());
             
-            // 设置点赞按钮点击事件
+            // 清除之前的监听器并设置新的点赞按钮点击事件
             if (likeButton != null) {
+                // 先清除之前的监听器
+                likeButton.setOnLikeClickListener(null);
+                // 设置新的监听器
                 likeButton.setOnLikeClickListener(isLiked -> {
                     // 切换点赞状态
                     message.setLiked(isLiked);
