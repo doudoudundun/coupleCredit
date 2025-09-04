@@ -305,9 +305,7 @@ public class CategoriesBillViewActivity extends AppCompatActivity {
         // 处理一些历史数据的分类名称映射
         String mappedCategory = category;
         switch (category) {
-            case "餐品":
-                mappedCategory = "餐饮";
-                break;
+            // 餐品已在CategoryIconMapper中直接映射，不需要转换
             case "社交":
                 mappedCategory = "人情";
                 break;

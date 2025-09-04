@@ -312,7 +312,6 @@ public class ClassicModelFragment extends Fragment implements BillAdapter.OnItem
     private int getIconForCategory(String category) {
         switch (category) {
             case "餐品":
-            case "餐饮":
                 return R.drawable.img_category_food;
             case "饮品":
                 return R.drawable.img_category_drink;
