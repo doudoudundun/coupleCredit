@@ -24,6 +24,7 @@ public class LikeButton extends RelativeLayout {
     private boolean isLiked = false;
     private OnLikeClickListener onLikeClickListener;
     private List<ImageView> floatingHearts;
+    private List<AnimatorSet> runningAnimators; // 跟踪正在运行的动画
     private Random random;
     private boolean isAnimating = false;
 
@@ -48,6 +49,7 @@ public class LikeButton extends RelativeLayout {
 
     private void init() {
         floatingHearts = new ArrayList<>();
+        runningAnimators = new ArrayList<>();
         random = new Random();
         
         // 创建心形图标
@@ -75,6 +77,11 @@ public class LikeButton extends RelativeLayout {
     }
 
     private void toggleLike() {
+        // 防止动画期间重复点击
+        if (isAnimating) {
+            return;
+        }
+        
         isLiked = !isLiked;
         
         if (isLiked) {
@@ -285,9 +292,11 @@ public class LikeButton extends RelativeLayout {
             public void onAnimationEnd(android.animation.Animator animation) {
                 removeView(heart);
                 floatingHearts.remove(heart);
+                runningAnimators.remove(finalSet);
             }
         });
         
+        runningAnimators.add(finalSet);
         finalSet.start();
     }
 
@@ -303,17 +312,86 @@ public class LikeButton extends RelativeLayout {
         // 如果状态相同，直接返回
         if (this.isLiked == liked) return;
         
-        // 如果正在动画中，等待动画结束后再设置状态
+        // 如果正在动画中，直接返回，不进行状态设置
         if (isAnimating) {
-            post(() -> setLiked(liked));
             return;
         }
         
-        this.isLiked = liked;
-        if (liked) {
-            heartIcon.setImageResource(R.drawable.ic_heart_filled);
-        } else {
-            heartIcon.setImageResource(R.drawable.ic_heart_empty);
+        // 防止在布局过程中进行状态更改
+        if (heartIcon == null) {
+            return;
+        }
+        
+        try {
+            this.isLiked = liked;
+            if (liked) {
+                heartIcon.setImageResource(R.drawable.ic_heart_filled);
+            } else {
+                heartIcon.setImageResource(R.drawable.ic_heart_empty);
+            }
+        } catch (Exception e) {
+            // 防止布局异常导致崩溃
+            e.printStackTrace();
+        }
+    }
+    
+    /**
+     * 强制重置LikeButton状态，停止所有动画
+     * 用于ViewHolder复用时清理状态
+     */
+    public void forceReset() {
+        try {
+            // 停止所有AnimatorSet动画
+            for (AnimatorSet animator : runningAnimators) {
+                if (animator != null && animator.isRunning()) {
+                    animator.cancel();
+                }
+            }
+            runningAnimators.clear();
+            
+            // 停止所有动画
+            clearAnimation();
+            if (heartIcon != null) {
+                heartIcon.clearAnimation();
+            }
+            
+            // 停止所有子视图的动画
+            for (int i = 0; i < getChildCount(); i++) {
+                View child = getChildAt(i);
+                child.clearAnimation();
+                if (child.animate() != null) {
+                    child.animate().cancel();
+                }
+            }
+            
+            // 清理飘散的心形 - 使用副本避免ConcurrentModificationException
+            List<ImageView> heartsToRemove = new ArrayList<>(floatingHearts);
+            for (ImageView heart : heartsToRemove) {
+                if (heart.getParent() == this) {
+                    // 停止心形的动画
+                    heart.clearAnimation();
+                    if (heart.animate() != null) {
+                        heart.animate().cancel();
+                    }
+                    removeView(heart);
+                }
+            }
+            floatingHearts.clear();
+            
+            // 重置状态
+            isAnimating = false;
+            if (heartIcon != null) {
+                heartIcon.setScaleX(1.0f);
+                heartIcon.setScaleY(1.0f);
+                heartIcon.setRotation(0f);
+                heartIcon.setAlpha(1.0f);
+            }
+            
+            // 清除点击监听器，防止状态混乱
+            setOnLikeClickListener(null);
+        } catch (Exception e) {
+            // 防止布局异常导致崩溃
+            e.printStackTrace();
         }
     }
 }

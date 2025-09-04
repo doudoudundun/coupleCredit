@@ -206,7 +206,7 @@ public class DatabaseConnectionPool {
         // 在后台线程执行预连接创建，避免阻塞主线程
         new Thread(() -> {
             try {
-                int coreConnections = 4; // 预热时创建4个连接
+                int coreConnections = 5; // 预热时创建5个连接
                 int currentSize = connectionPool.size();
                 
                 if (currentSize < coreConnections) {

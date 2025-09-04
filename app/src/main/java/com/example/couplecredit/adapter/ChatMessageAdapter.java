@@ -138,6 +138,23 @@ public class ChatMessageAdapter extends RecyclerView.Adapter<ChatMessageAdapter.
         holder.bind(message, position);
     }
     
+    @Override
+    public void onBindViewHolder(@NonNull MessageViewHolder holder, int position, @NonNull List<Object> payloads) {
+        if (payloads.isEmpty()) {
+            // 没有部分更新，执行完整绑定
+            super.onBindViewHolder(holder, position, payloads);
+        } else {
+            // 处理部分更新
+            ChatMessage message = messages.get(position);
+            for (Object payload : payloads) {
+                if ("like_status".equals(payload)) {
+                    // 只更新点赞状态，不重新绑定整个ViewHolder
+                    holder.updateLikeButton(message.isLiked());
+                }
+            }
+        }
+    }
+    
     /**
      * 获取消息总数
      * @return 消息数量
@@ -153,7 +170,22 @@ public class ChatMessageAdapter extends RecyclerView.Adapter<ChatMessageAdapter.
      */
     public void updateMessages(List<ChatMessage> newMessages) {
         this.messages = newMessages;
+        // 使用notifyDataSetChanged()会导致所有ViewHolder重新绑定
+        // 这可能引起LikeButton状态混乱，但为了数据一致性暂时保留
+        // 后续可以考虑使用DiffUtil来优化
         notifyDataSetChanged();
+    }
+    
+    /**
+     * 更新特定位置消息的点赞状态
+     * @param position 消息位置
+     * @param isLiked 新的点赞状态
+     */
+    public void updateLikeStatus(int position, boolean isLiked) {
+        if (messages != null && position >= 0 && position < messages.size()) {
+            messages.get(position).setLiked(isLiked);
+            notifyItemChanged(position, "like_status");
+        }
     }
     
     /**
@@ -182,7 +214,7 @@ public class ChatMessageAdapter extends RecyclerView.Adapter<ChatMessageAdapter.
      * 消息ViewHolder类
      * 负责单个消息项的视图管理和事件处理
      */
-    class MessageViewHolder extends RecyclerView.ViewHolder {
+    public class MessageViewHolder extends RecyclerView.ViewHolder {
         
         private TextView tvUsername, tvMessageContent, tvTimestamp;
         private ImageView ivAvatar;
@@ -205,6 +237,13 @@ public class ChatMessageAdapter extends RecyclerView.Adapter<ChatMessageAdapter.
          * @param position 消息位置
          */
         public void bind(ChatMessage message, int position) {
+            // 首先重置LikeButton状态，防止ViewHolder复用时的状态混乱
+            if (likeButton != null) {
+                likeButton.setOnLikeClickListener(null);
+                // 强制重置状态和停止所有动画
+                likeButton.forceReset();
+            }
+            
             // 设置基本信息
             loadAndDisplayNickname(message);
             tvMessageContent.setText(message.getContent());
@@ -268,7 +307,7 @@ public class ChatMessageAdapter extends RecyclerView.Adapter<ChatMessageAdapter.
          * 更新点赞按钮的显示状态
          * @param isLiked 是否已点赞
          */
-        private void updateLikeButton(boolean isLiked) {
+        public void updateLikeButton(boolean isLiked) {
             if (likeButton != null) {
                 likeButton.setLiked(isLiked);
             }

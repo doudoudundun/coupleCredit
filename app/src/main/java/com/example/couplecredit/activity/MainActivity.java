@@ -26,9 +26,12 @@ import com.example.couplecredit.fragment.HeadFragment;
 import com.example.couplecredit.fragment.MyFragment;
 import com.example.couplecredit.fragment.ReportFragment;
 import com.example.couplecredit.function.UserInfoManager;
+import com.example.couplecredit.repository.ChatRepository;
+import com.example.couplecredit.database.DatabaseInitializer;
 import com.transsion.widgetslib.widget.FootOperationBar;
 import com.github.mikephil.charting.utils.Utils;
 import android.content.SharedPreferences;
+import android.util.Log;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -40,6 +43,9 @@ public class MainActivity extends AppCompatActivity {
     private MyFragment myFragment;
     private FootOperationBar mFootOptBar;
     private Fragment currentFragment;
+    
+    // 聊天数据仓库
+    private ChatRepository chatRepository;
 
 
 
@@ -51,6 +57,13 @@ public class MainActivity extends AppCompatActivity {
         
         // 初始化MPAndroidChart的Utils
         Utils.init(this);
+        
+        // 初始化数据库连接池（预热连接数已增加到5）
+        DatabaseInitializer.initializeConnectionPool("MainActivity");
+        Log.d("MainActivity", "数据库连接池初始化完成");
+        
+        // 初始化聊天数据仓库并预加载聊天数据
+        initializeChatData();
 
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main), (v, insets) -> {
             androidx.core.graphics.Insets systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
@@ -233,5 +246,46 @@ public class MainActivity extends AppCompatActivity {
         transaction.hide(myFragment);
         
         transaction.commit();
+    }
+    
+    /**
+     * 初始化聊天数据仓库并预加载聊天数据
+     */
+    private void initializeChatData() {
+        try {
+            // 初始化聊天数据仓库
+            chatRepository = new ChatRepository(this);
+            Log.d("MainActivity", "聊天数据仓库初始化完成");
+            
+            // 在后台线程预加载聊天数据
+            new Thread(() -> {
+                try {
+                    // 检查用户是否已登录
+                    if (UserInfoManager.isUserLoggedIn(this)) {
+                        Log.d("MainActivity", "用户已登录，开始预加载聊天数据");
+                        
+                        // 预加载所有消息（这会触发云端数据同步）
+                        chatRepository.loadAllMessages();
+                        
+                        Log.d("MainActivity", "聊天数据预加载完成");
+                    } else {
+                        Log.d("MainActivity", "用户未登录，跳过聊天数据预加载");
+                    }
+                } catch (Exception e) {
+                    Log.e("MainActivity", "聊天数据预加载失败", e);
+                }
+            }, "ChatDataPreloader").start();
+            
+        } catch (Exception e) {
+            Log.e("MainActivity", "聊天数据仓库初始化失败", e);
+        }
+    }
+    
+    /**
+     * 获取聊天数据仓库实例
+     * @return ChatRepository实例
+     */
+    public ChatRepository getChatRepository() {
+        return chatRepository;
     }
 }

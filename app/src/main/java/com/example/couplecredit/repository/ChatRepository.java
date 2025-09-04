@@ -412,7 +412,7 @@ public class ChatRepository {
     }
     
     /**
-     * 从云端拉取最新数据
+     * 从云端拉取最新数据（优化版：使用批量查询）
      * @param callback 拉取完成回调
      */
     public void pullFromCloud(SyncCallback callback) {
@@ -423,9 +423,9 @@ public class ChatRepository {
             return;
         }
         
-        cloudChatRepository.getAllMessages(new CloudChatRepository.QueryCallback() {
+        cloudChatRepository.getBatchChatData(new CloudChatRepository.BatchDataCallback() {
             @Override
-            public void onSuccess(List<ChatMessage> cloudMessages) {
+            public void onSuccess(CloudChatRepository.BatchChatData batchData) {
                 databaseExecutor.execute(() -> {
                     try {
                         // 清空本地数据库
@@ -433,7 +433,7 @@ public class ChatRepository {
                         
                         // 将云端数据保存到本地
                         List<ChatMessageEntity> entities = new ArrayList<>();
-                        for (ChatMessage message : cloudMessages) {
+                        for (ChatMessage message : batchData.messages) {
                             entities.add(convertMessageToEntity(message));
                         }
                         
@@ -444,10 +444,12 @@ public class ChatRepository {
                         // 更新UI
                         loadMessagesFromLocal();
                         
-                        Log.d(TAG, "从云端拉取了 " + cloudMessages.size() + " 条消息");
+                        Log.d(TAG, "从云端批量拉取了 " + batchData.messages.size() + " 条消息，" + 
+                              batchData.likedMessages + " 条点赞");
                         
                         if (callback != null) {
-                            callback.onSuccess("拉取成功：" + cloudMessages.size() + " 条消息");
+                            callback.onSuccess("拉取成功：" + batchData.messages.size() + " 条消息，" + 
+                                             batchData.likedMessages + " 条点赞");
                         }
                         
                     } catch (Exception e) {
@@ -461,7 +463,7 @@ public class ChatRepository {
             
             @Override
             public void onError(Exception e) {
-                Log.e(TAG, "从云端拉取数据失败", e);
+                Log.e(TAG, "从云端批量拉取数据失败", e);
                 if (callback != null) {
                     callback.onError(e);
                 }
@@ -524,23 +526,24 @@ public class ChatRepository {
     }
     
     /**
-     * 从云端数据库加载消息
+     * 从云端数据库加载消息（优化版：使用批量查询）
      */
     private void loadMessagesFromCloud() {
-        cloudChatRepository.getAllMessages(new CloudChatRepository.QueryCallback() {
+        cloudChatRepository.getBatchChatData(new CloudChatRepository.BatchDataCallback() {
             @Override
-            public void onSuccess(List<ChatMessage> messages) {
-                Log.d(TAG, "从云端加载了 " + messages.size() + " 条消息");
-                allMessagesLiveData.postValue(messages);
+            public void onSuccess(CloudChatRepository.BatchChatData batchData) {
+                Log.d(TAG, "从云端批量加载了 " + batchData.messages.size() + " 条消息，" + 
+                      batchData.likedMessages + " 条点赞，总计 " + batchData.totalMessages + " 条");
+                allMessagesLiveData.postValue(batchData.messages);
                 syncStatusLiveData.postValue(true);
                 
                 // 同时更新本地缓存
-                updateLocalCache(messages);
+                updateLocalCache(batchData.messages);
             }
             
             @Override
             public void onError(Exception e) {
-                Log.w(TAG, "从云端加载消息失败，使用本地数据", e);
+                Log.w(TAG, "从云端批量加载消息失败，使用本地数据", e);
                 syncStatusLiveData.postValue(false);
                 syncErrorLiveData.postValue("云端加载失败: " + e.getMessage());
                 // 云端加载失败时，使用本地数据

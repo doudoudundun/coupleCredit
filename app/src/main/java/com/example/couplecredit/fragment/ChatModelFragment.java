@@ -95,6 +95,11 @@ public class ChatModelFragment extends Fragment {
     private View inputSection;               // 输入区域引用
     private int bottomNavHeight = 0;         // 底部导航栏高度
     
+    // 用于跟踪最后一次点赞操作，以便在失败时回滚
+    private ChatMessage lastLikedMessage = null;
+    private int lastLikedPosition = -1;
+    private boolean lastLikedStatus = false;
+    
     // ======================== 背景更新广播接收器 ========================
     private BroadcastReceiver backgroundUpdateReceiver = new BroadcastReceiver() {
         @Override
@@ -326,7 +331,16 @@ public class ChatModelFragment extends Fragment {
         messageAdapter.setOnMessageInteractionListener(new ChatMessageAdapter.OnMessageInteractionListener() {
             @Override
             public void onLikeStatusChanged(ChatMessage message, int position, boolean isLiked) {
-                // 委托给ViewModel处理点赞逻辑
+                // 记录点赞操作信息，用于失败时回滚
+                lastLikedMessage = message;
+                lastLikedPosition = position;
+                lastLikedStatus = !isLiked; // 记录操作前的状态
+                
+                // 只更新数据模型，不触发RecyclerView更新，避免界面污染
+                // LikeButton已经在视觉上完成了状态更新
+                // 直接更新message对象的状态即可，无需通过adapter触发界面更新
+                
+                // 异步更新数据库，避免阻塞UI
                 viewModel.toggleMessageLike(message);
             }
             
@@ -530,12 +544,24 @@ public class ChatModelFragment extends Fragment {
         // 观察消息列表变化
         viewModel.getAllMessages().observe(getViewLifecycleOwner(), messages -> {
             if (messages != null && !isSearchMode) {
+                // 记录当前滚动位置
+                int currentPosition = -1;
+                LinearLayoutManager layoutManager = (LinearLayoutManager) rvChatMessages.getLayoutManager();
+                if (layoutManager != null) {
+                    currentPosition = layoutManager.findLastVisibleItemPosition();
+                }
+                
                 messageAdapter.updateMessages(messages);
                 // 为当前用户的消息设置头像URI
                 loadCurrentUserAvatarForMessages();
-                // 滚动到最新消息
+                
+                // 只有在用户已经在底部或者是首次加载时才自动滚动到最新消息
                 if (!messages.isEmpty()) {
-                    rvChatMessages.scrollToPosition(messages.size() - 1);
+                    boolean shouldScrollToBottom = currentPosition == -1 || // 首次加载
+                            currentPosition >= messages.size() - 2; // 用户在底部附近
+                    if (shouldScrollToBottom) {
+                        rvChatMessages.scrollToPosition(messages.size() - 1);
+                    }
                 }
             }
         });
@@ -572,6 +598,22 @@ public class ChatModelFragment extends Fragment {
         viewModel.getErrorMessage().observe(getViewLifecycleOwner(), errorMsg -> {
             if (errorMsg != null && !errorMsg.isEmpty()) {
                 Toast.makeText(getContext(), errorMsg, Toast.LENGTH_SHORT).show();
+                
+                // 如果是点赞操作失败，回滚UI状态
+                if (errorMsg.contains("操作失败") && lastLikedMessage != null && lastLikedPosition >= 0) {
+                    // 回滚消息对象的状态
+                    lastLikedMessage.setLiked(lastLikedStatus);
+                    
+                    // 直接通过ViewHolder回滚UI显示，避免触发RecyclerView更新
+                    RecyclerView.ViewHolder viewHolder = rvChatMessages.findViewHolderForAdapterPosition(lastLikedPosition);
+                    if (viewHolder instanceof ChatMessageAdapter.MessageViewHolder) {
+                        ((ChatMessageAdapter.MessageViewHolder) viewHolder).updateLikeButton(lastLikedStatus);
+                    }
+                    
+                    // 清除记录
+                    lastLikedMessage = null;
+                    lastLikedPosition = -1;
+                }
             }
         });
         

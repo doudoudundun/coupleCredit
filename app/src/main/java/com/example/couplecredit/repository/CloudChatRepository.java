@@ -7,6 +7,8 @@ import com.example.couplecredit.function.UserInfoManager;
 import com.example.couplecredit.model.ChatMessage;
 import com.example.couplecredit.function.MySQLDatabaseHelper;
 import com.example.couplecredit.function.NicknameCache;
+import com.example.couplecredit.database.DatabaseConnectionPool;
+import com.example.couplecredit.database.DatabaseInitializer;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -53,25 +55,31 @@ public class CloudChatRepository {
         this.context = context;
         this.databaseExecutor = Executors.newFixedThreadPool(4);
         
-        // 加载MySQL驱动
-        try {
-            Class.forName("com.mysql.jdbc.Driver");
-            Log.d(TAG, "MySQL驱动加载成功");
-        } catch (ClassNotFoundException e) {
-            Log.e(TAG, "MySQL驱动加载失败", e);
-        }
+        // 使用统一的连接池初始化工具
+        DatabaseInitializer.initializeConnectionPool(TAG);
         
         // 初始化用户信息
         initializeUserInfo();
     }
     
     /**
-     * 获取数据库连接
+     * 获取数据库连接（使用连接池）
      * @return 数据库连接对象
      * @throws SQLException 连接异常
      */
     private Connection getConnection() throws SQLException {
-        return DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD);
+        try {
+            return DatabaseConnectionPool.getInstance().getConnection();
+        } catch (SQLException e) {
+            Log.w(TAG, "连接池获取连接失败，尝试直接连接: " + e.getMessage());
+            // 降级到直接连接
+            try {
+                Class.forName("com.mysql.jdbc.Driver");
+                return DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD);
+            } catch (ClassNotFoundException cnfe) {
+                throw new SQLException("MySQL驱动加载失败", cnfe);
+            }
+        }
     }
     
     /**
@@ -246,7 +254,7 @@ public class CloudChatRepository {
     }
     
     /**
-     * 从云端数据库获取所有聊天消息
+     * 从云端数据库获取所有聊天消息（优化版：合并查询减少数据库访问）
      * @param callback 查询完成后的回调
      */
     public void getAllMessages(QueryCallback callback) {
@@ -273,23 +281,28 @@ public class CloudChatRepository {
                 String sql;
                 
                 // 根据用户是否绑定情侣关系选择不同的查询策略
+                // 优化：使用JOIN查询一次性获取消息和用户信息，减少查询次数
                 if (currentRelationshipId > 0) {
-                    // 已绑定情侣关系：查询当前关系的所有消息
-                    sql = "SELECT id, user_id, content, message_type, display_time, " +
-                          "avatar_url, is_liked, created_at, bill_id, is_bill_candidate " +
-                          "FROM chat_messages " +
-                          "WHERE relationship_id = ? AND is_deleted = 0 " +
-                          "ORDER BY created_at ASC";
+                    // 已绑定情侣关系：查询当前关系的所有消息，同时获取用户昵称
+                    sql = "SELECT cm.id, cm.user_id, cm.content, cm.message_type, cm.display_time, " +
+                          "cm.avatar_url, cm.is_liked, cm.created_at, cm.bill_id, cm.is_bill_candidate, " +
+                          "COALESCE(u.nickname, u.username, 'Unknown') as username " +
+                          "FROM chat_messages cm " +
+                          "LEFT JOIN users u ON cm.user_id = u.id " +
+                          "WHERE cm.relationship_id = ? AND cm.is_deleted = 0 " +
+                          "ORDER BY cm.created_at ASC";
                     stmt = conn.prepareStatement(sql);
                     stmt.setInt(1, currentRelationshipId);
-                    Log.d(TAG, "查询情侣聊天消息，relationshipId: " + currentRelationshipId);
+                    Log.d(TAG, "查询情侣聊天消息（优化版），relationshipId: " + currentRelationshipId);
                 } else {
-                    // 未绑定情侣关系：查询当前用户的个人消息
-                    sql = "SELECT id, user_id, content, message_type, display_time, " +
-                          "avatar_url, is_liked, created_at, bill_id, is_bill_candidate " +
-                          "FROM chat_messages " +
-                          "WHERE user_id = ? AND (relationship_id IS NULL OR relationship_id = 0) AND is_deleted = 0 " +
-                          "ORDER BY created_at ASC";
+                    // 未绑定情侣关系：查询当前用户的个人消息，同时获取用户昵称
+                    sql = "SELECT cm.id, cm.user_id, cm.content, cm.message_type, cm.display_time, " +
+                          "cm.avatar_url, cm.is_liked, cm.created_at, cm.bill_id, cm.is_bill_candidate, " +
+                          "COALESCE(u.nickname, u.username, 'Unknown') as username " +
+                          "FROM chat_messages cm " +
+                          "LEFT JOIN users u ON cm.user_id = u.id " +
+                          "WHERE cm.user_id = ? AND (cm.relationship_id IS NULL OR cm.relationship_id = 0) AND cm.is_deleted = 0 " +
+                          "ORDER BY cm.created_at ASC";
                     stmt = conn.prepareStatement(sql);
                     stmt.setInt(1, currentUserId);
                     Log.d(TAG, "查询单身用户个人消息，userId: " + currentUserId);
@@ -305,8 +318,11 @@ public class CloudChatRepository {
                     int messageUserId = rs.getInt("user_id");
                     boolean isSentByMe = (messageUserId == currentUserId);
                     
+                    // 优化：直接使用JOIN查询获取的用户名，避免额外的数据库查询
+                    String username = rs.getString("username");
+                    
                     ChatMessage message = new ChatMessage(
-                        getUsernameById(messageUserId), // 根据user_id获取用户名
+                        username, // 直接使用JOIN查询获取的用户名
                         messageUserId, // 设置用户ID
                         rs.getString("content"),
                         rs.getString("display_time"),
@@ -467,7 +483,7 @@ public class CloudChatRepository {
     }
     
     /**
-     * 搜索消息
+     * 搜索消息（优化版：合并查询减少数据库访问）
      * @param keyword 搜索关键词
      * @param callback 搜索完成后的回调
      */
@@ -481,23 +497,28 @@ public class CloudChatRepository {
                 conn = getConnection();
                 
                 // 根据用户是否绑定情侣关系选择不同的查询语句
+                // 优化：使用JOIN查询一次性获取消息和用户信息，减少查询次数
                 String sql;
                 if (currentRelationshipId > 0) {
-                    // 已绑定情侣关系，查询情侣聊天消息
-                    sql = "SELECT id, user_id, username, content, message_type, display_time, " +
-                          "avatar_res_id, avatar_url, is_liked, created_at " +
-                          "FROM chat_messages " +
-                          "WHERE relationship_id = ? AND is_deleted = 0 " +
-                          "AND (content LIKE ? OR username LIKE ?) " +
-                          "ORDER BY created_at ASC";
+                    // 已绑定情侣关系，查询情侣聊天消息，同时获取用户昵称
+                    sql = "SELECT cm.id, cm.user_id, cm.content, cm.message_type, cm.display_time, " +
+                          "cm.avatar_url, cm.is_liked, cm.created_at, cm.bill_id, cm.is_bill_candidate, " +
+                          "COALESCE(u.nickname, u.username, 'Unknown') as username " +
+                          "FROM chat_messages cm " +
+                          "LEFT JOIN users u ON cm.user_id = u.id " +
+                          "WHERE cm.relationship_id = ? AND cm.is_deleted = 0 " +
+                          "AND (cm.content LIKE ? OR COALESCE(u.nickname, u.username) LIKE ?) " +
+                          "ORDER BY cm.created_at ASC";
                 } else {
-                    // 单身用户，查询个人消息
-                    sql = "SELECT id, user_id, username, content, message_type, display_time, " +
-                          "avatar_res_id, avatar_url, is_liked, created_at " +
-                          "FROM chat_messages " +
-                          "WHERE user_id = ? AND (relationship_id IS NULL OR relationship_id = 0) AND is_deleted = 0 " +
-                          "AND (content LIKE ? OR username LIKE ?) " +
-                          "ORDER BY created_at ASC";
+                    // 单身用户，查询个人消息，同时获取用户昵称
+                    sql = "SELECT cm.id, cm.user_id, cm.content, cm.message_type, cm.display_time, " +
+                          "cm.avatar_url, cm.is_liked, cm.created_at, cm.bill_id, cm.is_bill_candidate, " +
+                          "COALESCE(u.nickname, u.username, 'Unknown') as username " +
+                          "FROM chat_messages cm " +
+                          "LEFT JOIN users u ON cm.user_id = u.id " +
+                          "WHERE cm.user_id = ? AND (cm.relationship_id IS NULL OR cm.relationship_id = 0) AND cm.is_deleted = 0 " +
+                          "AND (cm.content LIKE ? OR COALESCE(u.nickname, u.username) LIKE ?) " +
+                          "ORDER BY cm.created_at ASC";
                 }
                 
                 stmt = conn.prepareStatement(sql);
@@ -515,12 +536,22 @@ public class CloudChatRepository {
                 List<ChatMessage> messages = new ArrayList<>();
                 
                 while (rs.next()) {
+                    // 将数据库记录转换为ChatMessage对象
+                    // 需要根据user_id判断是否为当前用户发送的消息
+                    int messageUserId = rs.getInt("user_id");
+                    boolean isSentByMe = (messageUserId == currentUserId);
+                    
+                    // 优化：直接使用JOIN查询获取的用户名，避免额外的数据库查询
+                    String username = rs.getString("username");
+                    
                     ChatMessage message = new ChatMessage(
-                        rs.getString("username"),
+                        username, // 直接使用JOIN查询获取的用户名
+                        messageUserId, // 设置用户ID
                         rs.getString("content"),
                         rs.getString("display_time"),
-                        rs.getInt("avatar_res_id"),
-                        false // isSentByMe需要根据当前用户判断
+                        getAvatarResourceId(messageUserId), // 根据user_id获取头像资源ID
+                        null, // avatarUri
+                        isSentByMe
                     );
                     
                     message.setLiked(rs.getBoolean("is_liked"));
@@ -544,6 +575,128 @@ public class CloudChatRepository {
         });
     }
     
+    /**
+     * 批量获取聊天数据（优化版：一次性获取消息、用户信息和统计数据）
+     * 用于应用启动时减少查询次数
+     * @param callback 查询完成后的回调
+     */
+    public void getBatchChatData(BatchDataCallback callback) {
+        databaseExecutor.execute(() -> {
+            Connection conn = null;
+            PreparedStatement stmt = null;
+            ResultSet rs = null;
+            
+            try {
+                conn = getConnection();
+                
+                // 批量查询：消息数据 + 用户信息 + 统计信息
+                String sql;
+                if (currentRelationshipId > 0) {
+                    // 情侣关系：获取消息、用户信息和统计数据
+                    sql = "SELECT " +
+                          "cm.id, cm.user_id, cm.content, cm.message_type, cm.display_time, " +
+                          "cm.avatar_url, cm.is_liked, cm.created_at, cm.bill_id, cm.is_bill_candidate, " +
+                          "COALESCE(u.nickname, u.username, 'Unknown') as username, " +
+                          "COUNT(*) OVER() as total_messages, " +
+                          "SUM(CASE WHEN cm.is_liked = 1 THEN 1 ELSE 0 END) OVER() as liked_messages " +
+                          "FROM chat_messages cm " +
+                          "LEFT JOIN users u ON cm.user_id = u.id " +
+                          "WHERE cm.relationship_id = ? AND cm.is_deleted = 0 " +
+                          "ORDER BY cm.created_at ASC";
+                } else {
+                    // 单身用户：获取个人消息、用户信息和统计数据
+                    sql = "SELECT " +
+                          "cm.id, cm.user_id, cm.content, cm.message_type, cm.display_time, " +
+                          "cm.avatar_url, cm.is_liked, cm.created_at, cm.bill_id, cm.is_bill_candidate, " +
+                          "COALESCE(u.nickname, u.username, 'Unknown') as username, " +
+                          "COUNT(*) OVER() as total_messages, " +
+                          "SUM(CASE WHEN cm.is_liked = 1 THEN 1 ELSE 0 END) OVER() as liked_messages " +
+                          "FROM chat_messages cm " +
+                          "LEFT JOIN users u ON cm.user_id = u.id " +
+                          "WHERE cm.user_id = ? AND (cm.relationship_id IS NULL OR cm.relationship_id = 0) AND cm.is_deleted = 0 " +
+                          "ORDER BY cm.created_at ASC";
+                }
+                
+                stmt = conn.prepareStatement(sql);
+                if (currentRelationshipId > 0) {
+                    stmt.setInt(1, currentRelationshipId);
+                } else {
+                    stmt.setInt(1, currentUserId);
+                }
+                
+                rs = stmt.executeQuery();
+                
+                List<ChatMessage> messages = new ArrayList<>();
+                int totalMessages = 0;
+                int likedMessages = 0;
+                
+                while (rs.next()) {
+                    // 获取统计信息（只需要获取一次）
+                    if (totalMessages == 0) {
+                        totalMessages = rs.getInt("total_messages");
+                        likedMessages = rs.getInt("liked_messages");
+                    }
+                    
+                    // 构建消息对象
+                    int messageUserId = rs.getInt("user_id");
+                    boolean isSentByMe = (messageUserId == currentUserId);
+                    String username = rs.getString("username");
+                    
+                    ChatMessage message = new ChatMessage(
+                        username,
+                        messageUserId,
+                        rs.getString("content"),
+                        rs.getString("display_time"),
+                        getAvatarResourceId(messageUserId),
+                        null,
+                        isSentByMe
+                    );
+                    
+                    message.setLiked(rs.getBoolean("is_liked"));
+                    messages.add(message);
+                }
+                
+                Log.d(TAG, "批量获取数据成功：" + messages.size() + " 条消息，" + likedMessages + " 条点赞");
+                
+                if (callback != null) {
+                    BatchChatData batchData = new BatchChatData(messages, totalMessages, likedMessages);
+                    callback.onSuccess(batchData);
+                }
+                
+            } catch (SQLException e) {
+                Log.e(TAG, "批量获取聊天数据时发生错误", e);
+                if (callback != null) {
+                    callback.onError(e);
+                }
+            } finally {
+                closeResources(conn, stmt, rs);
+            }
+        });
+    }
+    
+    /**
+     * 批量聊天数据类
+     */
+    public static class BatchChatData {
+        public final List<ChatMessage> messages;
+        public final int totalMessages;
+        public final int likedMessages;
+        
+        public BatchChatData(List<ChatMessage> messages, int totalMessages, int likedMessages) {
+            this.messages = messages;
+            this.totalMessages = totalMessages;
+            this.likedMessages = likedMessages;
+        }
+    }
+    
+    /**
+     * 批量数据查询回调接口
+     */
+    public interface BatchDataCallback {
+        void onSuccess(BatchChatData batchData);
+        void onError(Exception e);
+    }
+
     /**
      * 测试数据库连接
      * @param callback 测试完成后的回调
@@ -585,7 +738,7 @@ public class CloudChatRepository {
     }
     
     /**
-     * 关闭数据库资源
+     * 关闭数据库资源（连接归还到连接池）
      * @param conn 数据库连接
      * @param stmt 预处理语句
      * @param rs 结果集
@@ -594,7 +747,10 @@ public class CloudChatRepository {
         try {
             if (rs != null) rs.close();
             if (stmt != null) stmt.close();
-            if (conn != null) conn.close();
+            if (conn != null) {
+                // 将连接归还到连接池而不是关闭
+                DatabaseConnectionPool.getInstance().returnConnection(conn);
+            }
         } catch (SQLException e) {
             Log.e(TAG, "关闭数据库资源时发生错误", e);
         }

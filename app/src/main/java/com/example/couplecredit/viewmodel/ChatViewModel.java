@@ -396,8 +396,8 @@ public class ChatViewModel extends AndroidViewModel {
             return;
         }
         
-        // 切换点赞状态
-        message.setLiked(!message.isLiked());
+        // 注意：message的状态已经在UI层更新，这里只负责数据库同步
+        // 不再在这里修改message状态，避免与UI层的更新冲突
         
         // 更新数据库（会自动同步到云端）
         chatRepository.updateMessage(message, new ChatRepository.UpdateCallback() {
@@ -409,8 +409,8 @@ public class ChatViewModel extends AndroidViewModel {
             
             @Override
             public void onError(Exception e) {
-                // 回滚状态
-                message.setLiked(!message.isLiked());
+                // 数据库更新失败时，通过错误消息通知用户
+                // UI层需要根据错误回滚状态
                 errorMessage.postValue("操作失败: " + e.getMessage());
             }
         });
