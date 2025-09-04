@@ -24,7 +24,7 @@ public class CategoryIconMapper {
      * 支出分类列表
      */
     public static final List<String> EXPENSE_CATEGORIES = Arrays.asList(
-        "餐饮", "饮品", "水果", "购物", "交通", "住宿", "娱乐", "学习", 
+        "餐品", "饮品", "水果", "购物", "交通", "住宿", "娱乐", "学习",
         "医疗", "日常", "旅游", "通讯", "人情", "化妆", "会员", "投资", 
         "亲子", "宠物", "装修", "其他"
     );
@@ -33,7 +33,7 @@ public class CategoryIconMapper {
      * 收入分类列表
      */
     public static final List<String> INCOME_CATEGORIES = Arrays.asList(
-        "工资", "奖金", "投资收益", "兼职", "礼金", "退款", "理财", "其他收入"
+        "工资", "兼职", "礼金", "理财", "其他"
     );
     
     // ==================== 分类图标映射 ====================
@@ -66,16 +66,12 @@ public class CategoryIconMapper {
         
         // 收入分类图标
         CATEGORY_ICON_MAP.put("工资", R.drawable.img_category_salary);
-        CATEGORY_ICON_MAP.put("奖金", R.drawable.img_category_salary); // 使用工资图标
-        CATEGORY_ICON_MAP.put("投资收益", R.drawable.img_category_investment);
         CATEGORY_ICON_MAP.put("兼职", R.drawable.img_category_parttime);
         CATEGORY_ICON_MAP.put("礼金", R.drawable.img_category_cashgift);
-        CATEGORY_ICON_MAP.put("退款", R.drawable.img_category_other); // 使用其他图标
         CATEGORY_ICON_MAP.put("理财", R.drawable.img_category_financial);
         
         // 通用分类图标
         CATEGORY_ICON_MAP.put("其他", R.drawable.img_category_other);
-        CATEGORY_ICON_MAP.put("其他收入", R.drawable.img_category_other);
     }
     
     // ==================== 分类关键词映射 ====================
@@ -87,7 +83,7 @@ public class CategoryIconMapper {
     private static final Map<String, String> CATEGORY_KEYWORDS = new HashMap<>();
     static {
         // 餐饮类
-        CATEGORY_KEYWORDS.put("餐饮", "早餐|午餐|晚餐|夜宵|吃饭|用餐|聚餐|外卖|点餐|饭店|餐厅|食堂|快餐|火锅|烧烤|自助餐|餐品");
+        CATEGORY_KEYWORDS.put("餐品", "早餐|午餐|晚餐|夜宵|吃饭|用餐|聚餐|外卖|点餐|饭店|餐厅|食堂|快餐|火锅|烧烤|自助餐|餐品");
         CATEGORY_KEYWORDS.put("饮品", "咖啡|奶茶|饮料|果汁|酒|啤酒|红酒|白酒|茶|水|可乐|雪碧|矿泉水");
         CATEGORY_KEYWORDS.put("水果", "水果|苹果|香蕉|橙子|葡萄|草莓|西瓜|芒果|猕猴桃|樱桃|荔枝|龙眼");
         
@@ -141,11 +137,8 @@ public class CategoryIconMapper {
         
         // 收入类关键词
         CATEGORY_KEYWORDS.put("工资", "工资|薪水|薪资|月薪|年薪");
-        CATEGORY_KEYWORDS.put("奖金", "奖金|年终奖|绩效奖|提成|佣金");
-        CATEGORY_KEYWORDS.put("投资收益", "投资收益|股息|分红|利息|收益");
         CATEGORY_KEYWORDS.put("兼职", "兼职|外快|副业|临时工");
         CATEGORY_KEYWORDS.put("礼金", "礼金|红包|压岁钱|生日钱");
-        CATEGORY_KEYWORDS.put("退款", "退款|返现|退货|赔偿");
         CATEGORY_KEYWORDS.put("理财", "理财|理财收益|基金收益|银行利息");
     }
     
