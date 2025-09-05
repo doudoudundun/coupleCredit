@@ -5,6 +5,8 @@ import android.util.Log;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.TimeUnit;
@@ -27,10 +29,14 @@ public class DatabaseConnectionPool {
     // 连接池配置
     private static final int POOL_SIZE = 7; // 连接池大小
     private static final int CONNECTION_TIMEOUT = 10; // 获取连接超时时间（秒）
+    private static final int CORE_CONNECTIONS = 3; // 核心连接数，始终保持
+    private static final long CONNECTION_KEEP_ALIVE_MS = 30 * 60 * 1000; // 连接保活时间30分钟
     
     private static DatabaseConnectionPool instance;
     private final BlockingQueue<Connection> connectionPool;
     private volatile boolean isInitialized = false;
+    private volatile boolean isShuttingDown = false;
+    private Thread keepAliveThread;
     
     private DatabaseConnectionPool() {
         connectionPool = new ArrayBlockingQueue<>(POOL_SIZE);
@@ -47,7 +53,7 @@ public class DatabaseConnectionPool {
     }
     
     /**
-     * 初始化连接池（仅加载驱动，不预创建连接）
+     * 初始化连接池（加载驱动并预创建核心连接）
      */
     public synchronized void initialize() {
         if (isInitialized) {
@@ -59,8 +65,14 @@ public class DatabaseConnectionPool {
             Class.forName("com.mysql.jdbc.Driver");
             Log.d(TAG, "MySQL驱动加载成功");
             
+            // 预创建核心连接
+            createCoreConnections();
+            
+            // 启动连接保活线程
+            startKeepAliveThread();
+            
             isInitialized = true;
-            Log.d(TAG, "连接池初始化完成（驱动已加载）");
+            Log.d(TAG, "连接池初始化完成（驱动已加载，核心连接已创建）");
             
         } catch (Exception e) {
             Log.e(TAG, "连接池初始化失败", e);
@@ -175,11 +187,145 @@ public class DatabaseConnectionPool {
     }
     
     /**
+     * 创建核心连接
+     */
+    private void createCoreConnections() {
+        Log.d(TAG, "开始创建核心连接，目标数量: " + CORE_CONNECTIONS);
+        
+        for (int i = 0; i < CORE_CONNECTIONS; i++) {
+            try {
+                Connection connection = createNewConnection();
+                if (connectionPool.offer(connection)) {
+                    Log.d(TAG, "核心连接 " + (i + 1) + "/" + CORE_CONNECTIONS + " 创建成功");
+                } else {
+                    connection.close();
+                    Log.w(TAG, "连接池已满，停止创建核心连接");
+                    break;
+                }
+            } catch (SQLException e) {
+                Log.w(TAG, "创建核心连接失败: " + e.getMessage());
+            }
+        }
+    }
+    
+    /**
+     * 启动连接保活线程
+     */
+    private void startKeepAliveThread() {
+        if (keepAliveThread != null && keepAliveThread.isAlive()) {
+            return;
+        }
+        
+        keepAliveThread = new Thread(() -> {
+            Log.d(TAG, "连接保活线程启动");
+            
+            while (!isShuttingDown && !Thread.currentThread().isInterrupted()) {
+                try {
+                    // 每5分钟检查一次连接状态
+                    Thread.sleep(5 * 60 * 1000);
+                    
+                    if (isShuttingDown) break;
+                    
+                    // 检查并维护连接池
+                    maintainConnectionPool();
+                    
+                } catch (InterruptedException e) {
+                    Log.d(TAG, "连接保活线程被中断");
+                    Thread.currentThread().interrupt();
+                    break;
+                } catch (Exception e) {
+                    Log.e(TAG, "连接保活线程异常", e);
+                }
+            }
+            
+            Log.d(TAG, "连接保活线程结束");
+        }, "ConnectionPool-KeepAlive");
+        
+        keepAliveThread.setDaemon(true);
+        keepAliveThread.start();
+    }
+    
+    /**
+     * 维护连接池 - 检查连接有效性并补充核心连接
+     */
+    private void maintainConnectionPool() {
+        Log.d(TAG, "开始维护连接池，当前连接数: " + connectionPool.size());
+        
+        // 检查现有连接的有效性
+        List<Connection> validConnections = new ArrayList<>();
+        List<Connection> invalidConnections = new ArrayList<>();
+        
+        // 取出所有连接进行检查
+        Connection conn;
+        while ((conn = connectionPool.poll()) != null) {
+            try {
+                if (!conn.isClosed() && conn.isValid(3)) {
+                    validConnections.add(conn);
+                } else {
+                    invalidConnections.add(conn);
+                }
+            } catch (SQLException e) {
+                invalidConnections.add(conn);
+            }
+        }
+        
+        // 关闭无效连接
+        for (Connection invalidConn : invalidConnections) {
+            try {
+                invalidConn.close();
+            } catch (SQLException e) {
+                Log.e(TAG, "关闭无效连接时发生错误", e);
+            }
+        }
+        
+        // 将有效连接放回连接池
+        for (Connection validConn : validConnections) {
+            connectionPool.offer(validConn);
+        }
+        
+        int currentValidCount = validConnections.size();
+        Log.d(TAG, "连接池维护完成，有效连接: " + currentValidCount + ", 无效连接: " + invalidConnections.size());
+        
+        // 如果有效连接数少于核心连接数，补充连接
+        if (currentValidCount < CORE_CONNECTIONS) {
+            int needCreate = CORE_CONNECTIONS - currentValidCount;
+            Log.d(TAG, "需要补充 " + needCreate + " 个连接");
+            
+            for (int i = 0; i < needCreate; i++) {
+                try {
+                    Connection newConn = createNewConnection();
+                    if (connectionPool.offer(newConn)) {
+                        Log.d(TAG, "补充连接 " + (i + 1) + "/" + needCreate + " 成功");
+                    } else {
+                        newConn.close();
+                        break;
+                    }
+                } catch (SQLException e) {
+                    Log.w(TAG, "补充连接失败: " + e.getMessage());
+                }
+            }
+        }
+    }
+    
+    /**
      * 关闭连接池
      */
     public synchronized void shutdown() {
         Log.d(TAG, "开始关闭连接池");
         
+        isShuttingDown = true;
+        
+        // 停止保活线程
+        if (keepAliveThread != null && keepAliveThread.isAlive()) {
+            keepAliveThread.interrupt();
+            try {
+                keepAliveThread.join(5000); // 等待最多5秒
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
+        
+        // 关闭所有连接
         while (!connectionPool.isEmpty()) {
             Connection connection = connectionPool.poll();
             if (connection != null) {
@@ -206,11 +352,10 @@ public class DatabaseConnectionPool {
         // 在后台线程执行预连接创建，避免阻塞主线程
         new Thread(() -> {
             try {
-                int coreConnections = 5; // 预热时创建5个连接
                 int currentSize = connectionPool.size();
                 
-                if (currentSize < coreConnections) {
-                    int needCreate = coreConnections - currentSize;
+                if (currentSize < POOL_SIZE) {
+                    int needCreate = Math.min(POOL_SIZE - currentSize, POOL_SIZE - CORE_CONNECTIONS);
                     Log.d(TAG, "连接池预热：当前 " + currentSize + " 个连接，需补充 " + needCreate + " 个");
                     
                     for (int i = 0; i < needCreate; i++) {

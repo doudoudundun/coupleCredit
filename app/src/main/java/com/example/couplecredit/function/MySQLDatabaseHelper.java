@@ -21,7 +21,7 @@ public class MySQLDatabaseHelper {
     
     public MySQLDatabaseHelper() {
         // 使用统一的连接池初始化工具
-        DatabaseInitializer.initializeConnectionPool(TAG);
+        DatabaseInitializer.initializeConnectionPoolAsync(TAG);
     }
     
     // 数据库连接配置

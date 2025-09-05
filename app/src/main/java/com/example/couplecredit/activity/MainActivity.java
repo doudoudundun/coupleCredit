@@ -20,7 +20,10 @@ import androidx.core.view.WindowInsetsCompat;
 import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentManager;
 import androidx.fragment.app.FragmentTransaction;
+import androidx.annotation.Nullable;
 
+import com.example.couplecredit.R;
+import com.example.couplecredit.database.DatabaseConnectionPool;
 import com.example.couplecredit.fragment.AddBillFragment;
 import com.example.couplecredit.fragment.HeadFragment;
 import com.example.couplecredit.fragment.MyFragment;
@@ -58,12 +61,14 @@ public class MainActivity extends AppCompatActivity {
         // 初始化MPAndroidChart的Utils
         Utils.init(this);
         
-        // 初始化数据库连接池（预热连接数已增加到5）
-        DatabaseInitializer.initializeConnectionPool("MainActivity");
-        Log.d("MainActivity", "数据库连接池初始化完成");
+        // 异步初始化数据库连接池（避免阻塞主线程）
+        DatabaseInitializer.initializeConnectionPoolAsync("MainActivity");
+        Log.d("MainActivity", "数据库连接池异步初始化已启动");
         
-        // 初始化聊天数据仓库并预加载聊天数据
-        initializeChatData();
+        // 异步初始化聊天数据仓库，避免阻塞主线程
+        new Thread(() -> {
+            initializeChatData();
+        }, "ChatRepositoryInitializer").start();
 
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main), (v, insets) -> {
             androidx.core.graphics.Insets systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
@@ -287,5 +292,36 @@ public class MainActivity extends AppCompatActivity {
      */
     public ChatRepository getChatRepository() {
         return chatRepository;
+    }
+    
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        
+        // 处理从其他Activity返回的刷新请求
+        if (resultCode == RESULT_OK && data != null) {
+            boolean refreshNeeded = data.getBooleanExtra("refresh_needed", false);
+            if (refreshNeeded) {
+                // 刷新首页数据
+                refreshHomePageData();
+            }
+        }
+    }
+    
+    /**
+     * 刷新首页数据
+     */
+    private void refreshHomePageData() {
+        // 刷新HeadFragment中的ClassicModelFragment数据
+        if (headFragment != null) {
+            headFragment.refreshCurrentFragmentData();
+        }
+        
+        // 刷新ReportFragment的图表数据
+        if (reportFragment != null) {
+            reportFragment.refreshChartData();
+        }
+        
+        Log.d("MainActivity", "首页数据刷新完成");
     }
 }

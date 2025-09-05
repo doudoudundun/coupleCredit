@@ -19,8 +19,8 @@ public class CoupleRelationshipHelper {
     private static final String DB_URL = "jdbc:mysql://" + DB_HOST + ":" + DB_PORT + "/" + DB_NAME + "?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC";
 
     public CoupleRelationshipHelper() {
-        // 使用统一的连接池初始化工具
-        DatabaseInitializer.initializeConnectionPool(TAG);
+        // 使用统一的连接池初始化工具（异步）
+        DatabaseInitializer.initializeConnectionPoolAsync(TAG);
     }
 
     // 获取数据库连接（使用连接池）

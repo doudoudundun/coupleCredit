@@ -517,7 +517,7 @@ public class ClassicModelFragment extends Fragment implements BillAdapter.OnItem
         
         if (btnEdit != null) btnEdit.setOnClickListener(v -> {
             // 进入修改模式
-            enterEditMode(tvDate, tvFare, tvNoteContent,
+            Utils.enterEditMode(getContext(), mDialog, tvDate, tvFare, tvNoteContent,
                          etFare, etNoteContent,
                          btnEdit, btnDelete, btnConfirm, btnCancel);
         });
@@ -565,7 +565,7 @@ public class ClassicModelFragment extends Fragment implements BillAdapter.OnItem
                 }
             });
             
-            exitEditMode(tvDate, tvFare, tvNoteContent,
+            Utils.exitEditMode(mDialog, tvDate, tvFare, tvNoteContent,
                         etFare, etNoteContent,
                         btnEdit, btnDelete, btnConfirm, btnCancel);
         });
@@ -580,71 +580,10 @@ public class ClassicModelFragment extends Fragment implements BillAdapter.OnItem
             if (tvFare != null) tvFare.setText("￥ " + String.format("%.2f", fare));
             if (tvNoteContent != null) tvNoteContent.setText(noteTitle != null ? noteTitle : "");
             
-            exitEditMode(tvDate, tvFare, tvNoteContent,
+            Utils.exitEditMode(mDialog,tvDate, tvFare, tvNoteContent,
                         etFare, etNoteContent,
                         btnEdit, btnDelete, btnConfirm, btnCancel);
         });
-    }
-    
-    private void enterEditMode(TextView tvDate, TextView tvFare, TextView tvNoteContent,
-                               EditText etFare, EditText etNoteContent,
-                              Button btnEdit, Button btnDelete, ImageButton btnConfirm, ImageButton btnCancel) {
-        // 隐藏TextView，显示EditText
-        //if (tvCategoryName != null) tvCategoryName.setVisibility(View.GONE);
-        if (tvDate != null) tvDate.setOnClickListener(v-> {//设置日期选择器
-            Utils.showDatePicker(getContext(), tvDate.getText().toString(),
-                formattedDate -> tvDate.setText(formattedDate));
-        });
-        if (tvFare != null) tvFare.setVisibility(View.GONE);
-        if (tvNoteContent != null) tvNoteContent.setVisibility(View.GONE);
-        
-        //if (etCategoryName != null) etCategoryName.setVisibility(View.VISIBLE);
-
-        if (etFare != null) etFare.setVisibility(View.VISIBLE); //只让输入数字
-        if (etNoteContent != null) etNoteContent.setVisibility(View.VISIBLE);
-        
-        // 隐藏修改和删除按钮，显示确认和取消按钮
-        if (btnEdit != null) btnEdit.setVisibility(View.GONE);
-        if (btnDelete != null) btnDelete.setVisibility(View.GONE);
-        if (btnConfirm != null) btnConfirm.setVisibility(View.VISIBLE);
-        if (btnCancel != null) btnCancel.setVisibility(View.VISIBLE);
-        mDialog.setTitle("修改账单");
-    }
-    
-    private void exitEditMode(TextView tvDate, TextView tvFare, TextView tvNoteContent,
-                             EditText etFare, EditText etNoteContent,
-                             Button btnEdit, Button btnDelete, ImageButton btnConfirm, ImageButton btnCancel) {
-        // 更新TextView的内容为EditText中的值
-
-        if (tvFare != null && etFare != null) {
-            String fareText = etFare.getText().toString();
-            // 判空逻辑：如果EditText中没有货币符号，则添加
-            if (!fareText.startsWith("￥")) {
-                tvFare.setText("￥" + fareText);
-            } else {
-                tvFare.setText(fareText);
-            }
-        }
-        if (tvNoteContent != null && etNoteContent != null) {
-            tvNoteContent.setText(etNoteContent.getText().toString());
-        }
-        
-        // 显示TextView，隐藏EditText
-
-        if (tvDate != null) tvDate.setVisibility(View.VISIBLE);
-        if (tvFare != null) tvFare.setVisibility(View.VISIBLE);
-        if (tvNoteContent != null) tvNoteContent.setVisibility(View.VISIBLE);
-        
-
-        if (etFare != null) etFare.setVisibility(View.GONE);
-        if (etNoteContent != null) etNoteContent.setVisibility(View.GONE);
-        
-        // 显示修改和删除按钮，隐藏确认和取消按钮
-        if (btnEdit != null) btnEdit.setVisibility(View.VISIBLE);
-        if (btnDelete != null) btnDelete.setVisibility(View.VISIBLE);
-        if (btnConfirm != null) btnConfirm.setVisibility(View.GONE);
-        if (btnCancel != null) btnCancel.setVisibility(View.GONE);
-        mDialog.setTitle("账单详情");
     }
     
     private void showWarningDialog(BillBean bill) {

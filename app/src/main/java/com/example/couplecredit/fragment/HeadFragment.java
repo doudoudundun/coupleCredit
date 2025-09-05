@@ -14,6 +14,7 @@ import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentManager;
 
 import com.example.couplecredit.R;
+import com.example.couplecredit.database.DatabaseConnectionPool;
 import com.transsion.widgetslib.widget.OSSegmentedTab;
 
 import java.util.ArrayList;
@@ -34,6 +35,11 @@ public class HeadFragment extends Fragment {
         @Override
         public void onTabSelected(int position) {
             if (position == 0) {
+                // 异步预热连接池，避免阻塞UI线程
+                new Thread(() -> {
+                    DatabaseConnectionPool.getInstance().warmUp();
+                }).start();
+                
                 if (ClassicFragment == null) {
                     ClassicFragment = new ClassicModelFragment();
                 }
@@ -126,7 +132,17 @@ public class HeadFragment extends Fragment {
     public ClassicModelFragment getClassicFragment() {
         return (ClassicModelFragment) ClassicFragment;
     }
-
-
-
+    
+    /**
+     * 刷新当前显示的Fragment数据
+     */
+    public void refreshCurrentFragmentData() {
+        if (isClassicMode && ClassicFragment instanceof ClassicModelFragment) {
+            ((ClassicModelFragment) ClassicFragment).refreshBillData();
+        }
+        // 如果需要，也可以添加ChatFragment的刷新逻辑
+        // else if (!isClassicMode && ChatFragment instanceof ChatModelFragment) {
+        //     ((ChatModelFragment) ChatFragment).refreshData();
+        // }
+    }
 }

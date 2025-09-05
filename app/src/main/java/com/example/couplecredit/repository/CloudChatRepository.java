@@ -55,8 +55,8 @@ public class CloudChatRepository {
         this.context = context;
         this.databaseExecutor = Executors.newFixedThreadPool(4);
         
-        // 使用统一的连接池初始化工具
-        DatabaseInitializer.initializeConnectionPool(TAG);
+        // 使用统一的连接池初始化工具（异步）
+        DatabaseInitializer.initializeConnectionPoolAsync(TAG);
         
         // 初始化用户信息
         initializeUserInfo();

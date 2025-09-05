@@ -63,7 +63,7 @@ public class BillDatabaseHelper {
     public BillDatabaseHelper(Context context) {
         this.context = context;
         // 使用统一的连接池初始化工具
-        DatabaseInitializer.initializeConnectionPool(TAG);
+        DatabaseInitializer.initializeConnectionPoolAsync(TAG);
     }
     
     // 获取数据库连接（使用连接池，带降级机制）

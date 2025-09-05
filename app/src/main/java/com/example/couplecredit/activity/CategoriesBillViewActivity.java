@@ -1,5 +1,6 @@
 package com.example.couplecredit.activity;
 
+
 import android.app.Activity;
 import android.content.Intent;
 import android.os.Bundle;
@@ -18,6 +19,9 @@ import com.example.couplecredit.BillBean;
 import com.example.couplecredit.R;
 import com.example.couplecredit.adapter.BillAdapter;
 import com.example.couplecredit.activity.MainActivity;
+import com.example.couplecredit.fragment.ReportFragment;
+import com.example.couplecredit.fragment.HeadFragment;
+import com.example.couplecredit.fragment.ClassicModelFragment;
 import com.example.couplecredit.function.Utils;
 import com.example.couplecredit.database.BillDatabaseHelper;
 import com.example.couplecredit.function.UserInfoManager;
@@ -281,23 +285,64 @@ public class CategoriesBillViewActivity extends AppCompatActivity {
         }
         
         if (btnDelete != null) btnDelete.setOnClickListener(v -> {
-            // TODO: 实现删除功能
-            Log.d("CategoriesBillViewActivity", "删除按钮被点击");
+            showWarningDialog(bill);
         });
         
         if (btnEdit != null) btnEdit.setOnClickListener(v -> {
-            // TODO: 实现编辑功能
-            Log.d("CategoriesBillViewActivity", "编辑按钮被点击");
+            Utils.enterEditMode(this, mDialog, tvDate, tvFare, tvNoteContent,
+                    etFare, etNoteContent,
+                    btnEdit, btnDelete, btnConfirm, btnCancel);
         });
         
         if (btnConfirm != null) btnConfirm.setOnClickListener(v -> {
-            // TODO: 实现确认功能
-            Log.d("CategoriesBillViewActivity", "确认按钮被点击");
+            // 确认修改并更新数据库
+            String currentDate = tvDate.getText().toString();
+            String fareText = etFare.getText().toString();
+            // 判空逻辑：如果包含货币符号则去掉，否则直接解析
+            double currentFare = fareText.startsWith("￥") ?
+                    Double.parseDouble(fareText.substring(1)) :
+                    Double.parseDouble(fareText);
+            String currentNoteContent = etNoteContent.getText().toString();
+            SimpleDateFormat timeFormat = new SimpleDateFormat("HH:mm:ss", Locale.getDefault());
+            String currentTime = timeFormat.format(new Date());
+
+            Utils.updateBill(this, bill, currentDate, currentFare, currentNoteContent, currentTime, new Utils.UpdateBillCallback() {
+                @Override
+                public void onUpdateSuccess(int rowsAffected) {
+                    runOnUiThread(() -> {
+                        if (rowsAffected > 0) {
+                            // 更新成功，刷新数据
+                            refreshBillData();
+                            // 通知首页刷新数据
+                            notifyHomePageRefresh();
+                            mDialog.dismiss();
+                        }
+                    });
+                }
+
+                @Override
+                public void onUpdateError(String error) {
+                    runOnUiThread(() -> {
+                        Log.e("CategoriesBillViewActivity", "更新账单失败: " + error);
+                    });
+                }
+            });
+            Utils.exitEditMode(mDialog, tvDate, tvFare, tvNoteContent,
+                    etFare, etNoteContent,
+                    btnEdit, btnDelete, btnConfirm, btnCancel);
         });
         
         if (btnCancel != null) btnCancel.setOnClickListener(v -> {
-            // TODO: 实现取消功能
-            Log.d("CategoriesBillViewActivity", "取消按钮被点击");
+            if (etFare != null) etFare.setText("￥" + String.format("%.2f", fare));
+            if (etNoteContent != null) etNoteContent.setText(noteTitle != null ? noteTitle : "");
+
+            // 更新TextView显示原始数据
+            if (tvFare != null) tvFare.setText("￥ " + String.format("%.2f", fare));
+            if (tvNoteContent != null) tvNoteContent.setText(noteTitle != null ? noteTitle : "");
+
+            Utils.exitEditMode(mDialog, tvDate, tvFare, tvNoteContent,
+                    etFare, etNoteContent,
+                    btnEdit, btnDelete, btnConfirm, btnCancel);
         });
     }
     
@@ -318,5 +363,58 @@ public class CategoriesBillViewActivity extends AppCompatActivity {
         }
         
         return CategoryIconMapper.getIconForCategory(mappedCategory);
+    }
+    
+    private void showWarningDialog(BillBean bill) {
+        new PromptDialog.Builder(this)
+                .setTitle("删除确认")
+                .setMessage("确定要删除这条账单记录吗？")
+                .setPositiveButton("确定", (dialog, which) -> {
+                    deleteBill(bill);
+                })
+                .setNegativeButton("取消", null)
+                .show();
+    }
+    
+    private void deleteBill(BillBean bill) {
+        BillDatabaseHelper billHelper = new BillDatabaseHelper(this);
+        String selection = BillDatabaseHelper.COLUMN_ID + "=?";
+        String[] selectionArgs = {String.valueOf(bill.getBillId())};
+        
+        billHelper.deleteBill(selection, selectionArgs, new BillDatabaseHelper.BillDeleteCallback() {
+            @Override
+            public void onDeleteSuccess(int rowsDeleted) {
+                runOnUiThread(() -> {
+                    if (rowsDeleted > 0) {
+                        Log.d("CategoriesBillViewActivity", "删除账单成功");
+                        refreshBillData();
+                        // 通知首页刷新数据
+                        notifyHomePageRefresh();
+                        if (mDialog != null) {
+                            mDialog.dismiss();
+                        }
+                    }
+                });
+            }
+            
+            @Override
+            public void onDeleteError(String error) {
+                runOnUiThread(() -> {
+                    Log.e("CategoriesBillViewActivity", "删除账单失败: " + error);
+                });
+            }
+        });
+    }
+    
+    private void refreshBillData() {
+        getCategoryBill();
+    }
+    
+    // 通知首页刷新数据
+    private void notifyHomePageRefresh() {
+        // 通过Intent返回结果，告知MainActivity需要刷新数据
+        Intent resultIntent = new Intent();
+        resultIntent.putExtra("refresh_needed", true);
+        setResult(Activity.RESULT_OK, resultIntent);
     }
 }

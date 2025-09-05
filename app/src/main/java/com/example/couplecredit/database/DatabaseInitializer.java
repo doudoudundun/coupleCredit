@@ -41,6 +41,39 @@ public class DatabaseInitializer {
     }
     
     /**
+     * 异步初始化连接池（避免阻塞主线程）
+     * @param callerTag 调用者标识，用于日志记录
+     */
+    public static void initializeConnectionPoolAsync(String callerTag) {
+        if (isInitialized) {
+            Log.d(TAG, callerTag + " - 连接池已初始化，跳过重复初始化");
+            return;
+        }
+        
+        new Thread(() -> {
+            synchronized (DatabaseInitializer.class) {
+                if (isInitialized) {
+                    Log.d(TAG, callerTag + " - 连接池已初始化，跳过重复初始化");
+                    return;
+                }
+                
+                try {
+                    DatabaseConnectionPool pool = DatabaseConnectionPool.getInstance();
+                    pool.initialize();
+                    pool.warmUp();
+                    
+                    isInitialized = true;
+                    Log.d(TAG, callerTag + " - 连接池异步初始化完成，" + pool.getPoolStatus());
+                } catch (Exception e) {
+                    Log.e(TAG, callerTag + " - 连接池异步初始化失败", e);
+                }
+            }
+        }, "DatabaseInitializer-" + callerTag).start();
+        
+        Log.d(TAG, callerTag + " - 连接池异步初始化已启动");
+    }
+    
+    /**
      * 获取连接池状态
      */
     public static String getPoolStatus() {
