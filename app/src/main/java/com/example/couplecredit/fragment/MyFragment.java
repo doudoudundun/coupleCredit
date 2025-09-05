@@ -40,6 +40,7 @@ import com.example.couplecredit.function.UserInfoManager;
 import com.example.couplecredit.utils.AvatarCacheManager;
 import com.example.couplecredit.utils.AvatarUpdateManager;
 import android.util.Log;
+import com.example.couplecredit.config.DatabaseConfig;
 
 /**
  * 我的页面Fragment
@@ -64,7 +65,7 @@ public class MyFragment extends Fragment {
     // 权限和图片选择相关常量
     private static final int REQUEST_PERMISSION_READ_EXTERNAL_STORAGE = 1001;
     private static final int REQUEST_IMAGE_PICK = 1002;
-    private static final String PREF_AVATAR_URI = "avatar_uri_";
+    // 使用统一的常量配置
 
     /**
      * 创建Fragment视图
@@ -346,7 +347,7 @@ public class MyFragment extends Fragment {
     private void saveAvatarUri(Uri uri) {
         if (getContext() != null && userId != null) {
             SharedPreferences prefs = getContext().getSharedPreferences("user_avatars", Context.MODE_PRIVATE);
-            prefs.edit().putString(PREF_AVATAR_URI + userId, uri.toString()).apply();
+            prefs.edit().putString(DatabaseConfig.PREF_AVATAR_URI + userId, uri.toString()).apply();
         }
     }
     
@@ -360,7 +361,7 @@ public class MyFragment extends Fragment {
                 
                 // 获取本地保存的头像URI
                 SharedPreferences prefs = getContext().getSharedPreferences("user_avatars", Context.MODE_PRIVATE);
-                String savedUri = prefs.getString(PREF_AVATAR_URI + userId, null);
+                String savedUri = prefs.getString(DatabaseConfig.PREF_AVATAR_URI + userId, null);
                 
                 // 使用AvatarCacheManager加载头像（优先服务器，其次本地）
                 AvatarCacheManager.getInstance(getContext()).loadAvatar(

@@ -33,6 +33,7 @@ import com.example.couplecredit.function.NicknameCache;
 import com.example.couplecredit.function.UserInfoManager;
 import com.example.couplecredit.utils.AvatarCacheManager;
 import com.example.couplecredit.utils.AvatarUpdateManager;
+import com.example.couplecredit.config.DatabaseConfig;
 import com.example.couplecredit.database.CoupleRelationshipHelper;
 import com.example.couplecredit.activity.LoginActivity;
 
@@ -57,7 +58,7 @@ public class UserSettingsActivity extends AppCompatActivity {
     // 权限和图片选择相关常量
     private static final int REQUEST_PERMISSION_READ_EXTERNAL_STORAGE = 1001;
     private static final int REQUEST_IMAGE_PICK = 1002;
-    private static final String PREF_AVATAR_URI = "avatar_uri_";
+    // 使用统一的常量配置
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -248,7 +249,7 @@ public class UserSettingsActivity extends AppCompatActivity {
     private void saveAvatarUri(Uri uri) {
         if (userId != null) {
             SharedPreferences prefs = getSharedPreferences("user_avatars", Context.MODE_PRIVATE);
-            prefs.edit().putString(PREF_AVATAR_URI + userId, uri.toString()).apply();
+            prefs.edit().putString(DatabaseConfig.PREF_AVATAR_URI + userId, uri.toString()).apply();
         }
     }
     
@@ -258,7 +259,7 @@ public class UserSettingsActivity extends AppCompatActivity {
     private void loadSavedAvatar() {
         if (userId != null) {
             SharedPreferences prefs = getSharedPreferences("user_avatars", Context.MODE_PRIVATE);
-            String savedUriString = prefs.getString(PREF_AVATAR_URI + userId, null);
+            String savedUriString = prefs.getString(DatabaseConfig.PREF_AVATAR_URI + userId, null);
             
             if (savedUriString != null) {
                 try {

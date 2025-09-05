@@ -12,6 +12,7 @@ import com.example.couplecredit.database.ChatDatabase;
 import com.example.couplecredit.database.ChatMessageDao;
 import com.example.couplecredit.database.ChatMessageEntity;
 import com.example.couplecredit.model.ChatMessage;
+import com.example.couplecredit.function.UserInfoManager;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -46,7 +47,7 @@ public class ChatRepository {
     private final MutableLiveData<Boolean> syncStatusLiveData;
     private final MutableLiveData<String> syncErrorLiveData;
     private boolean isCloudSyncEnabled = true; // 是否启用云端同步
-    private int currentUserId = 1; // 当前用户ID，应从用户会话获取
+    private int currentUserId = -1; // 当前用户ID，从UserInfoManager获取
     
     // ==================== 构造函数 ====================
     
@@ -64,6 +65,9 @@ public class ChatRepository {
         searchResultsLiveData = new MutableLiveData<>();
         syncStatusLiveData = new MutableLiveData<>();
         syncErrorLiveData = new MutableLiveData<>();
+        
+        // 从UserInfoManager初始化用户信息
+        initializeUserInfoFromManager();
         
         // 初始化时测试云端连接
         testCloudConnection();
@@ -478,6 +482,30 @@ public class ChatRepository {
     public void setCloudSyncEnabled(boolean enabled) {
         this.isCloudSyncEnabled = enabled;
         Log.d(TAG, "云端同步已" + (enabled ? "启用" : "禁用"));
+    }
+    
+    /**
+     * 从UserInfoManager初始化用户信息
+     */
+    private void initializeUserInfoFromManager() {
+        if (UserInfoManager.isUserLoggedIn(context)) {
+            int userId = UserInfoManager.getCurrentUserId(context);
+            if (userId > 0) {
+                this.currentUserId = userId;
+                Log.d(TAG, "从UserInfoManager获取用户ID: " + currentUserId);
+            } else {
+                Log.w(TAG, "UserInfoManager中没有有效的用户ID，使用默认值");
+                this.currentUserId = 1;
+            }
+        } else {
+            Log.w(TAG, "用户未登录，使用默认值");
+            this.currentUserId = 1;
+        }
+        
+        // 初始化CloudChatRepository的用户信息
+        if (cloudChatRepository != null) {
+            cloudChatRepository.initializeUserInfo();
+        }
     }
     
     /**

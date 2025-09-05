@@ -2,13 +2,13 @@ package com.example.couplecredit.utils;
 
 import android.content.Context;
 import android.content.SharedPreferences;
-import android.widget.ImageView;
 import android.util.Log;
-
+import android.widget.ImageView;
 import com.bumptech.glide.Glide;
 import com.bumptech.glide.load.resource.bitmap.CircleCrop;
 import com.example.couplecredit.R;
 import com.example.couplecredit.api.AvatarUploadApi;
+import com.example.couplecredit.config.DatabaseConfig;
 
 /**
  * 头像缓存管理器
@@ -17,7 +17,7 @@ import com.example.couplecredit.api.AvatarUploadApi;
 public class AvatarCacheManager {
     private static final String TAG = "AvatarCacheManager";
     private static final String PREF_NAME = "user_avatars";
-    private static final String PREF_AVATAR_URI = "avatar_uri_";
+    // 使用统一的常量配置
     
     private static AvatarCacheManager instance;
     private Context context;
@@ -124,7 +124,7 @@ public class AvatarCacheManager {
      */
     private String getCachedAvatarUri(int userId) {
         SharedPreferences prefs = context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE);
-        return prefs.getString(PREF_AVATAR_URI + userId, null);
+        return prefs.getString(DatabaseConfig.PREF_AVATAR_URI + userId, null);
     }
     
     /**
@@ -132,7 +132,7 @@ public class AvatarCacheManager {
      */
     private void cacheAvatarUri(int userId, String avatarUri) {
         SharedPreferences prefs = context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE);
-        prefs.edit().putString(PREF_AVATAR_URI + userId, avatarUri).apply();
+        prefs.edit().putString(DatabaseConfig.PREF_AVATAR_URI + userId, avatarUri).apply();
     }
     
     /**
@@ -142,7 +142,7 @@ public class AvatarCacheManager {
     public void clearUserAvatarCache(int userId) {
         try {
             SharedPreferences prefs = context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE);
-            prefs.edit().remove(PREF_AVATAR_URI + userId).apply();
+            prefs.edit().remove(DatabaseConfig.PREF_AVATAR_URI + userId).apply();
             Log.d(TAG, "Cleared avatar cache for user " + userId);
         } catch (Exception e) {
             Log.e(TAG, "Error clearing avatar cache for user " + userId, e);

@@ -10,6 +10,8 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
+import com.example.couplecredit.config.DatabaseConfig;
+import com.example.couplecredit.utils.DatabaseResourceManager;
 
 /**
  * MySQL远程数据库操作工具类
@@ -25,14 +27,7 @@ public class MySQLDatabaseHelper {
     }
     
     // 数据库连接配置
-    private static final String DB_HOST = "101.37.68.240";
-    private static final String DB_PORT = "3306";
-    private static final String DB_NAME = "demodb";
-    private static final String DB_USER = "demodb";
-    private static final String DB_PASSWORD = "root";
-    
-    // JDBC连接URL
-    private static final String DB_URL = "jdbc:mysql://" + DB_HOST + ":" + DB_PORT + "/" + DB_NAME + "?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC";
+    // 使用统一的数据库配置
     
     /**
      * 获取数据库连接（使用连接池）
@@ -44,24 +39,15 @@ public class MySQLDatabaseHelper {
             Log.w(TAG, "连接池获取连接失败，尝试直接连接: " + e.getMessage());
             // 降级到直接连接
             Class.forName("com.mysql.jdbc.Driver");
-            return DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD);
+            return DriverManager.getConnection(DatabaseConfig.DB_URL, DatabaseConfig.DB_USER, DatabaseConfig.DB_PASSWORD);
         }
     }
     
     /**
-     * 关闭数据库资源（连接归还到连接池）
+     * 关闭数据库资源（使用统一的资源管理器）
      */
     private static void closeResources(Connection connection, PreparedStatement statement, java.sql.ResultSet resultSet) {
-        try {
-            if (resultSet != null) resultSet.close();
-            if (statement != null) statement.close();
-            if (connection != null) {
-                // 将连接归还到连接池而不是关闭
-                DatabaseConnectionPool.getInstance().returnConnection(connection);
-            }
-        } catch (SQLException e) {
-            Log.e(TAG, "关闭数据库资源失败", e);
-        }
+        DatabaseResourceManager.closeResources(connection, statement, resultSet);
     }
     
 
@@ -301,13 +287,9 @@ public class MySQLDatabaseHelper {
                     Log.e(TAG, "数据库连接失败: " + e.getMessage(), e);
                     return false;
                 } finally {
-                    try {
-                        if (verifyStatement != null) verifyStatement.close();
-                        if (updateStatement != null) updateStatement.close();
-                        if (connection != null) connection.close();
-                    } catch (SQLException e) {
-                        Log.e(TAG, "关闭数据库连接失败: " + e.getMessage());
-                    }
+                    DatabaseResourceManager.closeStatement(verifyStatement);
+                    DatabaseResourceManager.closeStatement(updateStatement);
+                    DatabaseResourceManager.closeConnection(connection);
                 }
             }
             
@@ -482,12 +464,7 @@ public class MySQLDatabaseHelper {
                     Log.e(TAG, "数据库连接失败: " + e.getMessage(), e);
                     return -1;
                 } finally {
-                    try {
-                        if (preparedStatement != null) preparedStatement.close();
-                        if (connection != null) connection.close();
-                    } catch (SQLException e) {
-                        Log.e(TAG, "关闭数据库连接失败: " + e.getMessage());
-                    }
+                    closeResources(connection, preparedStatement, null);
                 }
             }
             
@@ -560,12 +537,7 @@ public class MySQLDatabaseHelper {
                     Log.e(TAG, "数据库连接失败: " + e.getMessage(), e);
                     return null;
                 } finally {
-                    try {
-                        if (preparedStatement != null) preparedStatement.close();
-                        if (connection != null) connection.close();
-                    } catch (SQLException e) {
-                        Log.e(TAG, "关闭数据库连接失败: " + e.getMessage());
-                    }
+                    closeResources(connection, preparedStatement, null);
                 }
             }
             

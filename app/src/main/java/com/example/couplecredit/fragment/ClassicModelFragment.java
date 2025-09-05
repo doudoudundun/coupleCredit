@@ -18,6 +18,7 @@ import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
+import androidx.lifecycle.ViewModelProvider;
 
 import com.example.couplecredit.adapter.BillAdapter;
 import com.example.couplecredit.BillBean;
@@ -26,7 +27,9 @@ import com.example.couplecredit.activity.MainActivity;
 import com.example.couplecredit.R;
 import com.example.couplecredit.function.Utils;
 import com.example.couplecredit.function.UserInfoManager;
+import com.example.couplecredit.viewmodel.ClassicViewModel;
 import com.transsion.widgetslib.dialog.PromptDialog;
+import com.example.couplecredit.utils.CategoryIconMapper;
 
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -43,16 +46,16 @@ import java.util.Map;
 public class ClassicModelFragment extends Fragment implements BillAdapter.OnItemClickListener {
     private RecyclerView rvBillList;
     private BillAdapter billAdapter;
-    private List<Object> displayItems; // 混合数据：String(日期) 和 BillBean
-    private List<BillBean> billItems;
+    private List<Object> displayItems; // 混合数据：String(日期) 和 BillBean，由ViewModel维护
     private TextView tvMonthTitle;
-    private int currentYear;
-    private int currentMonth;
+    private int currentYear;  // 用于与ReportFragment交互的同步字段
+    private int currentMonth; // 用于与ReportFragment交互的同步字段
     private TextView tvExpenseAmount;
     private TextView tvIncomeAmount;
     private TextView tvLoginPrompt;
 
     private PromptDialog mDialog;
+    private ClassicViewModel viewModel;
 
 
 
@@ -66,11 +69,10 @@ public class ClassicModelFragment extends Fragment implements BillAdapter.OnItem
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
 
-        // 获取当前年月
+        // 获取当前年月（用于与ReportFragment交互时传值）
         Calendar calendar = Calendar.getInstance();
         currentYear = calendar.get(Calendar.YEAR);
         currentMonth = calendar.get(Calendar.MONTH) + 1; // Calendar.MONTH从0开始
-        //String beParser = currentYear + "-" + (currentMonth < 10 ? "0" + currentMonth : currentMonth);
 
         // 初始化视图
         tvMonthTitle = view.findViewById(R.id.tv_month_title);
@@ -124,332 +126,84 @@ public class ClassicModelFragment extends Fragment implements BillAdapter.OnItem
 
         //统计收入和支出
 
-        updateMonthTitle();
-        tvMonthTitle.setOnClickListener(v -> showDatePickerDialog());
+        // 由 ViewModel 的 monthTitle 管理，无需本地 updateMonthTitle 调用
+        // 移除此处的月份点击事件绑定，统一在下方基于 ViewModel 初始化后设置
 
         // 初始化RecyclerView
         LinearLayoutManager layoutManager = new LinearLayoutManager(getContext());
         layoutManager.setOrientation(LinearLayoutManager.VERTICAL);
         rvBillList.setLayoutManager(layoutManager);
 
-        // 初始化数据
-        initBillData();
+        // ================= MVVM接入 =================
+        viewModel = new ViewModelProvider(this).get(ClassicViewModel.class);
 
-        // 设置适配器
-        displayItems = new ArrayList<>();
-        billAdapter = new BillAdapter(getContext(), displayItems, new BillAdapter.OnItemClickListener() {
-            @Override
-            public void onItemClick(View view, int position, BillBean bill) {
-                processDialog(bill);
-            }
-        });
+        // 适配器使用ViewModel维护的displayItems引用，确保显示结构不变
+        displayItems = viewModel.getDisplayItemsRef();
+        billAdapter = new BillAdapter(getContext(), displayItems, (v1, position, bill) -> processDialog(bill));
         rvBillList.setAdapter(billAdapter);
-        processAndDisplayData();
-        sumAmounts();
-    }
-    private void initBillData() {
-        billItems = new ArrayList<>();
-        displayItems = new ArrayList<>();
-        
-        // 初始化适配器
-        billAdapter = new BillAdapter(getContext(), displayItems, this);
-        rvBillList.setAdapter(billAdapter);
-        
-        // 从数据库读取账单数据
-        firstLoadBills();
-    }
-    private void loadBillData(int year, int month) {
-        billItems.clear();
-        String monthPattern = String.format("%04d-%02d-%%", year, month);
-        
-        Log.d("ClassicModelFragment", "开始加载账单数据: " + year + "-" + month);
-        long loadStartTime = System.currentTimeMillis();
-        
-        // 首先检查用户是否已登录
-        if (!UserInfoManager.isUserLoggedIn(getContext())) {
-            // 用户未登录
-            // 清空账单数据并更新UI
-            if (getActivity() != null) {
-                getActivity().runOnUiThread(() -> {
-                    processAndDisplayData();
-                    sumAmounts();
-                    if (billAdapter != null) {
-                        billAdapter.notifyDataSetChanged();
-                    }
-                    // 可以在这里添加"请登录查看账单"的提示
-                    showLoginPrompt();
-                });
-            }
-            return;
-        }
-        
-        // 获取当前用户信息和relationship状态
-        UserInfoManager.getCurrentUserInfo(getContext(), new UserInfoManager.UserInfoCallback() {
-            @Override
-            public void onUserInfoLoaded(int userId, String username, Integer relationshipId) {
-                // 获取用户信息成功
-                
-                // 隐藏登录提示，显示账单列表
-                if (getActivity() != null) {
-                    getActivity().runOnUiThread(() -> hideLoginPrompt());
-                }
-                
-                BillDatabaseHelper billHelper = new BillDatabaseHelper(getContext());
-                // 使用新的筛选查询方法
-                String dateSelection = "date LIKE ?";
-                String[] dateSelectionArgs = new String[]{monthPattern};
-                
-                Log.d("ClassicModelFragment", "执行数据库查询，用户ID: " + userId + ", 关系ID: " + relationshipId);
-                billHelper.queryBillsWithUserFilter(userId, relationshipId, dateSelection, dateSelectionArgs, new BillDatabaseHelper.QueryCallback() {
-            @Override
-            public void onSuccess(List<Map<String, Object>> results) {
-                long dataLoadTime = System.currentTimeMillis();
-                Log.d("ClassicModelFragment", "数据库查询完成，耗时: " + (dataLoadTime - loadStartTime) + "ms, 结果数: " + results.size());
-                
-                if (getActivity() != null) {
-                    getActivity().runOnUiThread(() -> {
-                        long uiStartTime = System.currentTimeMillis();
-                        for (Map<String, Object> row : results) {
-                            long billId = ((Number) row.get("_id")).longValue();
-                            double amount = (Double) row.get("amount");
-                            String dateStr = (String) row.get("date");
-                            String timeStr = (String) row.get("time");
-                            Integer ownerObj = (Integer) row.get("owner");
-                            int owner = ownerObj != null ? ownerObj : 0;
-                            // 处理owner字段
-                            Integer userIdObj = (Integer) row.get("userId");
-                            int userId = userIdObj != null ? userIdObj : 0;
-                            String type = (String) row.get("type");
-                            String title = (String) row.get("title");
-                            Integer incomeTypeObj = (Integer) row.get("income_type");
-                            int incomeType = incomeTypeObj != null ? incomeTypeObj : 0;
-                            Integer isHelpObj = (Integer) row.get("is_help");
-                            int isHelp = isHelpObj != null ? isHelpObj : 0;
 
-                            // 解析日期字符串 (格式: 2025-08-15)
-                            String[] dateParts = dateStr.split("-");
-                            int cur_year = Integer.parseInt(dateParts[0]);
-                            int cur_month = Integer.parseInt(dateParts[1]);
-                            int day = Integer.parseInt(dateParts[2]);
-
-                            // 根据类型设置图标
-                            int iconResId = getIconForCategory(type);
-
-                            billItems.add(new BillBean(billId, amount, cur_year, cur_month, day, owner, userId, type, title, iconResId, incomeType, timeStr, title, isHelp));
-                        }
-                        processAndDisplayData();
-                        sumAmounts();
-                        // 通知适配器数据已更新
-                        if (billAdapter != null) {
-                            billAdapter.notifyDataSetChanged();
-                        }
-                        
-                        long uiEndTime = System.currentTimeMillis();
-                        Log.d("ClassicModelFragment", "UI更新完成，耗时: " + (uiEndTime - uiStartTime) + "ms");
-                        Log.d("ClassicModelFragment", "总加载耗时: " + (uiEndTime - loadStartTime) + "ms");
-                    });
-                }
-            }
-
-            @Override
-            public void onError(String error) {
-                long errorTime = System.currentTimeMillis();
-                Log.e("ClassicModelFragment", "数据库查询失败，耗时: " + (errorTime - loadStartTime) + "ms, 错误: " + error);
-                
-                if (getActivity() != null) {
-                    getActivity().runOnUiThread(() -> {
-                        Log.e("ClassicModelFragment", "加载账单数据失败: " + error);
-                        // 可以显示错误提示给用户
-                    });
-                }
+        // 观察列表版本，刷新适配器
+        viewModel.getDisplayVersion().observe(getViewLifecycleOwner(), v2 -> {
+            if (billAdapter != null) billAdapter.notifyDataSetChanged();
+        });
+        // 观察收入/支出合计
+        viewModel.getTotalIncome().observe(getViewLifecycleOwner(), income -> {
+            if (tvIncomeAmount != null && income != null) {
+                tvIncomeAmount.setText("￥ " + String.format("%.2f", income));
             }
         });
-            }
-            
-            @Override
-            public void onError(String error) {
-                Log.e("ClassicModelFragment", "获取用户信息失败: " + error);
-                if (getActivity() != null) {
-                    getActivity().runOnUiThread(() -> {
-                        // 清空账单数据并更新UI
-                        processAndDisplayData();
-                        sumAmounts();
-                        if (billAdapter != null) {
-                            billAdapter.notifyDataSetChanged();
-                        }
-                        showLoginPrompt();
-                    });
-                }
+        viewModel.getTotalExpense().observe(getViewLifecycleOwner(), expense -> {
+            if (tvExpenseAmount != null && expense != null) {
+                tvExpenseAmount.setText("￥ " + String.format("%.2f", expense));
             }
         });
+        // 观察登录状态，切换提示与列表
+        viewModel.getIsLoggedIn().observe(getViewLifecycleOwner(), loggedIn -> {
+            if (Boolean.TRUE.equals(loggedIn)) {
+                hideLoginPrompt();
+            } else {
+                showLoginPrompt();
+            }
+        });
+        // 观察月份标题
+        viewModel.getMonthTitle().observe(getViewLifecycleOwner(), title -> {
+            if (tvMonthTitle != null && title != null) tvMonthTitle.setText(title);
+        });
+
+        // 首次加载
+        viewModel.initialize();
+
+        // 更新月份选择器点击
+        tvMonthTitle.setOnClickListener(v -> showDatePickerDialog());
     }
-    private void firstLoadBills() {
-        // 获取当前年月
-        Calendar calendar = Calendar.getInstance();
-        currentYear = calendar.get(Calendar.YEAR);
-        currentMonth = calendar.get(Calendar.MONTH) + 1; // Calendar.MONTH 从0开始
-        
-        loadBillData(currentYear, currentMonth);
-    }
+
+
     
     // 公共方法：刷新当前月份的账单数据
     public void refreshBillData() {
         if (getContext() != null) {
-            loadBillData(currentYear, currentMonth);
-            processAndDisplayData();
-            sumAmounts();
-            updateMonthTitle();
-            if (billAdapter != null) {
-                billAdapter.notifyDataSetChanged();
+            // 由ViewModel统一刷新当前月份数据
+            if (viewModel != null) {
+                viewModel.refreshCurrentMonth();
             }
-        }
-    }
-    
-
-    
-
-    
-    private int getIconForCategory(String category) {
-        switch (category) {
-            case "餐品":
-                return R.drawable.img_category_food;
-            case "饮品":
-                return R.drawable.img_category_drink;
-            case "水果":
-                return R.drawable.img_category_fruit;
-            case "购物":
-                return R.drawable.img_category_shopping;
-            case "交通":
-                return R.drawable.img_category_transport;
-            case "住宿":
-                return R.drawable.img_category_hotel;
-            case "日常":
-                return R.drawable.img_category_daily;
-            case "学习":
-                return R.drawable.img_category_study;
-            case "娱乐":
-                return R.drawable.img_category_entertainment;
-            case "化妆":
-                return R.drawable.img_category_cosmetic;
-            case "旅游":
-                return R.drawable.img_category_travel;
-            case "医疗":
-                return R.drawable.img_category_medical;
-            case "会员":
-                return R.drawable.img_category_member;
-            case "通讯":
-                return R.drawable.img_category_communication;
-            case "人情":
-            case "社交":
-                return R.drawable.img_category_social;
-            case "投资":
-                return R.drawable.img_category_investment;
-            case "亲子":
-            case "育儿":
-                return R.drawable.img_category_parenting;
-            case "宠物":
-                return R.drawable.img_category_pet;
-            case "装修":
-                return R.drawable.img_category_decoration;
-            // 收入分类
-            case "工资":
-                return R.drawable.img_category_salary;
-            case "礼金":
-                return R.drawable.img_category_cashgift;
-            case "兼职":
-                return R.drawable.img_category_parttime;
-            case "理财":
-                return R.drawable.img_category_financial;
-            case "其他":
-            case "生活":
-                return R.drawable.img_category_other;
-            default:
-                return R.drawable.img_category_other;
-        }
-    }
-    private void processAndDisplayData() {
-        displayItems.clear();
-            // 经典模式：按日期分组显示
-            // 按日期倒序排序
-            Collections.sort(billItems, new Comparator<BillBean>() {
-                @Override
-                public int compare(BillBean b1, BillBean b2) {
-                    // 先按年份倒序
-                    if (b1.getYear() != b2.getYear()) {
-                        return Integer.compare(b2.getYear(), b1.getYear());
-                    }
-                    // 再按月份倒序
-                    if (b1.getMonth() != b2.getMonth()) {
-                        return Integer.compare(b2.getMonth(), b1.getMonth());
-                    }
-                    // 再按日期倒序
-                    if (b1.getDay() != b2.getDay()) {
-                        return Integer.compare(b2.getDay(), b1.getDay());
-                    }
-                    // 日期相同时按时间倒序排列
-                    if (!b1.getTime().equals(b2.getTime())) {
-                        return b2.getTime().compareTo(b1.getTime());
-                    }
-                    // 时间相同时按种类名首字母排序
-                    return b1.getCategoryName().compareToIgnoreCase(b2.getCategoryName());
-                }
-            });
-
-            // 按日期分组
-            Map<String, List<BillBean>> dateGroups = new LinkedHashMap<>();
-            for (BillBean bill : billItems) {
-                String dateKey = String.format("%02d.%02d", bill.getMonth(), bill.getDay());
-                if (!dateGroups.containsKey(dateKey)) {
-                    dateGroups.put(dateKey, new ArrayList<>());
-                }
-                dateGroups.get(dateKey).add(bill);
-            }
-
-            // 将分组数据添加到displayItems
-            for (Map.Entry<String, List<BillBean>> entry : dateGroups.entrySet()) {
-                Map<String, List<BillBean>> dateGroup = new HashMap<>();
-                dateGroup.put(entry.getKey(), entry.getValue());
-                displayItems.add(dateGroup);
-            }
-            billAdapter.notifyDataSetChanged();
-    }
-    private void sumAmounts() {
-        double totalIncome = 0;
-        double totalExpense = 0;
-        for (BillBean bill : billItems) {
-            if (bill.getIncomeType() == 1) {
-                totalIncome += bill.getFare();
-            } else {
-                totalExpense += bill.getFare();
-            }
-        }
-        tvIncomeAmount.setText("￥ " + String.format("%.2f", totalIncome));
-        tvExpenseAmount.setText("￥ " + String.format("%.2f", totalExpense));
-    }
-    private void updateMonthTitle() {
-        String monthText = getMonthText(currentMonth);
-        if (monthText != null) {
-            tvMonthTitle.setText("我们的" + monthText + " >");
-        } else {
-            Log.e("ClassicModelFragment", "monthTitleTextView is null!");
+            // 同步更新给ReportFragment时取ViewModel中的年月
+            currentYear = viewModel != null ? viewModel.getCurrentYear() : currentYear;
+            currentMonth = viewModel != null ? viewModel.getCurrentMonth() : currentMonth;
         }
     }
 
-    private String getMonthText(int month) {
-        String[] months = {"1月", "2月", "3月", "4月", "5月", "6月",
-                "7月", "8月", "9月", "10月", "11月", "12月"};
-        return months[month - 1];
-    }
     private void showDatePickerDialog() {
-        Utils.showDatePickerDialog(getContext(), currentYear, currentMonth, (selectedYear, selectedMonth)->{
-            currentYear = selectedYear;
-            currentMonth = selectedMonth;
-            updateMonthTitle();
-            //更新recyclerView显示
-            loadBillData(currentYear,currentMonth);
-            processAndDisplayData();
-            sumAmounts();
-        });
+        if (viewModel != null) {
+            Utils.showDatePickerDialog(getContext(), viewModel.getCurrentYear(), viewModel.getCurrentMonth(), 
+                (selectedYear, selectedMonth) -> {
+                    if (viewModel != null) {
+                        viewModel.setYearMonth(selectedYear, selectedMonth);
+                    }
+                    // 同步本地字段用于与ReportFragment交互
+                    currentYear = selectedYear;
+                    currentMonth = selectedMonth;
+                });
+        }
     }
 
     public void processDialog(BillBean bill){
@@ -488,7 +242,8 @@ public class ClassicModelFragment extends Fragment implements BillAdapter.OnItem
 
         // 设置数据
         if (ivCategoryIcon != null) {
-            int iconResId = getIconForCategory(categoryName);
+            // 统一使用CategoryIconMapper获取图标
+            int iconResId = CategoryIconMapper.getIconForCategory(categoryName);
             ivCategoryIcon.setImageResource(iconResId);
             ivCategoryIcon.setBackground(null); // 移除背景色，显示图标
         }

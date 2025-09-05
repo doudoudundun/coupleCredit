@@ -8,15 +8,13 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.Random;
+import com.example.couplecredit.utils.DatabaseResourceManager;
+import com.example.couplecredit.utils.DatabaseExceptionHandler;
+import com.example.couplecredit.config.DatabaseConfig;
 
 public class CoupleRelationshipHelper {
     private static final String TAG = "CoupleRelationshipHelper";
-    private static final String DB_USER = "demodb";
-    private static final String DB_NAME = "demodb";
-    private static final String DB_PASSWORD = "root";
-    private static final String DB_HOST = "101.37.68.240";
-    private static final String DB_PORT = "3306";
-    private static final String DB_URL = "jdbc:mysql://" + DB_HOST + ":" + DB_PORT + "/" + DB_NAME + "?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC";
+    // 使用统一的数据库配置
 
     public CoupleRelationshipHelper() {
         // 使用统一的连接池初始化工具（异步）
@@ -31,39 +29,29 @@ public class CoupleRelationshipHelper {
             Log.w(TAG, "连接池获取连接失败，尝试直接连接: " + e.getMessage());
             // 降级到直接连接
             Class.forName("com.mysql.jdbc.Driver");
-            return DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD);
+            return DriverManager.getConnection(DatabaseConfig.DB_URL, DatabaseConfig.DB_USER, DatabaseConfig.DB_PASSWORD);
         }
     }
 
-    // 关闭数据库资源
+    // 关闭数据库资源（使用统一的资源管理器）
     private void closeResources(Connection connection, PreparedStatement... statements) {
-        closeResources(connection, null, statements);
+        for (PreparedStatement stmt : statements) {
+            DatabaseResourceManager.closeStatement(stmt);
+        }
+        DatabaseResourceManager.closeConnection(connection);
     }
 
     private void closeResources(Connection connection, ResultSet resultSet, PreparedStatement... statements) {
-        try {
-            if (resultSet != null) resultSet.close();
-            for (PreparedStatement stmt : statements) {
-                if (stmt != null) stmt.close();
-            }
-            if (connection != null) {
-                // 将连接归还到连接池而不是关闭
-                DatabaseConnectionPool.getInstance().returnConnection(connection);
-            }
-        } catch (SQLException e) {
-            Log.e(TAG, "关闭数据库资源失败", e);
+        DatabaseResourceManager.closeResultSet(resultSet);
+        for (PreparedStatement stmt : statements) {
+            DatabaseResourceManager.closeStatement(stmt);
         }
+        DatabaseResourceManager.closeConnection(connection);
     }
 
-    // 处理数据库异常
+    // 处理数据库异常（使用统一的异常处理器）
     private String handleException(Exception e) {
-        if (e instanceof ClassNotFoundException) {
-            return "数据库驱动未找到: " + e.getMessage();
-        } else if (e instanceof SQLException) {
-            return "数据库操作失败: " + e.getMessage();
-        } else {
-            return "未知错误: " + e.getMessage();
-        }
+        return DatabaseExceptionHandler.handleException(e);
     }
 
 

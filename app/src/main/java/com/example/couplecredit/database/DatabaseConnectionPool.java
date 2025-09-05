@@ -4,12 +4,14 @@ import android.util.Log;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
+import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.TimeUnit;
+import com.example.couplecredit.config.DatabaseConfig;
 
 /**
  * 数据库连接池管理类
@@ -18,19 +20,14 @@ import java.util.concurrent.TimeUnit;
 public class DatabaseConnectionPool {
     private static final String TAG = "DatabaseConnectionPool";
     
-    // 数据库连接配置
-    private static final String DB_HOST = "101.37.68.240";
-    private static final String DB_PORT = "3306";
-    private static final String DB_NAME = "demodb";
-    private static final String DB_USER = "demodb";
-    private static final String DB_PASSWORD = "root";
-    private static final String DB_URL = "jdbc:mysql://" + DB_HOST + ":" + DB_PORT + "/" + DB_NAME + "?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC";
+    // 使用统一的数据库配置
     
     // 连接池配置
     private static final int POOL_SIZE = 7; // 连接池大小
     private static final int CONNECTION_TIMEOUT = 10; // 获取连接超时时间（秒）
     private static final int CORE_CONNECTIONS = 3; // 核心连接数，始终保持
     private static final long CONNECTION_KEEP_ALIVE_MS = 30 * 60 * 1000; // 连接保活时间30分钟
+    private static final long KEEP_ALIVE_CHECK_INTERVAL_MS = 2 * 60 * 1000; // 保活检查间隔2分钟
     
     private static DatabaseConnectionPool instance;
     private final BlockingQueue<Connection> connectionPool;
@@ -96,8 +93,8 @@ public class DatabaseConnectionPool {
                 return createNewConnection();
             }
             
-            // 检查连接是否有效
-            if (connection.isClosed() || !connection.isValid(3)) {
+            // 检查连接是否有效（增强验证）
+            if (connection.isClosed() || !isConnectionValid(connection)) {
                 Log.w(TAG, "连接已失效，创建新连接");
                 return createNewConnection();
             }
@@ -125,7 +122,11 @@ public class DatabaseConnectionPool {
                     Log.d(TAG, "连接已归还到连接池，当前连接数: " + connectionPool.size());
                 } else {
                     // 连接池已满，关闭连接
-                    connection.close();
+                    try {
+                        connection.close();
+                    } catch (SQLException e) {
+                        Log.e(TAG, "关闭多余连接时出错", e);
+                    }
                     Log.d(TAG, "连接池已满，关闭多余连接");
                 }
             } else {
@@ -146,11 +147,11 @@ public class DatabaseConnectionPool {
         
         for (int attempt = 1; attempt <= maxRetries; attempt++) {
             try {
-                Log.d(TAG, "尝试创建数据库连接 (" + attempt + "/" + maxRetries + "): " + DB_URL);
+                Log.d(TAG, "尝试创建数据库连接 (" + attempt + "/" + maxRetries + "): " + DatabaseConfig.DB_URL);
                 
                 // 设置连接超时
                 DriverManager.setLoginTimeout(10);
-                Connection connection = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD);
+                Connection connection = DriverManager.getConnection(DatabaseConfig.DB_URL, DatabaseConfig.DB_USER, DatabaseConfig.DB_PASSWORD);
                 
                 // 测试连接有效性
                 if (connection.isValid(5)) {
@@ -221,8 +222,8 @@ public class DatabaseConnectionPool {
             
             while (!isShuttingDown && !Thread.currentThread().isInterrupted()) {
                 try {
-                    // 每5分钟检查一次连接状态
-                    Thread.sleep(5 * 60 * 1000);
+                    // 每2分钟检查一次连接状态
+                    Thread.sleep(KEEP_ALIVE_CHECK_INTERVAL_MS);
                     
                     if (isShuttingDown) break;
                     
@@ -259,7 +260,7 @@ public class DatabaseConnectionPool {
         Connection conn;
         while ((conn = connectionPool.poll()) != null) {
             try {
-                if (!conn.isClosed() && conn.isValid(3)) {
+                if (!conn.isClosed() && isConnectionValid(conn)) {
                     validConnections.add(conn);
                 } else {
                     invalidConnections.add(conn);
@@ -339,6 +340,33 @@ public class DatabaseConnectionPool {
         
         isInitialized = false;
         Log.d(TAG, "连接池已关闭");
+    }
+    
+    /**
+     * 增强的连接有效性检查
+     */
+    private boolean isConnectionValid(Connection connection) {
+        try {
+            // 首先检查基本状态
+            if (connection.isClosed()) {
+                return false;
+            }
+            
+            // 使用较短的超时时间进行验证
+            if (!connection.isValid(2)) {
+                return false;
+            }
+            
+            // 执行简单查询验证连接
+            try (PreparedStatement stmt = connection.prepareStatement("SELECT 1")) {
+                stmt.setQueryTimeout(3);
+                stmt.executeQuery();
+                return true;
+            }
+        } catch (SQLException e) {
+            Log.w(TAG, "连接验证失败: " + e.getMessage());
+            return false;
+        }
     }
     
     /**

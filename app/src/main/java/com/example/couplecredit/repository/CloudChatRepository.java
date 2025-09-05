@@ -8,6 +8,8 @@ import com.example.couplecredit.model.ChatMessage;
 import com.example.couplecredit.function.MySQLDatabaseHelper;
 import com.example.couplecredit.function.NicknameCache;
 import com.example.couplecredit.database.DatabaseConnectionPool;
+import com.example.couplecredit.utils.DatabaseResourceManager;
+import com.example.couplecredit.config.DatabaseConfig;
 import com.example.couplecredit.database.DatabaseInitializer;
 
 import java.sql.Connection;
@@ -31,12 +33,7 @@ public class CloudChatRepository {
     private static final String TAG = "CloudChatRepository";
     
     // 数据库连接配置（从ChatMessageHelper获取）
-    private static final String DB_HOST = "101.37.68.240";
-    private static final String DB_PORT = "3306";
-    private static final String DB_NAME = "demodb";
-    private static final String DB_USER = "demodb";
-    private static final String DB_PASSWORD = "root";
-    private static final String DB_URL = "jdbc:mysql://" + DB_HOST + ":" + DB_PORT + "/" + DB_NAME + "?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC";
+    // 使用统一的数据库配置
     
     // 线程池用于异步数据库操作
     private final ExecutorService databaseExecutor;
@@ -75,7 +72,7 @@ public class CloudChatRepository {
             // 降级到直接连接
             try {
                 Class.forName("com.mysql.jdbc.Driver");
-                return DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD);
+                return DriverManager.getConnection(DatabaseConfig.DB_URL, DatabaseConfig.DB_USER, DatabaseConfig.DB_PASSWORD);
             } catch (ClassNotFoundException cnfe) {
                 throw new SQLException("MySQL驱动加载失败", cnfe);
             }
@@ -83,26 +80,58 @@ public class CloudChatRepository {
     }
     
     /**
-     * 初始化用户信息
+     * 初始化用户信息（优化版本，使用UserInfoManager缓存）
      */
     public void initializeUserInfo() {
         if (UserInfoManager.isUserLoggedIn(context)) {
-            UserInfoManager.getCurrentUserInfo(context, new UserInfoManager.UserInfoCallback() {
-                @Override
-                public void onUserInfoLoaded(int userId, String username, Integer relationshipId) {
-                    currentUserId = userId;
-                    currentUsername = username;
-                    currentRelationshipId = relationshipId != null ? relationshipId : -1;
-                    Log.d(TAG, "用户信息初始化成功: userId=" + userId + ", username=" + username + ", relationshipId=" + relationshipId);
-                }
+            // 优先使用同步方法获取基本用户信息
+            int userId = UserInfoManager.getCurrentUserId(context);
+            String username = UserInfoManager.getCurrentUsername(context);
+            
+            if (userId > 0 && username != null) {
+                currentUserId = userId;
+                currentUsername = username;
+                Log.d(TAG, "用户信息初始化成功(同步): userId=" + currentUserId + ", username=" + currentUsername);
                 
-                @Override
-                public void onError(String error) {
-                    Log.e(TAG, "获取用户信息失败: " + error);
-                }
-            });
+                // 异步获取relationshipId
+                UserInfoManager.getCurrentUserInfo(context, new UserInfoManager.UserInfoCallback() {
+                    @Override
+                    public void onUserInfoLoaded(int userId, String username, Integer relationshipId) {
+                        currentRelationshipId = relationshipId != null ? relationshipId : -1;
+                        Log.d(TAG, "relationshipId初始化成功: " + currentRelationshipId);
+                    }
+                    
+                    @Override
+                    public void onError(String error) {
+                        Log.w(TAG, "获取relationshipId失败: " + error + "，使用默认值");
+                        currentRelationshipId = 1;
+                    }
+                });
+            } else {
+                // 如果同步获取失败，使用异步方式获取完整信息
+                UserInfoManager.getCurrentUserInfo(context, new UserInfoManager.UserInfoCallback() {
+                    @Override
+                    public void onUserInfoLoaded(int userId, String username, Integer relationshipId) {
+                        currentUserId = userId;
+                        currentUsername = username;
+                        currentRelationshipId = relationshipId != null ? relationshipId : -1;
+                        Log.d(TAG, "用户信息初始化成功(异步): userId=" + userId + ", username=" + username + ", relationshipId=" + relationshipId);
+                    }
+                    
+                    @Override
+                    public void onError(String error) {
+                        Log.e(TAG, "获取用户信息失败: " + error);
+                        // 使用默认值
+                        currentUserId = 1;
+                        currentRelationshipId = 1;
+                    }
+                });
+            }
         } else {
             Log.w(TAG, "用户未登录，无法初始化用户信息");
+            // 使用默认值
+            currentUserId = 1;
+            currentRelationshipId = 1;
         }
     }
     
@@ -726,34 +755,19 @@ public class CloudChatRepository {
                     callback.onError(e);
                 }
             } finally {
-                if (conn != null) {
-                    try {
-                        conn.close();
-                    } catch (SQLException e) {
-                        Log.e(TAG, "关闭连接时发生错误", e);
-                    }
-                }
+                DatabaseResourceManager.closeConnection(conn);
             }
         });
     }
     
     /**
-     * 关闭数据库资源（连接归还到连接池）
+     * 关闭数据库资源（使用统一的资源管理器）
      * @param conn 数据库连接
      * @param stmt 预处理语句
      * @param rs 结果集
      */
     private void closeResources(Connection conn, PreparedStatement stmt, ResultSet rs) {
-        try {
-            if (rs != null) rs.close();
-            if (stmt != null) stmt.close();
-            if (conn != null) {
-                // 将连接归还到连接池而不是关闭
-                DatabaseConnectionPool.getInstance().returnConnection(conn);
-            }
-        } catch (SQLException e) {
-            Log.e(TAG, "关闭数据库资源时发生错误", e);
-        }
+        DatabaseResourceManager.closeResources(conn, stmt, rs);
     }
     
     /**

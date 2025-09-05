@@ -32,10 +32,10 @@ public class ChatViewModel extends AndroidViewModel {
     // ==================== 成员变量 ====================
     
     private final ChatRepository chatRepository;
-    private final ChatSyncService syncService;
-    private final NetworkStateManager networkStateManager;
-    private final OfflineCacheManager offlineCacheManager;
-    private final OfflineService offlineService;
+    private ChatSyncService syncService;
+    private NetworkStateManager networkStateManager;
+    private OfflineCacheManager offlineCacheManager;
+    private OfflineService offlineService;
     
     // UI状态相关的LiveData
     private final MutableLiveData<Boolean> isSearchMode = new MutableLiveData<>(false);
@@ -57,8 +57,8 @@ public class ChatViewModel extends AndroidViewModel {
     private final MutableLiveData<String> offlineStatusMessage = new MutableLiveData<>();
     
     // 用户信息
-    private int currentUserId = 1; // 默认用户ID，实际应从用户会话获取
-    private long currentRelationshipId = 1; // 默认关系ID，实际应从用户会话获取
+    private int currentUserId = -1; // 从UserInfoManager获取
+    private long currentRelationshipId = -1; // 从UserInfoManager获取
     
     // 时间格式化器
     private final SimpleDateFormat timeFormatter = new SimpleDateFormat("HH:mm", Locale.getDefault());
@@ -73,25 +73,7 @@ public class ChatViewModel extends AndroidViewModel {
     public ChatViewModel(@NonNull Application application, @NonNull ChatRepository repository) {
         super(application);
         this.chatRepository = repository;
-        this.syncService = new ChatSyncService(repository.getChatMessageDao(), repository.getCloudRepository());
-        
-        // 使用单例模式
-        this.networkStateManager = NetworkStateManager.getInstance(application);
-        this.networkStateManager.startNetworkMonitoring();
-        this.offlineCacheManager = OfflineCacheManager.getInstance(application);
-        this.offlineService = new OfflineService(application, syncService, offlineCacheManager);
-        
-        // 设置用户信息
-        syncService.setCurrentUserInfo(currentUserId, currentRelationshipId);
-        repository.setCurrentUserId(currentUserId);
-        
-        // 监听同步状态
-        observeSyncStatus();
-        
-        // 监听网络状态和离线缓存状态
-        observeNetworkAndOfflineStatus();
-        
-        // 注意：不在构造函数中自动初始化数据，由Fragment根据登录状态决定是否调用
+        initializeCommonComponents(application);
     }
     
     /**
@@ -101,17 +83,24 @@ public class ChatViewModel extends AndroidViewModel {
     public ChatViewModel(@NonNull Application application) {
         super(application);
         chatRepository = new ChatRepository(application);
+        initializeCommonComponents(application);
+    }
+    
+    /**
+     * 初始化公共组件和服务
+     * @param application 应用程序实例
+     */
+    private void initializeCommonComponents(@NonNull Application application) {
         this.syncService = new ChatSyncService(chatRepository.getChatMessageDao(), chatRepository.getCloudRepository());
         
-        // 修复：使用单例模式
+        // 使用单例模式
         this.networkStateManager = NetworkStateManager.getInstance(application);
         this.networkStateManager.startNetworkMonitoring();
         this.offlineCacheManager = OfflineCacheManager.getInstance(application);
         this.offlineService = new OfflineService(application, syncService, offlineCacheManager);
         
-        // 设置用户信息
-        syncService.setCurrentUserInfo(currentUserId, currentRelationshipId);
-        chatRepository.setCurrentUserId(currentUserId);
+        // 从UserInfoManager获取用户信息
+        initializeUserInfoFromManager(application);
         
         // 监听同步状态
         observeSyncStatus();
@@ -572,6 +561,52 @@ public class ChatViewModel extends AndroidViewModel {
     }
     
     /**
+     * 从UserInfoManager初始化用户信息
+     */
+    private void initializeUserInfoFromManager(Application application) {
+        if (UserInfoManager.isUserLoggedIn(application)) {
+            int userId = UserInfoManager.getCurrentUserId(application);
+            if (userId > 0) {
+                this.currentUserId = userId;
+                // 异步获取完整用户信息包括relationshipId
+                UserInfoManager.getCurrentUserInfo(application, new UserInfoManager.UserInfoCallback() {
+                    @Override
+                    public void onUserInfoLoaded(int userId, String username, Integer relationshipId) {
+                        currentRelationshipId = relationshipId != null ? relationshipId : 1;
+                        android.util.Log.d("ChatViewModel", "从UserInfoManager获取用户信息: userId=" + userId + ", relationshipId=" + currentRelationshipId);
+                        
+                        // 更新syncService和chatRepository的用户信息
+                        if (syncService != null) {
+                            syncService.setCurrentUserInfo(currentUserId, currentRelationshipId);
+                        }
+                        if (chatRepository != null) {
+                            chatRepository.setCurrentUserId(currentUserId);
+                        }
+                    }
+                    
+                    @Override
+                    public void onError(String error) {
+                        android.util.Log.w("ChatViewModel", "获取用户信息失败: " + error + "，使用默认relationshipId");
+                        currentRelationshipId = 1;
+                    }
+                });
+            } else {
+                android.util.Log.w("ChatViewModel", "UserInfoManager中没有有效的用户ID，使用默认值");
+                this.currentUserId = 1;
+                this.currentRelationshipId = 1;
+            }
+        } else {
+            android.util.Log.w("ChatViewModel", "用户未登录，使用默认值");
+            this.currentUserId = 1;
+            this.currentRelationshipId = 1;
+        }
+        
+        // 立即设置基本用户信息到相关组件
+        syncService.setCurrentUserInfo(currentUserId, currentRelationshipId);
+        chatRepository.setCurrentUserId(currentUserId);
+    }
+    
+    /**
      * 设置用户信息
      * @param userId 用户ID
      * @param relationshipId 关系ID
@@ -583,6 +618,40 @@ public class ChatViewModel extends AndroidViewModel {
         // 更新Repository和SyncService
         chatRepository.setCurrentUserId(userId);
         syncService.setCurrentUserInfo(userId, relationshipId);
+    }
+    
+    /**
+     * 从UserInfoManager自动获取并设置用户信息
+     */
+    public void refreshUserInfoFromManager() {
+        Application application = getApplication();
+        
+        if (UserInfoManager.isUserLoggedIn(application)) {
+            int userId = UserInfoManager.getCurrentUserId(application);
+            if (userId > 0) {
+                // 异步获取完整用户信息
+                UserInfoManager.getCurrentUserInfo(application, new UserInfoManager.UserInfoCallback() {
+                    @Override
+                    public void onUserInfoLoaded(int userId, String username, Integer relationshipId) {
+                        long relId = relationshipId != null ? relationshipId : 1;
+                        
+                        // 更新用户信息
+                        setUserInfo(userId, relId);
+                        
+                        android.util.Log.d("ChatViewModel", "用户信息已从UserInfoManager刷新: userId=" + userId + ", relationshipId=" + relId);
+                    }
+                    
+                    @Override
+                    public void onError(String error) {
+                        android.util.Log.w("ChatViewModel", "刷新用户信息失败: " + error);
+                    }
+                });
+            } else {
+                android.util.Log.w("ChatViewModel", "UserInfoManager中没有有效的用户ID");
+            }
+        } else {
+            android.util.Log.w("ChatViewModel", "用户未登录，无法刷新用户信息");
+        }
     }
     
     // ==================== 私有辅助方法 ====================
