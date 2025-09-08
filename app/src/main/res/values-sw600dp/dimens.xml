@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 大屏幕设备（600dp宽度） -->
+    <dimen name="chat_search_top_margin">16dp</dimen>
+    <dimen name="chat_search_padding_top">12dp</dimen>
+</resources>

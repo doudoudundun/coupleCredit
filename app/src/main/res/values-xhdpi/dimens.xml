@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 超高密度屏幕 -->
+    <dimen name="chat_search_top_margin">8dp</dimen>
+    <dimen name="chat_search_padding_top">8dp</dimen>
+    <dimen name="segmented_tab_margin_top">5dp</dimen>
+</resources>

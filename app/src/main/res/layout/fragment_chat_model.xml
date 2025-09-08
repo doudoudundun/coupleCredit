@@ -17,7 +17,8 @@
         android:orientation="vertical"
         android:background="@android:color/transparent"
         android:elevation="0dp"
-        android:layout_marginTop="0dp"
+        android:layout_marginTop="@dimen/chat_search_top_margin"
+        android:paddingTop="@dimen/chat_search_padding_top"
         app:layout_constraintTop_toTopOf="parent">
 
         <!-- 搜索功能区 -->
@@ -32,8 +33,9 @@
             <EditText
                 android:id="@+id/et_search"
                 android:layout_width="0dp"
-                android:layout_height="36dp"
+                android:layout_height="wrap_content"
                 android:layout_weight="1"
+                android:minHeight="36dp"
                 android:background="@drawable/chat_bubble_background"
                 android:hint="搜索聊天记录"
                 android:paddingStart="12dp"
