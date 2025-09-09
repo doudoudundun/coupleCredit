@@ -207,14 +207,37 @@ public class ChatRepository {
         
         databaseExecutor.execute(() -> {
             try {
-                // 1. 更新本地数据库
-                List<ChatMessageEntity> entities = chatMessageDao.getAllMessages();
-                for (ChatMessageEntity entity : entities) {
-                    if (entity.getContent().equals(message.getContent()) && 
-                        entity.getTimestamp().equals(message.getTimestamp())) {
+                // 1. 更新本地数据库 - 使用消息ID进行精确匹配
+                if (message.getId() > 0) {
+                    // 优先使用本地消息ID进行精确匹配
+                    ChatMessageEntity entity = chatMessageDao.getMessageById(message.getId());
+                    if (entity != null) {
                         entity.setLiked(message.isLiked());
                         chatMessageDao.updateMessage(entity);
-                        break;
+                    } else {
+                        Log.w(TAG, "未找到ID为 " + message.getId() + " 的消息");
+                    }
+                } else if (message.getCloudMessageId() > 0) {
+                    // 使用云端消息ID匹配
+                    List<ChatMessageEntity> entities = chatMessageDao.getAllMessages();
+                    for (ChatMessageEntity entity : entities) {
+                        if (entity.getCloudMessageId() == message.getCloudMessageId()) {
+                            entity.setLiked(message.isLiked());
+                            chatMessageDao.updateMessage(entity);
+                            break;
+                        }
+                    }
+                } else {
+                    // 降级方案：使用内容+时间戳匹配（不推荐，可能匹配多条消息）
+                    Log.w(TAG, "消息缺少唯一标识，使用内容+时间戳匹配可能存在风险");
+                    List<ChatMessageEntity> entities = chatMessageDao.getAllMessages();
+                    for (ChatMessageEntity entity : entities) {
+                        if (entity.getContent().equals(message.getContent()) && 
+                            entity.getTimestamp().equals(message.getTimestamp())) {
+                            entity.setLiked(message.isLiked());
+                            chatMessageDao.updateMessage(entity);
+                            break;
+                        }
                     }
                 }
                 
@@ -224,6 +247,7 @@ public class ChatRepository {
                 // 3. 同步到云端
                 if (isNetworkAvailable() && isCloudSyncEnabled) {
                     cloudChatRepository.updateMessageLikeStatus(
+                        message.getCloudMessageId(),
                         message.getContent(), 
                         message.getTimestamp(), 
                         message.isLiked(),
@@ -233,7 +257,7 @@ public class ChatRepository {
                                 Log.d(TAG, "消息更新已同步到云端");
                                 syncStatusLiveData.postValue(true);
                             }
-                            
+
                             @Override
                             public void onError(Exception e) {
                                 Log.w(TAG, "消息更新同步到云端失败", e);
@@ -274,15 +298,35 @@ public class ChatRepository {
         
         databaseExecutor.execute(() -> {
             try {
-                // 1. 从本地数据库删除
-                chatMessageDao.deleteByContentAndTimestamp(message.getContent(), message.getTimestamp());
+                // 1. 从本地数据库删除 - 强制使用消息ID进行精确匹配
+                boolean deleted = false;
+                if (message.getId() > 0) {
+                    // 优先使用本地消息ID
+                    chatMessageDao.deleteById(message.getId());
+                    deleted = true;
+                    Log.d(TAG, "使用本地消息ID删除: " + message.getId());
+                } else if (message.getCloudMessageId() != 0) {
+                    // 其次使用云端消息ID（注意：long基本类型用 != 0 判断）
+                    chatMessageDao.deleteByCloudId(message.getCloudMessageId());
+                    deleted = true;
+                    Log.d(TAG, "使用云端消息ID删除: " + message.getCloudMessageId());
+                } else {
+                    // 不再使用内容+时间戳匹配，直接记录错误
+                    Log.e(TAG, "无法删除消息：消息既没有本地ID也没有云端ID，content=" + message.getContent() + ", timestamp=" + message.getTimestamp());
+                    if (callback != null) {
+                        callback.onError(new Exception("无法删除消息：缺少消息ID"));
+                    }
+                    return; // 直接返回，不执行后续操作
+                }
                 
                 // 2. 立即更新UI
                 loadMessagesFromLocal();
                 
                 // 3. 同步到云端（软删除）
                 if (isNetworkAvailable() && isCloudSyncEnabled) {
+                    long cloudMessageId = message.getCloudMessageId() != 0 ? message.getCloudMessageId() : 0;
                     cloudChatRepository.deleteMessage(
+                        cloudMessageId,
                         message.getContent(),
                         message.getTimestamp(),
                         new CloudChatRepository.DeleteCallback() {
@@ -613,12 +657,31 @@ public class ChatRepository {
     private void syncMessageToCloud(ChatMessage message, CloudSyncCallback callback) {
         cloudChatRepository.insertMessage(message, currentUserId, new CloudChatRepository.InsertCallback() {
             @Override
-            public void onSuccess(long messageId) {
+            public void onSuccess(long cloudMessageId) {
+                // 更新本地消息的云端ID
+                if (message.getId() > 0) {
+                    databaseExecutor.execute(() -> {
+                        try {
+                            ChatMessageEntity entity = chatMessageDao.getMessageById(message.getId());
+                            if (entity != null) {
+                                entity.setCloudMessageId(cloudMessageId);
+                                entity.setSyncStatus(1); // 标记为已同步
+                                chatMessageDao.updateMessage(entity);
+                                Log.d(TAG, "已更新本地消息的云端ID: " + cloudMessageId + ", 本地ID: " + message.getId());
+                            }
+                        } catch (Exception e) {
+                            Log.e(TAG, "更新本地消息云端ID失败", e);
+                        }
+                    });
+                }
+                
+                message.setCloudMessageId(cloudMessageId); // 更新消息对象的云端ID
+                
                 if (callback != null) {
                     callback.onSuccess();
                 }
             }
-            
+
             @Override
             public void onError(Exception e) {
                 if (callback != null) {
@@ -786,6 +849,8 @@ public class ChatRepository {
                 entity.getAvatarResId(),
                 entity.isSentByMe()
             );
+            message.setId(entity.getId()); // 设置本地消息ID
+            message.setCloudMessageId(entity.getCloudMessageId() != null ? entity.getCloudMessageId() : 0); // 设置云端消息ID
             message.setLiked(entity.isLiked());
             messages.add(message);
         }
@@ -798,13 +863,25 @@ public class ChatRepository {
      * @return 数据库实体
      */
     private ChatMessageEntity convertMessageToEntity(ChatMessage message) {
-        return new ChatMessageEntity(
+        ChatMessageEntity entity = new ChatMessageEntity(
             message.getUsername(),
             message.getContent(),
             message.getTimestamp(),
             message.getAvatarResId(),
             message.isSentByMe()
         );
+        
+        // 设置消息ID（如果存在）
+        if (message.getId() > 0) {
+            entity.setId(message.getId());
+        }
+        
+        // 设置云端消息ID（如果存在）
+        if (message.getCloudMessageId() > 0) {
+            entity.setCloudMessageId(message.getCloudMessageId());
+        }
+        
+        return entity;
     }
     
     /**

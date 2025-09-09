@@ -250,41 +250,53 @@ public class ChatSyncService {
                                                List<ChatMessageEntity> cloudMessages) {
         SyncResult result = new SyncResult();
         
-        // 创建时间戳映射用于快速查找
-        java.util.Map<String, ChatMessageEntity> localMap = new java.util.HashMap<>();
-        java.util.Map<String, ChatMessageEntity> cloudMap = new java.util.HashMap<>();
+        // 创建云端ID映射用于快速查找
+        java.util.Map<Long, ChatMessageEntity> localCloudIdMap = new java.util.HashMap<>();
+        java.util.Map<Long, ChatMessageEntity> cloudIdMap = new java.util.HashMap<>();
         
+        // 创建内容+时间戳映射作为备选（仅用于新消息）
+        java.util.Map<String, ChatMessageEntity> localContentMap = new java.util.HashMap<>();
+        java.util.Map<String, ChatMessageEntity> cloudContentMap = new java.util.HashMap<>();
+        
+        // 填充映射
         for (ChatMessageEntity msg : localMessages) {
-            String key = msg.getContent() + "_" + msg.getTimestamp();
-            localMap.put(key, msg);
+            if (msg.getCloudMessageId() > 0) {
+                localCloudIdMap.put(msg.getCloudMessageId(), msg);
+            } else {
+                // 对于没有云端ID的消息，使用内容+时间戳作为备选
+                String key = msg.getContent() + "_" + msg.getTimestamp();
+                localContentMap.put(key, msg);
+            }
         }
         
         for (ChatMessageEntity msg : cloudMessages) {
+            cloudIdMap.put(msg.getCloudMessageId(), msg);
             String key = msg.getContent() + "_" + msg.getTimestamp();
-            cloudMap.put(key, msg);
+            cloudContentMap.put(key, msg);
         }
         
         // 1. 找出需要上传到云端的本地消息
         for (ChatMessageEntity localMsg : localMessages) {
-            String key = localMsg.getContent() + "_" + localMsg.getTimestamp();
-            if (!cloudMap.containsKey(key)) {
-                // 上传到云端
-                uploadMessageToCloud(localMsg);
-                result.uploadedCount++;
+            if (localMsg.getCloudMessageId() == 0) { // 只上传没有云端ID的消息
+                String contentKey = localMsg.getContent() + "_" + localMsg.getTimestamp();
+                if (!cloudContentMap.containsKey(contentKey)) {
+                    // 上传到云端
+                    uploadMessageToCloud(localMsg);
+                    result.uploadedCount++;
+                }
             }
         }
         
         // 2. 找出需要下载到本地的云端消息
         for (ChatMessageEntity cloudMsg : cloudMessages) {
-            String key = cloudMsg.getContent() + "_" + cloudMsg.getTimestamp();
-            if (!localMap.containsKey(key)) {
+            if (!localCloudIdMap.containsKey(cloudMsg.getCloudMessageId())) {
                 // 下载到本地
                 localDao.insertMessage(cloudMsg);
                 result.downloadedCount++;
             } else {
                 // 检查是否有冲突（如点赞状态不同）
-                ChatMessageEntity localMsg = localMap.get(key);
-                if (localMsg.isLiked() != cloudMsg.isLiked()) {
+                ChatMessageEntity localMsg = localCloudIdMap.get(cloudMsg.getCloudMessageId());
+                if (localMsg != null && localMsg.isLiked() != cloudMsg.isLiked()) {
                     // 以云端数据为准，更新本地
                     localMsg.setLiked(cloudMsg.isLiked());
                     localDao.updateMessage(localMsg);
@@ -310,8 +322,14 @@ public class ChatSyncService {
             entity.isLiked(),
             new CloudChatRepository.InsertCallback() {
                 @Override
-                public void onSuccess(long messageId) {
-                    Log.d(TAG, "消息上传成功: " + messageId);
+                public void onSuccess(long cloudMessageId) {
+                    Log.d(TAG, "消息上传成功，云端ID: " + cloudMessageId);
+                    
+                    // 更新本地消息的云端ID
+                    entity.setCloudMessageId(cloudMessageId);
+                    entity.setSyncStatus(1); // 标记为已同步
+                    localDao.updateMessage(entity);
+                    Log.d(TAG, "已更新本地消息的云端ID: " + cloudMessageId + ", 本地ID: " + entity.getId());
                 }
                 
                 @Override

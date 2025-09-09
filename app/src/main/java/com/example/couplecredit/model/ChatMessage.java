@@ -23,7 +23,8 @@ public class ChatMessage {
     private boolean isSentByMe; // 是否是本人发送的消息
     
     // ==================== 新增字段 ====================
-    private long id;            // 消息ID
+    private long id;            // 消息ID - 本地数据库主键
+    private long cloudMessageId; // 云端消息ID - 用于云端数据同步
     private long relationshipId; // 关系ID
     private String messageType; // 消息类型
     
@@ -177,13 +178,29 @@ public class ChatMessage {
     public long getId() {
         return id;
     }
-    
+
     /**
      * 设置消息ID
      * @param id 消息ID
      */
     public void setId(long id) {
         this.id = id;
+    }
+
+    /**
+     * 获取云端消息ID
+     * @return 云端消息ID
+     */
+    public long getCloudMessageId() {
+        return cloudMessageId;
+    }
+
+    /**
+     * 设置云端消息ID
+     * @param cloudMessageId 云端消息ID
+     */
+    public void setCloudMessageId(long cloudMessageId) {
+        this.cloudMessageId = cloudMessageId;
     }
     
     /**

@@ -362,8 +362,9 @@ public class CloudChatRepository {
                     
                     message.setLiked(rs.getBoolean("is_liked"));
                     
-                    // 设置消息ID（如果ChatMessage类支持）
-                    // message.setId(rs.getLong("id"));
+                    // 设置云端消息ID用于精确匹配点赞操作
+                    message.setCloudMessageId(rs.getLong("id"));
+                    message.setRelationshipId(currentRelationshipId);
                     
                     messages.add(message);
                 }
@@ -386,13 +387,14 @@ public class CloudChatRepository {
     }
     
     /**
-     * 更新消息（主要用于点赞状态）
-     * @param messageContent 消息内容（用于定位消息）
-     * @param timestamp 消息时间戳（用于定位消息）
+     * 更新消息点赞状态（改进版：使用云端消息ID进行精确匹配）
+     * @param cloudMessageId 云端消息ID（用于精确匹配）
+     * @param messageContent 消息内容（备用匹配条件）
+     * @param timestamp 消息时间戳（备用匹配条件）
      * @param isLiked 新的点赞状态
      * @param callback 更新完成后的回调
      */
-    public void updateMessageLikeStatus(String messageContent, String timestamp, boolean isLiked, UpdateCallback callback) {
+    public void updateMessageLikeStatus(long cloudMessageId, String messageContent, String timestamp, boolean isLiked, UpdateCallback callback) {
         databaseExecutor.execute(() -> {
             Connection conn = null;
             PreparedStatement stmt = null;
@@ -400,28 +402,31 @@ public class CloudChatRepository {
             try {
                 conn = getConnection();
                 
-                // 根据用户是否绑定情侣关系选择不同的更新语句
+                // 强制使用云端消息ID进行精确匹配
+                if (cloudMessageId <= 0) {
+                    Log.e(TAG, "无法更新云端消息点赞状态：缺少云端消息ID");
+                    if (callback != null) {
+                        callback.onError(new SQLException("无法更新消息：缺少云端消息ID"));
+                    }
+                    return; // 直接返回，不执行更新操作
+                }
+                
                 String sql;
                 if (currentRelationshipId > 0) {
-                    // 已绑定情侣关系，更新情侣聊天消息
                     sql = "UPDATE chat_messages SET is_liked = ? " +
-                          "WHERE relationship_id = ? AND content = ? AND display_time = ? AND is_deleted = 0";
+                          "WHERE id = ? AND relationship_id = ? AND is_deleted = 0";
                 } else {
-                    // 单身用户，更新个人消息
                     sql = "UPDATE chat_messages SET is_liked = ? " +
-                          "WHERE user_id = ? AND (relationship_id IS NULL OR relationship_id = 0) AND content = ? AND display_time = ? AND is_deleted = 0";
+                          "WHERE id = ? AND user_id = ? AND (relationship_id IS NULL OR relationship_id = 0) AND is_deleted = 0";
                 }
                 
                 stmt = conn.prepareStatement(sql);
                 stmt.setBoolean(1, isLiked);
+                stmt.setLong(2, cloudMessageId);
                 if (currentRelationshipId > 0) {
-                    stmt.setInt(2, currentRelationshipId);
-                    stmt.setString(3, messageContent);
-                    stmt.setString(4, timestamp);
+                    stmt.setInt(3, currentRelationshipId);
                 } else {
-                    stmt.setInt(2, currentUserId);
-                    stmt.setString(3, messageContent);
-                    stmt.setString(4, timestamp);
+                    stmt.setInt(3, currentUserId);
                 }
                 
                 int affectedRows = stmt.executeUpdate();
@@ -451,11 +456,12 @@ public class CloudChatRepository {
     
     /**
      * 删除消息（软删除，设置is_deleted标志）
-     * @param messageContent 消息内容
-     * @param timestamp 消息时间戳
+     * @param messageId 云端消息ID（用于精确匹配）
+     * @param messageContent 消息内容（备用匹配条件）
+     * @param timestamp 消息时间戳（备用匹配条件）
      * @param callback 删除完成后的回调
      */
-    public void deleteMessage(String messageContent, String timestamp, DeleteCallback callback) {
+    public void deleteMessage(long messageId, String messageContent, String timestamp, DeleteCallback callback) {
         databaseExecutor.execute(() -> {
             Connection conn = null;
             PreparedStatement stmt = null;
@@ -463,33 +469,36 @@ public class CloudChatRepository {
             try {
                 conn = getConnection();
                 
-                // 根据用户是否绑定情侣关系选择不同的删除语句
+                // 强制使用消息ID进行精确匹配
+                if (messageId <= 0) {
+                    Log.e(TAG, "无法删除云端消息：缺少云端消息ID");
+                    if (callback != null) {
+                        callback.onError(new SQLException("无法删除消息：缺少云端消息ID"));
+                    }
+                    return; // 直接返回，不执行删除操作
+                }
+
                 String sql;
                 if (currentRelationshipId > 0) {
-                    // 已绑定情侣关系，删除情侣聊天消息
                     sql = "UPDATE chat_messages SET is_deleted = 1 " +
-                          "WHERE relationship_id = ? AND content = ? AND display_time = ? AND is_deleted = 0";
+                          "WHERE id = ? AND relationship_id = ? AND is_deleted = 0";
                 } else {
-                    // 单身用户，删除个人消息
                     sql = "UPDATE chat_messages SET is_deleted = 1 " +
-                          "WHERE user_id = ? AND (relationship_id IS NULL OR relationship_id = 0) AND content = ? AND display_time = ? AND is_deleted = 0";
+                          "WHERE id = ? AND user_id = ? AND (relationship_id IS NULL OR relationship_id = 0) AND is_deleted = 0";
                 }
-                
+
                 stmt = conn.prepareStatement(sql);
+                stmt.setLong(1, messageId);
                 if (currentRelationshipId > 0) {
-                    stmt.setInt(1, currentRelationshipId);
-                    stmt.setString(2, messageContent);
-                    stmt.setString(3, timestamp);
+                    stmt.setInt(2, currentRelationshipId);
                 } else {
-                    stmt.setInt(1, currentUserId);
-                    stmt.setString(2, messageContent);
-                    stmt.setString(3, timestamp);
+                    stmt.setInt(2, currentUserId);
                 }
                 
                 int affectedRows = stmt.executeUpdate();
                 
                 if (affectedRows > 0) {
-                    Log.d(TAG, "消息删除成功");
+                    Log.d(TAG, "消息删除成功，影响行数：" + affectedRows);
                     if (callback != null) {
                         callback.onSuccess();
                     }
@@ -584,6 +593,8 @@ public class CloudChatRepository {
                     );
                     
                     message.setLiked(rs.getBoolean("is_liked"));
+                    message.setCloudMessageId(rs.getLong("id"));
+                    message.setRelationshipId(currentRelationshipId);
                     messages.add(message);
                 }
                 
@@ -682,6 +693,8 @@ public class CloudChatRepository {
                     );
                     
                     message.setLiked(rs.getBoolean("is_liked"));
+                    message.setCloudMessageId(rs.getLong("id"));
+                    message.setRelationshipId(currentRelationshipId);
                     messages.add(message);
                 }
                 

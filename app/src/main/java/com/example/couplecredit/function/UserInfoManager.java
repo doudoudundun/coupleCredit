@@ -52,7 +52,7 @@ public class UserInfoManager {
     public static void getCurrentUserInfo(Context context, UserInfoCallback callback) {
         long startTime = System.currentTimeMillis();
         Log.d(TAG, "开始获取用户信息");
-        
+        // SharedPreferences 是一个轻量级的存储类，主要用于存储一些 简单的键值对数据（key-value）
         SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
         boolean isLoggedIn = prefs.getBoolean(KEY_IS_LOGGED_IN, false);
         
