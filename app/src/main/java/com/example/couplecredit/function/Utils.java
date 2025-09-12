@@ -294,24 +294,26 @@ public final class Utils {
             }
         }
         
-        // 使用简单的DatePickerDialog实现，参考ChatBillingDialog的成功实现
-        DatePickerDialog datePickerDialog = new DatePickerDialog(
-                context,
-                (view, selectedYear, selectedMonth, selectedDay) -> {
+        // 使用AlertDialog.Builder创建自定义日期选择器，确保按钮显示
+        android.widget.DatePicker datePicker = new android.widget.DatePicker(context);
+        datePicker.init(year, month, day, null);
+        
+        new android.app.AlertDialog.Builder(context)
+                .setTitle("选择日期")
+                .setView(datePicker)
+                .setPositiveButton("确定", (dialog, which) -> {
+                    int selectedYear = datePicker.getYear();
+                    int selectedMonth = datePicker.getMonth();
+                    int selectedDay = datePicker.getDayOfMonth();
+                    
                     // 格式化选择的日期为YYYY-MM-DD格式
                     String formattedDate = String.format("%04d-%02d-%02d", selectedYear, selectedMonth + 1, selectedDay);
                     if (callback != null) {
                         callback.onDateSelected(formattedDate);
                     }
-                },
-                year, month, day
-        );
-
-        // 设置对话框标题
-        datePickerDialog.setTitle("选择日期");
-        
-        // 直接显示，不进行额外的按钮设置，避免冲突
-        datePickerDialog.show();
+                })
+                .setNegativeButton("取消", (dialog, which) -> dialog.dismiss())
+                .show();
     }
     public interface MonthPickerCallback{
         void onMonthSelected(int year, int month);

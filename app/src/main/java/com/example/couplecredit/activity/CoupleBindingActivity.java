@@ -11,6 +11,7 @@ import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageView;
+import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 import androidx.appcompat.app.AlertDialog;
@@ -116,13 +117,13 @@ public class CoupleBindingActivity extends AppCompatActivity {
         dialog.setCancelable(false);
 
         TextView tvInviteCode = dialog.findViewById(R.id.tv_invite_code);
-        ImageView ivCopy = dialog.findViewById(R.id.iv_copy);
+        LinearLayout llCopyButton = dialog.findViewById(R.id.ll_copy_button);
         ImageView ivClose = dialog.findViewById(R.id.iv_close);
 
         tvInviteCode.setText(inviteCode);
 
         // 复制邀请码
-        ivCopy.setOnClickListener(v -> {
+        llCopyButton.setOnClickListener(v -> {
             ClipboardManager clipboard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
             ClipData clip = ClipData.newPlainText("邀请码", inviteCode);
             clipboard.setPrimaryClip(clip);

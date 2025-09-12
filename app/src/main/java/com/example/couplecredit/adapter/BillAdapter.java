@@ -260,8 +260,13 @@ public class BillAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
             String date = entry.getKey();
             List<BillBean> bills = entry.getValue();
             
-            // 设置日期
-            dateHolder.tvDate.setText(date);
+            // 设置日期（去掉年份）
+            String displayDate = date;
+            if (date.length() >= 10 && date.contains("-")) {
+                // 假设日期格式为 YYYY-MM-DD，提取 MM-DD 部分
+                displayDate = date.substring(5); // 从第5个字符开始，跳过 "YYYY-"
+            }
+            dateHolder.tvDate.setText(displayDate);
             
             // 清空之前的账单项
             dateHolder.llBillsContainer.removeAllViews();

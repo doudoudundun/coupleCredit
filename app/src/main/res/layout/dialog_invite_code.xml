@@ -64,13 +64,16 @@
 
         <!-- 复制按钮 -->
         <LinearLayout
+            android:id="@+id/ll_copy_button"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
             android:background="@color/nav_selected"
             android:padding="12dp"
             android:gravity="center"
-            android:elevation="2dp">
+            android:elevation="2dp"
+            android:clickable="true"
+            android:focusable="true">
 
             <ImageView
                 android:id="@+id/iv_copy"
