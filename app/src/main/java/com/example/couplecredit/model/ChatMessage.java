@@ -24,7 +24,7 @@ public class ChatMessage {
     
     // ==================== 新增字段 ====================
     private long id;            // 消息ID - 本地数据库主键
-    private long cloudMessageId; // 云端消息ID - 用于云端数据同步
+    private Long cloudMessageId; // 云端消息ID - 用于云端数据同步
     private long relationshipId; // 关系ID
     private String messageType; // 消息类型
     
@@ -191,7 +191,7 @@ public class ChatMessage {
      * 获取云端消息ID
      * @return 云端消息ID
      */
-    public long getCloudMessageId() {
+    public Long getCloudMessageId() {
         return cloudMessageId;
     }
 
@@ -199,7 +199,7 @@ public class ChatMessage {
      * 设置云端消息ID
      * @param cloudMessageId 云端消息ID
      */
-    public void setCloudMessageId(long cloudMessageId) {
+    public void setCloudMessageId(Long cloudMessageId) {
         this.cloudMessageId = cloudMessageId;
     }
     

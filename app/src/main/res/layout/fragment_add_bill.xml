@@ -45,7 +45,7 @@
             android:id="@+id/grid_categories"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:padding="12dp"
+            android:padding="10dp"
             app:maxColumns="6"
             app:minColumnWidth="60dp"
             app:minColumns="3">

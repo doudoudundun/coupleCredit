@@ -260,7 +260,7 @@ public class ChatSyncService {
         
         // 填充映射
         for (ChatMessageEntity msg : localMessages) {
-            if (msg.getCloudMessageId() > 0) {
+            if (msg.getCloudMessageId() != null && msg.getCloudMessageId() > 0) {
                 localCloudIdMap.put(msg.getCloudMessageId(), msg);
             } else {
                 // 对于没有云端ID的消息，使用内容+时间戳作为备选
@@ -270,14 +270,16 @@ public class ChatSyncService {
         }
         
         for (ChatMessageEntity msg : cloudMessages) {
-            cloudIdMap.put(msg.getCloudMessageId(), msg);
+            if (msg.getCloudMessageId() != null) {
+                cloudIdMap.put(msg.getCloudMessageId(), msg);
+            }
             String key = msg.getContent() + "_" + msg.getTimestamp();
             cloudContentMap.put(key, msg);
         }
         
         // 1. 找出需要上传到云端的本地消息
         for (ChatMessageEntity localMsg : localMessages) {
-            if (localMsg.getCloudMessageId() == 0) { // 只上传没有云端ID的消息
+            if (localMsg.getCloudMessageId() == null || localMsg.getCloudMessageId() == 0) { // 只上传没有云端ID的消息
                 String contentKey = localMsg.getContent() + "_" + localMsg.getTimestamp();
                 if (!cloudContentMap.containsKey(contentKey)) {
                     // 上传到云端

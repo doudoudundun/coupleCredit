@@ -149,7 +149,7 @@ public class MessagePopupManager {
                 listener.onBillingAction(message);
             } else {
                 // 默认提示
-                Toast.makeText(context, "记账功能开发中...", Toast.LENGTH_SHORT).show();
+                // Toast.makeText(context, "记账功能开发中...", Toast.LENGTH_SHORT).show();
             }
             popupWindow.dismiss();
         });

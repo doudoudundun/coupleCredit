@@ -32,11 +32,13 @@ import androidx.lifecycle.ViewModelProvider;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
 import com.example.couplecredit.R;
 import com.example.couplecredit.activity.UserSettingsActivity;
 import com.example.couplecredit.adapter.ChatMessageAdapter;
 import com.example.couplecredit.dialog.ChatBillingDialog;
+import com.example.couplecredit.function.CustomToast;
 import com.example.couplecredit.function.UserInfoManager;
 import com.example.couplecredit.manager.MessagePopupManager;
 import com.example.couplecredit.model.ChatMessage;
@@ -70,13 +72,18 @@ import java.util.Locale;
  * - 返回键处理
  */
 public class ChatModelFragment extends Fragment {
+
+    private static final String TAG = "ChatModelFragment";
     
     // ======================== UI组件 ========================
     private RecyclerView rvChatMessages;     // 聊天消息列表
+    private SwipeRefreshLayout swipeRefreshLayout; // 下拉刷新布局
     private EditText etMessageInput;         // 消息输入框
     private EditText etSearch;               // 搜索输入框
     private Button btnSend;                  // 发送按钮
     private Button btnSearch;                // 搜索按钮
+    private View loadingNewerIndicator;      // 加载新消息指示器
+    private View loadingOlderIndicator;      // 加载历史消息指示器
     
     // ======================== MVVM组件 ========================
     private ChatViewModel viewModel;         // ViewModel实例
@@ -84,8 +91,15 @@ public class ChatModelFragment extends Fragment {
     private MessagePopupManager popupManager;  // 弹出菜单管理器
     
     // ======================== 状态管理 ========================
+// 状态管理
     private boolean isSearchMode = false;    // 是否处于搜索模式
     private OnBackPressedCallback backPressedCallback; // 返回键回调
+    
+    // 双向滑动加载状态
+    private boolean isLoadingNewer = false;  // 是否正在加载新消息
+    private boolean isLoadingOlder = false;  // 是否正在加载历史消息
+    private boolean hasMoreNewer = true;     // 是否还有更新的消息
+    private boolean hasMoreOlder = true;     // 是否还有更老的消息
     
     // ======================== 新增变量 ========================
     private View rootView;                   // 根视图引用
@@ -95,27 +109,27 @@ public class ChatModelFragment extends Fragment {
     private View inputSection;               // 输入区域引用
     private int bottomNavHeight = 0;         // 底部导航栏高度
     
-    // 用于跟踪最后一次点赞操作，以便在失败时回滚
-    private ChatMessage lastLikedMessage = null;
-    private int lastLikedPosition = -1;
-    private boolean lastLikedStatus = false;
+    // 点赞功能已移除
+    // private ChatMessage lastLikedMessage = null;
+    // private int lastLikedPosition = -1;
+    // private boolean lastLikedStatus = false;
     
     // ======================== 背景更新广播接收器 ========================
     private BroadcastReceiver backgroundUpdateReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
-            android.util.Log.d("ChatModelFragment", "收到背景更新广播");
+            android.util.Log.d(TAG, "收到背景更新广播");
             if (BackgroundUpdateManager.ACTION_BACKGROUND_UPDATED.equals(intent.getAction())) {
-                android.util.Log.d("ChatModelFragment", "广播动作匹配，开始重新加载背景");
+                android.util.Log.d(TAG, "广播动作匹配，开始重新加载背景");
                 // 重新加载聊天背景
                 if (rootView != null) {
-                    android.util.Log.d("ChatModelFragment", "rootView不为空，调用loadChatBackground");
+                    android.util.Log.d(TAG, "rootView不为空，调用loadChatBackground");
                     loadChatBackground(rootView);
                 } else {
-                    android.util.Log.e("ChatModelFragment", "rootView为空，无法加载背景");
+                    android.util.Log.e(TAG, "rootView为空，无法加载背景");
                 }
             } else {
-                android.util.Log.w("ChatModelFragment", "广播动作不匹配: " + intent.getAction());
+                android.util.Log.w(TAG, "广播动作不匹配: " + intent.getAction());
             }
         }
     };
@@ -170,14 +184,14 @@ public class ChatModelFragment extends Fragment {
                 if (relationshipId != null) {
                     viewModel.setUserInfo(userId, relationshipId);
                 } else {
-                    android.util.Log.w("ChatModelFragment", "relationshipId为null，使用默认值");
+                    android.util.Log.w(TAG, "relationshipId为null，使用默认值");
                     viewModel.setUserInfo(userId, -1);
                 }
             }
             
             @Override
             public void onError(String error) {
-                android.util.Log.w("ChatModelFragment", "获取用户信息失败: " + error);
+                android.util.Log.w(TAG, "获取用户信息失败: " + error);
                 // 使用默认值或提示用户登录
             }
         });
@@ -303,11 +317,17 @@ public class ChatModelFragment extends Fragment {
      */
     private void initViews(View view) {
         rvChatMessages = view.findViewById(R.id.rv_chat_messages);
+        swipeRefreshLayout = view.findViewById(R.id.swipe_refresh_layout);
         etMessageInput = view.findViewById(R.id.et_message_input);
         etSearch = view.findViewById(R.id.et_search);
         btnSend = view.findViewById(R.id.btn_send);
         btnSearch = view.findViewById(R.id.btn_search);
         inputSection = view.findViewById(R.id.input_section);
+        loadingNewerIndicator = view.findViewById(R.id.loading_newer_indicator);
+        loadingOlderIndicator = view.findViewById(R.id.loading_older_indicator);
+        
+        // 设置下拉刷新的颜色和样式
+        setupSwipeRefresh();
         
         // 获取底部导航栏高度
         if (getActivity() != null) {
@@ -329,20 +349,21 @@ public class ChatModelFragment extends Fragment {
         
         // 设置适配器交互监听器
         messageAdapter.setOnMessageInteractionListener(new ChatMessageAdapter.OnMessageInteractionListener() {
-            @Override
-            public void onLikeStatusChanged(ChatMessage message, int position, boolean isLiked) {
-                // 记录点赞操作信息，用于失败时回滚
-                lastLikedMessage = message;
-                lastLikedPosition = position;
-                lastLikedStatus = !isLiked; // 记录操作前的状态
-                
-                // 只更新数据模型，不触发RecyclerView更新，避免界面污染
-                // LikeButton已经在视觉上完成了状态更新
-                // 直接更新message对象的状态即可，无需通过adapter触发界面更新
-                
-                // 异步更新数据库，避免阻塞UI
-                viewModel.toggleMessageLike(message);
-            }
+            // 点赞功能已移除
+            // @Override
+            // public void onLikeStatusChanged(ChatMessage message, int position, boolean isLiked) {
+            //     记录点赞操作信息，用于失败时回滚
+            //     lastLikedMessage = message;
+            //     lastLikedPosition = position;
+            //     lastLikedStatus = !isLiked; // 记录操作前的状态
+            //     
+            //     只更新数据模型，不触发RecyclerView更新，避免界面污染
+            //     LikeButton已经在视觉上完成了状态更新
+            //     直接更新message对象的状态即可，无需通过adapter触发界面更新
+            //     
+            //     异步更新数据库，避免阻塞UI
+            //     viewModel.toggleMessageLike(message);
+            // }
             
             @Override
             public void onMessageLongClick(View anchorView, ChatMessage message, int position) {
@@ -356,10 +377,10 @@ public class ChatModelFragment extends Fragment {
                 if (message.isSentByMe()) {
                     // 检查用户是否已登录
                     if (!UserInfoManager.isUserLoggedIn(getContext())) {
-                        Toast.makeText(getContext(), "请先登录", Toast.LENGTH_SHORT).show();
+                        CustomToast.show(getContext(), "请先登录", Toast.LENGTH_SHORT);
                         return;
                     }
-                    
+
                     // 当前用户的消息，跳转到个人设置页面
                     Intent intent = new Intent(getActivity(), UserSettingsActivity.class);
                     intent.putExtra("username", message.getUsername());
@@ -371,8 +392,140 @@ public class ChatModelFragment extends Fragment {
         });
         
         // 设置RecyclerView
-        rvChatMessages.setLayoutManager(new LinearLayoutManager(getContext()));
+        LinearLayoutManager layoutManager = new LinearLayoutManager(getContext());
+        rvChatMessages.setLayoutManager(layoutManager);
         rvChatMessages.setAdapter(messageAdapter);
+        
+        // 添加双向滑动监听器
+        rvChatMessages.addOnScrollListener(new RecyclerView.OnScrollListener() {
+            @Override
+            public void onScrolled(@NonNull RecyclerView recyclerView, int dx, int dy) {
+                super.onScrolled(recyclerView, dx, dy);
+                
+                LinearLayoutManager manager = (LinearLayoutManager) recyclerView.getLayoutManager();
+                if (manager == null) return;
+                
+                int totalItemCount = manager.getItemCount();
+                int firstVisibleItem = manager.findFirstVisibleItemPosition();
+                int lastVisibleItem = manager.findLastVisibleItemPosition();
+                
+                // 在顶部向上滑动（dy < 0）时，加载历史消息
+                if (firstVisibleItem == 0 && dy < 0 && !isLoadingOlder && hasMoreOlder) {
+                    loadOlderMessages();
+                }
+                
+                // 在底部向下滑动（dy > 0）时，加载新消息
+                if (lastVisibleItem >= totalItemCount - 1 && dy > 0 && !isLoadingNewer && hasMoreNewer) {
+                    loadNewerMessages();
+                }
+            }
+        });
+    }
+    
+    /**
+     * 设置下拉刷新功能
+     */
+    private void setupSwipeRefresh() {
+        // 设置刷新指示器的颜色
+        swipeRefreshLayout.setColorSchemeResources(
+            android.R.color.holo_blue_bright,
+            android.R.color.holo_green_light,
+            android.R.color.holo_orange_light,
+            android.R.color.holo_red_light
+        );
+        
+        // 设置刷新监听器
+        swipeRefreshLayout.setOnRefreshListener(() -> {
+            android.util.Log.d(TAG, "用户触发下拉刷新");
+            refreshMessages();
+        });
+        
+        // 设置刷新触发距离
+        swipeRefreshLayout.setDistanceToTriggerSync(150);
+        
+        // 设置刷新指示器的大小
+        swipeRefreshLayout.setSize(SwipeRefreshLayout.DEFAULT);
+    }
+    
+    /**
+     * 刷新聊天消息
+     */
+    private void refreshMessages() {
+        if (viewModel != null) {
+            android.util.Log.d(TAG, "开始刷新消息列表");
+            
+            // 显示刷新动画
+            swipeRefreshLayout.setRefreshing(true);
+            
+            // 调用ViewModel刷新数据
+            viewModel.refreshMessages();
+            
+            // 延迟停止刷新动画，确保用户能看到刷新效果
+            new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                if (swipeRefreshLayout != null) {
+                    swipeRefreshLayout.setRefreshing(false);
+                    android.util.Log.d(TAG, "刷新完成，停止刷新动画");
+                }
+            }, 1000); // 1秒后停止刷新动画
+        }
+    }
+    
+    /**
+     * 加载更新的消息（向上滑动触发）
+     */
+    private void loadNewerMessages() {
+        if (isLoadingNewer || !hasMoreNewer || viewModel == null) {
+            return;
+        }
+        
+        isLoadingNewer = true;
+        android.util.Log.d(TAG, "开始加载新消息");
+        
+        // 显示加载指示器
+        if (loadingNewerIndicator != null) {
+            loadingNewerIndicator.setVisibility(View.VISIBLE);
+        }
+        
+        // 调用ViewModel加载新消息
+        viewModel.loadNewerMessages();
+        
+        // 延迟重置加载状态和隐藏指示器
+        new Handler(Looper.getMainLooper()).postDelayed(() -> {
+            isLoadingNewer = false;
+            if (loadingNewerIndicator != null) {
+                loadingNewerIndicator.setVisibility(View.GONE);
+            }
+            android.util.Log.d(TAG, "新消息加载完成");
+        }, 1500);
+    }
+    
+    /**
+     * 加载历史消息（向下滑动触发）
+     */
+    private void loadOlderMessages() {
+        if (isLoadingOlder || !hasMoreOlder || viewModel == null) {
+            return;
+        }
+        
+        isLoadingOlder = true;
+        android.util.Log.d(TAG, "开始加载历史消息");
+        
+        // 显示加载指示器
+        if (loadingOlderIndicator != null) {
+            loadingOlderIndicator.setVisibility(View.VISIBLE);
+        }
+        
+        // 调用ViewModel加载历史消息
+        viewModel.loadOlderMessages();
+        
+        // 延迟重置加载状态和隐藏指示器
+        new Handler(Looper.getMainLooper()).postDelayed(() -> {
+            isLoadingOlder = false;
+            if (loadingOlderIndicator != null) {
+                loadingOlderIndicator.setVisibility(View.GONE);
+            }
+            android.util.Log.d(TAG, "历史消息加载完成");
+        }, 1000);
     }
     
     /**
@@ -471,7 +624,7 @@ public class ChatModelFragment extends Fragment {
                         getContext().getSystemService(Context.CLIPBOARD_SERVICE);
                     android.content.ClipData clip = android.content.ClipData.newPlainText("聊天消息", message.getContent());
                     clipboard.setPrimaryClip(clip);
-                    Toast.makeText(getContext(), "消息已复制到剪贴板", Toast.LENGTH_SHORT).show();
+                    // Toast.makeText(getContext(), "消息已复制到剪贴板", Toast.LENGTH_SHORT).show();
                 }
             }
             
@@ -497,7 +650,7 @@ public class ChatModelFragment extends Fragment {
                         @Override
                         public void onBillSaveError(String error) {
                             // 账单保存失败，显示错误信息
-                            Toast.makeText(getContext(), "保存失败: " + error, Toast.LENGTH_SHORT).show();
+                            // Toast.makeText(getContext(), "保存失败: " + error, Toast.LENGTH_SHORT).show();
                         }
                     });
                     
@@ -599,30 +752,31 @@ public class ChatModelFragment extends Fragment {
             if (errorMsg != null && !errorMsg.isEmpty()) {
                 Toast.makeText(getContext(), errorMsg, Toast.LENGTH_SHORT).show();
                 
-                // 如果是点赞操作失败，回滚UI状态
-                if (errorMsg.contains("操作失败") && lastLikedMessage != null && lastLikedPosition >= 0) {
-                    // 回滚消息对象的状态
-                    lastLikedMessage.setLiked(lastLikedStatus);
-                    
-                    // 直接通过ViewHolder回滚UI显示，避免触发RecyclerView更新
-                    RecyclerView.ViewHolder viewHolder = rvChatMessages.findViewHolderForAdapterPosition(lastLikedPosition);
-                    if (viewHolder instanceof ChatMessageAdapter.MessageViewHolder) {
-                        ((ChatMessageAdapter.MessageViewHolder) viewHolder).updateLikeButton(lastLikedStatus);
-                    }
-                    
-                    // 清除记录
-                    lastLikedMessage = null;
-                    lastLikedPosition = -1;
-                }
+                // 点赞功能已移除 - 不再处理点赞失败回滚
+            // 如果是点赞操作失败，回滚UI状态
+            // if (errorMsg.contains("操作失败") && lastLikedMessage != null && lastLikedPosition >= 0) {
+            //     回滚消息对象的状态
+            //     lastLikedMessage.setLiked(lastLikedStatus);
+            //     
+            //     直接通过ViewHolder回滚UI显示，避免触发RecyclerView更新
+            //     RecyclerView.ViewHolder viewHolder = rvChatMessages.findViewHolderForAdapterPosition(lastLikedPosition);
+            //     if (viewHolder instanceof ChatMessageAdapter.MessageViewHolder) {
+            //         ((ChatMessageAdapter.MessageViewHolder) viewHolder).updateLikeButton(lastLikedStatus);
+            //     }
+            //     
+            //     清除记录
+            //     lastLikedMessage = null;
+            //     lastLikedPosition = -1;
+            // }
             }
         });
         
         // 观察成功消息
-        viewModel.getSuccessMessage().observe(getViewLifecycleOwner(), successMsg -> {
-            if (successMsg != null && !successMsg.isEmpty()) {
-                Toast.makeText(getContext(), successMsg, Toast.LENGTH_SHORT).show();
-            }
-        });
+//        viewModel.getSuccessMessage().observe(getViewLifecycleOwner(), successMsg -> {
+//            if (successMsg != null && !successMsg.isEmpty()) {
+//                Toast.makeText(getContext(), successMsg, Toast.LENGTH_SHORT).show();
+//            }
+//        });
         
         // 观察加载状态
         viewModel.getIsLoading().observe(getViewLifecycleOwner(), isLoading -> {
@@ -641,7 +795,7 @@ public class ChatModelFragment extends Fragment {
         // 观察网络状态
         viewModel.getIsNetworkAvailable().observe(getViewLifecycleOwner(), isAvailable -> {
             if (!isAvailable) {
-                Toast.makeText(getContext(), "网络连接不可用，已切换到离线模式", Toast.LENGTH_SHORT).show();
+                // Toast.makeText(getContext(), "网络连接不可用，已切换到离线模式", Toast.LENGTH_SHORT).show();
             }
         });
         
@@ -678,7 +832,7 @@ public class ChatModelFragment extends Fragment {
         // 观察同步错误
         viewModel.getSyncError().observe(getViewLifecycleOwner(), errorMsg -> {
             if (errorMsg != null && !errorMsg.isEmpty()) {
-                Toast.makeText(getContext(), "同步错误: " + errorMsg, Toast.LENGTH_LONG).show();
+                //Toast.makeText(getContext(), "同步错误: " + errorMsg, Toast.LENGTH_LONG).show();
             }
         });
     }
@@ -693,7 +847,7 @@ public class ChatModelFragment extends Fragment {
         
         // 输入验证
         if (TextUtils.isEmpty(messageText)) {
-            Toast.makeText(getContext(), "请输入消息内容", Toast.LENGTH_SHORT).show();
+            CustomToast.show(getContext(), "请输入消息内容", Toast.LENGTH_SHORT);
             return;
         }
         
@@ -711,7 +865,7 @@ public class ChatModelFragment extends Fragment {
         String searchText = etSearch.getText().toString().trim();
         
         if (TextUtils.isEmpty(searchText)) {
-            Toast.makeText(getContext(), "请输入搜索关键词", Toast.LENGTH_SHORT).show();
+            CustomToast.show(getContext(), "请输入搜索关键词", Toast.LENGTH_SHORT);
             return;
         }
         
@@ -942,6 +1096,12 @@ public class ChatModelFragment extends Fragment {
         
         // 检查登录状态并更新UI
         checkLoginStatusAndUpdateUI();
+        
+        // 重新加载聊天背景，确保从设置页面返回时能看到最新的背景
+        if (rootView != null) {
+            android.util.Log.d(TAG, "onResume: 重新加载聊天背景");
+            loadChatBackground(rootView);
+        }
     }
     
     /**

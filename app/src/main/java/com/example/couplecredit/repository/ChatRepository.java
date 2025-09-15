@@ -191,7 +191,7 @@ public class ChatRepository {
     }
     
     /**
-     * 更新消息（主要用于点赞状态）
+     * 更新消息（点赞功能已移除，方法保留但不再处理点赞状态）
      * @param message 要更新的消息
      * @param callback 更新完成后的回调
      */
@@ -207,66 +207,8 @@ public class ChatRepository {
         
         databaseExecutor.execute(() -> {
             try {
-                // 1. 更新本地数据库 - 使用消息ID进行精确匹配
-                if (message.getId() > 0) {
-                    // 优先使用本地消息ID进行精确匹配
-                    ChatMessageEntity entity = chatMessageDao.getMessageById(message.getId());
-                    if (entity != null) {
-                        entity.setLiked(message.isLiked());
-                        chatMessageDao.updateMessage(entity);
-                    } else {
-                        Log.w(TAG, "未找到ID为 " + message.getId() + " 的消息");
-                    }
-                } else if (message.getCloudMessageId() > 0) {
-                    // 使用云端消息ID匹配
-                    List<ChatMessageEntity> entities = chatMessageDao.getAllMessages();
-                    for (ChatMessageEntity entity : entities) {
-                        if (entity.getCloudMessageId() == message.getCloudMessageId()) {
-                            entity.setLiked(message.isLiked());
-                            chatMessageDao.updateMessage(entity);
-                            break;
-                        }
-                    }
-                } else {
-                    // 降级方案：使用内容+时间戳匹配（不推荐，可能匹配多条消息）
-                    Log.w(TAG, "消息缺少唯一标识，使用内容+时间戳匹配可能存在风险");
-                    List<ChatMessageEntity> entities = chatMessageDao.getAllMessages();
-                    for (ChatMessageEntity entity : entities) {
-                        if (entity.getContent().equals(message.getContent()) && 
-                            entity.getTimestamp().equals(message.getTimestamp())) {
-                            entity.setLiked(message.isLiked());
-                            chatMessageDao.updateMessage(entity);
-                            break;
-                        }
-                    }
-                }
-                
-                // 2. 立即更新UI
-                loadMessagesFromLocal();
-                
-                // 3. 同步到云端
-                if (isNetworkAvailable() && isCloudSyncEnabled) {
-                    cloudChatRepository.updateMessageLikeStatus(
-                        message.getCloudMessageId(),
-                        message.getContent(), 
-                        message.getTimestamp(), 
-                        message.isLiked(),
-                        new CloudChatRepository.UpdateCallback() {
-                            @Override
-                            public void onSuccess() {
-                                Log.d(TAG, "消息更新已同步到云端");
-                                syncStatusLiveData.postValue(true);
-                            }
-
-                            @Override
-                            public void onError(Exception e) {
-                                Log.w(TAG, "消息更新同步到云端失败", e);
-                                syncStatusLiveData.postValue(false);
-                                syncErrorLiveData.postValue("更新同步失败: " + e.getMessage());
-                            }
-                        }
-                    );
-                }
+                // 点赞功能已移除，此处仅保留空实现
+                Log.d(TAG, "点赞功能已移除，updateMessage方法不再处理点赞状态");
                 
                 if (callback != null) {
                     callback.onSuccess();
@@ -305,8 +247,8 @@ public class ChatRepository {
                     chatMessageDao.deleteById(message.getId());
                     deleted = true;
                     Log.d(TAG, "使用本地消息ID删除: " + message.getId());
-                } else if (message.getCloudMessageId() != 0) {
-                    // 其次使用云端消息ID（注意：long基本类型用 != 0 判断）
+                } else if (message.getCloudMessageId() != null && message.getCloudMessageId() != 0) {
+                    // 其次使用云端消息ID（注意：需要检查null）
                     chatMessageDao.deleteByCloudId(message.getCloudMessageId());
                     deleted = true;
                     Log.d(TAG, "使用云端消息ID删除: " + message.getCloudMessageId());
@@ -324,7 +266,7 @@ public class ChatRepository {
                 
                 // 3. 同步到云端（软删除）
                 if (isNetworkAvailable() && isCloudSyncEnabled) {
-                    long cloudMessageId = message.getCloudMessageId() != 0 ? message.getCloudMessageId() : 0;
+                    long cloudMessageId = (message.getCloudMessageId() != null && message.getCloudMessageId() != 0) ? message.getCloudMessageId() : 0;
                     cloudChatRepository.deleteMessage(
                         cloudMessageId,
                         message.getContent(),
@@ -625,6 +567,142 @@ public class ChatRepository {
     }
     
     /**
+     * 从云端加载更新的消息
+     */
+    private void loadNewerMessagesFromCloud() {
+        // 获取当前最新消息的时间戳
+        List<ChatMessage> currentMessages = allMessagesLiveData.getValue();
+        long latestTimestamp = 0;
+        if (currentMessages != null && !currentMessages.isEmpty()) {
+            // 获取最新消息的时间戳
+            ChatMessage latestMessage = currentMessages.get(currentMessages.size() - 1);
+            latestTimestamp = System.currentTimeMillis(); // 简化实现，实际应解析消息时间戳
+        }
+        
+        // 从云端查询比当前最新消息更新的消息
+        cloudChatRepository.getAllMessages(new CloudChatRepository.QueryCallback() {
+            @Override
+            public void onSuccess(List<ChatMessage> newMessages) {
+                if (newMessages != null && !newMessages.isEmpty()) {
+                    // 合并新消息到现有列表
+                    List<ChatMessage> allMessages = allMessagesLiveData.getValue();
+                    if (allMessages == null) {
+                        allMessages = new ArrayList<>();
+                    }
+                    
+                    // 简化实现：直接添加新消息（实际应过滤重复消息）
+                    List<ChatMessage> updatedMessages = new ArrayList<>(allMessages);
+                    for (ChatMessage newMsg : newMessages) {
+                        if (!updatedMessages.contains(newMsg)) {
+                            updatedMessages.add(newMsg);
+                        }
+                    }
+                    
+                    allMessagesLiveData.postValue(updatedMessages);
+                    Log.d(TAG, "从云端加载了 " + (updatedMessages.size() - allMessages.size()) + " 条新消息");
+                } else {
+                    Log.d(TAG, "云端没有新消息");
+                }
+            }
+            
+            @Override
+            public void onError(Exception e) {
+                Log.w(TAG, "从云端加载新消息失败", e);
+                loadNewerMessagesFromLocal();
+            }
+        });
+    }
+    
+    /**
+     * 从云端加载历史消息
+     */
+    private void loadOlderMessagesFromCloud() {
+        // 获取当前最老消息的时间戳
+        List<ChatMessage> currentMessages = allMessagesLiveData.getValue();
+        long oldestTimestamp = System.currentTimeMillis();
+        if (currentMessages != null && !currentMessages.isEmpty()) {
+            // 获取最老消息的时间戳
+            ChatMessage oldestMessage = currentMessages.get(0);
+            oldestTimestamp = 0; // 简化实现，实际应解析消息时间戳
+        }
+        
+        // 从云端查询比当前最老消息更早的消息
+        cloudChatRepository.getAllMessages(new CloudChatRepository.QueryCallback() {
+            @Override
+            public void onSuccess(List<ChatMessage> olderMessages) {
+                if (olderMessages != null && !olderMessages.isEmpty()) {
+                    // 合并历史消息到现有列表前面
+                    List<ChatMessage> allMessages = allMessagesLiveData.getValue();
+                    if (allMessages == null) {
+                        allMessages = new ArrayList<>();
+                    }
+                    
+                    // 简化实现：直接在前面添加历史消息（实际应过滤重复消息）
+                    List<ChatMessage> updatedMessages = new ArrayList<>();
+                    for (ChatMessage olderMsg : olderMessages) {
+                        if (!allMessages.contains(olderMsg)) {
+                            updatedMessages.add(olderMsg);
+                        }
+                    }
+                    updatedMessages.addAll(allMessages);
+                    
+                    allMessagesLiveData.postValue(updatedMessages);
+                    Log.d(TAG, "从云端加载了 " + (updatedMessages.size() - allMessages.size()) + " 条历史消息");
+                } else {
+                    Log.d(TAG, "云端没有更多历史消息");
+                }
+            }
+            
+            @Override
+            public void onError(Exception e) {
+                Log.w(TAG, "从云端加载历史消息失败", e);
+                loadOlderMessagesFromLocal();
+            }
+        });
+    }
+    
+    /**
+     * 从本地加载更新的消息
+     */
+    private void loadNewerMessagesFromLocal() {
+        databaseExecutor.execute(() -> {
+            try {
+                // 简化实现：重新加载所有本地消息
+                List<ChatMessageEntity> entities = chatMessageDao.getAllMessages();
+                List<ChatMessage> messages = convertEntitiesToMessages(entities);
+                
+                // 检查是否有新消息
+                List<ChatMessage> currentMessages = allMessagesLiveData.getValue();
+                if (currentMessages == null || messages.size() > currentMessages.size()) {
+                    allMessagesLiveData.postValue(messages);
+                    Log.d(TAG, "从本地加载了新消息，总计 " + messages.size() + " 条");
+                } else {
+                    Log.d(TAG, "本地没有新消息");
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "从本地加载新消息失败", e);
+            }
+        });
+    }
+    
+    /**
+     * 从本地加载历史消息
+     */
+    private void loadOlderMessagesFromLocal() {
+        databaseExecutor.execute(() -> {
+            try {
+                // 简化实现：重新加载所有本地消息
+                List<ChatMessageEntity> entities = chatMessageDao.getAllMessages();
+                List<ChatMessage> messages = convertEntitiesToMessages(entities);
+                allMessagesLiveData.postValue(messages);
+                Log.d(TAG, "从本地重新加载了所有消息，总计 " + messages.size() + " 条");
+            } catch (Exception e) {
+                Log.e(TAG, "从本地加载历史消息失败", e);
+            }
+        });
+    }
+    
+    /**
      * 从本地搜索消息
      * @param keyword 搜索关键词
      */
@@ -850,7 +928,7 @@ public class ChatRepository {
                 entity.isSentByMe()
             );
             message.setId(entity.getId()); // 设置本地消息ID
-            message.setCloudMessageId(entity.getCloudMessageId() != null ? entity.getCloudMessageId() : 0); // 设置云端消息ID
+            message.setCloudMessageId(entity.getCloudMessageId()); // 设置云端消息ID
             message.setLiked(entity.isLiked());
             messages.add(message);
         }
@@ -877,7 +955,7 @@ public class ChatRepository {
         }
         
         // 设置云端消息ID（如果存在）
-        if (message.getCloudMessageId() > 0) {
+        if (message.getCloudMessageId() != null && message.getCloudMessageId() > 0) {
             entity.setCloudMessageId(message.getCloudMessageId());
         }
         
@@ -903,6 +981,48 @@ public class ChatRepository {
         // 已禁用默认消息创建功能，返回空列表
         Log.d(TAG, "默认消息创建功能已禁用");
         return new ArrayList<>();
+    }
+    
+    /**
+     * 加载更新的消息（分页加载）
+     */
+    public void loadNewerMessages() {
+        Log.d(TAG, "开始加载更新的消息");
+        
+        // 检查ExecutorService状态
+        if (databaseExecutor.isShutdown() || databaseExecutor.isTerminated()) {
+            Log.w(TAG, "DatabaseExecutor已关闭，无法加载更新消息");
+            return;
+        }
+        
+        if (isNetworkAvailable() && isCloudSyncEnabled) {
+            // 优先从云端加载新消息
+            loadNewerMessagesFromCloud();
+        } else {
+            // 网络不可用时，从本地加载
+            loadNewerMessagesFromLocal();
+        }
+    }
+    
+    /**
+     * 加载历史消息（分页加载）
+     */
+    public void loadOlderMessages() {
+        Log.d(TAG, "开始加载历史消息");
+        
+        // 检查ExecutorService状态
+        if (databaseExecutor.isShutdown() || databaseExecutor.isTerminated()) {
+            Log.w(TAG, "DatabaseExecutor已关闭，无法加载历史消息");
+            return;
+        }
+        
+        if (isNetworkAvailable() && isCloudSyncEnabled) {
+            // 优先从云端加载历史消息
+            loadOlderMessagesFromCloud();
+        } else {
+            // 网络不可用时，从本地加载
+            loadOlderMessagesFromLocal();
+        }
     }
     
     /**

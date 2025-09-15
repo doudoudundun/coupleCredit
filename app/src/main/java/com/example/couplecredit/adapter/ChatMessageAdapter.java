@@ -54,13 +54,8 @@ public class ChatMessageAdapter extends RecyclerView.Adapter<ChatMessageAdapter.
      * 定义适配器与外部组件的通信方式
      */
     public interface OnMessageInteractionListener {
-        /**
-         * 点赞状态改变回调
-         * @param message 消息对象
-         * @param position 消息位置
-         * @param isLiked 新的点赞状态
-         */
-        void onLikeStatusChanged(ChatMessage message, int position, boolean isLiked);
+        // 点赞功能已移除
+    // void onLikeStatusChanged(ChatMessage message, int position, boolean isLiked);
         
         /**
          * 长按消息回调
@@ -147,10 +142,11 @@ public class ChatMessageAdapter extends RecyclerView.Adapter<ChatMessageAdapter.
             // 处理部分更新
             ChatMessage message = messages.get(position);
             for (Object payload : payloads) {
-                if ("like_status".equals(payload)) {
-                    // 只更新点赞状态，不重新绑定整个ViewHolder
-                    holder.updateLikeButton(message.isLiked());
-                }
+                // 点赞功能已移除
+                // if ("like_status".equals(payload)) {
+                //     // 只更新点赞状态，不重新绑定整个ViewHolder
+                //     holder.updateLikeButton(message.isLiked());
+                // }
             }
         }
     }
@@ -177,16 +173,16 @@ public class ChatMessageAdapter extends RecyclerView.Adapter<ChatMessageAdapter.
     }
     
     /**
-     * 更新特定位置消息的点赞状态
+     * 更新特定位置消息的点赞状态 - 点赞功能已移除
      * @param position 消息位置
      * @param isLiked 新的点赞状态
      */
-    public void updateLikeStatus(int position, boolean isLiked) {
-        if (messages != null && position >= 0 && position < messages.size()) {
-            messages.get(position).setLiked(isLiked);
-            notifyItemChanged(position, "like_status");
-        }
-    }
+    // public void updateLikeStatus(int position, boolean isLiked) {
+    //     if (messages != null && position >= 0 && position < messages.size()) {
+    //         messages.get(position).setLiked(isLiked);
+    //         notifyItemChanged(position, "like_status");
+    //     }
+    // }
     
     /**
      * 添加单条消息
@@ -218,7 +214,7 @@ public class ChatMessageAdapter extends RecyclerView.Adapter<ChatMessageAdapter.
         
         private TextView tvUsername, tvMessageContent, tvTimestamp;
         private ImageView ivAvatar;
-        private LikeButton likeButton;
+        // private LikeButton likeButton; 点赞功能已移除
         
         public MessageViewHolder(@NonNull View itemView) {
             super(itemView);
@@ -228,7 +224,7 @@ public class ChatMessageAdapter extends RecyclerView.Adapter<ChatMessageAdapter.
             tvMessageContent = itemView.findViewById(R.id.tv_message_content);
             tvTimestamp = itemView.findViewById(R.id.tv_timestamp);
             ivAvatar = itemView.findViewById(R.id.iv_avatar);
-            likeButton = itemView.findViewById(R.id.likeButton);
+            // likeButton = itemView.findViewById(R.id.likeButton); 点赞功能已移除
         }
         
         /**
@@ -237,12 +233,13 @@ public class ChatMessageAdapter extends RecyclerView.Adapter<ChatMessageAdapter.
          * @param position 消息位置
          */
         public void bind(ChatMessage message, int position) {
+            // 点赞功能已移除 - 不再初始化LikeButton
             // 首先重置LikeButton状态，防止ViewHolder复用时的状态混乱
-            if (likeButton != null) {
-                likeButton.setOnLikeClickListener(null);
-                // 强制重置状态和停止所有动画
-                likeButton.forceReset();
-            }
+            // if (likeButton != null) {
+            //     likeButton.setOnLikeClickListener(null);
+            //     // 强制重置状态和停止所有动画
+            //     likeButton.forceReset();
+            // }
             
             // 设置基本信息
             loadAndDisplayNickname(message);
@@ -275,24 +272,25 @@ public class ChatMessageAdapter extends RecyclerView.Adapter<ChatMessageAdapter.
                 }
             });
             
+            // 点赞功能已移除 - 不再设置点赞按钮
             // 设置点赞状态
-            updateLikeButton(message.isLiked());
+            // updateLikeButton(message.isLiked());
             
             // 清除之前的监听器并设置新的点赞按钮点击事件
-            if (likeButton != null) {
-                // 先清除之前的监听器
-                likeButton.setOnLikeClickListener(null);
-                // 设置新的监听器
-                likeButton.setOnLikeClickListener(isLiked -> {
-                    // 切换点赞状态
-                    message.setLiked(isLiked);
-                    
-                    // 通知监听器
-                    if (listener != null) {
-                        listener.onLikeStatusChanged(message, position, isLiked);
-                    }
-                });
-            }
+            // if (likeButton != null) {
+            //     先清除之前的监听器
+            //     likeButton.setOnLikeClickListener(null);
+            //     设置新的监听器
+            //     likeButton.setOnLikeClickListener(isLiked -> {
+            //         切换点赞状态
+            //         message.setLiked(isLiked);
+            //         
+            //         通知监听器
+            //         if (listener != null) {
+            //             listener.onLikeStatusChanged(message, position, isLiked);
+            //         }
+            //     });
+            // }
             
             // 设置长按监听器，显示弹出菜单
             itemView.setOnLongClickListener(v -> {
@@ -304,14 +302,14 @@ public class ChatMessageAdapter extends RecyclerView.Adapter<ChatMessageAdapter.
         }
         
         /**
-         * 更新点赞按钮的显示状态
-         * @param isLiked 是否已点赞
-         */
-        public void updateLikeButton(boolean isLiked) {
-            if (likeButton != null) {
-                likeButton.setLiked(isLiked);
-            }
-        }
+     * 更新点赞按钮的显示状态 - 点赞功能已移除
+     * @param isLiked 是否已点赞
+     */
+    // public void updateLikeButton(boolean isLiked) {
+    //     if (likeButton != null) {
+    //         likeButton.setLiked(isLiked);
+    //     }
+    // }
         
         /**
          * 加载并显示用户昵称

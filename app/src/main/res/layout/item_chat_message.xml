@@ -82,12 +82,12 @@
                     android:maxWidth="260dp"
                     android:layout_marginEnd="8dp"/>
 
-                <!-- 点赞按钮 -->
-                <com.example.couplecredit.function.LikeButton
+                <!-- 点赞按钮 - 点赞功能已移除 -->
+                <!-- <com.example.couplecredit.function.LikeButton
                     android:id="@+id/likeButton"
                     android:layout_width="24dp"
                     android:layout_height="24dp"
-                    android:layout_marginStart="8dp"/>
+                    android:layout_marginStart="8dp"/> -->
 
             </LinearLayout>
 

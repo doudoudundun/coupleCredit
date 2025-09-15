@@ -363,7 +363,8 @@ public class CloudChatRepository {
                     message.setLiked(rs.getBoolean("is_liked"));
                     
                     // 设置云端消息ID用于精确匹配点赞操作
-                    message.setCloudMessageId(rs.getLong("id"));
+                    Long cloudId = (Long) rs.getObject("id");
+                    message.setCloudMessageId(cloudId);
                     message.setRelationshipId(currentRelationshipId);
                     
                     messages.add(message);
@@ -593,7 +594,8 @@ public class CloudChatRepository {
                     );
                     
                     message.setLiked(rs.getBoolean("is_liked"));
-                    message.setCloudMessageId(rs.getLong("id"));
+                    Long cloudId = (Long) rs.getObject("id");
+                    message.setCloudMessageId(cloudId);
                     message.setRelationshipId(currentRelationshipId);
                     messages.add(message);
                 }
@@ -693,7 +695,8 @@ public class CloudChatRepository {
                     );
                     
                     message.setLiked(rs.getBoolean("is_liked"));
-                    message.setCloudMessageId(rs.getLong("id"));
+                    Long cloudId = (Long) rs.getObject("id");
+                    message.setCloudMessageId(cloudId);
                     message.setRelationshipId(currentRelationshipId);
                     messages.add(message);
                 }

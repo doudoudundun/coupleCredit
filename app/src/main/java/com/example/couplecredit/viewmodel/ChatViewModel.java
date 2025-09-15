@@ -281,6 +281,48 @@ public class ChatViewModel extends AndroidViewModel {
     }
     
     /**
+     * 刷新消息列表（用于下拉刷新）
+     */
+    public void refreshMessages() {
+        isLoading.postValue(true);
+        // 重新加载所有消息
+        chatRepository.loadAllMessages();
+        // 模拟网络延迟，提供更好的用户体验
+        new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
+            isLoading.postValue(false);
+            successMessage.postValue("消息已刷新");
+        }, 1000);
+    }
+    
+    /**
+     * 加载更新的消息（分页加载）
+     */
+    public void loadNewerMessages() {
+        isLoading.postValue(true);
+        // 获取当前最新消息的时间戳作为分页参数
+        chatRepository.loadNewerMessages();
+        // 模拟网络延迟
+        new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
+            isLoading.postValue(false);
+            successMessage.postValue("新消息加载完成");
+        }, 800);
+    }
+    
+    /**
+     * 加载历史消息（分页加载）
+     */
+    public void loadOlderMessages() {
+        isLoading.postValue(true);
+        // 获取当前最老消息的时间戳作为分页参数
+        chatRepository.loadOlderMessages();
+        // 模拟网络延迟
+        new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
+            isLoading.postValue(false);
+            successMessage.postValue("历史消息加载完成");
+        }, 800);
+    }
+    
+    /**
      * 发送消息
      * @param content 消息内容
      */
@@ -376,34 +418,34 @@ public class ChatViewModel extends AndroidViewModel {
     }
     
     /**
-     * 切换消息点赞状态
+     * 切换消息点赞状态 - 点赞功能已移除
      * @param message 要切换点赞状态的消息
      */
-    public void toggleMessageLike(ChatMessage message) {
-        if (message == null) {
-            errorMessage.postValue("消息不存在");
-            return;
-        }
-        
-        // 注意：message的状态已经在UI层更新，这里只负责数据库同步
-        // 不再在这里修改message状态，避免与UI层的更新冲突
-        
-        // 更新数据库（会自动同步到云端）
-        chatRepository.updateMessage(message, new ChatRepository.UpdateCallback() {
-            @Override
-            public void onSuccess() {
-                String status = message.isLiked() ? "点赞" : "取消点赞";
-                successMessage.postValue(status + "成功");
-            }
-            
-            @Override
-            public void onError(Exception e) {
-                // 数据库更新失败时，通过错误消息通知用户
-                // UI层需要根据错误回滚状态
-                errorMessage.postValue("操作失败: " + e.getMessage());
-            }
-        });
-    }
+    // public void toggleMessageLike(ChatMessage message) {
+    //     if (message == null) {
+    //         errorMessage.postValue("消息不存在");
+    //         return;
+    //     }
+    //     
+    //     // 注意：message的状态已经在UI层更新，这里只负责数据库同步
+    //     // 不再在这里修改message状态，避免与UI层的更新冲突
+    //     
+    //     // 更新数据库（会自动同步到云端）
+    //     chatRepository.updateMessage(message, new ChatRepository.UpdateCallback() {
+    //         @Override
+    //         public void onSuccess() {
+    //             String status = message.isLiked() ? "点赞" : "取消点赞";
+    //             successMessage.postValue(status + "成功");
+    //         }
+    //         
+    //         @Override
+    //         public void onError(Exception e) {
+    //             // 数据库更新失败时，通过错误消息通知用户
+    //             // UI层需要根据错误回滚状态
+    //             errorMessage.postValue("操作失败: " + e.getMessage());
+    //         }
+    //     });
+    // }
     
     /**
      * 删除消息

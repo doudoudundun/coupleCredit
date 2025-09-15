@@ -23,6 +23,7 @@ import androidx.core.view.WindowInsetsCompat;
 
 import com.example.couplecredit.R;
 import com.example.couplecredit.adapter.BackgroundImageAdapter;
+import com.example.couplecredit.function.CustomToast;
 import com.example.couplecredit.utils.BackgroundUpdateManager;
 
 import java.util.ArrayList;
@@ -136,7 +137,7 @@ public class ChatBackgroundActivity extends AppCompatActivity {
                 
                 // 检查位置是否有效
                 if (position < 0 || position >= backgroundImages.size()) {
-                    Toast.makeText(this, "选择的背景无效", Toast.LENGTH_SHORT).show();
+                    CustomToast.show(this, "选择的背景无效", Toast.LENGTH_SHORT);
                     return;
                 }
                 
@@ -151,14 +152,14 @@ public class ChatBackgroundActivity extends AppCompatActivity {
                 BackgroundUpdateManager.notifyBackgroundUpdated(this, selectedBackground);
                 
                 // 显示成功提示
-                Toast.makeText(this, "背景设置成功", Toast.LENGTH_SHORT).show();
+                CustomToast.show(this, "背景设置成功", Toast.LENGTH_SHORT);
                 
                 // 关闭当前页面
                 finish();
                 
             } catch (Exception e) {
                 android.util.Log.e("ChatBackground", "Error setting background", e);
-                Toast.makeText(this, "设置背景失败: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                CustomToast.show(this, "设置背景失败: " + e.getMessage(), Toast.LENGTH_LONG);
             }
         });
     }
@@ -264,7 +265,7 @@ public class ChatBackgroundActivity extends AppCompatActivity {
                 openGallery();
             } else {
                 // 权限被拒绝，显示提示
-                Toast.makeText(this, "需要存储权限才能选择图片", Toast.LENGTH_SHORT).show();
+                CustomToast.show(this, "需要存储权限才能选择图片", Toast.LENGTH_SHORT);
             }
         }
     }

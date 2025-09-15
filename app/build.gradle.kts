@@ -89,4 +89,7 @@ dependencies {
     
     // LocalBroadcastManager支持
     implementation("androidx.localbroadcastmanager:localbroadcastmanager:1.1.0")
+    
+    // SwipeRefreshLayout支持
+    implementation("androidx.swiperefreshlayout:swiperefreshlayout:1.1.0")
 }

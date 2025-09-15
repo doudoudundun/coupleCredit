@@ -59,15 +59,85 @@
         </LinearLayout>
     </LinearLayout>
 
-    <!-- 聊天消息列表 -->
-    <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/rv_chat_messages"
+    <!-- 聊天消息列表区域 -->
+    <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:clipToPadding="false"
-        android:paddingBottom="8dp"
         app:layout_constraintTop_toBottomOf="@id/top_section"
-        app:layout_constraintBottom_toTopOf="@id/input_section" />
+        app:layout_constraintBottom_toTopOf="@id/input_section">
+
+        <!-- 聊天消息列表（支持下拉刷新） -->
+        <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+            android:id="@+id/swipe_refresh_layout"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent">
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/rv_chat_messages"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:clipToPadding="false"
+                android:paddingBottom="8dp" />
+
+        </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
+
+        <!-- 顶部加载新消息指示器 -->
+        <LinearLayout
+            android:id="@+id/loading_newer_indicator"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_gravity="top"
+            android:orientation="horizontal"
+            android:gravity="center"
+            android:background="#E3F2FD"
+            android:padding="8dp"
+            android:visibility="gone"
+            android:elevation="2dp">
+
+            <ProgressBar
+                android:layout_width="16dp"
+                android:layout_height="16dp"
+                android:layout_marginEnd="8dp"
+                style="?android:attr/progressBarStyleSmall" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="正在加载新消息..."
+                android:textSize="12sp"
+                android:textColor="#1976D2" />
+
+        </LinearLayout>
+
+        <!-- 底部加载历史消息指示器 -->
+        <LinearLayout
+            android:id="@+id/loading_older_indicator"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_gravity="bottom"
+            android:orientation="horizontal"
+            android:gravity="center"
+            android:background="#E8F5E8"
+            android:padding="8dp"
+            android:visibility="gone"
+            android:elevation="2dp">
+
+            <ProgressBar
+                android:layout_width="16dp"
+                android:layout_height="16dp"
+                android:layout_marginEnd="8dp"
+                style="?android:attr/progressBarStyleSmall" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="正在加载历史消息..."
+                android:textSize="12sp"
+                android:textColor="#388E3C" />
+
+        </LinearLayout>
+
+    </FrameLayout>
 
     <!-- 底部消息输入区 -->
     <LinearLayout
