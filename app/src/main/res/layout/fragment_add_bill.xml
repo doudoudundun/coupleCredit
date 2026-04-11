@@ -28,11 +28,11 @@
     </RelativeLayout>
 
     <!-- 支出/收入切换 -->
-    <com.transsion.widgetslib.widget.tablayout.OSTabLayout
+    <com.google.android.material.tabs.TabLayout
         android:id="@+id/slide_tab"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        app:osIsFirstLevelTab="true" />
+        android:background="@android:color/white" />
     <!-- 分类选择区域 -->
     <ScrollView
         android:layout_width="match_parent"

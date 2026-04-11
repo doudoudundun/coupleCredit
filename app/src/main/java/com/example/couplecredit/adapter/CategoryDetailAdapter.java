@@ -16,7 +16,6 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.example.couplecredit.R;
 import com.example.couplecredit.activity.CategoriesBillViewActivity;
-import com.transsion.widgetslib.widget.seekbar.OSSeekbar;
 
 import java.util.ArrayList;
 import java.util.HashMap;

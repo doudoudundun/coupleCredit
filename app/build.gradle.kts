@@ -68,13 +68,6 @@ dependencies {
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
-    implementation("com.transsion.api:widgets:16.1.0.2")
-//    implementation("com.transsion.api:widgetslistitemlayout:16.1.0.2")
-//    implementation("com.transsion.api:widgetPerGuide:16.1.0.2")
-//    implementation("com.transsion.api:widgetsrecanimation:16.1.0.2")
-//    implementation("com.transsion.api:widgetsThemes:16.1.0.2")
-//    implementation("com.transsion.api:widgetBottomSheet:16.1.0.2")
-//    implementation("com.transsion.api:widgetsShareAnimation:16.1.0.2")
     
     // MySQL JDBC驱动
     // 使用更老版本的MySQL驱动，避免Java 8+ API依赖

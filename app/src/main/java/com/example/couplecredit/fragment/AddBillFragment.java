@@ -29,8 +29,7 @@ import com.example.couplecredit.R;
 import com.example.couplecredit.function.CustomToast;
 import com.example.couplecredit.function.Utils;
 import com.example.couplecredit.utils.CategoryIconMapper;
-import com.transsion.widgetslib.widget.tablayout.OSTabLayout;
-import com.transsion.widgetslib.widget.tablayout.TabLayout;
+import com.google.android.material.tabs.TabLayout;
 
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
@@ -64,7 +63,6 @@ public class AddBillFragment extends Fragment {
     private AdaptiveGridLayout gridCategories; // 替换原来的GridLayout
 
     private TabLayout mTabLayout;
-    private OSTabLayout mOsTabLayout;
 
     private String selectedCategory = "";
     private String billType = "支出"; // 默认支出
@@ -99,11 +97,12 @@ public class AddBillFragment extends Fragment {
 
     private void initViews(View view) {
         // 支出/收入切换
-        mOsTabLayout = view.findViewById(R.id.slide_tab);
-        mOsTabLayout.setMinimumHeight(40);
-        mTabLayout = mOsTabLayout.getTabLayout();
-        mTabLayout.addTab(mTabLayout.newTab().setText("支出"));
-        mTabLayout.addTab(mTabLayout.newTab().setText("收入"));
+        mTabLayout = view.findViewById(R.id.slide_tab);
+        mTabLayout.setMinimumHeight(40);
+        if (mTabLayout.getTabCount() == 0) {
+            mTabLayout.addTab(mTabLayout.newTab().setText("支出"));
+            mTabLayout.addTab(mTabLayout.newTab().setText("收入"));
+        }
         //mTabLayout.setTabTextColors(getColor(R.color.os_red_basic_color), R.color.os_text_primary_hios);
 
 
@@ -140,7 +139,7 @@ public class AddBillFragment extends Fragment {
 
     private void setupListeners() {
         // 支出/收入切换
-        mTabLayout.setOnTabSelectedListener(new TabLayout.OnTabSelectedListener() {
+        mTabLayout.addOnTabSelectedListener(new TabLayout.OnTabSelectedListener() {
             @Override
             public void onTabSelected(TabLayout.Tab tab) {
                 tab.getPosition();

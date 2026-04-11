@@ -37,11 +37,12 @@
 
     </LinearLayout>
     <!-- 分段选择器 -->
-    <com.transsion.widgetslib.widget.OSSegmentedTab
+    <com.google.android.material.tabs.TabLayout
         android:id="@+id/segmented_tab"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_margin="10dp" />
+        android:layout_margin="10dp"
+        android:background="@android:color/white" />
 
     <!-- 使用RecyclerView包裹图表和新增的LinearLayout -->
     <androidx.recyclerview.widget.RecyclerView

@@ -17,7 +17,7 @@ import com.example.couplecredit.activity.CategoriesBillViewActivity;
 import com.example.couplecredit.database.BillDatabaseHelper;
 import com.example.couplecredit.R;
 import com.example.couplecredit.database.CoupleRelationshipHelper;
-import com.transsion.widgetslib.dialog.PromptDialog;
+import androidx.appcompat.app.AlertDialog;
 
 import java.util.Calendar;
 
@@ -362,7 +362,7 @@ public final class Utils {
         void onUpdateError(String error);
     }
 
-    public static void enterEditMode(Context context, PromptDialog mDialog, TextView tvDate, TextView tvFare, TextView tvNoteContent,
+    public static void enterEditMode(Context context, AlertDialog mDialog, TextView tvDate, TextView tvFare, TextView tvNoteContent,
                                      EditText etFare, EditText etNoteContent,
                                      Button btnEdit, Button btnDelete, ImageButton btnConfirm, ImageButton btnCancel){
         // 隐藏TextView，显示EditText
@@ -387,7 +387,7 @@ public final class Utils {
         mDialog.setTitle("修改账单");
     }
 
-    public static void exitEditMode(PromptDialog mDialog, TextView tvDate, TextView tvFare, TextView tvNoteContent,
+    public static void exitEditMode(AlertDialog mDialog, TextView tvDate, TextView tvFare, TextView tvNoteContent,
                               EditText etFare, EditText etNoteContent,
                               Button btnEdit, Button btnDelete, ImageButton btnConfirm, ImageButton btnCancel) {
         // 更新TextView的内容为EditText中的值
