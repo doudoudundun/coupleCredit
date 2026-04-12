@@ -53,6 +53,46 @@ public class MySQLDatabaseHelper {
 
     
     /**
+     * 手动验证数据库连接
+     */
+    public static void testDatabaseConnection(DatabaseCallback callback) {
+        new AsyncTask<Void, Void, Boolean>() {
+            private String errorMessage = "";
+
+            @Override
+            protected Boolean doInBackground(Void... voids) {
+                Connection connection = null;
+                PreparedStatement statement = null;
+                java.sql.ResultSet resultSet = null;
+
+                try {
+                    connection = getConnection();
+                    statement = connection.prepareStatement("SELECT 1");
+                    resultSet = statement.executeQuery();
+                    return resultSet.next() && resultSet.getInt(1) == 1;
+                } catch (Exception e) {
+                    errorMessage = e.getMessage();
+                    Log.e(TAG, "数据库连接测试失败: " + e.getMessage(), e);
+                    return false;
+                } finally {
+                    closeResources(connection, statement, resultSet);
+                }
+            }
+
+            @Override
+            protected void onPostExecute(Boolean success) {
+                if (callback != null) {
+                    if (success) {
+                        callback.onSuccess("数据库连接测试成功");
+                    } else {
+                        callback.onError("数据库连接测试失败: " + errorMessage);
+                    }
+                }
+            }
+        }.execute();
+    }
+
+    /**
      * 插入用户注册信息
      */
     public static void insertUser(String username, String email, String password, DatabaseCallback callback) {

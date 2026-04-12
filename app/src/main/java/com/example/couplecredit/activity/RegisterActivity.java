@@ -10,8 +10,10 @@ import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
 
+import com.example.couplecredit.BuildConfig;
 import com.example.couplecredit.R;
-import com.example.couplecredit.function.MySQLDatabaseHelper;
+import com.example.couplecredit.api.AuthApiClient;
+import com.example.couplecredit.api.AuthApiModels;
 
 /**
  * 注册页面Activity
@@ -23,6 +25,7 @@ public class RegisterActivity extends AppCompatActivity {
     private EditText etEmail;
     private EditText etPassword;
     private EditText etConfirmPassword;
+    private EditText etInviteCode;
     private Button btnRegister;
     private TextView tvLoginHint;
     
@@ -46,6 +49,8 @@ public class RegisterActivity extends AppCompatActivity {
         etEmail = findViewById(R.id.et_email);
         etPassword = findViewById(R.id.et_password);
         etConfirmPassword = findViewById(R.id.et_confirm_password);
+        etInviteCode = findViewById(R.id.et_invite_code);
+        etInviteCode.setText(BuildConfig.PRIVATE_API_INVITE_CODE);
         btnRegister = findViewById(R.id.btn_register);
         tvLoginHint = findViewById(R.id.tv_login_hint);
     }
@@ -82,6 +87,7 @@ public class RegisterActivity extends AppCompatActivity {
         String email = etEmail.getText().toString().trim();
         String password = etPassword.getText().toString().trim();
         String confirmPassword = etConfirmPassword.getText().toString().trim();
+        String inviteCode = etInviteCode.getText().toString().trim();
         
         // 输入验证
         if (username.isEmpty()) {
@@ -104,6 +110,11 @@ public class RegisterActivity extends AppCompatActivity {
             return;
         }
         
+        if (inviteCode.isEmpty()) {
+            Toast.makeText(this, "请输入邀请码", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
         if (!password.equals(confirmPassword)) {
             Toast.makeText(this, "两次输入的密码不一致", Toast.LENGTH_SHORT).show();
             return;
@@ -114,17 +125,15 @@ public class RegisterActivity extends AppCompatActivity {
             return;
         }
         
-        // 直接插入用户信息到现有表
-        MySQLDatabaseHelper.insertUser(username, email, password, new MySQLDatabaseHelper.DatabaseCallback() {
+        AuthApiClient.register(username, email, password, inviteCode, new AuthApiClient.Callback() {
             @Override
-            public void onSuccess(String message) {
+            public void onSuccess(AuthApiModels.AuthResponse response) {
                 Toast.makeText(RegisterActivity.this, "注册成功！", Toast.LENGTH_SHORT).show();
-                // 注册成功，跳转到登录页面
                 Intent intent = new Intent(RegisterActivity.this, LoginActivity.class);
                 startActivity(intent);
                 finish();
             }
-            
+
             @Override
             public void onError(String error) {
                 Toast.makeText(RegisterActivity.this, "注册失败: " + error, Toast.LENGTH_LONG).show();

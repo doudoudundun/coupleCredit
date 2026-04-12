@@ -14,9 +14,9 @@ import android.widget.TextView;
 
 import com.example.couplecredit.BillBean;
 import com.example.couplecredit.activity.CategoriesBillViewActivity;
+import com.example.couplecredit.api.AuthApiClient;
 import com.example.couplecredit.database.BillDatabaseHelper;
 import com.example.couplecredit.R;
-import com.example.couplecredit.database.CoupleRelationshipHelper;
 import androidx.appcompat.app.AlertDialog;
 
 import java.util.Calendar;
@@ -34,117 +34,34 @@ public final class Utils {
      * 插入账单（新版本 - 自动获取当前用户信息）
      */
     public static void insertBill(Context context, String title, String type, double amount, String date, String time, int incomeType, String billOwner, BillInsertCallback callback) {
-        UserInfoManager.getCurrentUserInfo(context, new UserInfoManager.UserInfoCallback() {
-            @Override
-            public void onUserInfoLoaded(int userId, String username, Integer relationshipId) {
-                android.content.ContentValues values = new android.content.ContentValues();
-                values.put(BillDatabaseHelper.USER_ID, userId);
-                values.put(BillDatabaseHelper.COLUMN_TITLE, title);
-                values.put(BillDatabaseHelper.COLUMN_TYPE, type);
-                values.put(BillDatabaseHelper.COLUMN_AMOUNT, amount);
-                values.put(BillDatabaseHelper.COLUMN_DATE, date);
-                values.put(BillDatabaseHelper.COLUMN_TIME, time);
-                values.put(BillDatabaseHelper.COLUMN_INCOME_TYPE, incomeType);
-                
-                // 根据billOwner设置is_help字段：自己和共同为0，对方为1
-                int isHelpValue = "对方".equals(billOwner) ? 1 : 0;
-                values.put("is_help", isHelpValue);
-                
-                // 添加relationship_id信息
-                if (relationshipId != null) {
-                    values.put("relationship_id", relationshipId);
-                }
-                
-                // 根据billOwner设置owner字段
-                if ("自己".equals(billOwner)) {
-                    // 为自己记账，需要查询自己在情侣关系中的角色
-                    if (relationshipId != null) {
-                        CoupleRelationshipHelper coupleHelper = new CoupleRelationshipHelper();
-                        coupleHelper.getUserRole(userId, new CoupleRelationshipHelper.UserRoleCallback() {
-                            @Override
-                            public void onRoleFound(int ownerId) {
-                                // 设置为自己
-                                values.put("owner", ownerId);
-                                insertBillToDatabase(context, values, relationshipId, userId, callback);
-                            }
-                            
-                            @Override
-                            public void onNoRelationshipFound() {
-                                Log.e("Utils", "未找到情侣关系");
-                                if (callback != null) {
-                                    callback.onInsertError("未找到情侣关系");
-                                }
-                            }
-                            
-                            @Override
-                            public void onError(String error) {
-                                Log.e("Utils", "查询用户角色失败: " + error);
-                                if (callback != null) {
-                                    callback.onInsertError("查询用户角色失败: " + error);
-                                }
-                            }
-                        });
-                    } else {
-                        // 没有情侣关系，使用默认值1
-                        // 设置为自己(无关系)
-                        values.put("owner", 1);
-                        insertBillToDatabase(context, values, relationshipId, userId, callback);
-                    }
-                } else if ("对方".equals(billOwner) && relationshipId != null) {
-                    // 为对方记账，需要查询对方在情侣关系中的角色
-                    CoupleRelationshipHelper coupleHelper = new CoupleRelationshipHelper();
-                    coupleHelper.getUserRole(userId, new CoupleRelationshipHelper.UserRoleCallback() {
-                        @Override
-                        public void onRoleFound(int currentUserOwnerId) {
-                            // 对方的角色与当前用户相反：如果当前用户是1(邀请者)，对方就是2(被邀请者)，反之亦然
-                            int partnerOwnerId = (currentUserOwnerId == 1) ? 2 : 1;
-                            // 设置为对方
-                            values.put("owner", partnerOwnerId);
-                            insertBillToDatabase(context, values, relationshipId, userId, callback);
-                        }
-                        
-                        @Override
-                        public void onNoRelationshipFound() {
-                            Log.e("Utils", "未找到情侣关系，无法为对方记账");
-                            if (callback != null) {
-                                callback.onInsertError("未找到情侣关系，无法为对方记账");
-                            }
-                        }
-                        
-                        @Override
-                        public void onError(String error) {
-                            Log.e("Utils", "查询用户角色失败: " + error);
-                            if (callback != null) {
-                                callback.onInsertError("查询用户角色失败: " + error);
-                            }
-                        }
-                    });
-                    return; // 异步处理，直接返回
-                } else if ("共同".equals(billOwner) && relationshipId != null) {
-                    // 共同账单，owner设置为3
-                    // 设置为共同
-                    values.put("owner", 3);
-                    insertBillToDatabase(context, values, relationshipId, userId, callback);
-                } else {
-                    Log.e("Utils", "不支持的billOwner类型或缺少情侣关系: " + billOwner + ", relationshipId=" + relationshipId);
-                    if (callback != null) {
-                        callback.onInsertError("不支持的billOwner类型或缺少情侣关系: " + billOwner);
-                    }
-                }
-
-                // 这部分代码已移动到insertBillToDatabase方法中
+        int userId = UserInfoManager.getCurrentUserId(context);
+        if (userId < 0) {
+            Log.e("Utils", "获取用户信息失败");
+            if (callback != null) {
+                callback.onInsertError("获取用户信息失败");
             }
-            
+            return;
+        }
+
+        AuthApiClient.createBill(userId, billOwner, title, type, amount, date, time, incomeType, new AuthApiClient.BillCallback() {
             @Override
-            public void onError(String error) {
-                Log.e("Utils", "获取用户信息失败: " + error);
+            public void onSuccess(com.example.couplecredit.api.AuthApiModels.BillResponse response) {
+                BillDatabaseHelper.clearCache();
                 if (callback != null) {
-                    callback.onInsertError("获取用户信息失败: " + error);
+                    callback.onInsertSuccess(response.data.billId);
+                }
+            }
+
+            @Override
+            public void onError(String message) {
+                Log.e("Utils", "账单插入失败: " + message);
+                if (callback != null) {
+                    callback.onInsertError(message);
                 }
             }
         });
     }
-    
+
     /**
      * 插入账单（兼容旧版本）
      * @deprecated 请使用新版本的insertBill方法

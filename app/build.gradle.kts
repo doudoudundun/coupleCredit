@@ -1,5 +1,18 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
+}
+
+val localProperties = Properties().apply {
+    val localPropertiesFile = rootProject.file("local.properties")
+    if (localPropertiesFile.exists()) {
+        localPropertiesFile.inputStream().use { load(it) }
+    }
+}
+
+fun localConfig(name: String, defaultValue: String = ""): String {
+    return localProperties.getProperty(name, defaultValue)
 }
 
 android {
@@ -15,6 +28,14 @@ android {
         multiDexEnabled = true
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        buildConfigField("String", "PRIVATE_DB_HOST", "\"${localConfig("PRIVATE_DB_HOST")}\"")
+        buildConfigField("String", "PRIVATE_DB_PORT", "\"${localConfig("PRIVATE_DB_PORT", "3306")}\"")
+        buildConfigField("String", "PRIVATE_DB_NAME", "\"${localConfig("PRIVATE_DB_NAME", "couple_credit_private")}\"")
+        buildConfigField("String", "PRIVATE_DB_USER", "\"${localConfig("PRIVATE_DB_USER", "couple_app")}\"")
+        buildConfigField("String", "PRIVATE_DB_PASSWORD", "\"${localConfig("PRIVATE_DB_PASSWORD")}\"")
+        buildConfigField("String", "PRIVATE_API_BASE_URL", "\"${localConfig("PRIVATE_API_BASE_URL", "http://10.0.2.2:8080")}\"")
+        buildConfigField("String", "PRIVATE_API_INVITE_CODE", "\"${localConfig("PRIVATE_API_INVITE_CODE", "COUPLE-PRIVATE-2026")}\"")
     }
 
     buildTypes {
@@ -44,6 +65,7 @@ android {
     }
     buildFeatures {
         viewBinding = true
+        buildConfig = true
     }
 }
 

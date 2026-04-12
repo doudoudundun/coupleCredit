@@ -13,8 +13,8 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
 import com.example.couplecredit.R;
-import com.example.couplecredit.function.MySQLDatabaseHelper;
-import android.content.SharedPreferences;
+import com.example.couplecredit.api.AuthApiClient;
+import com.example.couplecredit.api.AuthApiModels;
 
 /**
  * 登录页面Activity
@@ -90,38 +90,31 @@ public class LoginActivity extends AppCompatActivity {
             return;
         }
         
-        // 使用MySQLDatabaseHelper进行登录验证
-        MySQLDatabaseHelper.loginUser(username, password, new MySQLDatabaseHelper.LoginCallback() {
+        AuthApiClient.login(username, password, new AuthApiClient.Callback() {
             @Override
-            public void onLoginSuccess(String message, String userInfo) {
-                runOnUiThread(() -> {
-                    // 保存用户登录状态到SharedPreferences
-                    SharedPreferences sharedPreferences = getSharedPreferences("user_prefs", MODE_PRIVATE);
-                    SharedPreferences.Editor editor = sharedPreferences.edit();
-                    editor.putString("username", username);
-                    editor.putString("id", userInfo);
-                    editor.putBoolean("isLoggedIn", true);
-                    editor.apply();
-                    
-                    // 发送登录成功广播
-                    Intent broadcastIntent = new Intent("com.example.couplecredit.USER_LOGIN");
-                    LocalBroadcastManager.getInstance(LoginActivity.this).sendBroadcast(broadcastIntent);
-                    
-                    Toast.makeText(LoginActivity.this, "登录成功！", Toast.LENGTH_SHORT).show();
-                    // 登录成功，跳转到主界面
-                    Intent intent = new Intent(LoginActivity.this, MainActivity.class);
-                    intent.putExtra("username", username);
-                    intent.putExtra("id", userInfo);
-                    startActivity(intent);
-                    finish();
-                });
+            public void onSuccess(AuthApiModels.AuthResponse response) {
+                AuthApiModels.AuthSuccessData userData = response.data;
+                SharedPreferences sharedPreferences = getSharedPreferences("user_prefs", MODE_PRIVATE);
+                SharedPreferences.Editor editor = sharedPreferences.edit();
+                editor.putString("username", userData.username);
+                editor.putString("id", String.valueOf(userData.userId));
+                editor.putBoolean("isLoggedIn", true);
+                editor.apply();
+
+                Intent broadcastIntent = new Intent("com.example.couplecredit.USER_LOGIN");
+                LocalBroadcastManager.getInstance(LoginActivity.this).sendBroadcast(broadcastIntent);
+
+                Toast.makeText(LoginActivity.this, "登录成功！", Toast.LENGTH_SHORT).show();
+                Intent intent = new Intent(LoginActivity.this, MainActivity.class);
+                intent.putExtra("username", userData.username);
+                intent.putExtra("id", String.valueOf(userData.userId));
+                startActivity(intent);
+                finish();
             }
 
             @Override
-            public void onLoginError(String error) {
-                runOnUiThread(() -> {
-                    Toast.makeText(LoginActivity.this, "登录失败：" + error, Toast.LENGTH_SHORT).show();
-                });
+            public void onError(String error) {
+                Toast.makeText(LoginActivity.this, "登录失败：" + error, Toast.LENGTH_SHORT).show();
             }
         });
     }
