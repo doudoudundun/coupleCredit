@@ -8,8 +8,8 @@ import static org.junit.Assert.assertTrue;
 
 public class AuthApiConfigSmokeTest {
     @Test
-    public void apiConfigUsesLocalHttpRelay() {
-        assertTrue(BuildConfig.PRIVATE_API_BASE_URL.startsWith("http://"));
+    public void apiConfigUsesConfiguredHttpApi() {
+        assertTrue(BuildConfig.PRIVATE_API_BASE_URL.startsWith("http://") || BuildConfig.PRIVATE_API_BASE_URL.startsWith("https://"));
         assertFalse(BuildConfig.PRIVATE_API_BASE_URL.contains(":3306"));
         assertEquals("COUPLE-PRIVATE-2026", BuildConfig.PRIVATE_API_INVITE_CODE);
     }

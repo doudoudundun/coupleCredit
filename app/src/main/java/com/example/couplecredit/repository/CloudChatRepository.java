@@ -330,7 +330,7 @@ public class CloudChatRepository {
                           "COALESCE(u.nickname, u.username, 'Unknown') as username " +
                           "FROM chat_messages cm " +
                           "LEFT JOIN users u ON cm.user_id = u.id " +
-                          "WHERE cm.user_id = ? AND (cm.relationship_id IS NULL OR cm.relationship_id = 0) AND cm.is_deleted = 0 " +
+                          "WHERE cm.user_id = ? AND cm.relationship_id IS NULL AND cm.is_deleted = 0 " +
                           "ORDER BY cm.created_at ASC";
                     stmt = conn.prepareStatement(sql);
                     stmt.setInt(1, currentUserId);
@@ -418,7 +418,7 @@ public class CloudChatRepository {
                           "WHERE id = ? AND relationship_id = ? AND is_deleted = 0";
                 } else {
                     sql = "UPDATE chat_messages SET is_liked = ? " +
-                          "WHERE id = ? AND user_id = ? AND (relationship_id IS NULL OR relationship_id = 0) AND is_deleted = 0";
+                          "WHERE id = ? AND user_id = ? AND relationship_id IS NULL AND is_deleted = 0";
                 }
                 
                 stmt = conn.prepareStatement(sql);
@@ -485,7 +485,7 @@ public class CloudChatRepository {
                           "WHERE id = ? AND relationship_id = ? AND is_deleted = 0";
                 } else {
                     sql = "UPDATE chat_messages SET is_deleted = 1 " +
-                          "WHERE id = ? AND user_id = ? AND (relationship_id IS NULL OR relationship_id = 0) AND is_deleted = 0";
+                          "WHERE id = ? AND user_id = ? AND relationship_id IS NULL AND is_deleted = 0";
                 }
 
                 stmt = conn.prepareStatement(sql);
@@ -555,7 +555,7 @@ public class CloudChatRepository {
                           "COALESCE(u.nickname, u.username, 'Unknown') as username " +
                           "FROM chat_messages cm " +
                           "LEFT JOIN users u ON cm.user_id = u.id " +
-                          "WHERE cm.user_id = ? AND (cm.relationship_id IS NULL OR cm.relationship_id = 0) AND cm.is_deleted = 0 " +
+                          "WHERE cm.user_id = ? AND cm.relationship_id IS NULL AND cm.is_deleted = 0 " +
                           "AND (cm.content LIKE ? OR COALESCE(u.nickname, u.username) LIKE ?) " +
                           "ORDER BY cm.created_at ASC";
                 }
@@ -655,7 +655,7 @@ public class CloudChatRepository {
                           "SUM(CASE WHEN cm.is_liked = 1 THEN 1 ELSE 0 END) OVER() as liked_messages " +
                           "FROM chat_messages cm " +
                           "LEFT JOIN users u ON cm.user_id = u.id " +
-                          "WHERE cm.user_id = ? AND (cm.relationship_id IS NULL OR cm.relationship_id = 0) AND cm.is_deleted = 0 " +
+                          "WHERE cm.user_id = ? AND cm.relationship_id IS NULL AND cm.is_deleted = 0 " +
                           "ORDER BY cm.created_at ASC";
                 }
                 

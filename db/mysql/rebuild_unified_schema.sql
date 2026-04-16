@@ -1,12 +1,17 @@
+-- WARNING: destructive rebuild script
+-- This script drops and recreates the core schema.
+-- Back up your database before running it.
+
 CREATE DATABASE IF NOT EXISTS couple_credit_private CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-
-CREATE USER IF NOT EXISTS 'couple_app'@'%' IDENTIFIED BY 'ChangeThisPrivateDbPassword_2026!';
-ALTER USER 'couple_app'@'%' IDENTIFIED BY 'ChangeThisPrivateDbPassword_2026!';
-
-GRANT SELECT, INSERT, UPDATE, DELETE ON couple_credit_private.* TO 'couple_app'@'%';
-FLUSH PRIVILEGES;
-
 USE couple_credit_private;
+
+SET FOREIGN_KEY_CHECKS = 0;
+
+DROP TABLE IF EXISTS chat_messages;
+DROP TABLE IF EXISTS inventory;
+DROP TABLE IF EXISTS bills;
+DROP TABLE IF EXISTS couple_relationships;
+DROP TABLE IF EXISTS users;
 
 CREATE TABLE IF NOT EXISTS users (
     id INT NOT NULL AUTO_INCREMENT,
@@ -150,3 +155,5 @@ CREATE TABLE IF NOT EXISTS chat_messages (
         ON DELETE SET NULL
         ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+SET FOREIGN_KEY_CHECKS = 1;

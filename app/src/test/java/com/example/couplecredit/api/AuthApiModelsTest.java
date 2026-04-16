@@ -1,5 +1,7 @@
 package com.example.couplecredit.api;
 
+import android.content.Context;
+
 import com.google.gson.Gson;
 
 import org.junit.Test;
@@ -55,6 +57,7 @@ public class AuthApiModelsTest {
     public void authApiClientExposesCreateBillMethod() throws Exception {
         Method method = AuthApiClient.class.getMethod(
                 "createBill",
+                Context.class,
                 int.class,
                 String.class,
                 String.class,
