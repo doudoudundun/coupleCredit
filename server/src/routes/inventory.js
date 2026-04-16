@@ -1,14 +1,27 @@
 const express = require("express");
 const { ApiError } = require("../errors");
-const { loadActiveRelationship, trimValue, parseRequiredInteger, parseOptionalInteger, parseRequiredFloat } = require("../utils/queryHelpers");
+const { loadActiveRelationship, trimValue, parseRequiredInteger, parseRequiredFloat } = require("../utils/queryHelpers");
+
+function normalizeNullableText(value) {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (value === null) {
+    return null;
+  }
+  if (typeof value !== "string") {
+    return null;
+  }
+  const trimmed = value.trim();
+  return trimmed === "" ? null : trimmed;
+}
 
 function createInventoryRouter({ pool }) {
   const router = express.Router();
 
-  // 获取存货列表
   router.get("/", async (req, res, next) => {
     try {
-      const userId = parseRequiredInteger(parseInt(req.query.userId));
+      const userId = parseRequiredInteger(parseInt(req.query.userId, 10));
       const relationship = await loadActiveRelationship(pool, userId);
       const relationshipId = relationship ? relationship.relationship_id : null;
 
@@ -20,8 +33,8 @@ function createInventoryRouter({ pool }) {
                  name, category, image_url as imageUrl, quantity, unit, threshold,
                  created_at as createdAt, updated_at as updatedAt, last_consumed_at as lastConsumedAt,
                  note, ai_image_prompt as aiImagePrompt
-                 FROM inventory WHERE relationship_id = ? ORDER BY updated_at DESC`;
-        params = [relationshipId];
+                 FROM inventory WHERE relationship_id = ? OR (user_id = ? AND relationship_id IS NULL) ORDER BY updated_at DESC`;
+        params = [relationshipId, userId];
       } else {
         query = `SELECT inventory_id as inventoryId, user_id as userId, relationship_id as relationshipId,
                  name, category, image_url as imageUrl, quantity, unit, threshold,
@@ -32,8 +45,6 @@ function createInventoryRouter({ pool }) {
       }
 
       const [rows] = await pool.execute(query, params);
-
-      // 标记告急存货
       const items = rows.map(row => ({
         ...row,
         isLowStock: row.quantity <= row.threshold
@@ -52,10 +63,9 @@ function createInventoryRouter({ pool }) {
     }
   });
 
-  // 获取告急存货列表
   router.get("/low-stock", async (req, res, next) => {
     try {
-      const userId = parseRequiredInteger(parseInt(req.query.userId));
+      const userId = parseRequiredInteger(parseInt(req.query.userId, 10));
       const relationship = await loadActiveRelationship(pool, userId);
       const relationshipId = relationship ? relationship.relationship_id : null;
 
@@ -67,8 +77,8 @@ function createInventoryRouter({ pool }) {
                  name, category, image_url as imageUrl, quantity, unit, threshold,
                  created_at as createdAt, updated_at as updatedAt, last_consumed_at as lastConsumedAt,
                  note, ai_image_prompt as aiImagePrompt
-                 FROM inventory WHERE relationship_id = ? AND quantity <= threshold ORDER BY quantity ASC`;
-        params = [relationshipId];
+                 FROM inventory WHERE (relationship_id = ? OR (user_id = ? AND relationship_id IS NULL)) AND quantity <= threshold ORDER BY quantity ASC`;
+        params = [relationshipId, userId];
       } else {
         query = `SELECT inventory_id as inventoryId, user_id as userId, relationship_id as relationshipId,
                  name, category, image_url as imageUrl, quantity, unit, threshold,
@@ -79,13 +89,18 @@ function createInventoryRouter({ pool }) {
       }
 
       const [rows] = await pool.execute(query, params);
+      const items = rows.map(row => ({
+        ...row,
+        isLowStock: row.quantity <= row.threshold
+      }));
 
       res.json({
         ok: true,
         message: "查询成功",
         data: {
-          items: rows,
-          count: rows.length
+          items,
+          count: items.length,
+          relationshipId
         }
       });
     } catch (error) {
@@ -93,7 +108,6 @@ function createInventoryRouter({ pool }) {
     }
   });
 
-  // 添加存货
   router.post("/", async (req, res, next) => {
     try {
       const userId = parseRequiredInteger(req.body.userId);
@@ -101,16 +115,17 @@ function createInventoryRouter({ pool }) {
       const category = trimValue(req.body.category);
       const quantity = parseRequiredFloat(req.body.quantity);
       const unit = trimValue(req.body.unit);
-      const threshold = parseRequiredFloat(req.body.threshold || 1);
+      const threshold = parseRequiredFloat(req.body.threshold ?? 1);
 
       if (!name || !category || !unit) {
         throw new ApiError(400, "INVALID_REQUEST", "存货名称、类别和单位不能为空");
       }
 
-      const relationshipId = parseOptionalInteger(req.body.relationshipId);
-      const imageUrl = trimValue(req.body.imageUrl);
-      const note = trimValue(req.body.note);
-      const aiImagePrompt = trimValue(req.body.aiImagePrompt);
+      const relationship = await loadActiveRelationship(pool, userId);
+      const relationshipId = relationship ? relationship.relationship_id : null;
+      const imageUrl = normalizeNullableText(req.body.imageUrl);
+      const note = normalizeNullableText(req.body.note);
+      const aiImagePrompt = normalizeNullableText(req.body.aiImagePrompt);
 
       const [result] = await pool.execute(
         `INSERT INTO inventory (user_id, relationship_id, name, category, image_url, quantity, unit, threshold, note, ai_image_prompt, created_at, updated_at)
@@ -140,13 +155,10 @@ function createInventoryRouter({ pool }) {
     }
   });
 
-  // 更新存货信息
   router.put("/:id", async (req, res, next) => {
     try {
-      const inventoryId = parseRequiredInteger(parseInt(req.params.id));
+      const inventoryId = parseRequiredInteger(parseInt(req.params.id, 10));
       const userId = parseRequiredInteger(req.body.userId);
-
-      // 验证所有权
       const relationship = await loadActiveRelationship(pool, userId);
       const relationshipId = relationship ? relationship.relationship_id : null;
 
@@ -154,8 +166,8 @@ function createInventoryRouter({ pool }) {
       let checkParams;
 
       if (relationshipId) {
-        checkQuery = "SELECT inventory_id FROM inventory WHERE inventory_id = ? AND relationship_id = ?";
-        checkParams = [inventoryId, relationshipId];
+        checkQuery = "SELECT inventory_id FROM inventory WHERE inventory_id = ? AND (relationship_id = ? OR (user_id = ? AND relationship_id IS NULL))";
+        checkParams = [inventoryId, relationshipId, userId];
       } else {
         checkQuery = "SELECT inventory_id FROM inventory WHERE inventory_id = ? AND user_id = ? AND relationship_id IS NULL";
         checkParams = [inventoryId, userId];
@@ -166,37 +178,59 @@ function createInventoryRouter({ pool }) {
         throw new ApiError(404, "NOT_FOUND", "存货不存在或无权修改");
       }
 
-      // 构建更新
       const updates = [];
       const params = [];
 
-      if (req.body.name) {
+      if (req.body.name !== undefined) {
+        const name = trimValue(req.body.name);
+        if (!name) {
+          throw new ApiError(400, "INVALID_REQUEST", "存货名称不能为空");
+        }
         updates.push("name = ?");
-        params.push(trimValue(req.body.name));
+        params.push(name);
       }
-      if (req.body.category) {
+
+      if (req.body.category !== undefined) {
+        const category = trimValue(req.body.category);
+        if (!category) {
+          throw new ApiError(400, "INVALID_REQUEST", "类别不能为空");
+        }
         updates.push("category = ?");
-        params.push(trimValue(req.body.category));
+        params.push(category);
       }
-      if (req.body.imageUrl) {
+
+      if (req.body.imageUrl !== undefined) {
         updates.push("image_url = ?");
-        params.push(trimValue(req.body.imageUrl));
+        params.push(normalizeNullableText(req.body.imageUrl));
       }
+
       if (req.body.quantity !== undefined) {
         updates.push("quantity = ?");
         params.push(parseRequiredFloat(req.body.quantity));
       }
-      if (req.body.unit) {
+
+      if (req.body.unit !== undefined) {
+        const unit = trimValue(req.body.unit);
+        if (!unit) {
+          throw new ApiError(400, "INVALID_REQUEST", "单位不能为空");
+        }
         updates.push("unit = ?");
-        params.push(trimValue(req.body.unit));
+        params.push(unit);
       }
+
       if (req.body.threshold !== undefined) {
         updates.push("threshold = ?");
         params.push(parseRequiredFloat(req.body.threshold));
       }
-      if (req.body.note) {
+
+      if (req.body.note !== undefined) {
         updates.push("note = ?");
-        params.push(trimValue(req.body.note));
+        params.push(normalizeNullableText(req.body.note));
+      }
+
+      if (req.body.aiImagePrompt !== undefined) {
+        updates.push("ai_image_prompt = ?");
+        params.push(normalizeNullableText(req.body.aiImagePrompt));
       }
 
       if (updates.length === 0) {
@@ -206,24 +240,17 @@ function createInventoryRouter({ pool }) {
       updates.push("updated_at = NOW()");
       params.push(inventoryId);
 
-      await pool.execute(
-        `UPDATE inventory SET ${updates.join(", ")} WHERE inventory_id = ?`,
-        params
-      );
+      await pool.execute(`UPDATE inventory SET ${updates.join(", ")} WHERE inventory_id = ?`, params);
 
-      res.json({
-        ok: true,
-        message: "存货更新成功"
-      });
+      res.json({ ok: true, message: "存货更新成功" });
     } catch (error) {
       next(error);
     }
   });
 
-  // 消耗存货
   router.post("/:id/consume", async (req, res, next) => {
     try {
-      const inventoryId = parseRequiredInteger(parseInt(req.params.id));
+      const inventoryId = parseRequiredInteger(parseInt(req.params.id, 10));
       const userId = parseRequiredInteger(req.body.userId);
       const consumeAmount = parseRequiredFloat(req.body.consumeAmount);
 
@@ -231,7 +258,6 @@ function createInventoryRouter({ pool }) {
         throw new ApiError(400, "INVALID_REQUEST", "消耗数量必须大于0");
       }
 
-      // 验证所有权
       const relationship = await loadActiveRelationship(pool, userId);
       const relationshipId = relationship ? relationship.relationship_id : null;
 
@@ -239,8 +265,8 @@ function createInventoryRouter({ pool }) {
       let checkParams;
 
       if (relationshipId) {
-        checkQuery = "SELECT quantity FROM inventory WHERE inventory_id = ? AND relationship_id = ?";
-        checkParams = [inventoryId, relationshipId];
+        checkQuery = "SELECT quantity FROM inventory WHERE inventory_id = ? AND (relationship_id = ? OR (user_id = ? AND relationship_id IS NULL))";
+        checkParams = [inventoryId, relationshipId, userId];
       } else {
         checkQuery = "SELECT quantity FROM inventory WHERE inventory_id = ? AND user_id = ? AND relationship_id IS NULL";
         checkParams = [inventoryId, userId];
@@ -275,10 +301,9 @@ function createInventoryRouter({ pool }) {
     }
   });
 
-  // 补货
   router.post("/:id/replenish", async (req, res, next) => {
     try {
-      const inventoryId = parseRequiredInteger(parseInt(req.params.id));
+      const inventoryId = parseRequiredInteger(parseInt(req.params.id, 10));
       const userId = parseRequiredInteger(req.body.userId);
       const addAmount = parseRequiredFloat(req.body.addAmount);
 
@@ -286,7 +311,6 @@ function createInventoryRouter({ pool }) {
         throw new ApiError(400, "INVALID_REQUEST", "补货数量必须大于0");
       }
 
-      // 验证所有权
       const relationship = await loadActiveRelationship(pool, userId);
       const relationshipId = relationship ? relationship.relationship_id : null;
 
@@ -294,8 +318,8 @@ function createInventoryRouter({ pool }) {
       let checkParams;
 
       if (relationshipId) {
-        checkQuery = "SELECT quantity FROM inventory WHERE inventory_id = ? AND relationship_id = ?";
-        checkParams = [inventoryId, relationshipId];
+        checkQuery = "SELECT quantity FROM inventory WHERE inventory_id = ? AND (relationship_id = ? OR (user_id = ? AND relationship_id IS NULL))";
+        checkParams = [inventoryId, relationshipId, userId];
       } else {
         checkQuery = "SELECT quantity FROM inventory WHERE inventory_id = ? AND user_id = ? AND relationship_id IS NULL";
         checkParams = [inventoryId, userId];
@@ -307,7 +331,6 @@ function createInventoryRouter({ pool }) {
       }
 
       const currentQuantity = existing[0].quantity;
-
       await pool.execute(
         "UPDATE inventory SET quantity = quantity + ?, updated_at = NOW() WHERE inventory_id = ?",
         [addAmount, inventoryId]
@@ -327,13 +350,10 @@ function createInventoryRouter({ pool }) {
     }
   });
 
-  // 删除存货
   router.delete("/:id", async (req, res, next) => {
     try {
-      const inventoryId = parseRequiredInteger(parseInt(req.params.id));
-      const userId = parseRequiredInteger(parseInt(req.query.userId));
-
-      // 验证所有权
+      const inventoryId = parseRequiredInteger(parseInt(req.params.id, 10));
+      const userId = parseRequiredInteger(parseInt(req.query.userId, 10));
       const relationship = await loadActiveRelationship(pool, userId);
       const relationshipId = relationship ? relationship.relationship_id : null;
 
@@ -341,29 +361,24 @@ function createInventoryRouter({ pool }) {
       let deleteParams;
 
       if (relationshipId) {
-        deleteQuery = "DELETE FROM inventory WHERE inventory_id = ? AND relationship_id = ?";
-        deleteParams = [inventoryId, relationshipId];
+        deleteQuery = "DELETE FROM inventory WHERE inventory_id = ? AND (relationship_id = ? OR (user_id = ? AND relationship_id IS NULL))";
+        deleteParams = [inventoryId, relationshipId, userId];
       } else {
         deleteQuery = "DELETE FROM inventory WHERE inventory_id = ? AND user_id = ? AND relationship_id IS NULL";
         deleteParams = [inventoryId, userId];
       }
 
       const [result] = await pool.execute(deleteQuery, deleteParams);
-
       if (result.affectedRows === 0) {
         throw new ApiError(404, "NOT_FOUND", "存货不存在或无权删除");
       }
 
-      res.json({
-        ok: true,
-        message: "存货删除成功"
-      });
+      res.json({ ok: true, message: "存货删除成功" });
     } catch (error) {
       next(error);
     }
   });
 
-  // AI生图接口（预留）
   router.post("/generate-image", async (req, res, next) => {
     try {
       const prompt = trimValue(req.body.prompt);
@@ -374,8 +389,6 @@ function createInventoryRouter({ pool }) {
         throw new ApiError(400, "INVALID_REQUEST", "需要提供生成提示或物品名称");
       }
 
-      // 预留接口 - 实际接入AI生图服务时实现
-      // 示例：调用 OpenAI DALL-E 或其他生图API
       const generatedPrompt = prompt || `${category} ${name} 产品图`;
 
       res.json({
@@ -383,7 +396,7 @@ function createInventoryRouter({ pool }) {
         message: "AI生图接口已预留，请配置生图服务",
         data: {
           prompt: generatedPrompt,
-          imageUrl: null, // 实际实现时返回生成的图片URL
+          imageUrl: null,
           note: "此接口为预留接口，需要配置具体的AI生图服务后才能使用"
         }
       });

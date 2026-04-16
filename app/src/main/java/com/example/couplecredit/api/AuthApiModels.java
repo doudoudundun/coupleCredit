@@ -27,11 +27,35 @@ public class AuthApiModels {
         public int isHelp;
     }
 
+    public static class InventoryItemData {
+        public int inventoryId;
+        public int userId;
+        public Integer relationshipId;
+        public String name;
+        public String category;
+        public String imageUrl;
+        public double quantity;
+        public String unit;
+        public double threshold;
+        public String createdAt;
+        public String updatedAt;
+        public String lastConsumedAt;
+        public String note;
+        public String aiImagePrompt;
+        public boolean isLowStock;
+    }
+
     public static class BillsQueryData {
         public List<BillData> bills;
         public Integer relationshipId;
         public int year;
         public int month;
+    }
+
+    public static class InventoryListData {
+        public List<InventoryItemData> items;
+        public Integer relationshipId;
+        public Integer count;
     }
 
     public static class ErrorBody {
@@ -61,6 +85,13 @@ public class AuthApiModels {
         public ErrorBody error;
     }
 
+    public static class InventoryListResponse {
+        public boolean ok;
+        public String message;
+        public InventoryListData data;
+        public ErrorBody error;
+    }
+
     public static class SimpleResponse {
         public boolean ok;
         public String message;
@@ -84,6 +115,66 @@ public class AuthApiModels {
             this.date = date;
             this.time = time;
             this.incomeType = incomeType;
+        }
+    }
+
+    public static class CreateInventoryRequest {
+        public final int userId;
+        public final String name;
+        public final String category;
+        public final double quantity;
+        public final String unit;
+        public final double threshold;
+        public final String imageUrl;
+        public final String note;
+        public final String aiImagePrompt;
+
+        public CreateInventoryRequest(int userId, String name, String category, double quantity, String unit, double threshold, String imageUrl, String note, String aiImagePrompt) {
+            this.userId = userId;
+            this.name = name;
+            this.category = category;
+            this.quantity = quantity;
+            this.unit = unit;
+            this.threshold = threshold;
+            this.imageUrl = imageUrl;
+            this.note = note;
+            this.aiImagePrompt = aiImagePrompt;
+        }
+    }
+
+    public static class UpdateInventoryRequest {
+        public final int userId;
+        public final String name;
+        public final String category;
+        public final Double quantity;
+        public final String unit;
+        public final Double threshold;
+        public final String imageUrl;
+        public final String note;
+        public final String aiImagePrompt;
+
+        public UpdateInventoryRequest(int userId, String name, String category, Double quantity, String unit, Double threshold, String imageUrl, String note, String aiImagePrompt) {
+            this.userId = userId;
+            this.name = name;
+            this.category = category;
+            this.quantity = quantity;
+            this.unit = unit;
+            this.threshold = threshold;
+            this.imageUrl = imageUrl;
+            this.note = note;
+            this.aiImagePrompt = aiImagePrompt;
+        }
+    }
+
+    public static class InventoryAmountRequest {
+        public final int userId;
+        public final double consumeAmount;
+        public final double addAmount;
+
+        public InventoryAmountRequest(int userId, double consumeAmount, double addAmount) {
+            this.userId = userId;
+            this.consumeAmount = consumeAmount;
+            this.addAmount = addAmount;
         }
     }
 

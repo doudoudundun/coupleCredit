@@ -21,7 +21,8 @@ import java.nio.charset.StandardCharsets;
 public class AuthApiClient {
     private static final String TAG = "AuthApiClient";
     private static final Gson GSON = new Gson();
-    private static final int TIMEOUT_MS = 10000;
+    private static final int CONNECT_TIMEOUT_MS = 5000;
+    private static final int READ_TIMEOUT_MS = 8000;
     private static final String DEFAULT_ERROR = "服务器连接失败，请稍后重试";
 
     public interface Callback {
@@ -39,12 +40,22 @@ public class AuthApiClient {
         void onError(String message);
     }
 
+    public interface InventoryListCallback {
+        void onSuccess(AuthApiModels.InventoryListResponse response);
+        void onError(String message);
+    }
+
     public interface DeleteBillCallback {
         void onSuccess();
         void onError(String message);
     }
 
     public interface UpdateBillCallback {
+        void onSuccess();
+        void onError(String message);
+    }
+
+    public interface InventoryMutationCallback {
         void onSuccess();
         void onError(String message);
     }
@@ -86,6 +97,7 @@ public class AuthApiClient {
                             }
                         }
                     }
+
                     @Override
                     public void onError(String message) {
                         if (callback != null) callback.onError(message);
@@ -113,6 +125,7 @@ public class AuthApiClient {
                             }
                         }
                     }
+
                     @Override
                     public void onError(String message) {
                         if (callback != null) callback.onError(message);
@@ -140,6 +153,7 @@ public class AuthApiClient {
                             }
                         }
                     }
+
                     @Override
                     public void onError(String message) {
                         if (callback != null) callback.onError(message);
@@ -167,11 +181,54 @@ public class AuthApiClient {
                             }
                         }
                     }
+
                     @Override
                     public void onError(String message) {
                         if (callback != null) callback.onError(message);
                     }
                 });
+    }
+
+    public static void queryInventory(Context context, int userId, InventoryListCallback callback) {
+        doRequest(context, "GET", "/api/inventory?userId=" + userId,
+                null,
+                inventoryListCallback("物资列表查询", callback));
+    }
+
+    public static void queryLowStockInventory(Context context, int userId, InventoryListCallback callback) {
+        doRequest(context, "GET", "/api/inventory/low-stock?userId=" + userId,
+                null,
+                inventoryListCallback("告急物资查询", callback));
+    }
+
+    public static void createInventory(Context context, AuthApiModels.CreateInventoryRequest request, InventoryMutationCallback callback) {
+        doRequest(context, "POST", "/api/inventory",
+                GSON.toJson(request),
+                simpleMutationCallback("新增物资", callback));
+    }
+
+    public static void updateInventory(Context context, int inventoryId, AuthApiModels.UpdateInventoryRequest request, InventoryMutationCallback callback) {
+        doRequest(context, "PUT", "/api/inventory/" + inventoryId,
+                GSON.toJson(request),
+                simpleMutationCallback("更新物资", callback));
+    }
+
+    public static void consumeInventory(Context context, int inventoryId, int userId, double consumeAmount, InventoryMutationCallback callback) {
+        doRequest(context, "POST", "/api/inventory/" + inventoryId + "/consume",
+                GSON.toJson(new AuthApiModels.InventoryAmountRequest(userId, consumeAmount, 0)),
+                simpleMutationCallback("消耗物资", callback));
+    }
+
+    public static void replenishInventory(Context context, int inventoryId, int userId, double addAmount, InventoryMutationCallback callback) {
+        doRequest(context, "POST", "/api/inventory/" + inventoryId + "/replenish",
+                GSON.toJson(new AuthApiModels.InventoryAmountRequest(userId, 0, addAmount)),
+                simpleMutationCallback("补货", callback));
+    }
+
+    public static void deleteInventory(Context context, int inventoryId, int userId, InventoryMutationCallback callback) {
+        doRequest(context, "DELETE", "/api/inventory/" + inventoryId + "?userId=" + userId,
+                null,
+                simpleMutationCallback("删除物资", callback));
     }
 
     public static void deleteBill(Context context, int billId, int userId, DeleteBillCallback callback) {
@@ -194,6 +251,7 @@ public class AuthApiClient {
                             }
                         }
                     }
+
                     @Override
                     public void onError(String message) {
                         if (callback != null) callback.onError(message);
@@ -222,11 +280,64 @@ public class AuthApiClient {
                             }
                         }
                     }
+
                     @Override
                     public void onError(String message) {
                         if (callback != null) callback.onError(message);
                     }
                 });
+    }
+
+    private static RawCallback inventoryListCallback(String operation, InventoryListCallback callback) {
+        return new RawCallback() {
+            @Override
+            public void onSuccess(String json) {
+                if (callback != null) {
+                    try {
+                        AuthApiModels.InventoryListResponse response = GSON.fromJson(normalizeJsonPayload(json), AuthApiModels.InventoryListResponse.class);
+                        if (response != null && response.ok) {
+                            callback.onSuccess(response);
+                        } else {
+                            callback.onError(extractError(response != null ? response.error : null, json));
+                        }
+                    } catch (Exception e) {
+                        Log.e(TAG, operation + "响应解析失败: " + json, e);
+                        callback.onError(buildParseError(operation, json));
+                    }
+                }
+            }
+
+            @Override
+            public void onError(String message) {
+                if (callback != null) callback.onError(message);
+            }
+        };
+    }
+
+    private static RawCallback simpleMutationCallback(String operation, InventoryMutationCallback callback) {
+        return new RawCallback() {
+            @Override
+            public void onSuccess(String json) {
+                if (callback != null) {
+                    try {
+                        AuthApiModels.SimpleResponse response = GSON.fromJson(normalizeJsonPayload(json), AuthApiModels.SimpleResponse.class);
+                        if (response != null && response.ok) {
+                            callback.onSuccess();
+                        } else {
+                            callback.onError(extractError(response != null ? response.error : null, json));
+                        }
+                    } catch (Exception e) {
+                        Log.e(TAG, operation + "响应解析失败: " + json, e);
+                        callback.onError(buildParseError(operation, json));
+                    }
+                }
+            }
+
+            @Override
+            public void onError(String message) {
+                if (callback != null) callback.onError(message);
+            }
+        };
     }
 
     private static String extractError(AuthApiModels.ErrorBody error, String rawBody) {
@@ -284,8 +395,8 @@ public class AuthApiClient {
         }
 
         trimmed = trimmed.replace('\n', ' ').replace('\r', ' ');
-        if (trimmed.length() > 120) {
-            return trimmed.substring(0, 120) + "...";
+        if (trimmed.length() > 60) {
+            return trimmed.substring(0, 60) + "...";
         }
         return trimmed;
     }
@@ -297,12 +408,14 @@ public class AuthApiClient {
                 HttpURLConnection connection = null;
                 try {
                     URL url = new URL(ApiConfigManager.getBaseUrl(context) + path);
-                    Log.d(TAG, "发起请求: " + method + " " + url);
+                    long startMs = System.currentTimeMillis();
+                    Log.d(TAG, "发起请求: " + method + " " + path);
                     connection = (HttpURLConnection) url.openConnection();
                     connection.setRequestMethod(method);
                     connection.setRequestProperty("Content-Type", "application/json; charset=UTF-8");
-                    connection.setConnectTimeout(TIMEOUT_MS);
-                    connection.setReadTimeout(TIMEOUT_MS);
+                    connection.setRequestProperty("Connection", "keep-alive");
+                    connection.setConnectTimeout(CONNECT_TIMEOUT_MS);
+                    connection.setReadTimeout(READ_TIMEOUT_MS);
 
                     if (bodyJson != null) {
                         connection.setDoOutput(true);
@@ -316,7 +429,8 @@ public class AuthApiClient {
                     int status = connection.getResponseCode();
                     InputStream stream = status >= 400 ? connection.getErrorStream() : connection.getInputStream();
                     String responseText = readText(stream);
-                    Log.d(TAG, "请求完成: status=" + status + ", body=" + responseText);
+                    long elapsed = System.currentTimeMillis() - startMs;
+                    Log.d(TAG, "请求完成: " + method + " " + path + " " + elapsed + "ms status=" + status);
                     if (status >= 200 && status < 300) {
                         return new RequestResult(true, responseText, status);
                     }

@@ -100,6 +100,15 @@ public class BillAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
     private void setOwnerText(TextView tvOwner, BillBean bill) {
         int ownerValue = bill.getOwner();
         boolean isHelp = bill.getIsHelp() == 1;
+
+        // owner=3 永远显示"共同"，不受关系状态影响
+        if (ownerValue == 3) {
+            String commonText = "共同";
+            if (isHelp) commonText += "（帮）";
+            tvOwner.setText(commonText);
+            return;
+        }
+
         if (currentRelationshipId == null) {
             // 无情侣关系，显示"自己"
             String text = "自己";
@@ -107,16 +116,14 @@ public class BillAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
             tvOwner.setText(text);
             return;
         }
-        
+
         switch (ownerValue) {
             case 1: // 邀请者
                 if (currentUserRole == 1) {
-                    // 当前用户是邀请者，显示自己的昵称
                     String text = (nicknamesCached && currentUserNickname != null) ? currentUserNickname : "自己";
                     if (isHelp) text += "（帮）";
                     tvOwner.setText(text);
                 } else {
-                    // 当前用户是被邀请者，显示对方(邀请者)的昵称
                     String text = (nicknamesCached && partnerNickname != null) ? partnerNickname : "对方";
                     if (isHelp) text += "（帮）";
                     tvOwner.setText(text);
@@ -124,21 +131,14 @@ public class BillAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
                 break;
             case 2: // 被邀请者
                 if (currentUserRole == 2) {
-                    // 当前用户是被邀请者，显示自己的昵称
                     String text = (nicknamesCached && currentUserNickname != null) ? currentUserNickname : "自己";
                     if (isHelp) text += "（帮）";
                     tvOwner.setText(text);
                 } else {
-                    // 当前用户是邀请者，显示对方(被邀请者)的昵称
                     String text = (nicknamesCached && partnerNickname != null) ? partnerNickname : "对方";
                     if (isHelp) text += "（帮）";
                     tvOwner.setText(text);
                 }
-                break;
-            case 3: // 共同开支
-                String commonText = "共同";
-                if (isHelp) commonText += "（帮）";
-                tvOwner.setText(commonText);
                 break;
             default:
                 String unknownText = "未知";

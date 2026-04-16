@@ -15,9 +15,6 @@ import com.example.couplecredit.fragment.InventoryFragment.InventoryItem;
 
 import java.util.List;
 
-/**
- * 最近活动适配器（横向滚动）
- */
 public class RecentActivityAdapter extends RecyclerView.Adapter<RecentActivityAdapter.ViewHolder> {
 
     private List<InventoryItem> items;
@@ -34,31 +31,17 @@ public class RecentActivityAdapter extends RecyclerView.Adapter<RecentActivityAd
     @NonNull
     @Override
     public ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
-        View view = LayoutInflater.from(parent.getContext())
-                .inflate(R.layout.item_recent_activity, parent, false);
+        View view = LayoutInflater.from(parent.getContext()).inflate(R.layout.item_recent_activity, parent, false);
         return new ViewHolder(view);
     }
 
     @Override
     public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
         InventoryItem item = items.get(position);
-
-        // 设置名称
         holder.tvName.setText(item.name);
+        holder.tvChange.setText(resolveChangeType(item));
+        holder.tvQuantity.setText(String.format("当前 %.1f %s", item.quantity, item.unit));
 
-        // 设置变化信息
-        String changeInfo;
-        if (item.lastConsumedAt != null && !item.lastConsumedAt.isEmpty()) {
-            changeInfo = "消耗记录";
-        } else {
-            changeInfo = "新增";
-        }
-        holder.tvChange.setText(changeInfo);
-
-        // 设置存量
-        holder.tvQuantity.setText(String.format("%.1f %s", item.quantity, item.unit));
-
-        // 设置图片
         if (item.imageUrl != null && !item.imageUrl.isEmpty()) {
             Glide.with(holder.ivImage.getContext())
                     .load(item.imageUrl)
@@ -69,6 +52,16 @@ public class RecentActivityAdapter extends RecyclerView.Adapter<RecentActivityAd
         } else {
             holder.ivImage.setImageResource(R.drawable.ic_inventory_placeholder);
         }
+    }
+
+    private String resolveChangeType(InventoryItem item) {
+        if (item.lastActionLabel != null && !item.lastActionLabel.isEmpty()) {
+            return item.lastActionLabel;
+        }
+        if (item.lastConsumedAt != null && !item.lastConsumedAt.isEmpty()) {
+            return "消耗";
+        }
+        return "新增";
     }
 
     @Override

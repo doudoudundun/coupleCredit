@@ -19,14 +19,14 @@ import androidx.fragment.app.FragmentTransaction;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
 import com.example.couplecredit.R;
-import com.example.couplecredit.config.ApiConfigManager;
 import com.example.couplecredit.database.DatabaseInitializer;
 import com.example.couplecredit.fragment.AddBillFragment;
 import com.example.couplecredit.fragment.HeadFragment;
+import com.example.couplecredit.fragment.InventoryFragment;
 import com.example.couplecredit.fragment.MyFragment;
 import com.example.couplecredit.fragment.ReportFragment;
-import com.example.couplecredit.utils.UserInfoManager;
 import com.example.couplecredit.repository.ChatRepository;
+import com.example.couplecredit.utils.UserInfoManager;
 import com.github.mikephil.charting.utils.Utils;
 import com.google.android.material.bottomnavigation.BottomNavigationView;
 
@@ -36,6 +36,7 @@ public class MainActivity extends AppCompatActivity {
     private HeadFragment headFragment;
     private AddBillFragment addBillFragment;
     private ReportFragment reportFragment;
+    private InventoryFragment inventoryFragment;
     private MyFragment myFragment;
     private BottomNavigationView mBottomNav;
     private Fragment currentFragment;
@@ -45,9 +46,6 @@ public class MainActivity extends AppCompatActivity {
         @Override
         public void onReceive(Context context, Intent intent) {
             Log.d("MainActivity", "收到登录状态变化广播: " + intent.getAction());
-            if ("com.example.couplecredit.USER_LOGIN".equals(intent.getAction())) {
-                navigateToHome();
-            }
             refreshAllFragmentsLoginState();
         }
     };
@@ -90,6 +88,7 @@ public class MainActivity extends AppCompatActivity {
             headFragment = new HeadFragment();
             addBillFragment = new AddBillFragment();
             reportFragment = new ReportFragment();
+            inventoryFragment = new InventoryFragment();
             myFragment = new MyFragment();
 
             if (username != null && id != null) {
@@ -104,6 +103,7 @@ public class MainActivity extends AppCompatActivity {
             headFragment = (HeadFragment) fragmentManager.findFragmentByTag("head");
             addBillFragment = (AddBillFragment) fragmentManager.findFragmentByTag("addBill");
             reportFragment = (ReportFragment) fragmentManager.findFragmentByTag("report");
+            inventoryFragment = (InventoryFragment) fragmentManager.findFragmentByTag("inventory");
             myFragment = (MyFragment) fragmentManager.findFragmentByTag("my");
 
             for (Fragment fragment : fragmentManager.getFragments()) {
@@ -126,6 +126,9 @@ public class MainActivity extends AppCompatActivity {
             } else if (itemId == R.id.nav_report) {
                 showFragment(reportFragment);
                 return true;
+            } else if (itemId == R.id.nav_inventory) {
+                showFragment(inventoryFragment);
+                return true;
             } else if (itemId == R.id.nav_my) {
                 showFragment(myFragment);
                 return true;
@@ -138,7 +141,6 @@ public class MainActivity extends AppCompatActivity {
             syncBottomNavigationSelection(currentFragment);
         }
 
-        // 注册登录状态变化广播接收器
         LocalBroadcastManager.getInstance(this).registerReceiver(
                 loginStateReceiver,
                 new IntentFilter("com.example.couplecredit.USER_LOGIN")
@@ -189,6 +191,14 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    public void navigateToInventory() {
+        if (mBottomNav != null && mBottomNav.getSelectedItemId() != R.id.nav_inventory) {
+            mBottomNav.setSelectedItemId(R.id.nav_inventory);
+        } else {
+            showFragment(inventoryFragment);
+        }
+    }
+
     public HeadFragment getHeadFragment() {
         return headFragment;
     }
@@ -202,10 +212,12 @@ public class MainActivity extends AppCompatActivity {
         transaction.add(R.id.fragment_container, headFragment, "head");
         transaction.add(R.id.fragment_container, addBillFragment, "addBill");
         transaction.add(R.id.fragment_container, reportFragment, "report");
+        transaction.add(R.id.fragment_container, inventoryFragment, "inventory");
         transaction.add(R.id.fragment_container, myFragment, "my");
         transaction.hide(headFragment);
         transaction.hide(addBillFragment);
         transaction.hide(reportFragment);
+        transaction.hide(inventoryFragment);
         transaction.hide(myFragment);
         transaction.commitNow();
         currentFragment = null;
@@ -259,14 +271,14 @@ public class MainActivity extends AppCompatActivity {
             reportFragment.refreshChartData();
         }
 
+        if (inventoryFragment != null) {
+            inventoryFragment.refreshInventoryData();
+        }
+
         Log.d("MainActivity", "首页数据刷新完成");
     }
 
-    /**
-     * 刷新所有Fragment的登录状态
-     */
     private void refreshAllFragmentsLoginState() {
-        // MyFragment 已通过广播自行刷新登录状态，这里只刷新依赖登录态的数据
         if (myFragment != null) {
             Log.d("MainActivity", "MyFragment 将通过广播更新状态");
         }
@@ -295,6 +307,8 @@ public class MainActivity extends AppCompatActivity {
             return R.id.nav_addbill;
         } else if (fragment == reportFragment) {
             return R.id.nav_report;
+        } else if (fragment == inventoryFragment) {
+            return R.id.nav_inventory;
         } else if (fragment == myFragment) {
             return R.id.nav_my;
         }

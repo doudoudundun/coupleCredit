@@ -1,10 +1,12 @@
 package com.example.couplecredit.adapter;
 
 import android.view.LayoutInflater;
+import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageButton;
 import android.widget.ImageView;
+import android.widget.PopupMenu;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
@@ -17,17 +19,21 @@ import com.example.couplecredit.fragment.InventoryFragment.InventoryItem;
 
 import java.util.List;
 
-/**
- * 存货列表适配器
- */
 public class InventoryAdapter extends RecyclerView.Adapter<InventoryAdapter.ViewHolder> {
 
-    private List<InventoryItem> items;
-    private InventoryFragment fragment;
+    public interface InventoryActionListener {
+        void onConsume(InventoryItem item);
+        void onReplenish(InventoryItem item);
+        void onEdit(InventoryItem item);
+        void onDelete(InventoryItem item);
+    }
 
-    public InventoryAdapter(List<InventoryItem> items, InventoryFragment fragment) {
+    private List<InventoryItem> items;
+    private final InventoryActionListener actionListener;
+
+    public InventoryAdapter(List<InventoryItem> items, InventoryActionListener actionListener) {
         this.items = items;
-        this.fragment = fragment;
+        this.actionListener = actionListener;
     }
 
     public void updateData(List<InventoryItem> newItems) {
@@ -38,50 +44,31 @@ public class InventoryAdapter extends RecyclerView.Adapter<InventoryAdapter.View
     @NonNull
     @Override
     public ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
-        View view = LayoutInflater.from(parent.getContext())
-                .inflate(R.layout.item_inventory, parent, false);
+        View view = LayoutInflater.from(parent.getContext()).inflate(R.layout.item_inventory, parent, false);
         return new ViewHolder(view);
     }
 
     @Override
     public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
         InventoryItem item = items.get(position);
-
-        // 设置名称
         holder.tvName.setText(item.name);
-
-        // 设置类别标签
         holder.tvCategory.setText(item.category);
+        holder.tvQuantity.setText(String.format("当前 %.1f %s", item.quantity, item.unit));
+        holder.tvLastConsumed.setText(buildStatusText(item));
 
-        // 设置存量信息
-        holder.tvQuantity.setText(String.format("存量: %.1f", item.quantity));
-        holder.tvUnit.setText(item.unit);
-
-        // 设置告急标识
         if (item.isLowStock()) {
             holder.tvLowStockBadge.setVisibility(View.VISIBLE);
         } else {
             holder.tvLowStockBadge.setVisibility(View.GONE);
         }
 
-        // 设置最近消耗时间
-        if (item.lastConsumedAt != null && !item.lastConsumedAt.isEmpty()) {
-            holder.tvLastConsumed.setText("最近消耗: " + formatDate(item.lastConsumedAt));
-        } else if (item.updatedAt != null) {
-            holder.tvLastConsumed.setText("更新: " + formatDate(item.updatedAt));
-        } else {
-            holder.tvLastConsumed.setText("最近消耗: 无记录");
-        }
-
-        // 设置备注
-        if (item.note != null && !item.note.isEmpty()) {
+        if (item.note != null && !item.note.trim().isEmpty()) {
             holder.tvNote.setVisibility(View.VISIBLE);
             holder.tvNote.setText(item.note);
         } else {
             holder.tvNote.setVisibility(View.GONE);
         }
 
-        // 设置图片
         if (item.imageUrl != null && !item.imageUrl.isEmpty()) {
             Glide.with(holder.ivImage.getContext())
                     .load(item.imageUrl)
@@ -93,28 +80,66 @@ public class InventoryAdapter extends RecyclerView.Adapter<InventoryAdapter.View
             holder.ivImage.setImageResource(R.drawable.ic_inventory_placeholder);
         }
 
-        // 设置消耗按钮
         holder.btnConsume.setOnClickListener(v -> {
-            fragment.showConsumeDialog(item);
+            if (actionListener != null) {
+                actionListener.onConsume(item);
+            }
         });
 
-        // 设置补货按钮
         holder.btnReplenish.setOnClickListener(v -> {
-            fragment.showReplenishDialog(item);
+            if (actionListener != null) {
+                actionListener.onReplenish(item);
+            }
         });
+
+        holder.btnMore.setOnClickListener(v -> showMoreMenu(v, item));
+    }
+
+    private String buildStatusText(InventoryItem item) {
+        if (item.lastConsumedAt != null && !item.lastConsumedAt.isEmpty()) {
+            return "最近消耗: " + formatDate(item.lastConsumedAt);
+        }
+        if (item.updatedAt != null && !item.updatedAt.isEmpty()) {
+            return "最近更新: " + formatDate(item.updatedAt);
+        }
+        return "最近更新: 暂无记录";
+    }
+
+    private void showMoreMenu(View anchor, InventoryItem item) {
+        PopupMenu popupMenu = new PopupMenu(anchor.getContext(), anchor);
+        popupMenu.getMenu().add(0, 1, 0, "编辑");
+        popupMenu.getMenu().add(0, 2, 1, "删除");
+        popupMenu.setOnMenuItemClickListener(menuItem -> handleMenuClick(menuItem, item));
+        popupMenu.show();
+    }
+
+    private boolean handleMenuClick(MenuItem menuItem, InventoryItem item) {
+        if (actionListener == null) {
+            return false;
+        }
+        int itemId = menuItem.getItemId();
+        if (itemId == 1) {
+            actionListener.onEdit(item);
+            return true;
+        } else if (itemId == 2) {
+            actionListener.onDelete(item);
+            return true;
+        }
+        return false;
     }
 
     private String formatDate(String dateStr) {
-        // 简化日期显示
-        if (dateStr == null) return "";
-        if (dateStr.contains(" ")) {
-            String[] parts = dateStr.split(" ");
-            if (parts.length >= 2) {
-                // 只显示日期和小时
-                return parts[0] + " " + parts[1].substring(0, Math.min(5, parts[1].length()));
-            }
+        if (dateStr == null) {
+            return "";
         }
-        return dateStr;
+        String normalized = dateStr.replace('T', ' ');
+        if (normalized.contains(".")) {
+            normalized = normalized.substring(0, normalized.indexOf('.'));
+        }
+        if (normalized.length() >= 16) {
+            return normalized.substring(0, 16);
+        }
+        return normalized;
     }
 
     @Override
@@ -127,12 +152,12 @@ public class InventoryAdapter extends RecyclerView.Adapter<InventoryAdapter.View
         TextView tvName;
         TextView tvCategory;
         TextView tvQuantity;
-        TextView tvUnit;
         TextView tvLowStockBadge;
         TextView tvLastConsumed;
         TextView tvNote;
-        ImageButton btnConsume;
-        ImageButton btnReplenish;
+        TextView btnConsume;
+        TextView btnReplenish;
+        ImageButton btnMore;
 
         ViewHolder(View itemView) {
             super(itemView);
@@ -140,12 +165,12 @@ public class InventoryAdapter extends RecyclerView.Adapter<InventoryAdapter.View
             tvName = itemView.findViewById(R.id.tv_inventory_name);
             tvCategory = itemView.findViewById(R.id.tv_inventory_category);
             tvQuantity = itemView.findViewById(R.id.tv_quantity);
-            tvUnit = itemView.findViewById(R.id.tv_unit);
             tvLowStockBadge = itemView.findViewById(R.id.tv_low_stock_badge);
             tvLastConsumed = itemView.findViewById(R.id.tv_last_consumed);
             tvNote = itemView.findViewById(R.id.tv_note);
             btnConsume = itemView.findViewById(R.id.btn_consume);
             btnReplenish = itemView.findViewById(R.id.btn_replenish);
+            btnMore = itemView.findViewById(R.id.btn_more);
         }
     }
 }

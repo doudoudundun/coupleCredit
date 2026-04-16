@@ -1,11 +1,16 @@
 package com.example.couplecredit.fragment;
 
 import android.app.AlertDialog;
-import android.content.ContentValues;
-import android.database.Cursor;
+import android.content.Context;
+import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
+import android.provider.MediaStore;
+import android.text.Editable;
 import android.text.TextUtils;
-import android.util.Log;
+import android.text.TextWatcher;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -18,35 +23,30 @@ import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.core.content.ContextCompat;
 import androidx.fragment.app.Fragment;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.bumptech.glide.Glide;
 import com.example.couplecredit.R;
+import com.example.couplecredit.activity.LoginActivity;
 import com.example.couplecredit.adapter.InventoryAdapter;
 import com.example.couplecredit.adapter.RecentActivityAdapter;
-import com.example.couplecredit.database.CoupleRelationshipHelper;
-import com.example.couplecredit.database.InventoryDatabaseHelper;
+import com.example.couplecredit.api.AuthApiModels;
+import com.example.couplecredit.utils.InventoryUtils;
 import com.example.couplecredit.utils.UserInfoManager;
 
-import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 
-/**
- * 存货清单Fragment
- * 管理家庭日用品/菜品存货
- */
-public class InventoryFragment extends Fragment {
+public class InventoryFragment extends Fragment implements InventoryAdapter.InventoryActionListener {
 
-    private static final String TAG = "InventoryFragment";
-
-    // UI组件
     private LinearLayout llAlertBanner;
     private TextView tvAlertMessage;
     private TextView tvViewAlert;
@@ -55,21 +55,57 @@ public class InventoryFragment extends Fragment {
     private RecyclerView rvRecentActivity;
     private RecyclerView rvInventoryList;
     private LinearLayout llEmptyState;
+    private LinearLayout layoutLoginPrompt;
+    private LinearLayout layoutContent;
+    private TextView btnLoginPrompt;
+    private TextView tvTotalCount;
+    private TextView tvLowStockCount;
+    private TextView tvRecentCount;
+    private View fabAddInventory;
 
-    // 数据
-    private InventoryDatabaseHelper inventoryHelper;
     private InventoryAdapter inventoryAdapter;
     private RecentActivityAdapter recentActivityAdapter;
-    private int currentUserId;
-    private Integer currentRelationshipId;
-    private List<InventoryItem> inventoryList = new ArrayList<>();
-    private List<InventoryItem> lowStockList = new ArrayList<>();
-    private List<InventoryItem> recentActivityList = new ArrayList<>();
+    private final List<InventoryItem> inventoryList = new ArrayList<>();
+    private final List<InventoryItem> lowStockList = new ArrayList<>();
+    private final List<InventoryItem> recentActivityList = new ArrayList<>();
+    private final List<InventoryItem> filteredInventoryList = new ArrayList<>();
     private String currentCategoryFilter = "全部";
+    private boolean isLoggedIn;
 
-    // 类别选项
     private final String[] categories = {"全部", "食材", "日用品", "调料", "饮品", "药品", "其他"};
+    private final String[] addCategories = {"食材", "日用品", "调料", "饮品", "药品", "其他"};
     private final String[] units = {"个", "包", "瓶", "盒", "袋", "斤", "克", "升", "毫升"};
+
+    private ImageView pendingImageView;
+    private String pendingImageUrl;
+
+    private final ActivityResultLauncher<Intent> pickImageLauncher = registerForActivityResult(
+            new ActivityResultContracts.StartActivityForResult(),
+            result -> {
+                if (result.getResultCode() == android.app.Activity.RESULT_OK && result.getData() != null) {
+                    Uri uri = result.getData().getData();
+                    if (uri != null && pendingImageView != null) {
+                        try {
+                            requireContext().getContentResolver().takePersistableUriPermission(
+                                    uri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                        } catch (Exception ignored) {}
+                        Glide.with(this).load(uri).placeholder(R.drawable.ic_inventory_placeholder).into(pendingImageView);
+                        pendingImageUrl = uri.toString();
+                    }
+                }
+            }
+    );
+
+    private final ActivityResultLauncher<String> requestPermissionLauncher = registerForActivityResult(
+            new ActivityResultContracts.RequestPermission(),
+            granted -> {
+                if (granted && pendingImageView != null) {
+                    openImagePicker();
+                } else {
+                    Toast.makeText(getContext(), "需要存储权限才能选择图片", Toast.LENGTH_SHORT).show();
+                }
+            }
+    );
 
     @Nullable
     @Override
@@ -80,11 +116,11 @@ public class InventoryFragment extends Fragment {
     @Override
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
-
         initViews(view);
-        initData();
-        setupListeners();
-        loadInventoryData();
+        setupRecyclerViews();
+        setupFilters();
+        setupActions();
+        refreshInventoryData();
     }
 
     private void initViews(View view) {
@@ -96,76 +132,33 @@ public class InventoryFragment extends Fragment {
         rvRecentActivity = view.findViewById(R.id.rv_recent_activity);
         rvInventoryList = view.findViewById(R.id.rv_inventory_list);
         llEmptyState = view.findViewById(R.id.ll_empty_state);
+        layoutLoginPrompt = view.findViewById(R.id.layout_login_prompt);
+        layoutContent = view.findViewById(R.id.layout_content);
+        btnLoginPrompt = view.findViewById(R.id.btn_login_prompt);
+        tvTotalCount = view.findViewById(R.id.tv_total_count);
+        tvLowStockCount = view.findViewById(R.id.tv_low_stock_count);
+        tvRecentCount = view.findViewById(R.id.tv_recent_count);
+        fabAddInventory = view.findViewById(R.id.fab_add_inventory);
+    }
 
-        // 设置RecyclerView
+    private void setupRecyclerViews() {
         rvInventoryList.setLayoutManager(new LinearLayoutManager(getContext()));
         rvRecentActivity.setLayoutManager(new LinearLayoutManager(getContext(), LinearLayoutManager.HORIZONTAL, false));
-
-        inventoryAdapter = new InventoryAdapter(inventoryList, this);
+        inventoryAdapter = new InventoryAdapter(filteredInventoryList, this);
         recentActivityAdapter = new RecentActivityAdapter(recentActivityList);
-
         rvInventoryList.setAdapter(inventoryAdapter);
         rvRecentActivity.setAdapter(recentActivityAdapter);
+    }
 
-        // 设置类别筛选器
-        ArrayAdapter<String> categoryAdapter = new ArrayAdapter<>(getContext(),
-                android.R.layout.simple_spinner_item, categories);
+    private void setupFilters() {
+        ArrayAdapter<String> categoryAdapter = new ArrayAdapter<>(requireContext(), android.R.layout.simple_spinner_item, categories);
         categoryAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         spinnerCategory.setAdapter(categoryAdapter);
-
-        // 设置添加按钮
-        view.findViewById(R.id.fab_add_inventory).setOnClickListener(v -> showAddInventoryDialog());
-    }
-
-    private void initData() {
-        if (getContext() == null) return;
-
-        inventoryHelper = new InventoryDatabaseHelper(getContext());
-
-        // 获取当前用户信息
-        if (UserInfoManager.isUserLoggedIn(requireContext())) {
-            currentUserId = UserInfoManager.getCurrentUserId(requireContext());
-            // 获取情侣关系ID（异步方式）
-            CoupleRelationshipHelper relationshipHelper = new CoupleRelationshipHelper();
-            relationshipHelper.getUserRelationshipIdOptimized(currentUserId, new CoupleRelationshipHelper.RelationshipIdCallback() {
-                @Override
-                public void onRelationshipIdFound(int relationshipId) {
-                    currentRelationshipId = relationshipId;
-                    // 重新加载数据
-                    if (inventoryHelper != null) {
-                        loadInventoryData();
-                    }
-                }
-
-                @Override
-                public void onNoRelationshipFound() {
-                    currentRelationshipId = null;
-                    // 加载个人数据
-                    if (inventoryHelper != null) {
-                        loadInventoryData();
-                    }
-                }
-
-                @Override
-                public void onError(String error) {
-                    Log.e(TAG, "获取关系ID失败: " + error);
-                    currentRelationshipId = null;
-                    // 加载个人数据
-                    if (inventoryHelper != null) {
-                        loadInventoryData();
-                    }
-                }
-            });
-        }
-    }
-
-    private void setupListeners() {
-        // 类别筛选
         spinnerCategory.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
                 currentCategoryFilter = categories[position];
-                filterInventoryList();
+                applyFilters();
             }
 
             @Override
@@ -173,163 +166,129 @@ public class InventoryFragment extends Fragment {
             }
         });
 
-        // 搜索功能
-        etSearch.setOnEditorActionListener((v, actionId, event) -> {
-            filterInventoryList();
-            return false;
+        etSearch.addTextChangedListener(new SimpleTextWatcher() {
+            @Override
+            public void afterTextChanged(Editable s) {
+                applyFilters();
+            }
+        });
+    }
+
+    private void setupActions() {
+        fabAddInventory.setOnClickListener(v -> {
+            if (!isLoggedIn) {
+                openLoginPage();
+                return;
+            }
+            showInventoryDialog(null);
         });
 
-        // 查看告急存货
+        btnLoginPrompt.setOnClickListener(v -> openLoginPage());
         tvViewAlert.setOnClickListener(v -> showLowStockDialog());
     }
 
-    private void loadInventoryData() {
-        if (inventoryHelper == null) return;
+    public void refreshInventoryData() {
+        if (!isAdded()) {
+            return;
+        }
 
-        inventoryHelper.queryInventory(currentUserId, currentRelationshipId,
-                new InventoryDatabaseHelper.InventoryQueryCallback() {
-                    @Override
-                    public void onQuerySuccess(Cursor cursor) {
-                        if (getActivity() == null) return;
-                        getActivity().runOnUiThread(() -> {
-                            inventoryList.clear();
-                            lowStockList.clear();
-                            recentActivityList.clear();
+        isLoggedIn = UserInfoManager.isUserLoggedIn(requireContext());
+        updateLoginStateUI();
+        if (!isLoggedIn) {
+            clearInventoryData();
+            updateSummary();
+            applyFilters();
+            return;
+        }
 
-                            if (cursor != null && cursor.moveToFirst()) {
-                                // 缓存列索引，避免循环中重复查找
-                                int idCol = cursor.getColumnIndexOrThrow("inventory_id");
-                                int userIdCol = cursor.getColumnIndexOrThrow("user_id");
-                                int relIdCol = cursor.getColumnIndexOrThrow("relationship_id");
-                                int nameCol = cursor.getColumnIndexOrThrow("name");
-                                int categoryCol = cursor.getColumnIndexOrThrow("category");
-                                int imageUrlCol = cursor.getColumnIndexOrThrow("image_url");
-                                int quantityCol = cursor.getColumnIndexOrThrow("quantity");
-                                int unitCol = cursor.getColumnIndexOrThrow("unit");
-                                int thresholdCol = cursor.getColumnIndexOrThrow("threshold");
-                                int createdAtCol = cursor.getColumnIndexOrThrow("created_at");
-                                int updatedAtCol = cursor.getColumnIndexOrThrow("updated_at");
-                                int lastConsumedCol = cursor.getColumnIndexOrThrow("last_consumed_at");
-                                int noteCol = cursor.getColumnIndexOrThrow("note");
-                                int aiPromptCol = cursor.getColumnIndexOrThrow("ai_image_prompt");
+        InventoryUtils.loadInventory(requireContext(), new InventoryUtils.InventoryLoadCallback() {
+            @Override
+            public void onSuccess(AuthApiModels.InventoryListResponse response) {
+                if (!isAdded()) {
+                    return;
+                }
+                requireActivity().runOnUiThread(() -> bindInventoryData(response));
+            }
 
-                                SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault());
-                                long oneDayAgo = System.currentTimeMillis() - 24 * 60 * 60 * 1000;
-
-                                do {
-                                    InventoryItem item = new InventoryItem();
-                                    item.id = cursor.getInt(idCol);
-                                    item.userId = cursor.getInt(userIdCol);
-                                    item.relationshipId = cursor.isNull(relIdCol) ?
-                                            null : cursor.getInt(relIdCol);
-                                    item.name = cursor.getString(nameCol);
-                                    item.category = cursor.getString(categoryCol);
-                                    item.imageUrl = cursor.getString(imageUrlCol);
-                                    item.quantity = cursor.getDouble(quantityCol);
-                                    item.unit = cursor.getString(unitCol);
-                                    item.threshold = cursor.getDouble(thresholdCol);
-                                    item.createdAt = cursor.getString(createdAtCol);
-                                    item.updatedAt = cursor.getString(updatedAtCol);
-                                    item.lastConsumedAt = cursor.getString(lastConsumedCol);
-                                    item.note = cursor.getString(noteCol);
-                                    item.aiImagePrompt = cursor.getString(aiPromptCol);
-
-                                    inventoryList.add(item);
-
-                                    // 检查是否告急
-                                    if (item.quantity <= item.threshold) {
-                                        lowStockList.add(item);
-                                    }
-
-                                    // 检查是否最近动态（24小时内更新）
-                                    try {
-                                        if (item.updatedAt != null) {
-                                            Date updateDate = sdf.parse(item.updatedAt);
-                                            if (updateDate != null && updateDate.getTime() > oneDayAgo) {
-                                                recentActivityList.add(item);
-                                            }
-                                        }
-                                    } catch (Exception e) {
-                                        Log.w(TAG, "日期解析失败: " + item.updatedAt);
-                                    }
-
-                                } while (cursor.moveToNext());
-                                cursor.close();
-                            }
-
-                            // 更新UI
-                            updateUI();
-                        });
-                    }
-
-                    @Override
-                    public void onQueryError(String error) {
-                        if (getActivity() == null) return;
-                        getActivity().runOnUiThread(() -> {
-                            Toast.makeText(getContext(), "加载存货失败: " + error, Toast.LENGTH_SHORT).show();
-                            Log.e(TAG, "查询存货失败: " + error);
-                        });
-                    }
-                });
+            @Override
+            public void onError(String error) {
+                if (!isAdded()) {
+                    return;
+                }
+                requireActivity().runOnUiThread(() -> Toast.makeText(requireContext(), "加载物资失败: " + error, Toast.LENGTH_SHORT).show());
+            }
+        });
     }
 
-    private void updateUI() {
-        // 更新告急提示
-        if (!lowStockList.isEmpty()) {
-            llAlertBanner.setVisibility(View.VISIBLE);
-            tvAlertMessage.setText("有 " + lowStockList.size() + " 项存货告急！");
-        } else {
-            llAlertBanner.setVisibility(View.GONE);
-        }
-
-        // 更新列表
-        filterInventoryList();
-
-        // 更新空状态
-        if (inventoryList.isEmpty()) {
-            llEmptyState.setVisibility(View.VISIBLE);
-            rvInventoryList.setVisibility(View.GONE);
-        } else {
-            llEmptyState.setVisibility(View.GONE);
-            rvInventoryList.setVisibility(View.VISIBLE);
-        }
-
-        // 更新最近动态
-        if (recentActivityList.isEmpty()) {
-            rvRecentActivity.setVisibility(View.GONE);
-        } else {
-            rvRecentActivity.setVisibility(View.VISIBLE);
-            recentActivityAdapter.updateData(recentActivityList);
-        }
-    }
-
-    private void filterInventoryList() {
-        String searchText = etSearch.getText().toString().toLowerCase();
-        List<InventoryItem> filteredList = new ArrayList<>();
-
-        for (InventoryItem item : inventoryList) {
-            boolean matchCategory = currentCategoryFilter.equals("全部") ||
-                    item.category.equals(currentCategoryFilter);
-            boolean matchSearch = TextUtils.isEmpty(searchText) ||
-                    item.name.toLowerCase().contains(searchText) ||
-                    (item.note != null && item.note.toLowerCase().contains(searchText));
-
-            if (matchCategory && matchSearch) {
-                filteredList.add(item);
+    private void bindInventoryData(AuthApiModels.InventoryListResponse response) {
+        clearInventoryData();
+        if (response != null && response.data != null && response.data.items != null) {
+            for (AuthApiModels.InventoryItemData itemData : response.data.items) {
+                InventoryItem item = fromApiItem(itemData);
+                inventoryList.add(item);
+                if (item.isLowStock()) {
+                    lowStockList.add(item);
+                }
+                recentActivityList.add(item);
             }
         }
 
-        inventoryAdapter.updateData(filteredList);
+        if (recentActivityList.size() > 8) {
+            recentActivityList.subList(8, recentActivityList.size()).clear();
+        }
+
+        updateSummary();
+        recentActivityAdapter.updateData(recentActivityList);
+        applyFilters();
     }
 
-    private void showAddInventoryDialog() {
-        AlertDialog.Builder builder = new AlertDialog.Builder(getContext(), R.style.CustomDialogStyle);
+    private void updateLoginStateUI() {
+        layoutLoginPrompt.setVisibility(isLoggedIn ? View.GONE : View.VISIBLE);
+        layoutContent.setVisibility(isLoggedIn ? View.VISIBLE : View.GONE);
+        fabAddInventory.setEnabled(isLoggedIn);
+        fabAddInventory.setAlpha(isLoggedIn ? 1f : 0.5f);
+        etSearch.setEnabled(isLoggedIn);
+        spinnerCategory.setEnabled(isLoggedIn);
+    }
+
+    private void updateSummary() {
+        tvTotalCount.setText(String.valueOf(inventoryList.size()));
+        tvLowStockCount.setText(String.valueOf(lowStockList.size()));
+        tvRecentCount.setText(String.valueOf(recentActivityList.size()));
+
+        if (lowStockList.isEmpty()) {
+            llAlertBanner.setVisibility(View.GONE);
+        } else {
+            llAlertBanner.setVisibility(View.VISIBLE);
+            tvAlertMessage.setText("有 " + lowStockList.size() + " 项物资已低于提醒阈值");
+        }
+
+        llEmptyState.setVisibility(inventoryList.isEmpty() && isLoggedIn ? View.VISIBLE : View.GONE);
+    }
+
+    private void applyFilters() {
+        filteredInventoryList.clear();
+        String keyword = etSearch.getText() == null ? "" : etSearch.getText().toString().trim().toLowerCase(Locale.getDefault());
+        for (InventoryItem item : inventoryList) {
+            boolean matchCategory = "全部".equals(currentCategoryFilter) || currentCategoryFilter.equals(item.category);
+            boolean matchKeyword = TextUtils.isEmpty(keyword)
+                    || (item.name != null && item.name.toLowerCase(Locale.getDefault()).contains(keyword))
+                    || (item.note != null && item.note.toLowerCase(Locale.getDefault()).contains(keyword));
+            if (matchCategory && matchKeyword) {
+                filteredInventoryList.add(item);
+            }
+        }
+        inventoryAdapter.updateData(filteredInventoryList);
+        llEmptyState.setVisibility(filteredInventoryList.isEmpty() && isLoggedIn ? View.VISIBLE : View.GONE);
+    }
+
+    private void showInventoryDialog(@Nullable InventoryItem existingItem) {
+        AlertDialog.Builder builder = new AlertDialog.Builder(requireContext(), R.style.CustomDialogStyle);
         View dialogView = LayoutInflater.from(getContext()).inflate(R.layout.dialog_add_inventory, null);
         builder.setView(dialogView);
-
         AlertDialog dialog = builder.create();
 
-        // 初始化对话框组件
+        TextView tvDialogTitle = dialogView.findViewById(R.id.tv_dialog_title);
         EditText etName = dialogView.findViewById(R.id.et_inventory_name);
         Spinner spinnerCategoryDialog = dialogView.findViewById(R.id.spinner_add_category);
         EditText etQuantity = dialogView.findViewById(R.id.et_quantity);
@@ -340,47 +299,63 @@ public class InventoryFragment extends Fragment {
         ImageView ivAddImage = dialogView.findViewById(R.id.iv_add_image);
         TextView tvSelectImage = dialogView.findViewById(R.id.tv_select_image);
         TextView tvAiGenerate = dialogView.findViewById(R.id.tv_ai_generate);
-        TextView btnAdd = dialogView.findViewById(R.id.btn_add_inventory);
+        TextView btnSubmit = dialogView.findViewById(R.id.btn_add_inventory);
 
-        // 设置类别和单位选项
-        String[] addCategories = {"食材", "日用品", "调料", "饮品", "药品", "其他"};
-        ArrayAdapter<String> categoryAdapter = new ArrayAdapter<>(getContext(),
-                android.R.layout.simple_spinner_item, addCategories);
+        ArrayAdapter<String> categoryAdapter = new ArrayAdapter<>(requireContext(), android.R.layout.simple_spinner_item, addCategories);
         categoryAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         spinnerCategoryDialog.setAdapter(categoryAdapter);
 
-        ArrayAdapter<String> unitAdapter = new ArrayAdapter<>(getContext(),
-                android.R.layout.simple_spinner_item, units);
+        ArrayAdapter<String> unitAdapter = new ArrayAdapter<>(requireContext(), android.R.layout.simple_spinner_item, units);
         unitAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         spinnerUnit.setAdapter(unitAdapter);
 
-        // 选择图片（预留功能）
         tvSelectImage.setOnClickListener(v -> {
-            Toast.makeText(getContext(), "图片选择功能待实现", Toast.LENGTH_SHORT).show();
+            pendingImageView = ivAddImage;
+            checkAndRequestImagePermission();
         });
-
-        // AI生图（预留功能）
         tvAiGenerate.setOnClickListener(v -> {
             etAiPrompt.setVisibility(View.VISIBLE);
-            Toast.makeText(getContext(), "AI生图接口已预留，请配置服务后使用", Toast.LENGTH_SHORT).show();
+            Toast.makeText(getContext(), "AI 生图入口已保留，当前先记录提示词", Toast.LENGTH_SHORT).show();
         });
 
-        // 添加按钮
-        btnAdd.setOnClickListener(v -> {
+        String imageUrl = null;
+        pendingImageUrl = null;
+        if (existingItem != null) {
+            tvDialogTitle.setText("编辑物资");
+            btnSubmit.setText("保存修改");
+            etName.setText(existingItem.name);
+            etQuantity.setText(trimDecimal(existingItem.quantity));
+            etThreshold.setText(trimDecimal(existingItem.threshold));
+            etNote.setText(existingItem.note == null ? "" : existingItem.note);
+            etAiPrompt.setVisibility(existingItem.aiImagePrompt != null && !existingItem.aiImagePrompt.isEmpty() ? View.VISIBLE : View.GONE);
+            etAiPrompt.setText(existingItem.aiImagePrompt == null ? "" : existingItem.aiImagePrompt);
+            imageUrl = existingItem.imageUrl;
+            pendingImageUrl = imageUrl;
+            if (imageUrl != null && !imageUrl.isEmpty()) {
+                Glide.with(this).load(imageUrl).placeholder(R.drawable.ic_inventory_placeholder).into(ivAddImage);
+            }
+            setSpinnerSelection(spinnerCategoryDialog, addCategories, existingItem.category);
+            setSpinnerSelection(spinnerUnit, units, existingItem.unit);
+        } else {
+            tvDialogTitle.setText("新增物资");
+            btnSubmit.setText("添加物资");
+        }
+
+        btnSubmit.setOnClickListener(v -> {
             String name = etName.getText().toString().trim();
             String category = spinnerCategoryDialog.getSelectedItem().toString();
-            String quantityStr = etQuantity.getText().toString().trim();
+            String quantityText = etQuantity.getText().toString().trim();
             String unit = spinnerUnit.getSelectedItem().toString();
-            String thresholdStr = etThreshold.getText().toString().trim();
+            String thresholdText = etThreshold.getText().toString().trim();
             String note = etNote.getText().toString().trim();
             String aiPrompt = etAiPrompt.getText().toString().trim();
+            String currentImageUrl = pendingImageUrl;
 
-            // 验证输入
             if (TextUtils.isEmpty(name)) {
-                Toast.makeText(getContext(), "请输入存货名称", Toast.LENGTH_SHORT).show();
+                Toast.makeText(getContext(), "请输入物资名称", Toast.LENGTH_SHORT).show();
                 return;
             }
-            if (TextUtils.isEmpty(quantityStr)) {
+            if (TextUtils.isEmpty(quantityText)) {
                 Toast.makeText(getContext(), "请输入数量", Toast.LENGTH_SHORT).show();
                 return;
             }
@@ -388,76 +363,64 @@ public class InventoryFragment extends Fragment {
             double quantity;
             double threshold = 1;
             try {
-                quantity = Double.parseDouble(quantityStr);
-                if (!TextUtils.isEmpty(thresholdStr)) {
-                    threshold = Double.parseDouble(thresholdStr);
+                quantity = Double.parseDouble(quantityText);
+                if (!TextUtils.isEmpty(thresholdText)) {
+                    threshold = Double.parseDouble(thresholdText);
                 }
             } catch (NumberFormatException e) {
                 Toast.makeText(getContext(), "数量格式不正确", Toast.LENGTH_SHORT).show();
                 return;
             }
 
-            // 创建存货数据
-            ContentValues values = new ContentValues();
-            values.put("user_id", currentUserId);
-            if (currentRelationshipId != null) {
-                values.put("relationship_id", currentRelationshipId);
-            }
-            values.put("name", name);
-            values.put("category", category);
-            values.put("quantity", quantity);
-            values.put("unit", unit);
-            values.put("threshold", threshold);
-            if (!TextUtils.isEmpty(note)) {
-                values.put("note", note);
-            }
-            if (!TextUtils.isEmpty(aiPrompt)) {
-                values.put("ai_image_prompt", aiPrompt);
+            if (quantity < 0 || threshold < 0) {
+                Toast.makeText(getContext(), "数量和阈值不能为负数", Toast.LENGTH_SHORT).show();
+                return;
             }
 
-            // 保存到数据库
-            inventoryHelper.insertInventory(values, new InventoryDatabaseHelper.InventoryInsertCallback() {
+            InventoryUtils.InventoryMutationCallback callback = new InventoryUtils.InventoryMutationCallback() {
                 @Override
-                public void onInsertSuccess(long id) {
-                    if (getActivity() == null) return;
-                    getActivity().runOnUiThread(() -> {
-                        Toast.makeText(getContext(), "存货添加成功", Toast.LENGTH_SHORT).show();
+                public void onSuccess() {
+                    if (!isAdded()) {
+                        return;
+                    }
+                    requireActivity().runOnUiThread(() -> {
+                        Toast.makeText(getContext(), existingItem == null ? "物资添加成功" : "物资更新成功", Toast.LENGTH_SHORT).show();
                         dialog.dismiss();
-                        loadInventoryData();
+                        refreshInventoryData();
                     });
                 }
 
                 @Override
-                public void onInsertError(String error) {
-                    if (getActivity() == null) return;
-                    getActivity().runOnUiThread(() -> {
-                        Toast.makeText(getContext(), "添加失败: " + error, Toast.LENGTH_SHORT).show();
-                    });
+                public void onError(String error) {
+                    if (!isAdded()) {
+                        return;
+                    }
+                    requireActivity().runOnUiThread(() -> Toast.makeText(getContext(), error, Toast.LENGTH_SHORT).show());
                 }
-            });
+            };
+
+            if (existingItem == null) {
+                InventoryUtils.createInventory(requireContext(), name, category, quantity, unit, threshold, currentImageUrl, note, aiPrompt, callback);
+            } else {
+                InventoryUtils.updateInventory(requireContext(), existingItem.id, name, category, quantity, unit, threshold, currentImageUrl, note, aiPrompt, callback);
+            }
         });
 
         dialog.show();
     }
 
     private void showLowStockDialog() {
-        if (lowStockList.isEmpty()) return;
-
+        if (lowStockList.isEmpty()) {
+            return;
+        }
         AlertDialog.Builder builder = new AlertDialog.Builder(getContext());
-        builder.setTitle("告急存货列表");
-
+        builder.setTitle("告急物资列表");
         String[] items = new String[lowStockList.size()];
         for (int i = 0; i < lowStockList.size(); i++) {
             InventoryItem item = lowStockList.get(i);
-            items[i] = item.name + " - 剩余: " + item.quantity + " " + item.unit;
+            items[i] = item.name + " · 当前 " + trimDecimal(item.quantity) + " " + item.unit + " · 阈值 " + trimDecimal(item.threshold);
         }
-
-        builder.setItems(items, (dialog, which) -> {
-            // 点击后可以进行补货操作
-            InventoryItem item = lowStockList.get(which);
-            showReplenishDialog(item);
-        });
-
+        builder.setItems(items, (dialog, which) -> showReplenishDialog(lowStockList.get(which)));
         builder.setPositiveButton("关闭", null);
         builder.show();
     }
@@ -465,49 +428,24 @@ public class InventoryFragment extends Fragment {
     public void showConsumeDialog(InventoryItem item) {
         AlertDialog.Builder builder = new AlertDialog.Builder(getContext());
         builder.setTitle("消耗 " + item.name);
-
         final EditText input = new EditText(getContext());
         input.setInputType(android.text.InputType.TYPE_CLASS_NUMBER | android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL);
         input.setHint("消耗数量");
         input.setText("1");
         builder.setView(input);
-
         builder.setPositiveButton("确认消耗", (dialog, which) -> {
             String amountStr = input.getText().toString().trim();
             if (TextUtils.isEmpty(amountStr)) {
                 Toast.makeText(getContext(), "请输入消耗数量", Toast.LENGTH_SHORT).show();
                 return;
             }
-
-            double consumeAmount;
             try {
-                consumeAmount = Double.parseDouble(amountStr);
+                double amount = Double.parseDouble(amountStr);
+                InventoryUtils.consumeInventory(requireContext(), item.id, amount, new ToastMutationCallback("消耗记录成功"));
             } catch (NumberFormatException e) {
                 Toast.makeText(getContext(), "数量格式不正确", Toast.LENGTH_SHORT).show();
-                return;
             }
-
-            inventoryHelper.consumeInventory(item.id, consumeAmount,
-                    new InventoryDatabaseHelper.InventoryUpdateCallback() {
-                        @Override
-                        public void onUpdateSuccess(int rowsUpdated) {
-                            if (getActivity() == null) return;
-                            getActivity().runOnUiThread(() -> {
-                                Toast.makeText(getContext(), "消耗记录成功", Toast.LENGTH_SHORT).show();
-                                loadInventoryData();
-                            });
-                        }
-
-                        @Override
-                        public void onUpdateError(String error) {
-                            if (getActivity() == null) return;
-                            getActivity().runOnUiThread(() -> {
-                                Toast.makeText(getContext(), error, Toast.LENGTH_SHORT).show();
-                            });
-                        }
-                    });
         });
-
         builder.setNegativeButton("取消", null);
         builder.show();
     }
@@ -515,56 +453,160 @@ public class InventoryFragment extends Fragment {
     public void showReplenishDialog(InventoryItem item) {
         AlertDialog.Builder builder = new AlertDialog.Builder(getContext());
         builder.setTitle("补货 " + item.name);
-
         final EditText input = new EditText(getContext());
         input.setInputType(android.text.InputType.TYPE_CLASS_NUMBER | android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL);
         input.setHint("补货数量");
         input.setText("1");
         builder.setView(input);
-
         builder.setPositiveButton("确认补货", (dialog, which) -> {
             String amountStr = input.getText().toString().trim();
             if (TextUtils.isEmpty(amountStr)) {
                 Toast.makeText(getContext(), "请输入补货数量", Toast.LENGTH_SHORT).show();
                 return;
             }
-
-            double addAmount;
             try {
-                addAmount = Double.parseDouble(amountStr);
+                double amount = Double.parseDouble(amountStr);
+                InventoryUtils.replenishInventory(requireContext(), item.id, amount, new ToastMutationCallback("补货成功"));
             } catch (NumberFormatException e) {
                 Toast.makeText(getContext(), "数量格式不正确", Toast.LENGTH_SHORT).show();
-                return;
             }
-
-            inventoryHelper.replenishInventory(item.id, addAmount,
-                    new InventoryDatabaseHelper.InventoryUpdateCallback() {
-                        @Override
-                        public void onUpdateSuccess(int rowsUpdated) {
-                            if (getActivity() == null) return;
-                            getActivity().runOnUiThread(() -> {
-                                Toast.makeText(getContext(), "补货成功", Toast.LENGTH_SHORT).show();
-                                loadInventoryData();
-                            });
-                        }
-
-                        @Override
-                        public void onUpdateError(String error) {
-                            if (getActivity() == null) return;
-                            getActivity().runOnUiThread(() -> {
-                                Toast.makeText(getContext(), "补货失败: " + error, Toast.LENGTH_SHORT).show();
-                            });
-                        }
-                    });
         });
-
         builder.setNegativeButton("取消", null);
         builder.show();
     }
 
-    /**
-     * 存货数据模型
-     */
+    private void showDeleteDialog(InventoryItem item) {
+        new AlertDialog.Builder(requireContext())
+                .setTitle("删除物资")
+                .setMessage("确定删除“" + item.name + "”吗？")
+                .setPositiveButton("删除", (dialog, which) -> InventoryUtils.deleteInventory(requireContext(), item.id, new ToastMutationCallback("删除成功")))
+                .setNegativeButton("取消", null)
+                .show();
+    }
+
+    private void openLoginPage() {
+        startActivity(new Intent(requireContext(), LoginActivity.class));
+    }
+
+    private void checkAndRequestImagePermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(requireContext(), android.Manifest.permission.READ_MEDIA_IMAGES)
+                    == PackageManager.PERMISSION_GRANTED) {
+                openImagePicker();
+            } else {
+                requestPermissionLauncher.launch(android.Manifest.permission.READ_MEDIA_IMAGES);
+            }
+        } else {
+            if (ContextCompat.checkSelfPermission(requireContext(), android.Manifest.permission.READ_EXTERNAL_STORAGE)
+                    == PackageManager.PERMISSION_GRANTED) {
+                openImagePicker();
+            } else {
+                requestPermissionLauncher.launch(android.Manifest.permission.READ_EXTERNAL_STORAGE);
+            }
+        }
+    }
+
+    private void openImagePicker() {
+        Intent intent = new Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
+        intent.setType("image/*");
+        if (intent.resolveActivity(requireContext().getPackageManager()) != null) {
+            pickImageLauncher.launch(intent);
+        } else {
+            Toast.makeText(getContext(), "没有找到可用的图片选择应用", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void clearInventoryData() {
+        inventoryList.clear();
+        lowStockList.clear();
+        recentActivityList.clear();
+        filteredInventoryList.clear();
+        recentActivityAdapter.updateData(recentActivityList);
+        inventoryAdapter.updateData(filteredInventoryList);
+    }
+
+    private InventoryItem fromApiItem(AuthApiModels.InventoryItemData itemData) {
+        InventoryItem item = new InventoryItem();
+        item.id = itemData.inventoryId;
+        item.userId = itemData.userId;
+        item.relationshipId = itemData.relationshipId;
+        item.name = itemData.name;
+        item.category = itemData.category;
+        item.imageUrl = itemData.imageUrl;
+        item.quantity = itemData.quantity;
+        item.unit = itemData.unit;
+        item.threshold = itemData.threshold;
+        item.createdAt = normalizeDateTime(itemData.createdAt);
+        item.updatedAt = normalizeDateTime(itemData.updatedAt);
+        item.lastConsumedAt = normalizeDateTime(itemData.lastConsumedAt);
+        item.note = itemData.note;
+        item.aiImagePrompt = itemData.aiImagePrompt;
+        item.isLowStock = itemData.isLowStock || item.quantity <= item.threshold;
+        item.lastActionLabel = resolveActionLabel(item);
+        return item;
+    }
+
+    private String resolveActionLabel(InventoryItem item) {
+        if (item.lastConsumedAt != null && !item.lastConsumedAt.isEmpty()) {
+            return "消耗";
+        }
+        if (item.updatedAt != null && item.createdAt != null && !item.updatedAt.equals(item.createdAt)) {
+            return "更新";
+        }
+        return "新增";
+    }
+
+    private String normalizeDateTime(String value) {
+        if (value == null) {
+            return null;
+        }
+        String normalized = value.replace('T', ' ');
+        int dotIndex = normalized.indexOf('.');
+        if (dotIndex > 0) {
+            normalized = normalized.substring(0, dotIndex);
+        }
+        return normalized;
+    }
+
+    private String trimDecimal(double value) {
+        if (value == (long) value) {
+            return String.format(Locale.getDefault(), "%d", (long) value);
+        }
+        return String.format(Locale.getDefault(), "%.1f", value);
+    }
+
+    private void setSpinnerSelection(Spinner spinner, String[] values, String target) {
+        if (target == null) {
+            return;
+        }
+        for (int i = 0; i < values.length; i++) {
+            if (target.equals(values[i])) {
+                spinner.setSelection(i);
+                return;
+            }
+        }
+    }
+
+    @Override
+    public void onConsume(InventoryItem item) {
+        showConsumeDialog(item);
+    }
+
+    @Override
+    public void onReplenish(InventoryItem item) {
+        showReplenishDialog(item);
+    }
+
+    @Override
+    public void onEdit(InventoryItem item) {
+        showInventoryDialog(item);
+    }
+
+    @Override
+    public void onDelete(InventoryItem item) {
+        showDeleteDialog(item);
+    }
+
     public static class InventoryItem {
         public int id;
         public int userId;
@@ -581,9 +623,47 @@ public class InventoryFragment extends Fragment {
         public String note;
         public String aiImagePrompt;
         public boolean isLowStock;
+        public String lastActionLabel;
 
         public boolean isLowStock() {
-            return quantity <= threshold;
+            return isLowStock || quantity <= threshold;
+        }
+    }
+
+    private abstract static class SimpleTextWatcher implements TextWatcher {
+        @Override
+        public void beforeTextChanged(CharSequence s, int start, int count, int after) {
+        }
+
+        @Override
+        public void onTextChanged(CharSequence s, int start, int before, int count) {
+        }
+    }
+
+    private class ToastMutationCallback implements InventoryUtils.InventoryMutationCallback {
+        private final String successMessage;
+
+        ToastMutationCallback(String successMessage) {
+            this.successMessage = successMessage;
+        }
+
+        @Override
+        public void onSuccess() {
+            if (!isAdded()) {
+                return;
+            }
+            requireActivity().runOnUiThread(() -> {
+                Toast.makeText(getContext(), successMessage, Toast.LENGTH_SHORT).show();
+                refreshInventoryData();
+            });
+        }
+
+        @Override
+        public void onError(String error) {
+            if (!isAdded()) {
+                return;
+            }
+            requireActivity().runOnUiThread(() -> Toast.makeText(getContext(), error, Toast.LENGTH_SHORT).show());
         }
     }
 }

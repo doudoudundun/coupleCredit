@@ -4,6 +4,7 @@
     <string name="second_page">记账</string>
     <string name="third_page">报表</string>
     <string name="forth_page">我</string>
+    <string name="inventory">物资</string>
     <string name="title_activity_categories_bill_display">CategoriesBillDisplayActivity</string>
     <string name="dummy_button">Dummy Button</string>
     <string name="dummy_content">DUMMY\nCONTENT</string>
