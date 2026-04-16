@@ -8,6 +8,7 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
+import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
@@ -28,11 +29,12 @@ import com.bumptech.glide.Glide;
 import com.bumptech.glide.load.resource.bitmap.CircleCrop;
 import com.example.couplecredit.R;
 import com.example.couplecredit.api.AvatarUploadApi;
-import com.example.couplecredit.function.MySQLDatabaseHelper;
-import com.example.couplecredit.function.NicknameCache;
-import com.example.couplecredit.function.UserInfoManager;
+import com.example.couplecredit.database.MySQLDatabaseHelper;
+import com.example.couplecredit.utils.NicknameCache;
+import com.example.couplecredit.utils.UserInfoManager;
 import com.example.couplecredit.utils.AvatarCacheManager;
 import com.example.couplecredit.utils.AvatarUpdateManager;
+import com.example.couplecredit.config.ApiConfigManager;
 import com.example.couplecredit.config.DatabaseConfig;
 import com.example.couplecredit.database.CoupleRelationshipHelper;
 import com.example.couplecredit.activity.LoginActivity;
@@ -45,6 +47,8 @@ public class UserSettingsActivity extends AppCompatActivity {
     private LinearLayout llChangeNickname; // 修改昵称选项
     private LinearLayout llChangeProfile;  // 修改头像选项
     private LinearLayout llChangePassword; // 修改密码选项
+    private LinearLayout llServerSettings; // 服务器设置选项
+    private TextView tvServerUrl;          // 服务器地址显示
     private LinearLayout llSignOut;        // 退出登录选项
     private LinearLayout llLogout;         // 注销用户选项
     private LinearLayout llCoupleInfo, llUnbindCouple;
@@ -96,7 +100,10 @@ public class UserSettingsActivity extends AppCompatActivity {
         
         // 更新用户信息显示
         updateUserInfo();
-        
+
+        // 更新服务器地址显示
+        updateServerUrlDisplay();
+
         // 加载情侣信息
         loadCoupleInfo();
         
@@ -119,6 +126,8 @@ public class UserSettingsActivity extends AppCompatActivity {
         llChangeNickname = findViewById(R.id.ll_change_nickname);
         llChangeProfile = findViewById(R.id.ll_change_profile);
         llChangePassword = findViewById(R.id.ll_change_password);
+        llServerSettings = findViewById(R.id.ll_server_settings);
+        tvServerUrl = findViewById(R.id.tv_server_url);
         llSignOut = findViewById(R.id.ll_sign_out);
         llLogout = findViewById(R.id.ll_logout);
     }
@@ -147,7 +156,10 @@ public class UserSettingsActivity extends AppCompatActivity {
             intent.putExtra("username", username);
             startActivity(intent);
         });
-        
+
+        // 服务器设置点击事件
+        llServerSettings.setOnClickListener(v -> showServerSettingsDialog());
+
         // 退出登录点击事件
         llSignOut.setOnClickListener(v -> showSignOutDialog());
         
@@ -589,6 +601,116 @@ public class UserSettingsActivity extends AppCompatActivity {
                 // 如果加载失败，使用默认头像
                 ivUserAvatar.setImageResource(R.drawable.ic_default_avatar);
             }
+        }
+    }
+
+    /**
+     * 显示服务器设置对话框
+     */
+    private void showServerSettingsDialog() {
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("服务器设置");
+
+        // 显示当前地址
+        String currentUrl = ApiConfigManager.getBaseUrl(this);
+        boolean isCustom = ApiConfigManager.hasCustomUrl(this);
+        String defaultUrl = ApiConfigManager.getDefaultUrl();
+
+        // 创建输入框
+        final EditText input = new EditText(this);
+        input.setText(currentUrl);
+        input.setHint("输入服务器地址（默认：https://api.datafun.online）");
+
+        // 创建提示文本
+        TextView tvHint = new TextView(this);
+        tvHint.setText("默认地址: " + defaultUrl + "\n优先使用稳定域名 https://api.datafun.online\n只有在你明确切换到其他服务器时，才需要手动修改这里。");
+        tvHint.setTextSize(12);
+        tvHint.setPadding(50, 10, 50, 10);
+
+        // 创建容器
+        LinearLayout container = new LinearLayout(this);
+        container.setOrientation(LinearLayout.VERTICAL);
+        container.addView(tvHint);
+        container.addView(input);
+
+        builder.setView(container);
+
+        builder.setPositiveButton("保存", (dialog, which) -> {
+            String newUrl = input.getText().toString().trim();
+            if (newUrl.isEmpty()) {
+                Toast.makeText(this, "地址不能为空", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            // 简单验证 URL 格式
+            if (!newUrl.startsWith("http://") && !newUrl.startsWith("https://")) {
+                Toast.makeText(this, "地址必须以 http:// 或 https:// 开头", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            ApiConfigManager.setCustomBaseUrl(this, newUrl);
+            updateServerUrlDisplay();
+            Toast.makeText(this, "服务器地址已更新，建议测试连接", Toast.LENGTH_SHORT).show();
+        });
+
+        builder.setNegativeButton("取消", null);
+
+        builder.setNeutralButton("测试连接", (dialog, which) -> {
+            // 测试当前输入的地址
+            String testUrl = input.getText().toString().trim();
+            if (testUrl.isEmpty() || (!testUrl.startsWith("http://") && !testUrl.startsWith("https://"))) {
+                Toast.makeText(this, "请输入有效的地址后再测试", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            Toast.makeText(this, "正在测试连接...", Toast.LENGTH_SHORT).show();
+
+            // 临时保存并测试
+            ApiConfigManager.setCustomBaseUrl(this, testUrl);
+            ApiConfigManager.testConnection(this, new ApiConfigManager.ConnectionTestCallback() {
+                @Override
+                public void onSuccess(String url) {
+                    runOnUiThread(() -> {
+                        updateServerUrlDisplay();
+                        Toast.makeText(UserSettingsActivity.this, "连接成功！", Toast.LENGTH_SHORT).show();
+                    });
+                }
+
+                @Override
+                public void onError(String error) {
+                    runOnUiThread(() -> {
+                        Toast.makeText(UserSettingsActivity.this, "连接失败: " + error, Toast.LENGTH_LONG).show();
+                    });
+                }
+            });
+        });
+
+        if (isCustom) {
+            // 添加恢复默认选项
+            builder.setNeutralButton("测试连接", null);
+            // 在对话框显示后设置按钮点击
+        }
+
+        AlertDialog dialog = builder.create();
+        dialog.show();
+
+        // 如果有自定义URL，添加第四个按钮
+        if (isCustom) {
+            Button restoreButton = dialog.getButton(AlertDialog.BUTTON_NEUTRAL);
+            // 我们需要重新设置对话框以包含三个按钮：保存、取消、恢复默认
+            // 简化处理：不在这里添加恢复默认
+        }
+    }
+
+    /**
+     * 更新服务器地址显示
+     */
+    private void updateServerUrlDisplay() {
+        String currentUrl = ApiConfigManager.getBaseUrl(this);
+        boolean isCustom = ApiConfigManager.hasCustomUrl(this);
+        if (isCustom) {
+            tvServerUrl.setText("当前: " + currentUrl);
+            tvServerUrl.setTextColor(getResources().getColor(android.R.color.holo_blue_dark));
+        } else {
+            tvServerUrl.setText("当前: 默认地址");
+            tvServerUrl.setTextColor(getResources().getColor(android.R.color.darker_gray));
         }
     }
 }

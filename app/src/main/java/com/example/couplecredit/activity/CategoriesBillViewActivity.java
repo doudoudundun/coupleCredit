@@ -15,12 +15,13 @@ import androidx.core.view.WindowInsetsCompat;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
-import com.example.couplecredit.BillBean;
+import com.example.couplecredit.model.BillBean;
 import com.example.couplecredit.R;
 import com.example.couplecredit.adapter.BillAdapter;
-import com.example.couplecredit.database.BillDatabaseHelper;
-import com.example.couplecredit.function.UserInfoManager;
-import com.example.couplecredit.function.Utils;
+import com.example.couplecredit.api.AuthApiClient;
+import com.example.couplecredit.api.AuthApiModels;
+import com.example.couplecredit.utils.UserInfoManager;
+import com.example.couplecredit.utils.BillUtils;
 import com.example.couplecredit.utils.CategoryIconMapper;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 
@@ -100,129 +101,116 @@ public class CategoriesBillViewActivity extends AppCompatActivity {
         finish();
     }
     
+    private BillBean toBillBean(AuthApiModels.BillData bill) {
+        String dateStr = bill.date;
+        if (dateStr != null && dateStr.contains("T")) {
+            dateStr = dateStr.substring(0, 10);
+        }
+        String[] dateParts = dateStr.split("-");
+        int year = Integer.parseInt(dateParts[0]);
+        int month = Integer.parseInt(dateParts[1]);
+        int day = Integer.parseInt(dateParts[2]);
+        String billCategoryName = bill.type;
+        return new BillBean(
+                bill.billId,
+                bill.amount,
+                year,
+                month,
+                day,
+                bill.owner,
+                bill.userId,
+                billCategoryName,
+                "",
+                getIconForCategory(billCategoryName),
+                bill.incomeType,
+                bill.time,
+                bill.title,
+                bill.isHelp
+        );
+    }
+
     private void getCategoryBill() {
-        // 获取用户信息
         UserInfoManager.getCurrentUserInfo(this, new UserInfoManager.UserInfoCallback() {
             @Override
             public void onUserInfoLoaded(int userId, String username, Integer relationshipId) {
-                // 查询账单数据
-                BillDatabaseHelper billHelper = new BillDatabaseHelper(CategoriesBillViewActivity.this);
-                
-                // 构建筛选条件（类别 + 月份）
-                String selection = null;
-                String[] selectionArgs = null;
-                
-                // 构建月份筛选条件
-                if (filterYear > 0 && filterMonth > 0) {
-                    String monthPattern = String.format("%04d-%02d-%%", filterYear, filterMonth);
-                    if (!"全部".equals(categoryName)) {
-                        selection = "type = ? AND date LIKE ?";
-                        selectionArgs = new String[]{categoryName, monthPattern};
-                    } else {
-                        selection = "date LIKE ?";
-                        selectionArgs = new String[]{monthPattern};
-                    }
-                } else {
-                    // 如果没有月份筛选，只按类别筛选
-                    if (!"全部".equals(categoryName)) {
-                        selection = "type = ?";
-                        selectionArgs = new String[]{categoryName};
-                    }
-                }
-                
-                billHelper.queryBillsWithUserFilter(userId, relationshipId, selection, selectionArgs, new BillDatabaseHelper.QueryCallback() {
+                int queryYear = filterYear > 0 ? filterYear : new Date().getYear() + 1900;
+                int queryMonth = filterMonth > 0 ? filterMonth : new Date().getMonth() + 1;
+
+                AuthApiClient.queryBills(CategoriesBillViewActivity.this, userId, queryYear, queryMonth, new AuthApiClient.BillsQueryCallback() {
                     @Override
-                    public void onSuccess(List<Map<String, Object>> results) {
+                    public void onSuccess(AuthApiModels.BillsQueryResponse response) {
                         runOnUiThread(() -> {
-                            processQueryResults(results);
+                            List<BillBean> bills = new ArrayList<>();
+                            if (response != null && response.data != null && response.data.bills != null) {
+                                for (AuthApiModels.BillData bill : response.data.bills) {
+                                    if (bill == null) {
+                                        continue;
+                                    }
+                                    if (!"全部".equals(categoryName) && !categoryName.equals(bill.type)) {
+                                        continue;
+                                    }
+                                    try {
+                                        bills.add(toBillBean(bill));
+                                    } catch (Exception e) {
+                                        Log.e("CategoriesBillViewActivity", "解析账单失败: " + e.getMessage(), e);
+                                    }
+                                }
+                            }
+                            processBillResults(bills);
                         });
                     }
-                    
+
                     @Override
                     public void onError(String error) {
                         runOnUiThread(() -> {
                             Log.e("CategoriesBillViewActivity", "查询账单失败: " + error);
-                            // 显示空列表
                             displayItems.clear();
                             billAdapter.notifyDataSetChanged();
                         });
                     }
                 });
             }
-            
+
             @Override
             public void onError(String error) {
                 runOnUiThread(() -> {
                     Log.e("CategoriesBillViewActivity", "获取用户信息失败: " + error);
-                    // 显示空列表
                     displayItems.clear();
                     billAdapter.notifyDataSetChanged();
                 });
             }
         });
     }
-    
-    private void processQueryResults(List<Map<String, Object>> results) {
+
+    private void processBillResults(List<BillBean> results) {
         displayItems.clear();
         billItems = new ArrayList<>();
-        
-        // 按日期分组
+
         Map<String, List<BillBean>> dateGroups = new HashMap<>();
-        
-        for (Map<String, Object> result : results) {
-            // 解析日期字符串为年月日
-            String dateStr = (String) result.get("date");
-            String[] dateParts = dateStr.split("-");
-            int year = Integer.parseInt(dateParts[0]);
-            int month = Integer.parseInt(dateParts[1]);
-            int day = Integer.parseInt(dateParts[2]);
-            
-            String categoryName = (String) result.get("type");
-            
-            BillBean bill = new BillBean(
-                ((Long) result.get("_id")).longValue(),
-                (Double) result.get("amount"),
-                year,
-                month,
-                day,
-                (Integer) result.get("owner"),
-                (Integer) result.get("userId"),
-                categoryName,
-                "", // categoryDesc
-                getIconForCategory(categoryName),
-                (Integer) result.get("income_type"),
-                (String) result.get("time"),
-                (String) result.get("title"),
-                (Integer) result.get("is_help")
-            );
-            
+
+        for (BillBean bill : results) {
             billItems.add(bill);
-            
-            // 按日期分组
-            String date = dateStr;
+            String date = String.format(Locale.getDefault(), "%04d-%02d-%02d", bill.getYear(), bill.getMonth(), bill.getDay());
             if (!dateGroups.containsKey(date)) {
                 dateGroups.put(date, new ArrayList<>());
             }
             dateGroups.get(date).add(bill);
         }
-        
-        // 按日期排序并添加到显示列表
+
         List<String> sortedDates = new ArrayList<>(dateGroups.keySet());
-        sortedDates.sort((d1, d2) -> d2.compareTo(d1)); // 降序排列
-        
+        sortedDates.sort((d1, d2) -> d2.compareTo(d1));
+
         for (String date : sortedDates) {
             List<BillBean> billsForDate = dateGroups.get(date);
-            // 按时间排序
             billsForDate.sort((b1, b2) -> b2.getTime().compareTo(b1.getTime()));
-            
-            // 创建日期组Map
             Map<String, List<BillBean>> dateGroup = new HashMap<>();
             dateGroup.put(date, billsForDate);
             displayItems.add(dateGroup);
         }
-        
+
         billAdapter.notifyDataSetChanged();
     }
+
 
     public void processDialog(BillBean bill){
         double fare = bill.getFare();
@@ -290,7 +278,7 @@ public class CategoriesBillViewActivity extends AppCompatActivity {
             btnDelete.setOnClickListener(v -> showWarningDialog(bill));
         }
         if (btnEdit != null) {
-            btnEdit.setOnClickListener(v -> Utils.enterEditMode(this, mDialog, tvDate, tvFare, tvNoteContent,
+            btnEdit.setOnClickListener(v -> BillUtils.enterEditMode(this, mDialog, tvDate, tvFare, tvNoteContent,
                     etFare, etNoteContent, btnEdit, btnDelete, btnConfirm, btnCancel));
         }
         if (btnConfirm != null) {
@@ -302,7 +290,7 @@ public class CategoriesBillViewActivity extends AppCompatActivity {
                 SimpleDateFormat timeFormat = new SimpleDateFormat("HH:mm:ss", Locale.getDefault());
                 String currentTime = timeFormat.format(new Date());
 
-                Utils.updateBill(this, bill, currentDate, currentFare, currentNoteContent, currentTime, new Utils.UpdateBillCallback() {
+                BillUtils.updateBill(this, bill, currentDate, currentFare, currentNoteContent, currentTime, new BillUtils.UpdateBillCallback() {
                     @Override
                     public void onUpdateSuccess(int rowsAffected) {
                         runOnUiThread(() -> {
@@ -319,7 +307,7 @@ public class CategoriesBillViewActivity extends AppCompatActivity {
                         runOnUiThread(() -> Log.e("CategoriesBillViewActivity", "更新账单失败: " + error));
                     }
                 });
-                Utils.exitEditMode(mDialog, tvDate, tvFare, tvNoteContent,
+                BillUtils.exitEditMode(mDialog, tvDate, tvFare, tvNoteContent,
                         etFare, etNoteContent, btnEdit, btnDelete, btnConfirm, btnCancel);
             });
         }
@@ -337,7 +325,7 @@ public class CategoriesBillViewActivity extends AppCompatActivity {
                 if (tvNoteContent != null) {
                     tvNoteContent.setText(noteTitle != null ? noteTitle : "");
                 }
-                Utils.exitEditMode(mDialog, tvDate, tvFare, tvNoteContent,
+                BillUtils.exitEditMode(mDialog, tvDate, tvFare, tvNoteContent,
                         etFare, etNoteContent, btnEdit, btnDelete, btnConfirm, btnCancel);
             });
         }
@@ -372,18 +360,13 @@ public class CategoriesBillViewActivity extends AppCompatActivity {
     }
     
     private void deleteBill(BillBean bill) {
-        BillDatabaseHelper billHelper = new BillDatabaseHelper(this);
-        String selection = BillDatabaseHelper.COLUMN_ID + "=?";
-        String[] selectionArgs = {String.valueOf(bill.getBillId())};
-        
-        billHelper.deleteBill(selection, selectionArgs, new BillDatabaseHelper.BillDeleteCallback() {
+        BillUtils.deleteBill(this, bill, new BillUtils.DeleteBillCallback() {
             @Override
             public void onDeleteSuccess(int rowsDeleted) {
                 runOnUiThread(() -> {
                     if (rowsDeleted > 0) {
                         Log.d("CategoriesBillViewActivity", "删除账单成功");
                         refreshBillData();
-                        // 通知首页刷新数据
                         notifyHomePageRefresh();
                         if (mDialog != null) {
                             mDialog.dismiss();
@@ -391,12 +374,10 @@ public class CategoriesBillViewActivity extends AppCompatActivity {
                     }
                 });
             }
-            
+
             @Override
             public void onDeleteError(String error) {
-                runOnUiThread(() -> {
-                    Log.e("CategoriesBillViewActivity", "删除账单失败: " + error);
-                });
+                runOnUiThread(() -> Log.e("CategoriesBillViewActivity", "删除账单失败: " + error));
             }
         });
     }

@@ -14,7 +14,7 @@ import com.example.couplecredit.service.ChatSyncService;
 import com.example.couplecredit.utils.NetworkStateManager;
 import com.example.couplecredit.service.OfflineCacheManager;
 import com.example.couplecredit.service.OfflineService;
-import com.example.couplecredit.function.UserInfoManager;
+import com.example.couplecredit.utils.UserInfoManager;
 
 import java.text.SimpleDateFormat;
 import java.util.Date;

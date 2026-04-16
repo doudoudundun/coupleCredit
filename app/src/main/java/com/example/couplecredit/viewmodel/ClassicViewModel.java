@@ -8,10 +8,13 @@ import androidx.lifecycle.AndroidViewModel;
 import androidx.lifecycle.LiveData;
 import androidx.lifecycle.MutableLiveData;
 
-import com.example.couplecredit.BillBean;
+import com.example.couplecredit.model.BillBean;
+import com.example.couplecredit.api.AuthApiClient;
+import com.example.couplecredit.api.AuthApiModels;
 import com.example.couplecredit.database.BillDatabaseHelper;
-import com.example.couplecredit.function.UserInfoManager;
-import com.example.couplecredit.R;
+import com.example.couplecredit.database.DatabaseInitializer;
+import com.example.couplecredit.utils.CategoryIconMapper;
+import com.example.couplecredit.utils.UserInfoManager;
 
 import java.util.ArrayList;
 import java.util.Calendar;
@@ -101,6 +104,8 @@ public class ClassicViewModel extends AndroidViewModel {
         // 登录检查
         boolean loggedIn = UserInfoManager.isUserLoggedIn(getApplication());
         isLoggedIn.postValue(loggedIn);
+        Log.d("ClassicViewModel", "登录状态: " + loggedIn);
+
         if (!loggedIn) {
             // 未登录：清空数据
             displayItems.clear();
@@ -110,6 +115,107 @@ public class ClassicViewModel extends AndroidViewModel {
             return;
         }
 
+        // 检查是否有数据库配置
+        boolean hasDatabaseConfig = DatabaseInitializer.hasDatabaseConfig();
+        Log.d("ClassicViewModel", "数据库配置检查结果: hasDatabaseConfig=" + hasDatabaseConfig);
+
+        if (!hasDatabaseConfig) {
+            // 无数据库配置，使用 HTTP API
+            Log.d("ClassicViewModel", "选择 HTTP API 模式");
+            loadBillDataViaHttpApi(year, month);
+            return;
+        }
+
+        // 有数据库配置，使用 JDBC
+        Log.d("ClassicViewModel", "选择 JDBC 模式");
+        loadBillDataViaJdbc(year, month, monthPattern, loadStartTime);
+    }
+
+    /**
+     * 通过 HTTP API 加载账单数据（外网模式）
+     */
+    private void loadBillDataViaHttpApi(int year, int month) {
+        int userId = UserInfoManager.getCurrentUserId(getApplication());
+        if (userId < 0) {
+            Log.e("ClassicViewModel", "获取用户ID失败");
+            displayItems.clear();
+            totalIncome.postValue(0.0);
+            totalExpense.postValue(0.0);
+            bumpVersion();
+            return;
+        }
+
+        Log.d("ClassicViewModel", "使用 HTTP API 查询账单: userId=" + userId + ", year=" + year + ", month=" + month);
+
+        AuthApiClient.queryBills(getApplication(), userId, year, month, new AuthApiClient.BillsQueryCallback() {
+            @Override
+            public void onSuccess(AuthApiModels.BillsQueryResponse response) {
+                if (response.data == null || response.data.bills == null) {
+                    Log.w("ClassicViewModel", "API 返回无账单数据");
+                    billItems.clear();
+                    displayItems.clear();
+                    totalIncome.postValue(0.0);
+                    totalExpense.postValue(0.0);
+                    bumpVersion();
+                    return;
+                }
+
+                billItems.clear();
+                for (AuthApiModels.BillData bill : response.data.bills) {
+                    try {
+                        // 解析日期 (格式: "2026-04-12T16:00:00.000Z" 或 "2026-04-12")
+                        String dateStr = bill.date;
+                        int y, m, d;
+                        if (dateStr.contains("T")) {
+                            dateStr = dateStr.substring(0, 10);
+                        }
+                        String[] dateParts = dateStr.split("-");
+                        y = Integer.parseInt(dateParts[0]);
+                        m = Integer.parseInt(dateParts[1]);
+                        d = Integer.parseInt(dateParts[2]);
+
+                        int iconResId = CategoryIconMapper.getIconForCategory(bill.type);
+                        billItems.add(new BillBean(
+                            bill.billId,
+                            bill.amount,
+                            y, m, d,
+                            bill.owner,
+                            bill.userId,
+                            bill.type,
+                            bill.title,
+                            iconResId,
+                            bill.incomeType,
+                            bill.time,
+                            bill.title,
+                            bill.isHelp
+                        ));
+                    } catch (Exception e) {
+                        Log.e("ClassicViewModel", "解析账单失败: " + e.getMessage(), e);
+                    }
+                }
+
+                processAndDisplayData();
+                sumAmounts();
+                bumpVersion();
+
+                Log.d("ClassicViewModel", "HTTP API 查询完成，账单数: " + billItems.size());
+            }
+
+            @Override
+            public void onError(String message) {
+                Log.e("ClassicViewModel", "HTTP API 查询失败: " + message);
+                displayItems.clear();
+                totalIncome.postValue(0.0);
+                totalExpense.postValue(0.0);
+                bumpVersion();
+            }
+        });
+    }
+
+    /**
+     * 通过 JDBC 加载账单数据（本地模式）
+     */
+    private void loadBillDataViaJdbc(int year, int month, String monthPattern, long loadStartTime) {
         // 获取当前用户信息（userId与relationshipId）并按月份查询
         UserInfoManager.getCurrentUserInfo(getApplication(), new UserInfoManager.UserInfoCallback() {
             @Override
@@ -141,7 +247,7 @@ public class ClassicViewModel extends AndroidViewModel {
                                 int m = Integer.parseInt(dateParts[1]);
                                 int d = Integer.parseInt(dateParts[2]);
 
-                                int iconResId = getIconForCategory(type);
+                                int iconResId = CategoryIconMapper.getIconForCategory(type);
 
                                 billItems.add(new BillBean(billId, amount, y, m, d, owner, uId,
                                         type, title, iconResId, incomeType, timeStr, title, isHelp));
@@ -219,39 +325,4 @@ public class ClassicViewModel extends AndroidViewModel {
         totalExpense.postValue(expense);
     }
 
-    // 与原Fragment一致的分类图标映射，确保显示不变
-    public int getIconForCategory(String category) {
-        if (category == null) return R.drawable.img_category_other;
-        switch (category) {
-            case "餐品": return R.drawable.img_category_food;
-            case "饮品": return R.drawable.img_category_drink;
-            case "水果": return R.drawable.img_category_fruit;
-            case "购物": return R.drawable.img_category_shopping;
-            case "交通": return R.drawable.img_category_transport;
-            case "住宿": return R.drawable.img_category_hotel;
-            case "日常": return R.drawable.img_category_daily;
-            case "学习": return R.drawable.img_category_study;
-            case "娱乐": return R.drawable.img_category_entertainment;
-            case "化妆": return R.drawable.img_category_cosmetic;
-            case "旅游": return R.drawable.img_category_travel;
-            case "医疗": return R.drawable.img_category_medical;
-            case "会员": return R.drawable.img_category_member;
-            case "通讯": return R.drawable.img_category_communication;
-            case "人情":
-            case "社交": return R.drawable.img_category_social;
-            case "投资": return R.drawable.img_category_investment;
-            case "亲子":
-            case "育儿": return R.drawable.img_category_parenting;
-            case "宠物": return R.drawable.img_category_pet;
-            case "装修": return R.drawable.img_category_decoration;
-            // 收入分类
-            case "工资": return R.drawable.img_category_salary;
-            case "礼金": return R.drawable.img_category_cashgift;
-            case "兼职": return R.drawable.img_category_parttime;
-            case "理财": return R.drawable.img_category_financial;
-            case "其他":
-            case "生活": return R.drawable.img_category_other;
-            default: return R.drawable.img_category_other;
-        }
-    }
 }

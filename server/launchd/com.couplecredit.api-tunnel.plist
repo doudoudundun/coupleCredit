@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.couplecredit.api-tunnel</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/zsh</string>
+        <string>/Users/chengzi/Code/GitHub/coupleCredit/server/launchd/start-public-api-tunnel.sh</string>
+    </array>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>HOME</key>
+        <string>/Users/chengzi</string>
+        <key>STATE_DIR</key>
+        <string>/tmp/couplecredit-public-tunnel</string>
+        <key>LOG_FILE</key>
+        <string>/tmp/couplecredit-public-tunnel/localhost-run.log</string>
+        <key>URL_FILE</key>
+        <string>/tmp/couplecredit-public-tunnel/public-url.txt</string>
+    </dict>
+    <key>WorkingDirectory</key>
+    <string>/Users/chengzi/Code/GitHub/coupleCredit/server</string>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>/tmp/com.couplecredit.api-tunnel.stdout.log</string>
+    <key>StandardErrorPath</key>
+    <string>/tmp/com.couplecredit.api-tunnel.stderr.log</string>
+</dict>
+</plist>

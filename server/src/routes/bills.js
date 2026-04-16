@@ -1,46 +1,6 @@
 const express = require("express");
 const { ApiError } = require("../errors");
-
-function trimValue(value) {
-  return typeof value === "string" ? value.trim() : "";
-}
-
-function parseOptionalInteger(value) {
-  if (value === null || value === undefined || value === "") {
-    return null;
-  }
-  if (!Number.isInteger(value) || value < 0) {
-    throw new ApiError(400, "INVALID_REQUEST", "请求参数不完整或格式不正确");
-  }
-  return value;
-}
-
-function parseRequiredInteger(value) {
-  if (!Number.isInteger(value) || value < 0) {
-    throw new ApiError(400, "INVALID_REQUEST", "请求参数不完整或格式不正确");
-  }
-  return value;
-}
-
-function parseRequiredAmount(value) {
-  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
-    throw new ApiError(400, "INVALID_REQUEST", "请求参数不完整或格式不正确");
-  }
-  return value;
-}
-
-async function loadActiveRelationship(pool, userId) {
-  const [rows] = await pool.execute(
-    "SELECT relationship_id, user_id_1, user_id_2 FROM couple_relationships WHERE status = 'active' AND (user_id_1 = ? OR user_id_2 = ?) ORDER BY relationship_id DESC LIMIT 1",
-    [userId, userId]
-  );
-
-  if (rows.length === 0) {
-    return null;
-  }
-
-  return rows[0];
-}
+const { loadActiveRelationship, trimValue, parseOptionalInteger, parseRequiredInteger, parseRequiredAmount } = require("../utils/queryHelpers");
 
 async function resolveBillOwnership(pool, reqBody) {
   if (reqBody.billOwner === undefined) {
@@ -77,7 +37,11 @@ async function resolveBillOwnership(pool, reqBody) {
 
   if (billOwner === "对方") {
     if (!relationship) {
-      throw new ApiError(400, "INVALID_REQUEST", "未找到情侣关系，无法为对方记账");
+      return {
+        relationshipId: null,
+        owner: 2,
+        isHelp: 1
+      };
     }
 
     return {
@@ -89,7 +53,11 @@ async function resolveBillOwnership(pool, reqBody) {
 
   if (billOwner === "共同") {
     if (!relationship) {
-      throw new ApiError(400, "INVALID_REQUEST", `不支持的billOwner类型或缺少情侣关系: ${billOwner}`);
+      return {
+        relationshipId: null,
+        owner: 3,
+        isHelp: 0
+      };
     }
 
     return {
@@ -142,6 +110,126 @@ function createBillsRouter({ pool }) {
           isHelp
         }
       });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // 查询账单列表
+  router.get("/", async (req, res, next) => {
+    try {
+      const userId = parseRequiredInteger(parseInt(req.query.userId));
+      const year = parseInt(req.query.year);
+      const month = parseInt(req.query.month);
+
+      if (!year || !month) {
+        throw new ApiError(400, "INVALID_REQUEST", "缺少年月参数");
+      }
+
+      // 构建日期查询模式
+      const datePattern = `${year}-${String(month).padStart(2, '0')}-%`;
+
+      // 获取情侣关系
+      const relationship = await loadActiveRelationship(pool, userId);
+      const relationshipId = relationship ? relationship.relationship_id : null;
+
+      // 查询账单 - 使用正确的字段名
+      let query;
+      let params;
+
+      if (relationshipId) {
+        // 有情侣关系：查询自己和对方的账单
+        query = `SELECT bill_id as billId, user_id as userId, title, type, amount, date, time, income_type as incomeType, owner, is_help as isHelp, relationship_id as relationshipId
+                 FROM bills
+                 WHERE (user_id = ? OR relationship_id = ?)
+                 AND date LIKE ?
+                 ORDER BY date DESC, bill_id DESC`;
+        params = [userId, relationshipId, datePattern];
+      } else {
+        // 无情侣关系：只查询自己的账单
+        query = `SELECT bill_id as billId, user_id as userId, title, type, amount, date, time, income_type as incomeType, owner, is_help as isHelp, relationship_id as relationshipId
+                 FROM bills
+                 WHERE user_id = ? AND date LIKE ?
+                 ORDER BY date DESC, bill_id DESC`;
+        params = [userId, datePattern];
+      }
+
+      const [rows] = await pool.execute(query, params);
+
+      res.json({
+        ok: true,
+        message: "查询成功",
+        data: {
+          bills: rows,
+          relationshipId,
+          year,
+          month
+        }
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.delete("/:id", async (req, res, next) => {
+    try {
+      const billId = parseRequiredInteger(parseInt(req.params.id, 10));
+      const userId = parseRequiredInteger(parseInt(req.query.userId, 10));
+
+      const [result] = await pool.execute(
+        "DELETE FROM bills WHERE bill_id = ? AND user_id = ?",
+        [billId, userId]
+      );
+
+      if (result.affectedRows === 0) {
+        throw new ApiError(404, "NOT_FOUND", "账单不存在或无权删除");
+      }
+
+      res.json({ ok: true, message: "删除成功", data: { billId, deleted: true } });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.put("/:id", async (req, res, next) => {
+    try {
+      const billId = parseRequiredInteger(parseInt(req.params.id, 10));
+      const userId = parseRequiredInteger(req.body.userId);
+      const title = trimValue(req.body.title);
+      const type = trimValue(req.body.type);
+      const amount = parseRequiredAmount(req.body.amount);
+      const date = trimValue(req.body.date);
+      const time = trimValue(req.body.time);
+      const incomeType = parseOptionalInteger(req.body.incomeType);
+
+      if (!date || !time) {
+        throw new ApiError(400, "INVALID_REQUEST", "请求参数不完整或格式不正确");
+      }
+
+      const sets = [];
+      const params = [];
+      if (title !== null && title !== undefined) { sets.push("title = ?"); params.push(title); }
+      if (type !== null && type !== undefined) { sets.push("type = ?"); params.push(type); }
+      if (amount !== null && amount !== undefined) { sets.push("amount = ?"); params.push(amount); }
+      sets.push("date = ?"); params.push(date);
+      sets.push("time = ?"); params.push(time);
+      if (incomeType !== null && incomeType !== undefined) { sets.push("income_type = ?"); params.push(incomeType); }
+
+      if (sets.length === 0) {
+        throw new ApiError(400, "INVALID_REQUEST", "没有需要更新的字段");
+      }
+
+      params.push(billId, userId);
+      const [result] = await pool.execute(
+        `UPDATE bills SET ${sets.join(", ")} WHERE bill_id = ? AND user_id = ?`,
+        params
+      );
+
+      if (result.affectedRows === 0) {
+        throw new ApiError(404, "NOT_FOUND", "账单不存在或无权修改");
+      }
+
+      res.json({ ok: true, message: "更新成功", data: { billId, updated: true } });
     } catch (error) {
       next(error);
     }

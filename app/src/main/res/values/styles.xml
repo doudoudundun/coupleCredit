@@ -12,5 +12,13 @@
         <item name="android:backgroundDimEnabled">true</item>
         <item name="android:backgroundDimAmount">0.5</item>
     </style>
+
+    <!-- 分段导航Tab样式 -->
+    <style name="SegmentTabTextStyle" parent="TextAppearance.Design.Tab">
+        <item name="android:textSize">14sp</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:textColor">@color/segment_tab_text</item>
+        <item name="textAllCaps">false</item>
+    </style>
     
 </resources>

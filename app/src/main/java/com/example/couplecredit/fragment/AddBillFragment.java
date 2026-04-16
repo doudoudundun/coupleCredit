@@ -26,8 +26,8 @@ import androidx.fragment.app.Fragment;
 
 import com.example.couplecredit.activity.MainActivity;
 import com.example.couplecredit.R;
-import com.example.couplecredit.function.CustomToast;
-import com.example.couplecredit.function.Utils;
+import com.example.couplecredit.utils.CustomToast;
+import com.example.couplecredit.utils.BillUtils;
 import com.example.couplecredit.utils.CategoryIconMapper;
 import com.google.android.material.tabs.TabLayout;
 
@@ -484,7 +484,7 @@ public class AddBillFragment extends Fragment {
         int month = selectedDate.get(Calendar.MONTH);
         int day = selectedDate.get(Calendar.DAY_OF_MONTH);
         String dateString = String.format("%d-%02d-%02d", year, month + 1, day);
-        Utils.showDatePicker(getActivity(), dateString, formattedDate -> {
+        BillUtils.showDatePicker(getActivity(), dateString, formattedDate -> {
             // 解析选择的日期并设置到selectedDate
             try {
                 String[] dateParts = formattedDate.split("-");
@@ -615,8 +615,8 @@ public class AddBillFragment extends Fragment {
             // 确定收入类型：支出为0，收入为1
             int incomeType = isExpense ? 0 : 1;
             
-            // 使用新版本的Utils.insertBill方法，自动获取当前用户信息
-            Utils.insertBill(getContext(), 
+            // 使用新版本的BillUtils.insertBill方法，自动获取当前用户信息
+            BillUtils.insertBill(getContext(), 
                 note.isEmpty() ? selectedCategory : note, // 如果没有备注就用分类作为标题
                 selectedCategory, 
                 amount, 
@@ -624,7 +624,7 @@ public class AddBillFragment extends Fragment {
                 timeString,
                 incomeType,
                 billOwner, // 传递账单归属信息
-                new Utils.BillInsertCallback() {
+                new BillUtils.BillInsertCallback() {
                     @Override
                     public void onInsertSuccess(long id) {
                         if (getActivity() != null) {

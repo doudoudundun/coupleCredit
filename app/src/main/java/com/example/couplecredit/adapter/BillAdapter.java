@@ -10,12 +10,12 @@ import android.widget.TextView;
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
 
-import com.example.couplecredit.BillBean;
+import com.example.couplecredit.model.BillBean;
 import com.example.couplecredit.R;
 import com.example.couplecredit.database.CoupleRelationshipHelper;
-import com.example.couplecredit.function.MySQLDatabaseHelper;
-import com.example.couplecredit.function.NicknameCache;
-import com.example.couplecredit.function.UserInfoManager;
+import com.example.couplecredit.database.MySQLDatabaseHelper;
+import com.example.couplecredit.utils.NicknameCache;
+import com.example.couplecredit.utils.UserInfoManager;
 
 import java.util.List;
 import java.util.Map;

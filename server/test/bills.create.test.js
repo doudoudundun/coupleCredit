@@ -115,7 +115,7 @@ test("create bill resolves self owner without relationship lookup in client", as
   assert.equal(createBody.data.userId, user.userId);
 });
 
-test("create bill rejects partner owner when no relationship exists", async () => {
+test("create bill accepts partner owner without relationship", async () => {
   const user = await registerUser(`${uniqueSuffix}_partner`);
 
   const createResponse = await fetch(`${baseUrl}/api/bills`, {
@@ -137,9 +137,40 @@ test("create bill rejects partner owner when no relationship exists", async () =
 
   const createBody = await readJsonOrText(createResponse);
 
-  assert.equal(createResponse.status, 400, JSON.stringify(createBody));
-  assert.equal(createBody.ok, false);
-  assert.equal(createBody.error.message, "未找到情侣关系，无法为对方记账");
+  assert.equal(createResponse.status, 201, JSON.stringify(createBody));
+  assert.equal(createBody.ok, true);
+  assert.equal(createBody.data.relationshipId, null);
+  assert.equal(createBody.data.owner, 2);
+  assert.equal(createBody.data.isHelp, 1);
+});
+
+test("create bill accepts shared owner without relationship", async () => {
+  const user = await registerUser(`${uniqueSuffix}_shared_single`);
+
+  const createResponse = await fetch(`${baseUrl}/api/bills`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      userId: user.userId,
+      billOwner: "共同",
+      title: "超市",
+      type: "购物",
+      amount: 88,
+      date: "2026-04-12",
+      time: "20:10:00",
+      incomeType: 0
+    })
+  });
+
+  const createBody = await readJsonOrText(createResponse);
+
+  assert.equal(createResponse.status, 201, JSON.stringify(createBody));
+  assert.equal(createBody.ok, true);
+  assert.equal(createBody.data.relationshipId, null);
+  assert.equal(createBody.data.owner, 3);
+  assert.equal(createBody.data.isHelp, 0);
 });
 
 test("create bill resolves owner and relationship for coupled users", async () => {

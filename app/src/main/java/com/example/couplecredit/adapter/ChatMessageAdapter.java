@@ -15,16 +15,16 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.example.couplecredit.R;
 import com.example.couplecredit.model.ChatMessage;
-import com.example.couplecredit.function.LikeButton;
+import com.example.couplecredit.widget.LikeButton;
 
 import java.util.List;
 
 import com.bumptech.glide.Glide;
 import com.bumptech.glide.load.resource.bitmap.CircleCrop;
-import com.example.couplecredit.function.UserInfoManager;
+import com.example.couplecredit.utils.UserInfoManager;
 import com.example.couplecredit.utils.AvatarCacheManager;
-import com.example.couplecredit.function.MySQLDatabaseHelper;
-import com.example.couplecredit.function.NicknameCache;
+import com.example.couplecredit.database.MySQLDatabaseHelper;
+import com.example.couplecredit.utils.NicknameCache;
 
 /**
  * 聊天消息RecyclerView适配器

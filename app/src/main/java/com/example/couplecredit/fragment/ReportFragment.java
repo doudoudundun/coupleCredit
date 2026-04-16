@@ -16,10 +16,11 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.example.couplecredit.R;
 import com.example.couplecredit.adapter.CategoryDetailAdapter;
 import com.example.couplecredit.adapter.ReportAdapter;
-import com.example.couplecredit.database.BillDatabaseHelper;
+import com.example.couplecredit.api.AuthApiClient;
+import com.example.couplecredit.api.AuthApiModels;
 import com.example.couplecredit.database.CoupleRelationshipHelper;
-import com.example.couplecredit.function.UserInfoManager;
-import com.example.couplecredit.function.Utils;
+import com.example.couplecredit.utils.UserInfoManager;
+import com.example.couplecredit.utils.BillUtils;
 import com.github.mikephil.charting.charts.LineChart;
 import com.github.mikephil.charting.charts.PieChart;
 import com.github.mikephil.charting.components.XAxis;
@@ -172,7 +173,7 @@ public class ReportFragment extends Fragment {
 
         if (tv_month_choose != null) {
             tv_month_choose.setText(currentYear + "年" + currentMonth + "月 >");
-            tv_month_choose.setOnClickListener(v -> Utils.showDatePickerDialog(getActivity(), currentYear, currentMonth, (selectedYear, selectedMonth) -> {
+            tv_month_choose.setOnClickListener(v -> BillUtils.showDatePickerDialog(getActivity(), currentYear, currentMonth, (selectedYear, selectedMonth) -> {
                 currentYear = selectedYear;
                 currentMonth = selectedMonth;
                 tv_month_choose.setText(selectedYear + "年" + selectedMonth + "月 >");
@@ -498,11 +499,14 @@ public class ReportFragment extends Fragment {
         pieChart.setUsePercentValues(true);
         pieChart.getDescription().setEnabled(false);
         pieChart.setDrawHoleEnabled(true);
+        pieChart.setHoleRadius(42f);
+        pieChart.setTransparentCircleRadius(46f);
         pieChart.setHoleColor(android.graphics.Color.WHITE);
-        pieChart.setTransparentCircleRadius(61f);
+        pieChart.setExtraOffsets(12f, 12f, 12f, 12f);
         pieChart.setEntryLabelTextSize(12f);
         pieChart.setEntryLabelColor(android.graphics.Color.BLACK);
         pieChart.getLegend().setEnabled(false);
+        pieChart.setMinOffset(12f);
     }
 
     private void setupCategoryList() {
@@ -708,27 +712,54 @@ public class ReportFragment extends Fragment {
         return true;
     }
 
-    private void loadMonthlyBillsData(int userId, Integer relationshipId, MonthlyDataCallback callback) {
-        BillDatabaseHelper billHelper = new BillDatabaseHelper(getContext());
-        String monthPattern = String.format("%04d-%02d-%%", currentYear, currentMonth);
-        String selection = "date LIKE ? AND income_type = ?";
-        String[] selectionArgs = new String[]{monthPattern, String.valueOf(income_type)};
+    private Map<String, Object> toBillMap(AuthApiModels.BillData bill) {
+        Map<String, Object> map = new HashMap<>();
+        String normalizedDate = bill.date;
+        if (normalizedDate != null && normalizedDate.contains("T")) {
+            normalizedDate = normalizedDate.substring(0, 10);
+        }
+        map.put("_id", bill.billId);
+        map.put("billId", bill.billId);
+        map.put("relationship_id", bill.relationshipId);
+        map.put("relationshipId", bill.relationshipId);
+        map.put("owner", bill.owner);
+        map.put("userId", bill.userId);
+        map.put("user_id", bill.userId);
+        map.put("title", bill.title);
+        map.put("type", bill.type);
+        map.put("amount", bill.amount);
+        map.put("date", normalizedDate);
+        map.put("time", bill.time);
+        map.put("incomeType", bill.incomeType);
+        map.put("income_type", bill.incomeType);
+        map.put("isHelp", bill.isHelp);
+        map.put("is_help", bill.isHelp);
+        return map;
+    }
 
-        billHelper.queryBillsWithUserFilter(userId, relationshipId, selection, selectionArgs, new BillDatabaseHelper.QueryCallback() {
+    private void loadMonthlyBillsData(int userId, Integer relationshipId, MonthlyDataCallback callback) {
+        AuthApiClient.queryBills(requireContext(), userId, currentYear, currentMonth, new AuthApiClient.BillsQueryCallback() {
             @Override
-            public void onSuccess(List<Map<String, Object>> results) {
+            public void onSuccess(AuthApiModels.BillsQueryResponse response) {
                 monthlyBills.clear();
-                monthlyBills.addAll(results);
+                if (response != null && response.data != null && response.data.bills != null) {
+                    for (AuthApiModels.BillData bill : response.data.bills) {
+                        if (bill == null || bill.incomeType != income_type) {
+                            continue;
+                        }
+                        monthlyBills.add(toBillMap(bill));
+                    }
+                }
                 if (callback != null) {
                     callback.onDataLoaded();
                 }
             }
 
             @Override
-            public void onError(String error) {
+            public void onError(String message) {
                 monthlyBills.clear();
                 if (callback != null) {
-                    callback.onError(error);
+                    callback.onError(message);
                 }
             }
         });
@@ -746,32 +777,28 @@ public class ReportFragment extends Fragment {
         UserInfoManager.getCurrentUserInfo(getContext(), new UserInfoManager.UserInfoCallback() {
             @Override
             public void onUserInfoLoaded(int userId, String username, Integer relationshipId) {
-                BillDatabaseHelper billHelper = new BillDatabaseHelper(getContext());
-                String monthPattern = String.format("%04d-%02d-%%", currentYear, currentMonth);
-                String selection = "date LIKE ?";
-                String[] selectionArgs = new String[]{monthPattern};
-                billHelper.queryBillsWithUserFilter(userId, relationshipId, selection, selectionArgs, new BillDatabaseHelper.QueryCallback() {
+                AuthApiClient.queryBills(requireContext(), userId, currentYear, currentMonth, new AuthApiClient.BillsQueryCallback() {
                     @Override
-                    public void onSuccess(List<Map<String, Object>> results) {
+                    public void onSuccess(AuthApiModels.BillsQueryResponse response) {
                         double income = 0;
                         double expense = 0;
-                        for (Map<String, Object> bill : results) {
-                            Double amount = (Double) bill.get("amount");
-                            Integer incomeType = (Integer) bill.get("income_type");
-                            if (amount == null || incomeType == null) {
-                                continue;
-                            }
-                            if (incomeType == 1) {
-                                income += amount;
-                            } else {
-                                expense += amount;
+                        if (response != null && response.data != null && response.data.bills != null) {
+                            for (AuthApiModels.BillData bill : response.data.bills) {
+                                if (bill == null) {
+                                    continue;
+                                }
+                                if (bill.incomeType == 1) {
+                                    income += bill.amount;
+                                } else {
+                                    expense += bill.amount;
+                                }
                             }
                         }
                         callback.onResult(income - expense);
                     }
 
                     @Override
-                    public void onError(String error) {
+                    public void onError(String message) {
                         callback.onResult(0);
                     }
                 });

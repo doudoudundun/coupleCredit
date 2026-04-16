@@ -20,11 +20,11 @@ import androidx.lifecycle.ViewModelProvider;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
-import com.example.couplecredit.BillBean;
+import com.example.couplecredit.model.BillBean;
 import com.example.couplecredit.R;
 import com.example.couplecredit.activity.MainActivity;
 import com.example.couplecredit.adapter.BillAdapter;
-import com.example.couplecredit.function.Utils;
+import com.example.couplecredit.utils.BillUtils;
 import com.example.couplecredit.utils.CategoryIconMapper;
 import com.example.couplecredit.viewmodel.ClassicViewModel;
 import com.google.android.material.bottomnavigation.BottomNavigationView;
@@ -142,7 +142,7 @@ public class ClassicModelFragment extends Fragment implements BillAdapter.OnItem
 
     private void showDatePickerDialog() {
         if (viewModel != null) {
-            Utils.showDatePickerDialog(getContext(), viewModel.getCurrentYear(), viewModel.getCurrentMonth(),
+            BillUtils.showDatePickerDialog(getContext(), viewModel.getCurrentYear(), viewModel.getCurrentMonth(),
                     (selectedYear, selectedMonth) -> {
                         viewModel.setYearMonth(selectedYear, selectedMonth);
                         currentYear = selectedYear;
@@ -214,7 +214,7 @@ public class ClassicModelFragment extends Fragment implements BillAdapter.OnItem
             btnDelete.setOnClickListener(v -> showWarningDialog(bill));
         }
         if (btnEdit != null) {
-            btnEdit.setOnClickListener(v -> Utils.enterEditMode(getContext(), mDialog, tvDate, tvFare, tvNoteContent,
+            btnEdit.setOnClickListener(v -> BillUtils.enterEditMode(getContext(), mDialog, tvDate, tvFare, tvNoteContent,
                     etFare, etNoteContent, btnEdit, btnDelete, btnConfirm, btnCancel));
         }
         if (btnConfirm != null) {
@@ -225,7 +225,7 @@ public class ClassicModelFragment extends Fragment implements BillAdapter.OnItem
                 String currentNoteContent = etNoteContent.getText().toString();
                 String currentTime = new SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(new Date());
 
-                Utils.updateBill(getContext(), bill, currentDate, currentFare, currentNoteContent, currentTime, new Utils.UpdateBillCallback() {
+                BillUtils.updateBill(getContext(), bill, currentDate, currentFare, currentNoteContent, currentTime, new BillUtils.UpdateBillCallback() {
                     @Override
                     public void onUpdateSuccess(int rowsAffected) {
                         if (getActivity() != null) {
@@ -251,7 +251,7 @@ public class ClassicModelFragment extends Fragment implements BillAdapter.OnItem
                         }
                     }
                 });
-                Utils.exitEditMode(mDialog, tvDate, tvFare, tvNoteContent,
+                BillUtils.exitEditMode(mDialog, tvDate, tvFare, tvNoteContent,
                         etFare, etNoteContent, btnEdit, btnDelete, btnConfirm, btnCancel);
             });
         }
@@ -269,7 +269,7 @@ public class ClassicModelFragment extends Fragment implements BillAdapter.OnItem
                 if (tvNoteContent != null) {
                     tvNoteContent.setText(noteTitle != null ? noteTitle : "");
                 }
-                Utils.exitEditMode(mDialog, tvDate, tvFare, tvNoteContent,
+                BillUtils.exitEditMode(mDialog, tvDate, tvFare, tvNoteContent,
                         etFare, etNoteContent, btnEdit, btnDelete, btnConfirm, btnCancel);
             });
         }
@@ -278,7 +278,7 @@ public class ClassicModelFragment extends Fragment implements BillAdapter.OnItem
     private void showWarningDialog(BillBean bill) {
         new MaterialAlertDialogBuilder(requireContext())
                 .setTitle("删除账单（此举不可逆）")
-                .setPositiveButton("确定", (dialog, which) -> Utils.deleteBill(getContext(), bill, new Utils.DeleteBillCallback() {
+                .setPositiveButton("确定", (dialog, which) -> BillUtils.deleteBill(getContext(), bill, new BillUtils.DeleteBillCallback() {
                     @Override
                     public void onDeleteSuccess(int rowsDeleted) {
                         if (getActivity() != null) {

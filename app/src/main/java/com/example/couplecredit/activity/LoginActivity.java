@@ -1,8 +1,9 @@
 package com.example.couplecredit.activity;
 
+import android.app.Activity;
 import android.content.Intent;
-import android.content.SharedPreferences;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
@@ -15,12 +16,14 @@ import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 import com.example.couplecredit.R;
 import com.example.couplecredit.api.AuthApiClient;
 import com.example.couplecredit.api.AuthApiModels;
+import com.example.couplecredit.utils.UserInfoManager;
 
 /**
  * 登录页面Activity
  * 提供用户登录功能界面
  */
 public class LoginActivity extends AppCompatActivity {
+    private static final String TAG = "LoginActivity";
     
     private EditText etUsername;
     private EditText etPassword;
@@ -90,25 +93,47 @@ public class LoginActivity extends AppCompatActivity {
             return;
         }
         
-        AuthApiClient.login(username, password, new AuthApiClient.Callback() {
+        AuthApiClient.login(LoginActivity.this, username, password, new AuthApiClient.Callback() {
             @Override
             public void onSuccess(AuthApiModels.AuthResponse response) {
                 AuthApiModels.AuthSuccessData userData = response.data;
-                SharedPreferences sharedPreferences = getSharedPreferences("user_prefs", MODE_PRIVATE);
-                SharedPreferences.Editor editor = sharedPreferences.edit();
-                editor.putString("username", userData.username);
-                editor.putString("id", String.valueOf(userData.userId));
-                editor.putBoolean("isLoggedIn", true);
-                editor.apply();
+                Log.d(TAG, "登录接口返回: message=" + response.message
+                        + ", username=" + (userData != null ? userData.username : "null")
+                        + ", userId=" + (userData != null ? userData.userId : -1));
+                if (userData == null || userData.username == null || userData.userId <= 0) {
+                    Toast.makeText(LoginActivity.this, "登录响应缺少用户信息，请重试", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+
+                boolean saved = UserInfoManager.saveUserInfo(LoginActivity.this, userData.username, userData.userId);
+                if (!saved) {
+                    Toast.makeText(LoginActivity.this, "登录状态保存失败，请重试", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+
+                String savedUsername = UserInfoManager.getCurrentUsername(LoginActivity.this);
+                int savedUserId = UserInfoManager.getCurrentUserId(LoginActivity.this);
+                boolean loggedIn = UserInfoManager.isUserLoggedIn(LoginActivity.this);
+                Log.d(TAG, "登录状态回读: username=" + savedUsername + ", userId=" + savedUserId + ", loggedIn=" + loggedIn);
+                if (!loggedIn || savedUserId <= 0 || savedUsername == null) {
+                    Toast.makeText(LoginActivity.this, "登录状态校验失败，请重试", Toast.LENGTH_SHORT).show();
+                    return;
+                }
 
                 Intent broadcastIntent = new Intent("com.example.couplecredit.USER_LOGIN");
                 LocalBroadcastManager.getInstance(LoginActivity.this).sendBroadcast(broadcastIntent);
 
                 Toast.makeText(LoginActivity.this, "登录成功！", Toast.LENGTH_SHORT).show();
-                Intent intent = new Intent(LoginActivity.this, MainActivity.class);
-                intent.putExtra("username", userData.username);
-                intent.putExtra("id", String.valueOf(userData.userId));
-                startActivity(intent);
+                Intent resultIntent = new Intent();
+                resultIntent.putExtra("username", userData.username);
+                resultIntent.putExtra("id", String.valueOf(userData.userId));
+                setResult(Activity.RESULT_OK, resultIntent);
+
+                Intent mainIntent = new Intent(LoginActivity.this, MainActivity.class);
+                mainIntent.putExtra("username", userData.username);
+                mainIntent.putExtra("id", String.valueOf(userData.userId));
+                mainIntent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+                startActivity(mainIntent);
                 finish();
             }
 

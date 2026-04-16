@@ -5,7 +5,7 @@ import android.widget.Button;
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.example.couplecredit.R;
-import com.example.couplecredit.function.CustomToast;
+import com.example.couplecredit.utils.CustomToast;
 
 /**
  * Toast演示页面

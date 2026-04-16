@@ -17,8 +17,8 @@ import android.widget.Toast;
 import androidx.annotation.NonNull;
 
 import com.example.couplecredit.R;
-import com.example.couplecredit.function.CustomToast;
-import com.example.couplecredit.function.Utils;
+import com.example.couplecredit.utils.CustomToast;
+import com.example.couplecredit.utils.BillUtils;
 import com.example.couplecredit.model.ChatMessage;
 import com.example.couplecredit.utils.MessageTextParser;
 import com.example.couplecredit.utils.CategoryIconMapper;
@@ -487,9 +487,9 @@ public class ChatBillingDialog extends Dialog {
             // 如果备注为空，使用分类作为标题
             String title = note.isEmpty() ? category : note;
             
-            // 调用Utils.insertBill保存账单
-            Utils.insertBill(context, title, category, amount, date, time, 
-                incomeType, selectedPayer, new Utils.BillInsertCallback() {
+            // 调用BillUtils.insertBill保存账单
+            BillUtils.insertBill(context, title, category, amount, date, time, 
+                incomeType, selectedPayer, new BillUtils.BillInsertCallback() {
                     @Override
                     public void onInsertSuccess(long id) {
                         // 保存成功

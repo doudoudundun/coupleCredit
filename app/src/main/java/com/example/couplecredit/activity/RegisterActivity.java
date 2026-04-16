@@ -125,7 +125,7 @@ public class RegisterActivity extends AppCompatActivity {
             return;
         }
         
-        AuthApiClient.register(username, email, password, inviteCode, new AuthApiClient.Callback() {
+        AuthApiClient.register(RegisterActivity.this, username, email, password, inviteCode, new AuthApiClient.Callback() {
             @Override
             public void onSuccess(AuthApiModels.AuthResponse response) {
                 Toast.makeText(RegisterActivity.this, "注册成功！", Toast.LENGTH_SHORT).show();

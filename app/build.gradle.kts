@@ -34,7 +34,7 @@ android {
         buildConfigField("String", "PRIVATE_DB_NAME", "\"${localConfig("PRIVATE_DB_NAME", "couple_credit_private")}\"")
         buildConfigField("String", "PRIVATE_DB_USER", "\"${localConfig("PRIVATE_DB_USER", "couple_app")}\"")
         buildConfigField("String", "PRIVATE_DB_PASSWORD", "\"${localConfig("PRIVATE_DB_PASSWORD")}\"")
-        buildConfigField("String", "PRIVATE_API_BASE_URL", "\"${localConfig("PRIVATE_API_BASE_URL", "http://10.0.2.2:8080")}\"")
+        buildConfigField("String", "PRIVATE_API_BASE_URL", "\"${localConfig("PRIVATE_API_BASE_URL", "https://api.datafun.online")}\"")
         buildConfigField("String", "PRIVATE_API_INVITE_CODE", "\"${localConfig("PRIVATE_API_INVITE_CODE", "COUPLE-PRIVATE-2026")}\"")
     }
 

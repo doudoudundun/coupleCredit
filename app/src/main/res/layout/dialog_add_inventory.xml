@@ -1,0 +1,165 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 添加存货对话框布局 -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="20dp"
+    android:background="@drawable/dialog_background">
+
+    <!-- 标题 -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="添加存货"
+        android:textSize="18sp"
+        android:textStyle="bold"
+        android:textColor="@android:color/black"
+        android:gravity="center"
+        android:layout_marginBottom="16dp" />
+
+    <!-- 存货图片区域 -->
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="120dp"
+        android:layout_marginBottom="16dp">
+
+        <ImageView
+            android:id="@+id/iv_add_image"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:scaleType="centerCrop"
+            android:background="@drawable/image_placeholder_background"
+            android:src="@drawable/ic_add_image_placeholder" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_gravity="bottom"
+            android:orientation="horizontal"
+            android:gravity="center"
+            android:padding="8dp"
+            android:background="#80000000">
+
+            <TextView
+                android:id="@+id/tv_select_image"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="选择图片"
+                android:textSize="12sp"
+                android:textColor="@color/white"
+                android:drawableStart="@drawable/ic_image"
+                android:drawablePadding="4dp"
+                android:padding="8dp" />
+
+            <TextView
+                android:id="@+id/tv_ai_generate"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="AI生成"
+                android:textSize="12sp"
+                android:textColor="@color/white"
+                android:drawableStart="@drawable/ic_ai"
+                android:drawablePadding="4dp"
+                android:padding="8dp"
+                android:layout_marginStart="16dp" />
+        </LinearLayout>
+    </FrameLayout>
+
+    <!-- 存货名称 -->
+    <EditText
+        android:id="@+id/et_inventory_name"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="存货名称"
+        android:inputType="text"
+        android:maxLines="1"
+        android:background="@drawable/input_background"
+        android:padding="12dp"
+        android:layout_marginBottom="12dp" />
+
+    <!-- 类别选择 -->
+    <Spinner
+        android:id="@+id/spinner_add_category"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@drawable/spinner_background"
+        android:padding="12dp"
+        android:layout_marginBottom="12dp" />
+
+    <!-- 数量和单位 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_marginBottom="12dp">
+
+        <EditText
+            android:id="@+id/et_quantity"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:hint="数量"
+            android:inputType="numberDecimal"
+            android:background="@drawable/input_background"
+            android:padding="12dp" />
+
+        <Spinner
+            android:id="@+id/spinner_unit"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:background="@drawable/spinner_background"
+            android:padding="12dp"
+            android:minWidth="80dp" />
+    </LinearLayout>
+
+    <!-- 告警阈值 -->
+    <EditText
+        android:id="@+id/et_threshold"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="告警阈值（低于此数量提醒）"
+        android:inputType="numberDecimal"
+        android:background="@drawable/input_background"
+        android:padding="12dp"
+        android:layout_marginBottom="12dp" />
+
+    <!-- 备注 -->
+    <EditText
+        android:id="@+id/et_note"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="备注（可选）"
+        android:inputType="textMultiLine"
+        android:maxLines="3"
+        android:background="@drawable/input_background"
+        android:padding="12dp"
+        android:layout_marginBottom="16dp" />
+
+    <!-- AI生图提示词（可选） -->
+    <EditText
+        android:id="@+id/et_ai_prompt"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="AI生图提示词（可选，用于生成图片）"
+        android:inputType="text"
+        android:maxLines="2"
+        android:background="@drawable/input_background"
+        android:padding="12dp"
+        android:visibility="gone"
+        android:layout_marginBottom="16dp" />
+
+    <!-- 添加按钮 -->
+    <Button
+        android:id="@+id/btn_add_inventory"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="添加"
+        android:textSize="16sp"
+        android:textColor="@color/white"
+        android:background="@drawable/button_background"
+        android:padding="12dp" />
+
+</LinearLayout>

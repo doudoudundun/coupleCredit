@@ -19,7 +19,7 @@ import androidx.appcompat.app.AppCompatActivity;
 
 import com.example.couplecredit.database.CoupleRelationshipHelper;
 import com.example.couplecredit.R;
-import com.example.couplecredit.function.MySQLDatabaseHelper;
+import com.example.couplecredit.database.MySQLDatabaseHelper;
 
 public class CoupleBindingActivity extends AppCompatActivity {
     private Button btnGenerateInvite, btnInputInvite;

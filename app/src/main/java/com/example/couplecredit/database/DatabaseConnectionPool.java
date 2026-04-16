@@ -56,21 +56,27 @@ public class DatabaseConnectionPool {
         if (isInitialized) {
             return;
         }
-        
+
+        // 检查是否有数据库配置
+        if (DatabaseConfig.DB_HOST == null || DatabaseConfig.DB_HOST.isEmpty()) {
+            Log.d(TAG, "DB_HOST 为空，跳过 JDBC 初始化，使用 HTTP API 模式");
+            return;
+        }
+
         try {
             // 加载MySQL驱动
             Class.forName("com.mysql.jdbc.Driver");
             Log.d(TAG, "MySQL驱动加载成功");
-            
+
             // 预创建核心连接
             createCoreConnections();
-            
+
             // 启动连接保活线程
             startKeepAliveThread();
-            
+
             isInitialized = true;
             Log.d(TAG, "连接池初始化完成（驱动已加载，核心连接已创建）");
-            
+
         } catch (Exception e) {
             Log.e(TAG, "连接池初始化失败", e);
             isInitialized = false;
@@ -81,10 +87,15 @@ public class DatabaseConnectionPool {
      * 获取数据库连接
      */
     public Connection getConnection() throws SQLException {
+        // 检查是否有数据库配置
+        if (DatabaseConfig.DB_HOST == null || DatabaseConfig.DB_HOST.isEmpty()) {
+            throw new SQLException("无数据库配置，请使用 HTTP API 模式");
+        }
+
         if (!isInitialized) {
             initialize();
         }
-        
+
         try {
             Connection connection = connectionPool.poll(CONNECTION_TIMEOUT, TimeUnit.SECONDS);
             

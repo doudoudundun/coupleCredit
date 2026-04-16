@@ -17,12 +17,17 @@ public class CoupleRelationshipHelper {
     // 使用统一的数据库配置
 
     public CoupleRelationshipHelper() {
-        // 使用统一的连接池初始化工具（异步）
+        // 使用统一的连接池初始化工具（异步，会自动检查配置）
         DatabaseInitializer.initializeConnectionPoolAsync(TAG);
     }
 
     // 获取数据库连接（使用连接池）
     private Connection getConnection() throws ClassNotFoundException, SQLException {
+        // 检查是否有数据库配置
+        if (!DatabaseInitializer.hasDatabaseConfig()) {
+            throw new SQLException("无数据库配置，请使用 HTTP API 模式");
+        }
+
         try {
             return DatabaseConnectionPool.getInstance().getConnection();
         } catch (SQLException e) {

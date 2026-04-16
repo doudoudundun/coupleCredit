@@ -12,7 +12,7 @@ import com.example.couplecredit.database.ChatDatabase;
 import com.example.couplecredit.database.ChatMessageDao;
 import com.example.couplecredit.database.ChatMessageEntity;
 import com.example.couplecredit.model.ChatMessage;
-import com.example.couplecredit.function.UserInfoManager;
+import com.example.couplecredit.utils.UserInfoManager;
 
 import java.util.ArrayList;
 import java.util.List;

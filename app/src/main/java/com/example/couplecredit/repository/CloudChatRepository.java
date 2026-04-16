@@ -3,10 +3,10 @@ package com.example.couplecredit.repository;
 import android.content.Context;
 import android.util.Log;
 
-import com.example.couplecredit.function.UserInfoManager;
+import com.example.couplecredit.utils.UserInfoManager;
 import com.example.couplecredit.model.ChatMessage;
-import com.example.couplecredit.function.MySQLDatabaseHelper;
-import com.example.couplecredit.function.NicknameCache;
+import com.example.couplecredit.database.MySQLDatabaseHelper;
+import com.example.couplecredit.utils.NicknameCache;
 import com.example.couplecredit.database.DatabaseConnectionPool;
 import com.example.couplecredit.utils.DatabaseResourceManager;
 import com.example.couplecredit.config.DatabaseConfig;

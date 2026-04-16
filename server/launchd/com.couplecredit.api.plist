@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.couplecredit.api</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/zsh</string>
+        <string>-c</string>
+        <string>. "$NVM_DIR/nvm.sh" &amp;&amp; nvm use --silent default &gt;/dev/null &amp;&amp; exec node /Users/chengzi/Code/GitHub/coupleCredit/server/src/index.js</string>
+    </array>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>HOME</key>
+        <string>/Users/chengzi</string>
+        <key>NVM_DIR</key>
+        <string>/Users/chengzi/.nvm</string>
+        <key>HOST</key>
+        <string>127.0.0.1</string>
+        <key>PORT</key>
+        <string>8082</string>
+        <key>DB_HOST</key>
+        <string>127.0.0.1</string>
+        <key>DB_PORT</key>
+        <string>3306</string>
+        <key>DB_NAME</key>
+        <string>couple_credit_private</string>
+        <key>DB_USER</key>
+        <string>couple_app</string>
+        <key>DB_PASSWORD</key>
+        <string>ChangeThisPrivateDbPassword_2026!</string>
+        <key>INVITE_CODE</key>
+        <string>COUPLE-PRIVATE-2026</string>
+        <key>BCRYPT_ROUNDS</key>
+        <string>10</string>
+    </dict>
+    <key>WorkingDirectory</key>
+    <string>/Users/chengzi/Code/GitHub/coupleCredit/server</string>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>/tmp/com.couplecredit.api.stdout.log</string>
+    <key>StandardErrorPath</key>
+    <string>/tmp/com.couplecredit.api.stderr.log</string>
+</dict>
+</plist>

@@ -23,7 +23,7 @@ import androidx.core.view.WindowInsetsCompat;
 
 import com.example.couplecredit.R;
 import com.example.couplecredit.adapter.BackgroundImageAdapter;
-import com.example.couplecredit.function.CustomToast;
+import com.example.couplecredit.utils.CustomToast;
 import com.example.couplecredit.utils.BackgroundUpdateManager;
 
 import java.util.ArrayList;

@@ -128,6 +128,53 @@
         android:layout_height="1dp"
         android:background="@android:color/darker_gray" />
 
+    <!-- 家庭存货清单选项容器 -->
+    <LinearLayout
+        android:id="@+id/ll_inventory"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:padding="16dp"
+        android:background="?android:attr/selectableItemBackground"
+        android:clickable="true"
+        android:focusable="true">
+
+        <!-- 存货图标 -->
+        <ImageView
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:src="@drawable/ic_inventory_placeholder"
+            android:layout_marginEnd="12dp"
+            android:tint="@color/primary_color"
+            android:layout_gravity="center_vertical"
+            android:contentDescription="存货" />
+
+        <!-- 设置选项文本 -->
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="家庭存货清单"
+            android:textSize="16sp"
+            android:textColor="@android:color/black"
+            android:layout_gravity="center_vertical" />
+
+        <!-- 右箭头指示器 -->
+        <ImageView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:src="@drawable/ic_arrow_right"
+            android:textColor="@android:color/darker_gray"
+            android:layout_gravity="center_vertical" />
+
+    </LinearLayout>
+
+    <!-- 分割线 -->
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="@android:color/darker_gray" />
+
     <!-- 个人设置选项容器 -->
     <LinearLayout
         android:id="@+id/ll_user_settings"

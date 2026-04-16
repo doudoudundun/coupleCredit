@@ -1,0 +1,167 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 存货列表项布局 -->
+<androidx.cardview.widget.CardView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_margin="8dp"
+    app:cardCornerRadius="12dp"
+    app:cardElevation="2dp"
+    app:cardBackgroundColor="@color/white">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:padding="12dp">
+
+        <!-- 存货图片 -->
+        <ImageView
+            android:id="@+id/iv_inventory_image"
+            android:layout_width="60dp"
+            android:layout_height="60dp"
+            android:scaleType="centerCrop"
+            android:background="@drawable/image_placeholder_background"
+            android:src="@drawable/ic_inventory_placeholder" />
+
+        <!-- 存货信息 -->
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:layout_marginStart="12dp">
+
+            <!-- 名称和类别 -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:id="@+id/tv_inventory_name"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="存货名称"
+                    android:textSize="16sp"
+                    android:textStyle="bold"
+                    android:textColor="@android:color/black"
+                    android:maxLines="1"
+                    android:ellipsize="end" />
+
+                <TextView
+                    android:id="@+id/tv_inventory_category"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="类别"
+                    android:textSize="12sp"
+                    android:textColor="@color/primary_color"
+                    android:background="@drawable/category_tag_background"
+                    android:paddingStart="8dp"
+                    android:paddingEnd="8dp"
+                    android:paddingTop="2dp"
+                    android:paddingBottom="2dp" />
+            </LinearLayout>
+
+            <!-- 存量信息 -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginTop="6dp">
+
+                <TextView
+                    android:id="@+id/tv_quantity"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="存量: 10"
+                    android:textSize="14sp"
+                    android:textColor="#333333" />
+
+                <TextView
+                    android:id="@+id/tv_unit"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="个"
+                    android:textSize="14sp"
+                    android:textColor="#666666"
+                    android:layout_marginStart="4dp" />
+
+                <!-- 告急标识 -->
+                <TextView
+                    android:id="@+id/tv_low_stock_badge"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="告急!"
+                    android:textSize="12sp"
+                    android:textColor="@color/white"
+                    android:background="@drawable/low_stock_badge_background"
+                    android:paddingStart="6dp"
+                    android:paddingEnd="6dp"
+                    android:paddingTop="2dp"
+                    android:paddingBottom="2dp"
+                    android:layout_marginStart="8dp"
+                    android:visibility="gone" />
+            </LinearLayout>
+
+            <!-- 最近消耗时间 -->
+            <TextView
+                android:id="@+id/tv_last_consumed"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="最近消耗: 今天"
+                android:textSize="12sp"
+                android:textColor="#999999"
+                android:layout_marginTop="4dp"
+                android:maxLines="1"
+                android:ellipsize="end" />
+
+            <!-- 备注 -->
+            <TextView
+                android:id="@+id/tv_note"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text=""
+                android:textSize="12sp"
+                android:textColor="#CCCCCC"
+                android:layout_marginTop="2dp"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:visibility="gone" />
+        </LinearLayout>
+
+        <!-- 操作按钮区域 -->
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:gravity="center">
+
+            <!-- 消耗按钮 -->
+            <ImageButton
+                android:id="@+id/btn_consume"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:src="@drawable/ic_consume"
+                android:background="@drawable/button_circle_background"
+                android:tint="@color/primary_color"
+                android:scaleType="centerInside"
+                android:contentDescription="消耗" />
+
+            <!-- 补货按钮 -->
+            <ImageButton
+                android:id="@+id/btn_replenish"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:src="@drawable/ic_replenish"
+                android:background="@drawable/button_circle_background"
+                android:tint="#4CAF50"
+                android:scaleType="centerInside"
+                android:layout_marginTop="8dp"
+                android:contentDescription="补货" />
+        </LinearLayout>
+
+    </LinearLayout>
+
+</androidx.cardview.widget.CardView>

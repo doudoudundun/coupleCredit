@@ -1,8 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
-    <!-- 权限声明应该在<application>标签外部 -->
-    <!-- 在<manifest>标签内添加以下权限 -->
+
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
     <uses-permission android:name="android.permission.INTERNET" />
@@ -19,52 +18,65 @@
         android:supportsRtl="true"
         android:usesCleartextTraffic="true"
         android:theme="@style/Theme.Couplecredit">
-        <activity
-            android:name=".activity.CategoriesBillViewActivity"
-            android:exported="false" />
+
+        <!-- 主Activity（启动入口） -->
         <activity
             android:name=".activity.MainActivity"
             android:exported="true"
             android:windowSoftInputMode="adjustPan">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
-
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
 
-        <provider
-            android:name=".BillProvider"
-            android:authorities="com.example.couplecredit.billprovider"
-            android:exported="false" /> <!-- ChatBackgroundActivity声明 -->
-        <activity
-            android:name=".activity.ChatBackgroundActivity"
-            android:label="设置聊天背景"
-            android:parentActivityName=".activity.MainActivity" /> <!-- ToastDemoActivity声明 -->
-        <activity
-            android:name=".activity.ToastDemoActivity"
-            android:label="自定义Toast演示"
-            android:parentActivityName=".activity.MainActivity" /> <!-- LoginActivity声明 -->
+        <!-- 认证 -->
         <activity
             android:name=".activity.LoginActivity"
             android:label="登录"
-            android:parentActivityName=".activity.MainActivity" /> <!-- RegisterActivity声明 -->
+            android:parentActivityName=".activity.MainActivity" />
         <activity
             android:name=".activity.RegisterActivity"
             android:label="注册"
-            android:parentActivityName=".activity.LoginActivity" /> <!-- UserSettingsActivity声明 -->
+            android:parentActivityName=".activity.LoginActivity" />
+
+        <!-- 用户设置 -->
         <activity
             android:name=".activity.UserSettingsActivity"
             android:label="个人设置"
-            android:parentActivityName=".activity.MainActivity" /> <!-- ChangePasswordActivity声明 -->
+            android:parentActivityName=".activity.MainActivity" />
         <activity
             android:name=".activity.ChangePasswordActivity"
             android:label="修改密码"
-            android:parentActivityName=".activity.UserSettingsActivity" /> <!-- CoupleBindingActivity声明 -->
+            android:parentActivityName=".activity.UserSettingsActivity" />
         <activity
             android:name=".activity.CoupleBindingActivity"
             android:label="情侣绑定"
             android:parentActivityName=".activity.UserSettingsActivity" />
+
+        <!-- 功能页面 -->
+        <activity
+            android:name=".activity.CategoriesBillViewActivity"
+            android:exported="false" />
+        <activity
+            android:name=".activity.ChatBackgroundActivity"
+            android:label="设置聊天背景"
+            android:parentActivityName=".activity.MainActivity" />
+        <activity
+            android:name=".activity.InventoryActivity"
+            android:label="家庭存货清单"
+            android:parentActivityName=".activity.MainActivity" />
+        <activity
+            android:name=".activity.ToastDemoActivity"
+            android:label="自定义Toast演示"
+            android:parentActivityName=".activity.MainActivity" />
+
+        <!-- 数据提供者 -->
+        <provider
+            android:name=".database.BillProvider"
+            android:authorities="com.example.couplecredit.billprovider"
+            android:exported="false" />
+
     </application>
 
 </manifest>

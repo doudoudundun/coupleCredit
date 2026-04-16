@@ -61,17 +61,22 @@ public class BillDatabaseHelper {
 
     public BillDatabaseHelper(Context context) {
         this.context = context;
-        // 使用统一的连接池初始化工具
+        // 使用统一的连接池初始化工具（会自动检查是否有数据库配置）
         DatabaseInitializer.initializeConnectionPoolAsync(TAG);
     }
-    
+
     // 获取数据库连接（使用连接池，带降级机制）
     private Connection getConnection() throws ClassNotFoundException, SQLException {
+        // 检查是否有数据库配置
+        if (!DatabaseInitializer.hasDatabaseConfig()) {
+            throw new SQLException("无数据库配置，请使用 HTTP API 模式");
+        }
+
         try {
             return DatabaseConnectionPool.getInstance().getConnection();
         } catch (SQLException e) {
             Log.w(TAG, "连接池获取连接失败，尝试直接连接: " + e.getMessage());
-            
+
             // 降级到直接连接
             try {
                 Log.d(TAG, "尝试直接连接数据库: " + DatabaseConfig.DB_URL);

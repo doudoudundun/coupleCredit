@@ -1,8 +1,14 @@
 package com.example.couplecredit.api;
 
+import com.google.gson.annotations.SerializedName;
+
+import java.util.List;
+
 public class AuthApiModels {
     public static class AuthSuccessData {
+        @SerializedName(value = "userId", alternate = {"id", "user_id"})
         public int userId;
+        @SerializedName(value = "username", alternate = {"userName", "name"})
         public String username;
         public String email;
     }
@@ -21,6 +27,13 @@ public class AuthApiModels {
         public int isHelp;
     }
 
+    public static class BillsQueryData {
+        public List<BillData> bills;
+        public Integer relationshipId;
+        public int year;
+        public int month;
+    }
+
     public static class ErrorBody {
         public String code;
         public String message;
@@ -29,6 +42,7 @@ public class AuthApiModels {
     public static class AuthResponse {
         public boolean ok;
         public String message;
+        @SerializedName(value = "data", alternate = {"user"})
         public AuthSuccessData data;
         public ErrorBody error;
     }
@@ -38,6 +52,39 @@ public class AuthApiModels {
         public String message;
         public BillData data;
         public ErrorBody error;
+    }
+
+    public static class BillsQueryResponse {
+        public boolean ok;
+        public String message;
+        public BillsQueryData data;
+        public ErrorBody error;
+    }
+
+    public static class SimpleResponse {
+        public boolean ok;
+        public String message;
+        public ErrorBody error;
+    }
+
+    public static class UpdateBillRequest {
+        public final int userId;
+        public final String title;
+        public final String type;
+        public final double amount;
+        public final String date;
+        public final String time;
+        public final Integer incomeType;
+
+        public UpdateBillRequest(int userId, String title, String type, double amount, String date, String time, Integer incomeType) {
+            this.userId = userId;
+            this.title = title;
+            this.type = type;
+            this.amount = amount;
+            this.date = date;
+            this.time = time;
+            this.incomeType = incomeType;
+        }
     }
 
     public static class RegisterRequest {

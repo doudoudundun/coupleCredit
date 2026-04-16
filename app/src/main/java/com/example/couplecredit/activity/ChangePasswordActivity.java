@@ -12,8 +12,8 @@ import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.example.couplecredit.R;
-import com.example.couplecredit.function.MySQLDatabaseHelper;
-import com.example.couplecredit.function.UserInfoManager;
+import com.example.couplecredit.database.MySQLDatabaseHelper;
+import com.example.couplecredit.utils.UserInfoManager;
 
 public class ChangePasswordActivity extends AppCompatActivity {
     

@@ -1,4 +1,4 @@
-package com.example.couplecredit;
+package com.example.couplecredit.model;
 /**
  * Class BillBean
  * @author qinyang.li、biru.zhang

@@ -1,4 +1,4 @@
-package com.example.couplecredit.function;
+package com.example.couplecredit.utils;
 
 import android.content.Context;
 import android.content.SharedPreferences;

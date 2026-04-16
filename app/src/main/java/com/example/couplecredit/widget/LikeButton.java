@@ -1,4 +1,4 @@
-package com.example.couplecredit.function;
+package com.example.couplecredit.widget;
 
 import android.animation.AnimatorSet;
 import android.animation.ObjectAnimator;

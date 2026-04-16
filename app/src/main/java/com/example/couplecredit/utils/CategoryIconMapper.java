@@ -57,10 +57,12 @@ public class CategoryIconMapper {
         CATEGORY_ICON_MAP.put("旅游", R.drawable.img_category_travel);
         CATEGORY_ICON_MAP.put("通讯", R.drawable.img_category_communication);
         CATEGORY_ICON_MAP.put("人情", R.drawable.img_category_social);
+        CATEGORY_ICON_MAP.put("社交", R.drawable.img_category_social);
         CATEGORY_ICON_MAP.put("化妆", R.drawable.img_category_cosmetic);
         CATEGORY_ICON_MAP.put("会员", R.drawable.img_category_member);
         CATEGORY_ICON_MAP.put("投资", R.drawable.img_category_investment);
         CATEGORY_ICON_MAP.put("亲子", R.drawable.img_category_parenting);
+        CATEGORY_ICON_MAP.put("育儿", R.drawable.img_category_parenting);
         CATEGORY_ICON_MAP.put("宠物", R.drawable.img_category_pet);
         CATEGORY_ICON_MAP.put("装修", R.drawable.img_category_decoration);
         
@@ -71,6 +73,7 @@ public class CategoryIconMapper {
         CATEGORY_ICON_MAP.put("理财", R.drawable.img_category_financial);
         
         // 通用分类图标
+        CATEGORY_ICON_MAP.put("生活", R.drawable.img_category_other);
         CATEGORY_ICON_MAP.put("其他", R.drawable.img_category_other);
     }
     

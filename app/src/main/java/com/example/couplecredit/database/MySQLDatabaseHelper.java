@@ -1,10 +1,8 @@
-package com.example.couplecredit.function;
+package com.example.couplecredit.database;
 
 import android.os.AsyncTask;
 import android.util.Log;
 
-import com.example.couplecredit.database.DatabaseConnectionPool;
-import com.example.couplecredit.database.DatabaseInitializer;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
