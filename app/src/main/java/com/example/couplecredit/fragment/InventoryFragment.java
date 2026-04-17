@@ -10,6 +10,7 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.provider.MediaStore;
+import android.util.DisplayMetrics;
 import android.text.Editable;
 import android.text.TextUtils;
 import android.text.TextWatcher;
@@ -584,7 +585,7 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
             }
         });
 
-        dialog.show();
+        showDialogWide(dialog);
     }
 
     private void showLowStockDialog() {
@@ -637,7 +638,7 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
             }
         });
 
-        dialog.show();
+        showDialogWide(dialog);
     }
 
     public void showReplenishDialog(InventoryItem item) {
@@ -674,7 +675,7 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
             }
         });
 
-        dialog.show();
+        showDialogWide(dialog);
     }
 
     private void showDeleteDialog(InventoryItem item) {
@@ -700,7 +701,7 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
             InventoryUtils.deleteInventory(requireContext(), item.id, new ToastMutationCallback("删除成功"));
         });
 
-        dialog.show();
+        showDialogWide(dialog);
     }
 
     private void openLoginPage() {
@@ -808,6 +809,16 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
 
     private int dp(int value) {
         return (int) (value * requireContext().getResources().getDisplayMetrics().density);
+    }
+
+    private void showDialogWide(AlertDialog dialog) {
+        showDialogWide(dialog);
+        if (dialog.getWindow() != null) {
+            DisplayMetrics metrics = new DisplayMetrics();
+            dialog.getWindow().getWindowManager().getDefaultDisplay().getMetrics(metrics);
+            int width = (int) (metrics.widthPixels * 0.85);
+            dialog.getWindow().setLayout(width, ViewGroup.LayoutParams.WRAP_CONTENT);
+        }
     }
 
     @Override
