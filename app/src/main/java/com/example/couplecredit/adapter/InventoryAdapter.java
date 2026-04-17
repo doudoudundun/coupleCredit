@@ -1,11 +1,17 @@
 package com.example.couplecredit.adapter;
 
+import android.app.AlertDialog;
+import android.content.Context;
+import android.graphics.Color;
+import android.graphics.drawable.ColorDrawable;
+import android.graphics.drawable.GradientDrawable;
 import android.view.LayoutInflater;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageButton;
 import android.widget.ImageView;
+import android.widget.LinearLayout;
 import android.widget.PopupMenu;
 import android.widget.TextView;
 
@@ -106,27 +112,61 @@ public class InventoryAdapter extends RecyclerView.Adapter<InventoryAdapter.View
     }
 
     private void showMoreMenu(View anchor, InventoryItem item) {
-        PopupMenu popupMenu = new PopupMenu(anchor.getContext(), anchor);
-        popupMenu.getMenu().add(0, 1, 0, "编辑");
-        popupMenu.getMenu().add(0, 2, 1, "删除");
-        popupMenu.setOnMenuItemClickListener(menuItem -> handleMenuClick(menuItem, item));
-        popupMenu.show();
+        Context ctx = anchor.getContext();
+        int dp = (int) (ctx.getResources().getDisplayMetrics().density);
+
+        LinearLayout container = new LinearLayout(ctx);
+        container.setOrientation(LinearLayout.VERTICAL);
+        container.setPadding(dp * 4, dp * 8, dp * 4, dp * 8);
+
+        GradientDrawable bg = new GradientDrawable();
+        bg.setCornerRadius(dp * 16);
+        bg.setColor(Color.WHITE);
+        container.setBackground(bg);
+
+        String[] labels = {"编辑", "删除"};
+        int[] colors = {Color.parseColor("#333333"), Color.parseColor("#E53935")};
+        Runnable[] actions = {
+                () -> { if (actionListener != null) actionListener.onEdit(item); },
+                () -> { if (actionListener != null) actionListener.onDelete(item); }
+        };
+
+        for (int i = 0; i < labels.length; i++) {
+            TextView row = new TextView(ctx);
+            row.setText(labels[i]);
+            row.setTextColor(colors[i]);
+            row.setTextSize(15);
+            row.setPadding(dp * 16, dp * 12, dp * 16, dp * 12);
+            row.setGravity(android.view.Gravity.CENTER);
+            int fi = i;
+            row.setOnClickListener(v -> {
+                if (dialogRef[0] != null) dialogRef[0].dismiss();
+                actions[fi].run();
+            });
+            container.addView(row);
+            if (i < labels.length - 1) {
+                View divider = new View(ctx);
+                divider.setBackgroundColor(Color.parseColor("#EEEEEE"));
+                container.addView(divider, new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT, Math.max(1, dp)));
+            }
+        }
+
+        AlertDialog.Builder builder = new AlertDialog.Builder(ctx, R.style.CustomDialogStyle);
+        builder.setView(container);
+        AlertDialog dialog = builder.create();
+        if (dialog.getWindow() != null) {
+            dialog.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+        }
+        dialogRef[0] = dialog;
+        dialog.show();
+
+        if (dialog.getWindow() != null) {
+            dialog.getWindow().setLayout(dp * 140, ViewGroup.LayoutParams.WRAP_CONTENT);
+        }
     }
 
-    private boolean handleMenuClick(MenuItem menuItem, InventoryItem item) {
-        if (actionListener == null) {
-            return false;
-        }
-        int itemId = menuItem.getItemId();
-        if (itemId == 1) {
-            actionListener.onEdit(item);
-            return true;
-        } else if (itemId == 2) {
-            actionListener.onDelete(item);
-            return true;
-        }
-        return false;
-    }
+    private final AlertDialog[] dialogRef = new AlertDialog[1];
 
     private String formatDate(String dateStr) {
         if (dateStr == null) {
