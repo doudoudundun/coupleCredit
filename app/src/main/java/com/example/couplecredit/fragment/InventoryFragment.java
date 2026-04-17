@@ -812,11 +812,10 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
     }
 
     private void showDialogWide(AlertDialog dialog) {
-        showDialogWide(dialog);
+        dialog.show();
         if (dialog.getWindow() != null) {
-            DisplayMetrics metrics = new DisplayMetrics();
-            dialog.getWindow().getWindowManager().getDefaultDisplay().getMetrics(metrics);
-            int width = (int) (metrics.widthPixels * 0.85);
+            int screenWidth = requireContext().getResources().getDisplayMetrics().widthPixels;
+            int width = (int) (screenWidth * 0.85);
             dialog.getWindow().setLayout(width, ViewGroup.LayoutParams.WRAP_CONTENT);
         }
     }
