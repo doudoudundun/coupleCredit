@@ -17,7 +17,7 @@ app.use("/api/auth", createAuthRouter({ pool, config }));
 app.use("/api/bills", createBillsRouter({ pool }));
 app.use("/api/inventory", createInventoryRouter({ pool }));
 app.use((error, _req, res, _next) => {
-  console.error(error);
+  console.error("Unhandled error:", error);
   sendError(res, error);
 });
 

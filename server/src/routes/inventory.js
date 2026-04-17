@@ -3,10 +3,7 @@ const { ApiError } = require("../errors");
 const { loadActiveRelationship, trimValue, parseRequiredInteger, parseRequiredFloat } = require("../utils/queryHelpers");
 
 function normalizeNullableText(value) {
-  if (value === undefined) {
-    return undefined;
-  }
-  if (value === null) {
+  if (value === undefined || value === null) {
     return null;
   }
   if (typeof value !== "string") {
@@ -127,29 +124,83 @@ function createInventoryRouter({ pool }) {
       const note = normalizeNullableText(req.body.note);
       const aiImagePrompt = normalizeNullableText(req.body.aiImagePrompt);
 
-      const [result] = await pool.execute(
-        `INSERT INTO inventory (user_id, relationship_id, name, category, image_url, quantity, unit, threshold, note, ai_image_prompt, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
-        [userId, relationshipId, name, category, imageUrl, quantity, unit, threshold, note, aiImagePrompt]
-      );
+      // 查找同名物品（同一用户或同一关系范围内）
+      let findQuery;
+      let findParams;
+      if (relationshipId) {
+        findQuery = "SELECT inventory_id, quantity, image_url FROM inventory WHERE name = ? AND (relationship_id = ? OR (user_id = ? AND relationship_id IS NULL)) LIMIT 1";
+        findParams = [name, relationshipId, userId];
+      } else {
+        findQuery = "SELECT inventory_id, quantity, image_url FROM inventory WHERE name = ? AND user_id = ? AND relationship_id IS NULL LIMIT 1";
+        findParams = [name, userId];
+      }
+      const [existing] = await pool.execute(findQuery, findParams);
 
-      res.status(201).json({
-        ok: true,
-        message: "存货添加成功",
-        data: {
-          inventoryId: result.insertId,
-          userId,
-          relationshipId,
-          name,
-          category,
-          imageUrl,
-          quantity,
-          unit,
-          threshold,
-          note,
-          aiImagePrompt
+      if (existing.length > 0) {
+        // 同名物品存在：合并数量，有新图片则覆盖
+        const existingItem = existing[0];
+        const newQuantity = Number(existingItem.quantity) + quantity;
+        const updates = ["quantity = ?", "updated_at = NOW()"];
+        const params = [newQuantity];
+
+        if (imageUrl) {
+          updates.push("image_url = ?");
+          params.push(imageUrl);
         }
-      });
+        if (note) {
+          updates.push("note = ?");
+          params.push(note);
+        }
+
+        params.push(existingItem.inventory_id);
+        await pool.execute(
+          `UPDATE inventory SET ${updates.join(", ")} WHERE inventory_id = ?`,
+          params
+        );
+
+        res.json({
+          ok: true,
+          message: "已合并到同名物资",
+          data: {
+            inventoryId: existingItem.inventory_id,
+            userId,
+            relationshipId,
+            name,
+            category,
+            imageUrl: imageUrl || existingItem.image_url,
+            quantity: newQuantity,
+            unit,
+            threshold,
+            note,
+            aiImagePrompt
+          }
+        });
+      } else {
+        // 新物品，直接插入
+        const [result] = await pool.execute(
+          `INSERT INTO inventory (user_id, relationship_id, name, category, image_url, quantity, unit, threshold, note, ai_image_prompt, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+          [userId, relationshipId, name, category, imageUrl, quantity, unit, threshold, note, aiImagePrompt]
+        );
+
+        res.status(201).json({
+          ok: true,
+          message: "存货添加成功",
+          data: {
+            inventoryId: result.insertId,
+            userId,
+            relationshipId,
+            name,
+            category,
+            imageUrl,
+            quantity,
+            unit,
+            threshold,
+            note,
+            aiImagePrompt
+          }
+        });
+      }
     } catch (error) {
       next(error);
     }
