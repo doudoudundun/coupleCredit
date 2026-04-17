@@ -10,6 +10,7 @@ import com.google.gson.JsonParser;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
+import java.io.DataOutputStream;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
@@ -57,6 +58,17 @@ public class AuthApiClient {
 
     public interface InventoryMutationCallback {
         void onSuccess();
+        void onError(String message);
+    }
+
+    public interface ImageUploadCallback {
+        void onSuccess(String imageUrl);
+        void onError(String message);
+    }
+
+    public interface CoupleInfoCallback {
+        void onCoupleFound(int partnerId, String partnerName, String partnerNickname, int relationshipId);
+        void onNoCoupleFound();
         void onError(String message);
     }
 
@@ -229,6 +241,117 @@ public class AuthApiClient {
         doRequest(context, "DELETE", "/api/inventory/" + inventoryId + "?userId=" + userId,
                 null,
                 simpleMutationCallback("删除物资", callback));
+    }
+
+    public static void queryCoupleInfo(Context context, int userId, CoupleInfoCallback callback) {
+        doRequest(context, "GET", "/api/auth/couple-info?userId=" + userId,
+                null,
+                new RawCallback() {
+                    @Override
+                    public void onSuccess(String json) {
+                        if (callback == null) return;
+                        try {
+                            com.google.gson.JsonObject obj = GSON.fromJson(normalizeJsonPayload(json), com.google.gson.JsonObject.class);
+                            if (obj != null && obj.has("ok") && obj.get("ok").getAsBoolean()) {
+                                com.google.gson.JsonObject data = obj.getAsJsonObject("data");
+                                boolean hasCouple = data.has("hasCouple") && data.get("hasCouple").getAsBoolean();
+                                if (hasCouple) {
+                                    int partnerId = data.get("partnerId").getAsInt();
+                                    String partnerName = data.get("partnerName").getAsString();
+                                    String partnerNickname = data.has("partnerNickname") && !data.get("partnerNickname").isJsonNull() ? data.get("partnerNickname").getAsString() : null;
+                                    int relationshipId = data.get("relationshipId").getAsInt();
+                                    callback.onCoupleFound(partnerId, partnerName, partnerNickname, relationshipId);
+                                } else {
+                                    callback.onNoCoupleFound();
+                                }
+                            } else {
+                                callback.onError(extractError(null, json));
+                            }
+                        } catch (Exception e) {
+                            Log.e(TAG, "couple-info 响应解析失败: " + json, e);
+                            callback.onError("情侣信息查询失败");
+                        }
+                    }
+
+                    @Override
+                    public void onError(String message) {
+                        if (callback != null) callback.onError(message);
+                    }
+                });
+    }
+
+    public static void uploadImage(Context context, InputStream imageStream, String fileName, ImageUploadCallback callback) {
+        new AsyncTask<Void, Void, String[]>() {
+            @Override
+            protected String[] doInBackground(Void... voids) {
+                HttpURLConnection connection = null;
+                try {
+                    String boundary = "----UploadBoundary" + System.currentTimeMillis();
+                    URL url = new URL(ApiConfigManager.getBaseUrl(context) + "/api/upload/image");
+                    connection = (HttpURLConnection) url.openConnection();
+                    connection.setRequestMethod("POST");
+                    connection.setDoOutput(true);
+                    connection.setRequestProperty("Content-Type", "multipart/form-data; boundary=" + boundary);
+                    connection.setRequestProperty("Connection", "keep-alive");
+                    connection.setConnectTimeout(CONNECT_TIMEOUT_MS);
+                    connection.setReadTimeout(15000);
+
+                    try (DataOutputStream dos = new DataOutputStream(connection.getOutputStream())) {
+                        // part header
+                        dos.writeBytes("--" + boundary + "\r\n");
+                        dos.writeBytes("Content-Disposition: form-data; name=\"image\"; filename=\"" + fileName + "\"\r\n");
+                        dos.writeBytes("Content-Type: image/jpeg\r\n\r\n");
+
+                        // file data
+                        byte[] buffer = new byte[4096];
+                        int bytesRead;
+                        while ((bytesRead = imageStream.read(buffer)) != -1) {
+                            dos.write(buffer, 0, bytesRead);
+                        }
+                        dos.writeBytes("\r\n--" + boundary + "--\r\n");
+                        dos.flush();
+                    }
+
+                    int status = connection.getResponseCode();
+                    InputStream responseStream = status >= 400 ? connection.getErrorStream() : connection.getInputStream();
+                    String responseText = readText(responseStream);
+
+                    if (status >= 200 && status < 300) {
+                        return new String[]{"ok", responseText};
+                    } else {
+                        return new String[]{"error", "上传失败: HTTP " + status};
+                    }
+                } catch (Exception e) {
+                    Log.e(TAG, "图片上传失败", e);
+                    return new String[]{"error", "图片上传失败: " + (e.getMessage() != null ? e.getMessage() : "未知错误")};
+                } finally {
+                    if (connection != null) connection.disconnect();
+                    try { imageStream.close(); } catch (Exception ignored) {}
+                }
+            }
+
+            @Override
+            protected void onPostExecute(String[] result) {
+                if (callback == null) return;
+                if ("ok".equals(result[0])) {
+                    try {
+                        String json = normalizeJsonPayload(result[1]);
+                        com.google.gson.JsonObject obj = GSON.fromJson(json, com.google.gson.JsonObject.class);
+                        String imageUrl = obj.has("data") && obj.getAsJsonObject("data").has("imageUrl")
+                                ? obj.getAsJsonObject("data").get("imageUrl").getAsString() : null;
+                        if (imageUrl != null) {
+                            callback.onSuccess(imageUrl);
+                        } else {
+                            callback.onError("上传响应解析失败");
+                        }
+                    } catch (Exception e) {
+                        callback.onError("上传响应解析失败");
+                    }
+                } else {
+                    callback.onError(result[1]);
+                }
+            }
+        }.execute();
     }
 
     public static void deleteBill(Context context, int billId, int userId, DeleteBillCallback callback) {

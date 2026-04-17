@@ -28,6 +28,7 @@ import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 import com.bumptech.glide.Glide;
 import com.bumptech.glide.load.resource.bitmap.CircleCrop;
 import com.example.couplecredit.R;
+import com.example.couplecredit.api.AuthApiClient;
 import com.example.couplecredit.api.AvatarUploadApi;
 import com.example.couplecredit.database.MySQLDatabaseHelper;
 import com.example.couplecredit.utils.NicknameCache;
@@ -323,19 +324,16 @@ public class UserSettingsActivity extends AppCompatActivity {
      * 加载情侣信息
      */
     private void loadCoupleInfo() {
-        CoupleRelationshipHelper coupleHelper = new CoupleRelationshipHelper();
         int userIdInt = Integer.parseInt(userId);
-        coupleHelper.getCoupleInfo(userIdInt, new CoupleRelationshipHelper.CoupleInfoCallback() {
+        AuthApiClient.queryCoupleInfo(this, userIdInt, new AuthApiClient.CoupleInfoCallback() {
             @Override
-            public void onCoupleFound(int coupleId, String coupleName, String coupleNickname) {
+            public void onCoupleFound(int partnerId, String partnerName, String partnerNickname, int relationshipId) {
                 runOnUiThread(() -> {
-                    // 显示情侣信息和提示文本，优先显示昵称
-                    String displayName = (coupleNickname != null && !coupleNickname.trim().isEmpty()) ? coupleNickname : coupleName;
+                    String displayName = (partnerNickname != null && !partnerNickname.trim().isEmpty()) ? partnerNickname : partnerName;
                     tvCoupleInfo.setText(displayName);
                     tvCoupleHint.setVisibility(View.VISIBLE);
                     llCoupleInfo.setVisibility(View.VISIBLE);
                     llUnbindCouple.setVisibility(View.VISIBLE);
-                    // 隐藏情侣绑定选项
                     llCoupleBinding.setVisibility(View.GONE);
                 });
             }
@@ -343,7 +341,6 @@ public class UserSettingsActivity extends AppCompatActivity {
             @Override
             public void onNoCoupleFound() {
                 runOnUiThread(() -> {
-                    // 没有情侣关系，隐藏情侣信息，显示情侣绑定选项
                     tvCoupleHint.setVisibility(View.GONE);
                     llCoupleInfo.setVisibility(View.GONE);
                     llUnbindCouple.setVisibility(View.GONE);
@@ -354,7 +351,6 @@ public class UserSettingsActivity extends AppCompatActivity {
             @Override
             public void onError(String error) {
                 runOnUiThread(() -> {
-                    // 出错时也隐藏情侣信息，显示情侣绑定选项
                     tvCoupleHint.setVisibility(View.GONE);
                     llCoupleInfo.setVisibility(View.GONE);
                     llUnbindCouple.setVisibility(View.GONE);

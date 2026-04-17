@@ -1,6 +1,7 @@
 const express = require("express");
 const bcrypt = require("bcrypt");
 const { ApiError } = require("../errors");
+const { loadActiveRelationship } = require("../utils/queryHelpers");
 
 function trimValue(value) {
   return typeof value === "string" ? value.trim() : "";
@@ -97,6 +98,47 @@ function createAuthRouter({ pool, config }) {
           userId: user.id,
           username: user.username,
           email: user.email
+        }
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.get("/couple-info", async (req, res, next) => {
+    try {
+      const userId = parseInt(req.query.userId, 10);
+      if (!userId || userId <= 0) {
+        throw new ApiError(400, "INVALID_REQUEST", "userId 参数无效");
+      }
+
+      const relationship = await loadActiveRelationship(pool, userId);
+      if (!relationship) {
+        return res.json({ ok: true, data: { hasCouple: false } });
+      }
+
+      const partnerId = relationship.user_id_1 === userId
+        ? relationship.user_id_2
+        : relationship.user_id_1;
+
+      const [partners] = await pool.execute(
+        "SELECT id, username, nickname FROM users WHERE id = ? LIMIT 1",
+        [partnerId]
+      );
+
+      if (partners.length === 0) {
+        return res.json({ ok: true, data: { hasCouple: false } });
+      }
+
+      const partner = partners[0];
+      res.json({
+        ok: true,
+        data: {
+          hasCouple: true,
+          partnerId: partner.id,
+          partnerName: partner.username,
+          partnerNickname: partner.nickname || null,
+          relationshipId: relationship.relationship_id
         }
       });
     } catch (error) {
