@@ -35,6 +35,7 @@ import androidx.annotation.Nullable;
 import androidx.core.content.ContextCompat;
 import androidx.core.content.FileProvider;
 import androidx.fragment.app.Fragment;
+import androidx.lifecycle.ViewModelProvider;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
@@ -48,6 +49,7 @@ import com.example.couplecredit.api.AuthApiModels;
 import com.example.couplecredit.config.ApiConfigManager;
 import com.example.couplecredit.utils.InventoryUtils;
 import com.example.couplecredit.utils.UserInfoManager;
+import com.example.couplecredit.viewmodel.InventoryViewModel;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -86,6 +88,7 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
     private final List<InventoryItem> lowStockList = new ArrayList<>();
     private final List<InventoryItem> recentActivityList = new ArrayList<>();
     private final List<InventoryItem> filteredInventoryList = new ArrayList<>();
+    private InventoryViewModel viewModel;
 
     // 筛选状态
     private final Set<String> activeCategories = new HashSet<>();
@@ -167,12 +170,75 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
     @Override
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
+        viewModel = new ViewModelProvider(requireActivity()).get(InventoryViewModel.class);
         initViews(view);
         setupRecyclerViews();
         setupFilters();
         setupActions();
         setupSummaryCards();
-        refreshInventoryData();
+
+        viewModel.getDataVersion().observe(getViewLifecycleOwner(), version -> {
+            if (viewModel.hasData()) {
+                restoreFromViewModel();
+            }
+        });
+
+        viewModel.getErrorMessage().observe(getViewLifecycleOwner(), error -> {
+            if (error != null && !error.isEmpty()) {
+                Toast.makeText(requireContext(), "加载物资失败: " + error, Toast.LENGTH_SHORT).show();
+                viewModel.clearError();
+            }
+        });
+
+        if (viewModel.hasData()) {
+            restoreFromViewModel();
+        } else {
+            refreshInventoryData();
+        }
+    }
+
+    private void restoreFromViewModel() {
+        inventoryList.clear();
+        lowStockList.clear();
+        recentActivityList.clear();
+        for (InventoryViewModel.InventoryItem vi : viewModel.getInventoryList()) {
+            inventoryList.add(convertItem(vi));
+        }
+        for (InventoryViewModel.InventoryItem vi : viewModel.getLowStockList()) {
+            lowStockList.add(convertItem(vi));
+        }
+        for (InventoryViewModel.InventoryItem vi : viewModel.getRecentActivityList()) {
+            recentActivityList.add(convertItem(vi));
+        }
+        isLoggedIn = UserInfoManager.isUserLoggedIn(requireContext());
+        updateLoginStateUI();
+        if (viewModel.getCachedRelationshipId() != null) {
+            UserInfoManager.saveRelationshipId(requireContext(), viewModel.getCachedRelationshipId());
+        }
+        updateSummary();
+        recentActivityAdapter.updateData(recentActivityList);
+        applyFilters();
+    }
+
+    private InventoryItem convertItem(InventoryViewModel.InventoryItem vi) {
+        InventoryItem item = new InventoryItem();
+        item.id = vi.id;
+        item.userId = vi.userId;
+        item.relationshipId = vi.relationshipId;
+        item.name = vi.name;
+        item.category = vi.category;
+        item.imageUrl = vi.imageUrl;
+        item.quantity = vi.quantity;
+        item.unit = vi.unit;
+        item.threshold = vi.threshold;
+        item.createdAt = vi.createdAt;
+        item.updatedAt = vi.updatedAt;
+        item.lastConsumedAt = vi.lastConsumedAt;
+        item.note = vi.note;
+        item.aiImagePrompt = vi.aiImagePrompt;
+        item.isLowStock = vi.isLowStock;
+        item.lastActionLabel = vi.lastActionLabel;
+        return item;
     }
 
     private void initViews(View view) {
@@ -331,23 +397,9 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
             return;
         }
 
-        InventoryUtils.loadInventory(requireContext(), new InventoryUtils.InventoryLoadCallback() {
-            @Override
-            public void onSuccess(AuthApiModels.InventoryListResponse response) {
-                if (!isAdded()) {
-                    return;
-                }
-                requireActivity().runOnUiThread(() -> bindInventoryData(response));
-            }
-
-            @Override
-            public void onError(String error) {
-                if (!isAdded()) {
-                    return;
-                }
-                requireActivity().runOnUiThread(() -> Toast.makeText(requireContext(), "加载物资失败: " + error, Toast.LENGTH_SHORT).show());
-            }
-        });
+        if (viewModel != null) {
+            viewModel.loadData();
+        }
     }
 
     private void bindInventoryData(AuthApiModels.InventoryListResponse response) {
