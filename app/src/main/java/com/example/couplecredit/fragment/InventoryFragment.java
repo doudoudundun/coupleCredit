@@ -5,6 +5,8 @@ import android.content.Context;
 import android.content.Intent;
 import android.os.Environment;
 import android.content.pm.PackageManager;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.Color;
 import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
@@ -47,6 +49,8 @@ import com.example.couplecredit.config.ApiConfigManager;
 import com.example.couplecredit.utils.InventoryUtils;
 import com.example.couplecredit.utils.UserInfoManager;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.InputStream;
 import java.util.ArrayList;
@@ -610,15 +614,23 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
         showDialogWide(dialog);
     }
 
+    private static final int IMAGE_MAX_DIMENSION = 1024;
+    private static final int IMAGE_JPEG_QUALITY = 80;
+
     private void uploadAndSave(AlertDialog dialog, String name, String category, double quantity,
                                String unit, double threshold, String note, String aiPrompt,
                                @Nullable InventoryItem existingItem) {
         try {
             Uri localUri = Uri.parse(pendingImageUrl);
-            InputStream inputStream = requireContext().getContentResolver().openInputStream(localUri);
+            InputStream compressed = compressImage(localUri);
+            if (compressed == null) {
+                Toast.makeText(getContext(), "图片压缩失败", Toast.LENGTH_SHORT).show();
+                restoreSubmitButton(dialog, existingItem);
+                return;
+            }
             String fileName = "inventory_" + System.currentTimeMillis() + ".jpg";
 
-            AuthApiClient.uploadImage(requireContext(), inputStream, fileName, new AuthApiClient.ImageUploadCallback() {
+            AuthApiClient.uploadImage(requireContext(), compressed, fileName, new AuthApiClient.ImageUploadCallback() {
                 @Override
                 public void onSuccess(String serverImageUrl) {
                     if (!isAdded()) return;
@@ -639,6 +651,62 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
         } catch (Exception e) {
             Toast.makeText(getContext(), "无法读取图片: " + e.getMessage(), Toast.LENGTH_SHORT).show();
             restoreSubmitButton(dialog, existingItem);
+        }
+    }
+
+    private InputStream compressImage(Uri imageUri) {
+        try {
+            InputStream is = requireContext().getContentResolver().openInputStream(imageUri);
+
+            // Step 1: Decode dimensions only
+            BitmapFactory.Options bounds = new BitmapFactory.Options();
+            bounds.inJustDecodeBounds = true;
+            BitmapFactory.decodeStream(is, null, bounds);
+            is.close();
+
+            // Step 2: Calculate inSampleSize
+            int width = bounds.outWidth;
+            int height = bounds.outHeight;
+            int sampleSize = 1;
+            if (width > IMAGE_MAX_DIMENSION || height > IMAGE_MAX_DIMENSION) {
+                int halfW = width / 2;
+                int halfH = height / 2;
+                while ((halfW / sampleSize) >= IMAGE_MAX_DIMENSION
+                        && (halfH / sampleSize) >= IMAGE_MAX_DIMENSION) {
+                    sampleSize *= 2;
+                }
+            }
+
+            // Step 3: Decode with sample size
+            is = requireContext().getContentResolver().openInputStream(imageUri);
+            BitmapFactory.Options decodeOpts = new BitmapFactory.Options();
+            decodeOpts.inSampleSize = sampleSize;
+            decodeOpts.inPreferredConfig = Bitmap.Config.ARGB_8888;
+            Bitmap bitmap = BitmapFactory.decodeStream(is, null, decodeOpts);
+            is.close();
+
+            if (bitmap == null) return null;
+
+            // Step 4: Exact resize if still oversized
+            int bw = bitmap.getWidth();
+            int bh = bitmap.getHeight();
+            if (bw > IMAGE_MAX_DIMENSION || bh > IMAGE_MAX_DIMENSION) {
+                float scale = Math.min((float) IMAGE_MAX_DIMENSION / bw, (float) IMAGE_MAX_DIMENSION / bh);
+                int newW = Math.round(bw * scale);
+                int newH = Math.round(bh * scale);
+                Bitmap scaled = Bitmap.createScaledBitmap(bitmap, newW, newH, true);
+                bitmap.recycle();
+                bitmap = scaled;
+            }
+
+            // Step 5: Compress to JPEG
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            bitmap.compress(Bitmap.CompressFormat.JPEG, IMAGE_JPEG_QUALITY, baos);
+            bitmap.recycle();
+
+            return new ByteArrayInputStream(baos.toByteArray());
+        } catch (Exception e) {
+            return null;
         }
     }
 
