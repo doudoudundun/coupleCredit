@@ -604,62 +604,103 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
     }
 
     public void showConsumeDialog(InventoryItem item) {
-        AlertDialog.Builder builder = new AlertDialog.Builder(getContext());
-        builder.setTitle("消耗 " + item.name);
-        final EditText input = new EditText(getContext());
-        input.setInputType(android.text.InputType.TYPE_CLASS_NUMBER | android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL);
-        input.setHint("消耗数量");
-        input.setText("1");
-        builder.setView(input);
-        builder.setPositiveButton("确认消耗", (dialog, which) -> {
-            String amountStr = input.getText().toString().trim();
+        AlertDialog.Builder builder = new AlertDialog.Builder(requireContext(), R.style.CustomDialogStyle);
+        View dialogView = LayoutInflater.from(getContext()).inflate(R.layout.dialog_amount_input, null);
+        builder.setView(dialogView);
+        AlertDialog dialog = builder.create();
+
+        TextView tvTitle = dialogView.findViewById(R.id.tv_dialog_title);
+        TextView tvInfo = dialogView.findViewById(R.id.tv_current_info);
+        EditText etAmount = dialogView.findViewById(R.id.et_amount);
+        TextView btnCancel = dialogView.findViewById(R.id.btn_cancel);
+        TextView btnConfirm = dialogView.findViewById(R.id.btn_confirm);
+
+        tvTitle.setText("消耗 " + item.name);
+        tvInfo.setText("当前存量：" + trimDecimal(item.quantity) + " " + item.unit);
+        etAmount.setHint("消耗数量");
+        etAmount.setText("1");
+        btnConfirm.setText("确认消耗");
+
+        btnCancel.setOnClickListener(v -> dialog.dismiss());
+        btnConfirm.setOnClickListener(v -> {
+            String amountStr = etAmount.getText().toString().trim();
             if (TextUtils.isEmpty(amountStr)) {
                 Toast.makeText(getContext(), "请输入消耗数量", Toast.LENGTH_SHORT).show();
                 return;
             }
             try {
                 double amount = Double.parseDouble(amountStr);
+                dialog.dismiss();
                 InventoryUtils.consumeInventory(requireContext(), item.id, amount, new ToastMutationCallback("消耗记录成功"));
             } catch (NumberFormatException e) {
                 Toast.makeText(getContext(), "数量格式不正确", Toast.LENGTH_SHORT).show();
             }
         });
-        builder.setNegativeButton("取消", null);
-        builder.show();
+
+        dialog.show();
     }
 
     public void showReplenishDialog(InventoryItem item) {
-        AlertDialog.Builder builder = new AlertDialog.Builder(getContext());
-        builder.setTitle("补货 " + item.name);
-        final EditText input = new EditText(getContext());
-        input.setInputType(android.text.InputType.TYPE_CLASS_NUMBER | android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL);
-        input.setHint("补货数量");
-        input.setText("1");
-        builder.setView(input);
-        builder.setPositiveButton("确认补货", (dialog, which) -> {
-            String amountStr = input.getText().toString().trim();
+        AlertDialog.Builder builder = new AlertDialog.Builder(requireContext(), R.style.CustomDialogStyle);
+        View dialogView = LayoutInflater.from(getContext()).inflate(R.layout.dialog_amount_input, null);
+        builder.setView(dialogView);
+        AlertDialog dialog = builder.create();
+
+        TextView tvTitle = dialogView.findViewById(R.id.tv_dialog_title);
+        TextView tvInfo = dialogView.findViewById(R.id.tv_current_info);
+        EditText etAmount = dialogView.findViewById(R.id.et_amount);
+        TextView btnCancel = dialogView.findViewById(R.id.btn_cancel);
+        TextView btnConfirm = dialogView.findViewById(R.id.btn_confirm);
+
+        tvTitle.setText("补货 " + item.name);
+        tvInfo.setText("当前存量：" + trimDecimal(item.quantity) + " " + item.unit);
+        etAmount.setHint("补货数量");
+        etAmount.setText("1");
+        btnConfirm.setText("确认补货");
+
+        btnCancel.setOnClickListener(v -> dialog.dismiss());
+        btnConfirm.setOnClickListener(v -> {
+            String amountStr = etAmount.getText().toString().trim();
             if (TextUtils.isEmpty(amountStr)) {
                 Toast.makeText(getContext(), "请输入补货数量", Toast.LENGTH_SHORT).show();
                 return;
             }
             try {
                 double amount = Double.parseDouble(amountStr);
+                dialog.dismiss();
                 InventoryUtils.replenishInventory(requireContext(), item.id, amount, new ToastMutationCallback("补货成功"));
             } catch (NumberFormatException e) {
                 Toast.makeText(getContext(), "数量格式不正确", Toast.LENGTH_SHORT).show();
             }
         });
-        builder.setNegativeButton("取消", null);
-        builder.show();
+
+        dialog.show();
     }
 
     private void showDeleteDialog(InventoryItem item) {
-        new AlertDialog.Builder(requireContext())
-                .setTitle("删除物资")
-                .setMessage("确定删除\"" + item.name + "\"吗？")
-                .setPositiveButton("删除", (dialog, which) -> InventoryUtils.deleteInventory(requireContext(), item.id, new ToastMutationCallback("删除成功")))
-                .setNegativeButton("取消", null)
-                .show();
+        AlertDialog.Builder builder = new AlertDialog.Builder(requireContext(), R.style.CustomDialogStyle);
+        View dialogView = LayoutInflater.from(getContext()).inflate(R.layout.dialog_amount_input, null);
+        builder.setView(dialogView);
+        AlertDialog dialog = builder.create();
+
+        TextView tvTitle = dialogView.findViewById(R.id.tv_dialog_title);
+        TextView tvInfo = dialogView.findViewById(R.id.tv_current_info);
+        EditText etAmount = dialogView.findViewById(R.id.et_amount);
+        TextView btnCancel = dialogView.findViewById(R.id.btn_cancel);
+        TextView btnConfirm = dialogView.findViewById(R.id.btn_confirm);
+
+        tvTitle.setText("删除物资");
+        tvInfo.setText("确定删除\"" + item.name + "\"吗？此操作不可撤销。");
+        etAmount.setVisibility(View.GONE);
+        btnConfirm.setText("删除");
+
+        btnCancel.setOnClickListener(v -> dialog.dismiss());
+        btnConfirm.setOnClickListener(v -> {
+            dialog.dismiss();
+            InventoryUtils.deleteInventory(requireContext(), item.id, new ToastMutationCallback("删除成功"));
+        });
+
+        dialog.show();
     }
 
     private void openLoginPage() {
