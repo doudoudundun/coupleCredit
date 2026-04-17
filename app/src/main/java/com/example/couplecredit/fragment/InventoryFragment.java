@@ -4,6 +4,8 @@ import android.app.AlertDialog;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.graphics.Color;
+import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -11,10 +13,10 @@ import android.provider.MediaStore;
 import android.text.Editable;
 import android.text.TextUtils;
 import android.text.TextWatcher;
+import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.EditText;
 import android.widget.ImageView;
@@ -42,8 +44,10 @@ import com.example.couplecredit.utils.InventoryUtils;
 import com.example.couplecredit.utils.UserInfoManager;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 public class InventoryFragment extends Fragment implements InventoryAdapter.InventoryActionListener {
 
@@ -51,7 +55,8 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
     private TextView tvAlertMessage;
     private TextView tvViewAlert;
     private EditText etSearch;
-    private Spinner spinnerCategory;
+    private LinearLayout llCategoryTags;
+    private LinearLayout flexActiveFilters;
     private RecyclerView rvRecentActivity;
     private RecyclerView rvInventoryList;
     private LinearLayout llEmptyState;
@@ -59,7 +64,9 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
     private LinearLayout layoutContent;
     private TextView btnLoginPrompt;
     private TextView tvTotalCount;
+    private LinearLayout cardLowStock;
     private TextView tvLowStockCount;
+    private LinearLayout cardRecent;
     private TextView tvRecentCount;
     private View fabAddInventory;
 
@@ -69,7 +76,12 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
     private final List<InventoryItem> lowStockList = new ArrayList<>();
     private final List<InventoryItem> recentActivityList = new ArrayList<>();
     private final List<InventoryItem> filteredInventoryList = new ArrayList<>();
-    private String currentCategoryFilter = "全部";
+
+    // 筛选状态
+    private final Set<String> activeCategories = new HashSet<>();
+    private boolean filterLowStock = false;
+    private boolean filterRecent = false;
+
     private boolean isLoggedIn;
 
     private final String[] categories = {"全部", "食材", "日用品", "调料", "饮品", "药品", "其他"};
@@ -120,6 +132,7 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
         setupRecyclerViews();
         setupFilters();
         setupActions();
+        setupSummaryCards();
         refreshInventoryData();
     }
 
@@ -128,7 +141,8 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
         tvAlertMessage = view.findViewById(R.id.tv_alert_message);
         tvViewAlert = view.findViewById(R.id.tv_view_alert);
         etSearch = view.findViewById(R.id.et_search);
-        spinnerCategory = view.findViewById(R.id.spinner_category);
+        llCategoryTags = view.findViewById(R.id.ll_category_tags);
+        flexActiveFilters = view.findViewById(R.id.flex_active_filters);
         rvRecentActivity = view.findViewById(R.id.rv_recent_activity);
         rvInventoryList = view.findViewById(R.id.rv_inventory_list);
         llEmptyState = view.findViewById(R.id.ll_empty_state);
@@ -136,7 +150,9 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
         layoutContent = view.findViewById(R.id.layout_content);
         btnLoginPrompt = view.findViewById(R.id.btn_login_prompt);
         tvTotalCount = view.findViewById(R.id.tv_total_count);
+        cardLowStock = view.findViewById(R.id.card_low_stock);
         tvLowStockCount = view.findViewById(R.id.tv_low_stock_count);
+        cardRecent = view.findViewById(R.id.card_recent);
         tvRecentCount = view.findViewById(R.id.tv_recent_count);
         fabAddInventory = view.findViewById(R.id.fab_add_inventory);
     }
@@ -151,20 +167,8 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
     }
 
     private void setupFilters() {
-        ArrayAdapter<String> categoryAdapter = new ArrayAdapter<>(requireContext(), android.R.layout.simple_spinner_item, categories);
-        categoryAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-        spinnerCategory.setAdapter(categoryAdapter);
-        spinnerCategory.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
-            @Override
-            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-                currentCategoryFilter = categories[position];
-                applyFilters();
-            }
-
-            @Override
-            public void onNothingSelected(AdapterView<?> parent) {
-            }
-        });
+        // 分类标签
+        buildCategoryTags();
 
         etSearch.addTextChangedListener(new SimpleTextWatcher() {
             @Override
@@ -172,6 +176,89 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
                 applyFilters();
             }
         });
+    }
+
+    private void buildCategoryTags() {
+        llCategoryTags.removeAllViews();
+        for (String cat : categories) {
+            TextView tag = createCategoryTag(cat, activeCategories.contains(cat));
+            tag.setOnClickListener(v -> toggleCategoryFilter(cat));
+            llCategoryTags.addView(tag);
+        }
+    }
+
+    private TextView createCategoryTag(String text, boolean active) {
+        TextView tag = new TextView(requireContext());
+        tag.setText(text);
+        tag.setTextSize(13);
+        tag.setPadding(dp(14), dp(6), dp(14), dp(6));
+        tag.setGravity(Gravity.CENTER);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        lp.setMargins(0, 0, dp(8), 0);
+        tag.setLayoutParams(lp);
+
+        GradientDrawable bg = new GradientDrawable();
+        bg.setCornerRadius(dp(16));
+        if (active) {
+            bg.setColor(ContextCompat.getColor(requireContext(), R.color.primary_color));
+            tag.setTextColor(Color.WHITE);
+        } else {
+            bg.setColor(Color.parseColor("#F0F0F0"));
+            tag.setTextColor(Color.parseColor("#666666"));
+        }
+        tag.setBackground(bg);
+        return tag;
+    }
+
+    private void toggleCategoryFilter(String category) {
+        if ("全部".equals(category)) {
+            activeCategories.clear();
+        } else {
+            if (activeCategories.contains(category)) {
+                activeCategories.remove(category);
+            } else {
+                activeCategories.add(category);
+            }
+        }
+        buildCategoryTags();
+        applyFilters();
+    }
+
+    private void setupSummaryCards() {
+        cardLowStock.setOnClickListener(v -> {
+            filterLowStock = !filterLowStock;
+            updateCardHighlight();
+            applyFilters();
+        });
+
+        cardRecent.setOnClickListener(v -> {
+            filterRecent = !filterRecent;
+            updateCardHighlight();
+            applyFilters();
+        });
+    }
+
+    private void updateCardHighlight() {
+        // 告急卡片高亮
+        GradientDrawable lowBg = new GradientDrawable();
+        lowBg.setCornerRadius(dp(12));
+        if (filterLowStock) {
+            lowBg.setColor(Color.parseColor("#FFF1F1"));
+        } else {
+            lowBg.setColor(Color.WHITE);
+        }
+        cardLowStock.setBackground(lowBg);
+
+        // 最近变动卡片高亮
+        GradientDrawable recentBg = new GradientDrawable();
+        recentBg.setCornerRadius(dp(12));
+        if (filterRecent) {
+            recentBg.setColor(Color.parseColor("#E8F5E9"));
+        } else {
+            recentBg.setColor(Color.WHITE);
+        }
+        cardRecent.setBackground(recentBg);
     }
 
     private void setupActions() {
@@ -184,7 +271,11 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
         });
 
         btnLoginPrompt.setOnClickListener(v -> openLoginPage());
-        tvViewAlert.setOnClickListener(v -> showLowStockDialog());
+        tvViewAlert.setOnClickListener(v -> {
+            filterLowStock = true;
+            updateCardHighlight();
+            applyFilters();
+        });
     }
 
     public void refreshInventoryData() {
@@ -222,6 +313,10 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
 
     private void bindInventoryData(AuthApiModels.InventoryListResponse response) {
         clearInventoryData();
+        // 缓存关系状态到本地
+        if (response != null && response.data != null && response.data.relationshipId != null) {
+            UserInfoManager.saveRelationshipId(requireContext(), response.data.relationshipId);
+        }
         if (response != null && response.data != null && response.data.items != null) {
             for (AuthApiModels.InventoryItemData itemData : response.data.items) {
                 InventoryItem item = fromApiItem(itemData);
@@ -248,7 +343,6 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
         fabAddInventory.setEnabled(isLoggedIn);
         fabAddInventory.setAlpha(isLoggedIn ? 1f : 0.5f);
         etSearch.setEnabled(isLoggedIn);
-        spinnerCategory.setEnabled(isLoggedIn);
     }
 
     private void updateSummary() {
@@ -269,17 +363,103 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
     private void applyFilters() {
         filteredInventoryList.clear();
         String keyword = etSearch.getText() == null ? "" : etSearch.getText().toString().trim().toLowerCase(Locale.getDefault());
+
+        // 构建"最近变动"名称集合用于快速查找
+        Set<String> recentNames = new HashSet<>();
+        for (InventoryItem ri : recentActivityList) {
+            if (ri.name != null) recentNames.add(ri.name.toLowerCase(Locale.getDefault()));
+        }
+
         for (InventoryItem item : inventoryList) {
-            boolean matchCategory = "全部".equals(currentCategoryFilter) || currentCategoryFilter.equals(item.category);
+            // 关键词
             boolean matchKeyword = TextUtils.isEmpty(keyword)
                     || (item.name != null && item.name.toLowerCase(Locale.getDefault()).contains(keyword))
                     || (item.note != null && item.note.toLowerCase(Locale.getDefault()).contains(keyword));
-            if (matchCategory && matchKeyword) {
-                filteredInventoryList.add(item);
-            }
+            if (!matchKeyword) continue;
+
+            // 分类
+            boolean matchCategory = activeCategories.isEmpty()
+                    || activeCategories.contains(item.category);
+            if (!matchCategory) continue;
+
+            // 告急
+            if (filterLowStock && !item.isLowStock()) continue;
+
+            // 最近变动
+            if (filterRecent && (item.name == null || !recentNames.contains(item.name.toLowerCase(Locale.getDefault())))) continue;
+
+            filteredInventoryList.add(item);
         }
+
         inventoryAdapter.updateData(filteredInventoryList);
         llEmptyState.setVisibility(filteredInventoryList.isEmpty() && isLoggedIn ? View.VISIBLE : View.GONE);
+        rebuildActiveFilterTags();
+    }
+
+    private void rebuildActiveFilterTags() {
+        flexActiveFilters.removeAllViews();
+
+        // 分类标签
+        for (String cat : activeCategories) {
+            flexActiveFilters.addView(createActiveFilterTag("分类: " + cat, () -> {
+                activeCategories.remove(cat);
+                buildCategoryTags();
+                applyFilters();
+            }));
+        }
+
+        // 告急标签
+        if (filterLowStock) {
+            flexActiveFilters.addView(createActiveFilterTag("告急物资", () -> {
+                filterLowStock = false;
+                updateCardHighlight();
+                applyFilters();
+            }));
+        }
+
+        // 最近变动标签
+        if (filterRecent) {
+            flexActiveFilters.addView(createActiveFilterTag("最近变动", () -> {
+                filterRecent = false;
+                updateCardHighlight();
+                applyFilters();
+            }));
+        }
+
+        flexActiveFilters.setVisibility(flexActiveFilters.getChildCount() > 0 ? View.VISIBLE : View.GONE);
+    }
+
+    private LinearLayout createActiveFilterTag(String text, Runnable onRemove) {
+        LinearLayout container = new LinearLayout(requireContext());
+        container.setOrientation(LinearLayout.HORIZONTAL);
+        container.setGravity(Gravity.CENTER_VERTICAL);
+        container.setPadding(dp(10), dp(4), dp(10), dp(4));
+
+        GradientDrawable bg = new GradientDrawable();
+        bg.setCornerRadius(dp(14));
+        bg.setColor(Color.parseColor("#E8F5E9"));
+        container.setBackground(bg);
+
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        lp.setMargins(0, 0, dp(6), 0);
+        container.setLayoutParams(lp);
+
+        TextView label = new TextView(requireContext());
+        label.setText(text);
+        label.setTextSize(12);
+        label.setTextColor(ContextCompat.getColor(requireContext(), R.color.primary_color));
+        container.addView(label);
+
+        TextView close = new TextView(requireContext());
+        close.setText(" x");
+        close.setTextSize(13);
+        close.setTextColor(ContextCompat.getColor(requireContext(), R.color.primary_color));
+        close.setPadding(dp(4), 0, 0, 0);
+        container.addView(close);
+
+        container.setOnClickListener(v -> onRemove.run());
+        return container;
     }
 
     private void showInventoryDialog(@Nullable InventoryItem existingItem) {
@@ -318,7 +498,6 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
             Toast.makeText(getContext(), "AI 生图入口已保留，当前先记录提示词", Toast.LENGTH_SHORT).show();
         });
 
-        String imageUrl = null;
         pendingImageUrl = null;
         if (existingItem != null) {
             tvDialogTitle.setText("编辑物资");
@@ -329,10 +508,9 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
             etNote.setText(existingItem.note == null ? "" : existingItem.note);
             etAiPrompt.setVisibility(existingItem.aiImagePrompt != null && !existingItem.aiImagePrompt.isEmpty() ? View.VISIBLE : View.GONE);
             etAiPrompt.setText(existingItem.aiImagePrompt == null ? "" : existingItem.aiImagePrompt);
-            imageUrl = existingItem.imageUrl;
-            pendingImageUrl = imageUrl;
-            if (imageUrl != null && !imageUrl.isEmpty()) {
-                Glide.with(this).load(imageUrl).placeholder(R.drawable.ic_inventory_placeholder).into(ivAddImage);
+            pendingImageUrl = existingItem.imageUrl;
+            if (existingItem.imageUrl != null && !existingItem.imageUrl.isEmpty()) {
+                Glide.with(this).load(existingItem.imageUrl).placeholder(R.drawable.ic_inventory_placeholder).into(ivAddImage);
             }
             setSpinnerSelection(spinnerCategoryDialog, addCategories, existingItem.category);
             setSpinnerSelection(spinnerUnit, units, existingItem.unit);
@@ -478,7 +656,7 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
     private void showDeleteDialog(InventoryItem item) {
         new AlertDialog.Builder(requireContext())
                 .setTitle("删除物资")
-                .setMessage("确定删除“" + item.name + "”吗？")
+                .setMessage("确定删除\"" + item.name + "\"吗？")
                 .setPositiveButton("删除", (dialog, which) -> InventoryUtils.deleteInventory(requireContext(), item.id, new ToastMutationCallback("删除成功")))
                 .setNegativeButton("取消", null)
                 .show();
@@ -585,6 +763,10 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
                 return;
             }
         }
+    }
+
+    private int dp(int value) {
+        return (int) (value * requireContext().getResources().getDisplayMetrics().density);
     }
 
     @Override

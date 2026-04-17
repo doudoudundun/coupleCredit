@@ -150,6 +150,11 @@ public class ClassicViewModel extends AndroidViewModel {
         AuthApiClient.queryBills(getApplication(), userId, year, month, new AuthApiClient.BillsQueryCallback() {
             @Override
             public void onSuccess(AuthApiModels.BillsQueryResponse response) {
+                // 缓存关系状态到本地
+                if (response.data != null && response.data.relationshipId != null) {
+                    UserInfoManager.saveRelationshipId(getApplication(), response.data.relationshipId);
+                }
+
                 if (response.data == null || response.data.bills == null) {
                     Log.w("ClassicViewModel", "API 返回无账单数据");
                     billItems.clear();

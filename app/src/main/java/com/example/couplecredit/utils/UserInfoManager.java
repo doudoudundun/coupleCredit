@@ -17,6 +17,8 @@ public class UserInfoManager {
     private static final String KEY_USER_ID = "id";
     private static final String KEY_USER_ID_INT = "userId";
     private static final String KEY_IS_LOGGED_IN = "isLoggedIn";
+    private static final String KEY_RELATIONSHIP_ID = "relationshipId";
+    private static final long CACHE_TTL_MS = 300_000; // 5分钟
 
     /**
      * 用户信息回调接口
@@ -41,7 +43,7 @@ public class UserInfoManager {
         }
 
         boolean isExpired() {
-            return System.currentTimeMillis() - timestamp > 300000; // 300秒过期
+            return System.currentTimeMillis() - timestamp > CACHE_TTL_MS;
         }
     }
 
@@ -109,6 +111,17 @@ public class UserInfoManager {
                 return;
             }
 
+            // 优先从本地缓存读取关系状态（由 API 响应写入）
+            int savedRelId = prefs.getInt(KEY_RELATIONSHIP_ID, -1);
+            Integer relationshipId = savedRelId > 0 ? savedRelId : null;
+            if (relationshipId != null) {
+                long cacheTime = System.currentTimeMillis();
+                Log.d(TAG, "使用本地缓存关系信息，耗时: " + (cacheTime - startTime) + "ms, relationshipId: " + relationshipId);
+                cachedUserInfo = new UserInfoCache(userId, username, relationshipId);
+                callback.onUserInfoLoaded(userId, username, relationshipId);
+                return;
+            }
+
             CoupleRelationshipHelper coupleHelper = new CoupleRelationshipHelper();
             coupleHelper.getUserRelationshipIdOptimized(userId, new CoupleRelationshipHelper.RelationshipIdCallback() {
                 @Override
@@ -167,6 +180,22 @@ public class UserInfoManager {
     public static String getCurrentUsername(Context context) {
         SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
         return prefs.getString(KEY_USERNAME, null);
+    }
+
+    /**
+     * 保存情侣关系ID（由 API 响应调用）
+     */
+    public static void saveRelationshipId(Context context, Integer relationshipId) {
+        SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        if (relationshipId != null && relationshipId > 0) {
+            prefs.edit().putInt(KEY_RELATIONSHIP_ID, relationshipId).apply();
+        } else {
+            prefs.edit().remove(KEY_RELATIONSHIP_ID).apply();
+        }
+        // 更新内存缓存
+        if (cachedUserInfo != null) {
+            cachedUserInfo.relationshipId = relationshipId;
+        }
     }
 
     /**

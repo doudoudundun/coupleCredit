@@ -13,6 +13,7 @@ import com.bumptech.glide.Glide;
 import com.example.couplecredit.R;
 import com.example.couplecredit.fragment.InventoryFragment.InventoryItem;
 
+import java.util.Locale;
 import java.util.List;
 
 public class RecentActivityAdapter extends RecyclerView.Adapter<RecentActivityAdapter.ViewHolder> {
@@ -39,8 +40,13 @@ public class RecentActivityAdapter extends RecyclerView.Adapter<RecentActivityAd
     public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
         InventoryItem item = items.get(position);
         holder.tvName.setText(item.name);
-        holder.tvChange.setText(resolveChangeType(item));
-        holder.tvQuantity.setText(String.format("当前 %.1f %s", item.quantity, item.unit));
+
+        String actionLabel = resolveChangeType(item);
+        holder.tvChange.setText(actionLabel);
+
+        String quantityText = formatQuantity(item.quantity) + " " + item.unit;
+        String detail = item.category + " · " + quantityText;
+        holder.tvQuantity.setText(detail);
 
         if (item.imageUrl != null && !item.imageUrl.isEmpty()) {
             Glide.with(holder.ivImage.getContext())
@@ -52,6 +58,13 @@ public class RecentActivityAdapter extends RecyclerView.Adapter<RecentActivityAd
         } else {
             holder.ivImage.setImageResource(R.drawable.ic_inventory_placeholder);
         }
+    }
+
+    private String formatQuantity(double value) {
+        if (value == (long) value) {
+            return String.format(Locale.getDefault(), "%d", (long) value);
+        }
+        return String.format(Locale.getDefault(), "%.1f", value);
     }
 
     private String resolveChangeType(InventoryItem item) {
