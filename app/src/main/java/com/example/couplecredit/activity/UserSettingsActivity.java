@@ -111,6 +111,12 @@ public class UserSettingsActivity extends AppCompatActivity {
         loadSavedAvatar();
     }
 
+    @Override
+    protected void onResume() {
+        super.onResume();
+        loadCoupleInfo();
+    }
+
     /**
      * 初始化UI组件
      */
