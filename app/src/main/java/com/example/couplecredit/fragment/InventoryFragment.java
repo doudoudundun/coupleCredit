@@ -3,6 +3,7 @@ package com.example.couplecredit.fragment;
 import android.app.AlertDialog;
 import android.content.Context;
 import android.content.Intent;
+import android.os.Environment;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.graphics.drawable.GradientDrawable;
@@ -10,7 +11,6 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.provider.MediaStore;
-import android.util.DisplayMetrics;
 import android.text.Editable;
 import android.text.TextUtils;
 import android.text.TextWatcher;
@@ -31,6 +31,7 @@ import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.core.content.ContextCompat;
+import androidx.core.content.FileProvider;
 import androidx.fragment.app.Fragment;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
@@ -40,10 +41,14 @@ import com.example.couplecredit.R;
 import com.example.couplecredit.activity.LoginActivity;
 import com.example.couplecredit.adapter.InventoryAdapter;
 import com.example.couplecredit.adapter.RecentActivityAdapter;
+import com.example.couplecredit.api.AuthApiClient;
 import com.example.couplecredit.api.AuthApiModels;
+import com.example.couplecredit.config.ApiConfigManager;
 import com.example.couplecredit.utils.InventoryUtils;
 import com.example.couplecredit.utils.UserInfoManager;
 
+import java.io.File;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -91,6 +96,10 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
 
     private ImageView pendingImageView;
     private String pendingImageUrl;
+    private Uri cameraImageUri;
+    private String originalImageUrl;
+    private boolean imageChanged = false;
+    private AlertDialog currentDialog;
 
     private final ActivityResultLauncher<Intent> pickImageLauncher = registerForActivityResult(
             new ActivityResultContracts.StartActivityForResult(),
@@ -104,6 +113,7 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
                         } catch (Exception ignored) {}
                         Glide.with(this).load(uri).placeholder(R.drawable.ic_inventory_placeholder).into(pendingImageView);
                         pendingImageUrl = uri.toString();
+                        imageChanged = true;
                     }
                 }
             }
@@ -116,6 +126,30 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
                     openImagePicker();
                 } else {
                     Toast.makeText(getContext(), "需要存储权限才能选择图片", Toast.LENGTH_SHORT).show();
+                }
+            }
+    );
+
+    private final ActivityResultLauncher<Intent> captureImageLauncher = registerForActivityResult(
+            new ActivityResultContracts.StartActivityForResult(),
+            result -> {
+                if (result.getResultCode() == android.app.Activity.RESULT_OK) {
+                    if (cameraImageUri != null && pendingImageView != null) {
+                        Glide.with(this).load(cameraImageUri).placeholder(R.drawable.ic_inventory_placeholder).into(pendingImageView);
+                        pendingImageUrl = cameraImageUri.toString();
+                        imageChanged = true;
+                    }
+                }
+            }
+    );
+
+    private final ActivityResultLauncher<String> requestCameraPermissionLauncher = registerForActivityResult(
+            new ActivityResultContracts.RequestPermission(),
+            granted -> {
+                if (granted) {
+                    openCamera();
+                } else {
+                    Toast.makeText(getContext(), "需要相机权限才能拍照", Toast.LENGTH_SHORT).show();
                 }
             }
     );
@@ -468,6 +502,7 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
         View dialogView = LayoutInflater.from(getContext()).inflate(R.layout.dialog_add_inventory, null);
         builder.setView(dialogView);
         AlertDialog dialog = builder.create();
+        currentDialog = dialog;
 
         TextView tvDialogTitle = dialogView.findViewById(R.id.tv_dialog_title);
         EditText etName = dialogView.findViewById(R.id.et_inventory_name);
@@ -478,6 +513,7 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
         EditText etNote = dialogView.findViewById(R.id.et_note);
         EditText etAiPrompt = dialogView.findViewById(R.id.et_ai_prompt);
         ImageView ivAddImage = dialogView.findViewById(R.id.iv_add_image);
+        View flAddImage = dialogView.findViewById(R.id.fl_add_image);
         TextView tvSelectImage = dialogView.findViewById(R.id.tv_select_image);
         TextView tvAiGenerate = dialogView.findViewById(R.id.tv_ai_generate);
         TextView btnSubmit = dialogView.findViewById(R.id.btn_add_inventory);
@@ -490,16 +526,21 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
         unitAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         spinnerUnit.setAdapter(unitAdapter);
 
-        tvSelectImage.setOnClickListener(v -> {
+        View.OnClickListener imageClickListener = v -> {
             pendingImageView = ivAddImage;
-            checkAndRequestImagePermission();
-        });
+            showImageSourcePicker();
+        };
+        flAddImage.setOnClickListener(imageClickListener);
+        tvSelectImage.setOnClickListener(imageClickListener);
+
         tvAiGenerate.setOnClickListener(v -> {
             etAiPrompt.setVisibility(View.VISIBLE);
             Toast.makeText(getContext(), "AI 生图入口已保留，当前先记录提示词", Toast.LENGTH_SHORT).show();
         });
 
         pendingImageUrl = null;
+        originalImageUrl = null;
+        imageChanged = false;
         if (existingItem != null) {
             tvDialogTitle.setText("编辑物资");
             btnSubmit.setText("保存修改");
@@ -510,8 +551,9 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
             etAiPrompt.setVisibility(existingItem.aiImagePrompt != null && !existingItem.aiImagePrompt.isEmpty() ? View.VISIBLE : View.GONE);
             etAiPrompt.setText(existingItem.aiImagePrompt == null ? "" : existingItem.aiImagePrompt);
             pendingImageUrl = existingItem.imageUrl;
+            originalImageUrl = existingItem.imageUrl;
             if (existingItem.imageUrl != null && !existingItem.imageUrl.isEmpty()) {
-                Glide.with(this).load(existingItem.imageUrl).placeholder(R.drawable.ic_inventory_placeholder).into(ivAddImage);
+                Glide.with(this).load(resolveImageUrl(existingItem.imageUrl)).placeholder(R.drawable.ic_inventory_placeholder).into(ivAddImage);
             }
             setSpinnerSelection(spinnerCategoryDialog, addCategories, existingItem.category);
             setSpinnerSelection(spinnerUnit, units, existingItem.unit);
@@ -528,7 +570,6 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
             String thresholdText = etThreshold.getText().toString().trim();
             String note = etNote.getText().toString().trim();
             String aiPrompt = etAiPrompt.getText().toString().trim();
-            String currentImageUrl = pendingImageUrl;
 
             if (TextUtils.isEmpty(name)) {
                 Toast.makeText(getContext(), "请输入物资名称", Toast.LENGTH_SHORT).show();
@@ -556,36 +597,90 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
                 return;
             }
 
-            InventoryUtils.InventoryMutationCallback callback = new InventoryUtils.InventoryMutationCallback() {
-                @Override
-                public void onSuccess() {
-                    if (!isAdded()) {
-                        return;
-                    }
-                    requireActivity().runOnUiThread(() -> {
-                        Toast.makeText(getContext(), existingItem == null ? "物资添加成功" : "物资更新成功", Toast.LENGTH_SHORT).show();
-                        dialog.dismiss();
-                        refreshInventoryData();
-                    });
-                }
-
-                @Override
-                public void onError(String error) {
-                    if (!isAdded()) {
-                        return;
-                    }
-                    requireActivity().runOnUiThread(() -> Toast.makeText(getContext(), error, Toast.LENGTH_SHORT).show());
-                }
-            };
-
-            if (existingItem == null) {
-                InventoryUtils.createInventory(requireContext(), name, category, quantity, unit, threshold, currentImageUrl, note, aiPrompt, callback);
+            if (imageChanged && pendingImageUrl != null) {
+                btnSubmit.setEnabled(false);
+                btnSubmit.setText("上传图片中...");
+                uploadAndSave(dialog, name, category, quantity, unit, threshold, note, aiPrompt, existingItem);
             } else {
-                InventoryUtils.updateInventory(requireContext(), existingItem.id, name, category, quantity, unit, threshold, currentImageUrl, note, aiPrompt, callback);
+                String finalImageUrl = imageChanged ? null : pendingImageUrl;
+                saveInventoryItem(dialog, name, category, quantity, unit, threshold, finalImageUrl, note, aiPrompt, existingItem);
             }
         });
 
         showDialogWide(dialog);
+    }
+
+    private void uploadAndSave(AlertDialog dialog, String name, String category, double quantity,
+                               String unit, double threshold, String note, String aiPrompt,
+                               @Nullable InventoryItem existingItem) {
+        try {
+            Uri localUri = Uri.parse(pendingImageUrl);
+            InputStream inputStream = requireContext().getContentResolver().openInputStream(localUri);
+            String fileName = "inventory_" + System.currentTimeMillis() + ".jpg";
+
+            AuthApiClient.uploadImage(requireContext(), inputStream, fileName, new AuthApiClient.ImageUploadCallback() {
+                @Override
+                public void onSuccess(String serverImageUrl) {
+                    if (!isAdded()) return;
+                    requireActivity().runOnUiThread(() ->
+                            saveInventoryItem(dialog, name, category, quantity, unit, threshold, serverImageUrl, note, aiPrompt, existingItem)
+                    );
+                }
+
+                @Override
+                public void onError(String error) {
+                    if (!isAdded()) return;
+                    requireActivity().runOnUiThread(() -> {
+                        Toast.makeText(getContext(), "图片上传失败: " + error, Toast.LENGTH_SHORT).show();
+                        restoreSubmitButton(dialog, existingItem);
+                    });
+                }
+            });
+        } catch (Exception e) {
+            Toast.makeText(getContext(), "无法读取图片: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+            restoreSubmitButton(dialog, existingItem);
+        }
+    }
+
+    private void saveInventoryItem(AlertDialog dialog, String name, String category, double quantity,
+                                   String unit, double threshold, String imageUrl, String note,
+                                   String aiPrompt, @Nullable InventoryItem existingItem) {
+        InventoryUtils.InventoryMutationCallback callback = new InventoryUtils.InventoryMutationCallback() {
+            @Override
+            public void onSuccess() {
+                if (!isAdded()) return;
+                requireActivity().runOnUiThread(() -> {
+                    Toast.makeText(getContext(), existingItem == null ? "物资添加成功" : "物资更新成功", Toast.LENGTH_SHORT).show();
+                    dialog.dismiss();
+                    refreshInventoryData();
+                });
+            }
+
+            @Override
+            public void onError(String error) {
+                if (!isAdded()) return;
+                requireActivity().runOnUiThread(() -> {
+                    Toast.makeText(getContext(), error, Toast.LENGTH_SHORT).show();
+                    restoreSubmitButton(dialog, existingItem);
+                });
+            }
+        };
+
+        if (existingItem == null) {
+            InventoryUtils.createInventory(requireContext(), name, category, quantity, unit, threshold, imageUrl, note, aiPrompt, callback);
+        } else {
+            InventoryUtils.updateInventory(requireContext(), existingItem.id, name, category, quantity, unit, threshold, imageUrl, note, aiPrompt, callback);
+        }
+    }
+
+    private void restoreSubmitButton(AlertDialog dialog, @Nullable InventoryItem existingItem) {
+        if (dialog != null) {
+            TextView btnSubmit = dialog.findViewById(R.id.btn_add_inventory);
+            if (btnSubmit != null) {
+                btnSubmit.setEnabled(true);
+                btnSubmit.setText(existingItem == null ? "添加物资" : "保存修改");
+            }
+        }
     }
 
     private void showLowStockDialog() {
@@ -736,6 +831,52 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
         }
     }
 
+    private void openCamera() {
+        File photoFile = new File(requireContext().getExternalFilesDir(Environment.DIRECTORY_PICTURES),
+                "inventory_photo_" + System.currentTimeMillis() + ".jpg");
+        cameraImageUri = FileProvider.getUriForFile(requireContext(),
+                "com.example.couplecredit.fileprovider", photoFile);
+
+        Intent takePictureIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
+        takePictureIntent.putExtra(MediaStore.EXTRA_OUTPUT, cameraImageUri);
+        takePictureIntent.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION | Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        if (takePictureIntent.resolveActivity(requireContext().getPackageManager()) != null) {
+            captureImageLauncher.launch(takePictureIntent);
+        } else {
+            Toast.makeText(getContext(), "没有找到可用的相机应用", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void showImageSourcePicker() {
+        String[] options = {"拍照", "从图库选择"};
+        new AlertDialog.Builder(requireContext())
+                .setTitle("选择图片来源")
+                .setItems(options, (dialog, which) -> {
+                    if (which == 0) {
+                        if (ContextCompat.checkSelfPermission(requireContext(), android.Manifest.permission.CAMERA)
+                                == PackageManager.PERMISSION_GRANTED) {
+                            openCamera();
+                        } else {
+                            requestCameraPermissionLauncher.launch(android.Manifest.permission.CAMERA);
+                        }
+                    } else {
+                        checkAndRequestImagePermission();
+                    }
+                })
+                .setNegativeButton("取消", null)
+                .show();
+    }
+
+    private String resolveImageUrl(String imageUrl) {
+        if (imageUrl == null || imageUrl.isEmpty()) {
+            return null;
+        }
+        if (imageUrl.startsWith("http://") || imageUrl.startsWith("https://") || imageUrl.startsWith("content://") || imageUrl.startsWith("file://")) {
+            return imageUrl;
+        }
+        return ApiConfigManager.getBaseUrl(requireContext()) + imageUrl;
+    }
+
     private void clearInventoryData() {
         inventoryList.clear();
         lowStockList.clear();
@@ -752,7 +893,7 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
         item.relationshipId = itemData.relationshipId;
         item.name = itemData.name;
         item.category = itemData.category;
-        item.imageUrl = itemData.imageUrl;
+        item.imageUrl = resolveImageUrl(itemData.imageUrl);
         item.quantity = itemData.quantity;
         item.unit = itemData.unit;
         item.threshold = itemData.threshold;

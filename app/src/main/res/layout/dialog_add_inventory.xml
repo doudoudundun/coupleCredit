@@ -18,58 +18,76 @@
         android:gravity="center"
         android:layout_marginBottom="20dp" />
 
-    <!-- 图片区域：小一点的圆角卡片 -->
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:layout_marginBottom="16dp"
-        android:gravity="center_vertical">
+    <!-- 图片区域 -->
+    <FrameLayout
+        android:id="@+id/fl_add_image"
+        android:layout_width="80dp"
+        android:layout_height="80dp"
+        android:layout_gravity="center_horizontal"
+        android:layout_marginBottom="8dp"
+        android:foreground="?attr/selectableItemBackground"
+        android:clickable="true"
+        android:focusable="true">
 
         <ImageView
             android:id="@+id/iv_add_image"
-            android:layout_width="72dp"
-            android:layout_height="72dp"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
             android:scaleType="centerCrop"
             android:background="@drawable/image_placeholder_background"
             android:src="@drawable/ic_add_image_placeholder" />
 
-        <LinearLayout
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="12dp"
-            android:orientation="horizontal"
-            android:gravity="center_vertical">
+        <TextView
+            android:id="@+id/tv_image_overlay"
+            android:layout_width="match_parent"
+            android:layout_height="24dp"
+            android:layout_gravity="bottom"
+            android:background="#80000000"
+            android:gravity="center"
+            android:text="点击添加"
+            android:textColor="@android:color/white"
+            android:textSize="10sp" />
+    </FrameLayout>
 
-            <TextView
-                android:id="@+id/tv_select_image"
-                android:layout_width="wrap_content"
-                android:layout_height="36dp"
-                android:gravity="center"
-                android:text="选择图片"
-                android:textSize="13sp"
-                android:textColor="#07C160"
-                android:background="@drawable/category_tag_background"
-                android:paddingStart="12dp"
-                android:paddingEnd="12dp"
-                android:drawableStart="@drawable/ic_image"
-                android:drawablePadding="4dp" />
+    <!-- 按钮行：选择图片 + AI生成 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center"
+        android:layout_marginBottom="16dp">
 
-            <TextView
-                android:id="@+id/tv_ai_generate"
-                android:layout_width="wrap_content"
-                android:layout_height="36dp"
-                android:layout_marginStart="8dp"
-                android:gravity="center"
-                android:text="AI生成"
-                android:textSize="13sp"
-                android:textColor="#6B7280"
-                android:background="@drawable/category_tag_background"
-                android:paddingStart="12dp"
-                android:paddingEnd="12dp"
-                android:drawableStart="@drawable/ic_ai"
-                android:drawablePadding="4dp" />
-        </LinearLayout>
+        <TextView
+            android:id="@+id/tv_select_image"
+            android:layout_width="0dp"
+            android:layout_height="36dp"
+            android:layout_weight="1"
+            android:layout_marginEnd="6dp"
+            android:gravity="center"
+            android:text="📷 选择图片"
+            android:textSize="13sp"
+            android:textColor="#07C160"
+            android:background="@drawable/category_tag_background"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
+            android:maxLines="1"
+            android:ellipsize="middle" />
+
+        <TextView
+            android:id="@+id/tv_ai_generate"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="36dp"
+            android:layout_marginStart="6dp"
+            android:gravity="center"
+            android:text="✨ AI生成"
+            android:textSize="13sp"
+            android:textColor="#6B7280"
+            android:background="@drawable/category_tag_background"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
+            android:maxLines="1"
+            android:ellipsize="middle" />
     </LinearLayout>
 
     <!-- 存货名称 -->
