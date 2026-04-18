@@ -30,6 +30,15 @@
         android:textSize="14sp"
         android:layout_marginBottom="10dp" />
 
+    <Spinner
+        android:id="@+id/spinner_category"
+        android:layout_width="match_parent"
+        android:layout_height="44dp"
+        android:background="@drawable/input_background"
+        android:paddingStart="14dp"
+        android:paddingEnd="14dp"
+        android:layout_marginBottom="10dp" />
+
     <EditText
         android:id="@+id/et_recipe_desc"
         android:layout_width="match_parent"

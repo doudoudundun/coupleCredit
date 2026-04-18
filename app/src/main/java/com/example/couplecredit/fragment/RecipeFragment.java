@@ -293,9 +293,29 @@ public class RecipeFragment extends Fragment implements RecipeAdapter.RecipeActi
         LinearLayout llIngredients = dialogView.findViewById(R.id.ll_ingredients);
         TextView btnAddIngredient = dialogView.findViewById(R.id.btn_add_ingredient);
         TextView btnSave = dialogView.findViewById(R.id.btn_save_recipe);
+        Spinner spinnerCategory = dialogView.findViewById(R.id.spinner_category);
 
         pendingImageUrl = null;
         imageChanged = false;
+
+        // Populate category spinner
+        List<String> categoryNames = new ArrayList<>();
+        categoryNames.add("未分类");
+        List<Integer> categoryIds = new ArrayList<>();
+        categoryIds.add(0); // 0 = no category
+        for (AuthApiModels.RecipeCategoryData cat : categoryList) {
+            categoryNames.add(cat.name);
+            categoryIds.add(cat.categoryId);
+        }
+        ArrayAdapter<String> spinnerAdapter = new ArrayAdapter<>(requireContext(), android.R.layout.simple_spinner_item, categoryNames);
+        spinnerAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        spinnerCategory.setAdapter(spinnerAdapter);
+
+        // Pre-select category for editing
+        if (existing != null && existing.categoryId != null) {
+            int idx = categoryIds.indexOf(existing.categoryId);
+            if (idx >= 0) spinnerCategory.setSelection(idx);
+        }
 
         if (existing != null) {
             tvTitle.setText("编辑菜谱");
@@ -312,6 +332,10 @@ public class RecipeFragment extends Fragment implements RecipeAdapter.RecipeActi
         } else {
             tvTitle.setText("添加菜谱");
             btnSave.setText("添加菜谱");
+            // Pre-select current category filter
+            int selectedCatId = categoryAdapter.getSelectedCategoryId();
+            int idx = categoryIds.indexOf(selectedCatId);
+            if (idx >= 0) spinnerCategory.setSelection(idx);
         }
 
         // Image picker
@@ -408,6 +432,8 @@ public class RecipeFragment extends Fragment implements RecipeAdapter.RecipeActi
             }
 
             int userId = UserInfoManager.getCurrentUserId(requireContext());
+            int catPos = spinnerCategory.getSelectedItemPosition();
+            Integer selectedCatId = (catPos > 0 && catPos < categoryIds.size()) ? categoryIds.get(catPos) : null;
 
             if (imageChanged && pendingImageUrl != null) {
                 // Upload compressed image first, then save recipe
@@ -419,7 +445,7 @@ public class RecipeFragment extends Fragment implements RecipeAdapter.RecipeActi
                         AuthApiClient.uploadImage(requireContext(), compressed, fileName, new AuthApiClient.ImageUploadCallback() {
                             @Override public void onSuccess(String serverUrl) {
                                 if (!isAdded()) return;
-                                requireActivity().runOnUiThread(() -> saveRecipe(dialog, userId, title, desc, finalSteps, serverUrl, existing, finalIngredients));
+                                requireActivity().runOnUiThread(() -> saveRecipe(dialog, userId, title, desc, finalSteps, serverUrl, selectedCatId, existing, finalIngredients));
                             }
                             @Override public void onError(String e) {
                                 if (!isAdded()) return;
@@ -427,14 +453,14 @@ public class RecipeFragment extends Fragment implements RecipeAdapter.RecipeActi
                             }
                         });
                     } else {
-                        saveRecipe(dialog, userId, title, desc, finalSteps, null, existing, finalIngredients);
+                        saveRecipe(dialog, userId, title, desc, finalSteps, null, selectedCatId, existing, finalIngredients);
                     }
                 } catch (Exception e) {
-                    saveRecipe(dialog, userId, title, desc, finalSteps, null, existing, finalIngredients);
+                    saveRecipe(dialog, userId, title, desc, finalSteps, null, selectedCatId, existing, finalIngredients);
                 }
             } else {
                 String imageUrl = existing != null ? existing.imageUrl : null;
-                saveRecipe(dialog, userId, title, desc, finalSteps, imageUrl, existing, finalIngredients);
+                saveRecipe(dialog, userId, title, desc, finalSteps, imageUrl, selectedCatId, existing, finalIngredients);
             }
         });
 
@@ -445,10 +471,10 @@ public class RecipeFragment extends Fragment implements RecipeAdapter.RecipeActi
         }
     }
 
-    private void saveRecipe(AlertDialog dialog, int userId, String title, String desc, String steps, String imageUrl, AuthApiModels.RecipeItemData existing, List<AuthApiModels.IngredientData> finalIngredients) {
+    private void saveRecipe(AlertDialog dialog, int userId, String title, String desc, String steps, String imageUrl, Integer categoryId, AuthApiModels.RecipeItemData existing, List<AuthApiModels.IngredientData> finalIngredients) {
         if (existing == null) {
             AuthApiModels.CreateRecipeRequest req = new AuthApiModels.CreateRecipeRequest(
-                    userId, title, desc, imageUrl, steps, null, finalIngredients);
+                    userId, title, desc, imageUrl, steps, categoryId, finalIngredients);
             AuthApiClient.createRecipe(requireContext(), req, new AuthApiClient.RecipeMutationCallback() {
                 @Override public void onSuccess() {
                     if (!isAdded()) return;
@@ -461,7 +487,7 @@ public class RecipeFragment extends Fragment implements RecipeAdapter.RecipeActi
             });
         } else {
             AuthApiModels.UpdateRecipeRequest req = new AuthApiModels.UpdateRecipeRequest(
-                    userId, title, desc, imageUrl, steps, null, finalIngredients);
+                    userId, title, desc, imageUrl, steps, categoryId, finalIngredients);
             AuthApiClient.updateRecipe(requireContext(), existing.recipeId, req, new AuthApiClient.RecipeMutationCallback() {
                 @Override public void onSuccess() {
                     if (!isAdded()) return;
