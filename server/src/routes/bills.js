@@ -1,5 +1,6 @@
 const express = require("express");
 const { ApiError } = require("../errors");
+const { cache, Keys, TTL } = require("../cache");
 const { loadActiveRelationship, trimValue, parseOptionalInteger, parseRequiredInteger, parseRequiredAmount } = require("../utils/queryHelpers");
 
 async function resolveBillOwnership(pool, reqBody) {
@@ -110,6 +111,7 @@ function createBillsRouter({ pool }) {
           isHelp
         }
       });
+      cache.delPrefix(`bills:${userId}:`);
     } catch (error) {
       next(error);
     }
@@ -126,7 +128,10 @@ function createBillsRouter({ pool }) {
         throw new ApiError(400, "INVALID_REQUEST", "缺少年月参数");
       }
 
-      // 构建日期查询模式
+      const cached = cache.get(Keys.bills(userId, year, month));
+      if (cached) return res.json(cached);
+
+      const datePattern = `${year}-${String(month).padStart(2, '0')}-%`;
       const datePattern = `${year}-${String(month).padStart(2, '0')}-%`;
 
       // 获取情侣关系
@@ -156,7 +161,7 @@ function createBillsRouter({ pool }) {
 
       const [rows] = await pool.execute(query, params);
 
-      res.json({
+      const responseData = {
         ok: true,
         message: "查询成功",
         data: {
@@ -165,7 +170,9 @@ function createBillsRouter({ pool }) {
           year,
           month
         }
-      });
+      };
+      cache.set(Keys.bills(userId, year, month), responseData, TTL.BILLS);
+      res.json(responseData);
     } catch (error) {
       next(error);
     }
@@ -185,6 +192,7 @@ function createBillsRouter({ pool }) {
         throw new ApiError(404, "NOT_FOUND", "账单不存在或无权删除");
       }
 
+      cache.delPrefix(`bills:${userId}:`);
       res.json({ ok: true, message: "删除成功", data: { billId, deleted: true } });
     } catch (error) {
       next(error);
@@ -229,6 +237,7 @@ function createBillsRouter({ pool }) {
         throw new ApiError(404, "NOT_FOUND", "账单不存在或无权修改");
       }
 
+      cache.delPrefix(`bills:${userId}:`);
       res.json({ ok: true, message: "更新成功", data: { billId, updated: true } });
     } catch (error) {
       next(error);

@@ -1,15 +1,11 @@
 package com.example.couplecredit.adapter;
 
-import android.content.Context;
 import android.graphics.Color;
-import android.graphics.drawable.GradientDrawable;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageButton;
 import android.widget.ImageView;
-import android.widget.LinearLayout;
-import android.widget.PopupWindow;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
@@ -19,136 +15,179 @@ import com.bumptech.glide.Glide;
 import com.example.couplecredit.R;
 import com.example.couplecredit.api.AuthApiModels;
 
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
-public class RecipeAdapter extends RecyclerView.Adapter<RecipeAdapter.ViewHolder> {
+public class RecipeAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
+
+    private static final int TYPE_CATEGORY = 0;
+    private static final int TYPE_RECIPE = 1;
 
     public interface RecipeActionListener {
+        void onItemClick(AuthApiModels.RecipeItemData item);
+        void onAddToCart(AuthApiModels.RecipeItemData item);
         void onEdit(AuthApiModels.RecipeItemData item);
         void onDelete(AuthApiModels.RecipeItemData item);
-        void onCook(AuthApiModels.RecipeItemData item);
     }
 
-    private List<AuthApiModels.RecipeItemData> items;
+    // Flat list: String = category header, RecipeItemData = recipe card
+    private final List<Object> flatList = new ArrayList<>();
     private final RecipeActionListener listener;
+    // Map: category position in flatList -> category name
+    private final List<Integer> categoryPositions = new ArrayList<>();
 
-    public RecipeAdapter(List<AuthApiModels.RecipeItemData> items, RecipeActionListener listener) {
-        this.items = items;
+    public RecipeAdapter(RecipeActionListener listener) {
         this.listener = listener;
     }
 
-    public void updateData(List<AuthApiModels.RecipeItemData> newItems) {
-        this.items = newItems;
+    public void setData(List<AuthApiModels.RecipeCategoryData> categories, List<AuthApiModels.RecipeItemData> allRecipes) {
+        flatList.clear();
+        categoryPositions.clear();
+
+        Map<Integer, List<AuthApiModels.RecipeItemData>> byCategory = new LinkedHashMap<>();
+        List<AuthApiModels.RecipeItemData> uncategorized = new ArrayList<>();
+
+        for (AuthApiModels.RecipeItemData r : allRecipes) {
+            if (r.categoryId != null) {
+                byCategory.computeIfAbsent(r.categoryId, k -> new ArrayList<>()).add(r);
+            } else {
+                uncategorized.add(r);
+            }
+        }
+
+        for (AuthApiModels.RecipeCategoryData cat : categories) {
+            List<AuthApiModels.RecipeItemData> catRecipes = byCategory.get(cat.categoryId);
+            if (catRecipes != null && !catRecipes.isEmpty()) {
+                categoryPositions.add(flatList.size());
+                flatList.add(cat.name);
+                flatList.addAll(catRecipes);
+            }
+        }
+
+        if (!uncategorized.isEmpty()) {
+            categoryPositions.add(flatList.size());
+            flatList.add("未分类");
+            flatList.addAll(uncategorized);
+        }
+
+        if (flatList.isEmpty() && !allRecipes.isEmpty()) {
+            flatList.addAll(allRecipes);
+        }
+
         notifyDataSetChanged();
+    }
+
+    public int getCategoryPosition(int categoryId) {
+        // Find category position by matching recipes with that categoryId
+        for (int i = 0; i < flatList.size(); i++) {
+            Object item = flatList.get(i);
+            if (item instanceof AuthApiModels.RecipeItemData) {
+                AuthApiModels.RecipeItemData r = (AuthApiModels.RecipeItemData) item;
+                if (r.categoryId != null && r.categoryId == categoryId) {
+                    return i - 1; // scroll to the category header above this recipe
+                }
+            }
+        }
+        return 0;
+    }
+
+    public int getCategoryIdAt(int flatPosition) {
+        if (flatPosition < 0 || flatPosition >= flatList.size()) return 0;
+        Object item = flatList.get(flatPosition);
+        if (item instanceof String) {
+            // It's a category header — find the first recipe below it
+            for (int i = flatPosition + 1; i < flatList.size(); i++) {
+                Object next = flatList.get(i);
+                if (next instanceof AuthApiModels.RecipeItemData) {
+                    Integer cid = ((AuthApiModels.RecipeItemData) next).categoryId;
+                    return cid != null ? cid : 0;
+                }
+            }
+            return 0;
+        }
+        if (item instanceof AuthApiModels.RecipeItemData) {
+            Integer cid = ((AuthApiModels.RecipeItemData) item).categoryId;
+            return cid != null ? cid : 0;
+        }
+        return 0;
+    }
+
+    @Override
+    public int getItemViewType(int position) {
+        return flatList.get(position) instanceof String ? TYPE_CATEGORY : TYPE_RECIPE;
     }
 
     @NonNull
     @Override
-    public ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+    public RecyclerView.ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+        if (viewType == TYPE_CATEGORY) {
+            TextView tv = new TextView(parent.getContext());
+            tv.setLayoutParams(new RecyclerView.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+            tv.setPadding(24, 24, 16, 8);
+            tv.setTextSize(16);
+            tv.setTextColor(Color.parseColor("#333333"));
+            tv.setTypeface(null, android.graphics.Typeface.BOLD);
+            return new CategoryHolder(tv);
+        }
         View view = LayoutInflater.from(parent.getContext()).inflate(R.layout.item_recipe, parent, false);
-        return new ViewHolder(view);
+        return new RecipeHolder(view);
     }
 
     @Override
-    public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
-        AuthApiModels.RecipeItemData item = items.get(position);
-        holder.tvTitle.setText(item.title);
-        holder.tvDesc.setText(item.description != null ? item.description : "");
-        holder.tvIngredients.setText(item.ingredientCount + " 种食材");
-
-        if (item.imageUrl != null && !item.imageUrl.isEmpty()) {
-            Glide.with(holder.ivImage.getContext())
-                    .load(item.imageUrl)
-                    .placeholder(R.drawable.ic_inventory_placeholder)
-                    .error(R.drawable.ic_inventory_placeholder)
-                    .centerCrop()
-                    .into(holder.ivImage);
+    public void onBindViewHolder(@NonNull RecyclerView.ViewHolder holder, int position) {
+        if (holder instanceof CategoryHolder) {
+            ((CategoryHolder) holder).tv.setText((String) flatList.get(position));
         } else {
-            holder.ivImage.setImageResource(R.drawable.ic_inventory_placeholder);
-        }
+            AuthApiModels.RecipeItemData item = (AuthApiModels.RecipeItemData) flatList.get(position);
+            RecipeHolder rh = (RecipeHolder) holder;
+            rh.tvTitle.setText(item.title);
+            rh.tvDesc.setText(item.description != null ? item.description : "");
+            rh.tvIngredients.setText(item.ingredientCount + " 种食材");
 
-        holder.btnMore.setOnClickListener(v -> showMoreMenu(v, item));
-    }
-
-    private void showMoreMenu(View anchor, AuthApiModels.RecipeItemData item) {
-        Context ctx = anchor.getContext();
-        int dp = (int) (ctx.getResources().getDisplayMetrics().density);
-
-        LinearLayout container = new LinearLayout(ctx);
-        container.setOrientation(LinearLayout.VERTICAL);
-        container.setPadding(dp * 4, dp * 8, dp * 4, dp * 8);
-
-        GradientDrawable bg = new GradientDrawable();
-        bg.setCornerRadius(dp * 12);
-        bg.setColor(Color.WHITE);
-        container.setBackground(bg);
-
-        String[] labels = {"烹饪", "编辑", "删除"};
-        int[] colors = {Color.parseColor("#07C160"), Color.parseColor("#333333"), Color.parseColor("#E53935")};
-        Runnable[] actions = {
-                () -> { if (listener != null) listener.onCook(item); },
-                () -> { if (listener != null) listener.onEdit(item); },
-                () -> { if (listener != null) listener.onDelete(item); }
-        };
-
-        for (int i = 0; i < labels.length; i++) {
-            TextView row = new TextView(ctx);
-            row.setText(labels[i]);
-            row.setTextColor(colors[i]);
-            row.setTextSize(14);
-            row.setPadding(dp * 16, dp * 10, dp * 16, dp * 10);
-            row.setGravity(android.view.Gravity.CENTER);
-            int fi = i;
-            row.setOnClickListener(v -> {
-                actions[fi].run();
-            });
-            container.addView(row);
-            if (i < labels.length - 1) {
-                View divider = new View(ctx);
-                divider.setBackgroundColor(Color.parseColor("#EEEEEE"));
-                container.addView(divider, new LinearLayout.LayoutParams(
-                        LinearLayout.LayoutParams.MATCH_PARENT, Math.max(1, dp)));
+            if (item.imageUrl != null && !item.imageUrl.isEmpty()) {
+                Glide.with(rh.ivImage.getContext())
+                        .load(item.imageUrl)
+                        .placeholder(R.drawable.ic_inventory_placeholder)
+                        .error(R.drawable.ic_inventory_placeholder)
+                        .centerCrop()
+                        .into(rh.ivImage);
+            } else {
+                rh.ivImage.setImageResource(R.drawable.ic_inventory_placeholder);
             }
-        }
 
-        int popupWidth = dp * 120;
-        container.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED);
-        int popupHeight = container.getMeasuredHeight();
-
-        PopupWindow popup = new PopupWindow(container, popupWidth, ViewGroup.LayoutParams.WRAP_CONTENT, true);
-        popup.setOutsideTouchable(true);
-        popup.setElevation(dp * 6);
-
-        int offsetX = anchor.getWidth() - popupWidth + dp * 4;
-        int[] location = new int[2];
-        anchor.getLocationOnScreen(location);
-        int screenHeight = ctx.getResources().getDisplayMetrics().heightPixels;
-        boolean showAbove = location[1] + anchor.getHeight() + popupHeight > screenHeight;
-
-        if (showAbove) {
-            popup.showAsDropDown(anchor, offsetX, -(anchor.getHeight() + popupHeight));
-        } else {
-            popup.showAsDropDown(anchor, offsetX, 0);
+            rh.btnAdd.setOnClickListener(v -> {
+                if (listener != null) listener.onAddToCart(item);
+            });
+            rh.itemView.setOnClickListener(v -> {
+                if (listener != null) listener.onItemClick(item);
+            });
         }
     }
 
     @Override
-    public int getItemCount() { return items != null ? items.size() : 0; }
+    public int getItemCount() { return flatList.size(); }
 
-    static class ViewHolder extends RecyclerView.ViewHolder {
+    static class CategoryHolder extends RecyclerView.ViewHolder {
+        TextView tv;
+        CategoryHolder(TextView tv) { super(tv); this.tv = tv; }
+    }
+
+    static class RecipeHolder extends RecyclerView.ViewHolder {
         ImageView ivImage;
         TextView tvTitle;
         TextView tvDesc;
         TextView tvIngredients;
-        ImageButton btnMore;
+        ImageButton btnAdd;
 
-        ViewHolder(View itemView) {
+        RecipeHolder(View itemView) {
             super(itemView);
             ivImage = itemView.findViewById(R.id.iv_recipe_image);
             tvTitle = itemView.findViewById(R.id.tv_recipe_title);
             tvDesc = itemView.findViewById(R.id.tv_recipe_desc);
             tvIngredients = itemView.findViewById(R.id.tv_recipe_ingredients);
-            btnMore = itemView.findViewById(R.id.btn_recipe_more);
+            btnAdd = itemView.findViewById(R.id.btn_recipe_add);
         }
     }
 }

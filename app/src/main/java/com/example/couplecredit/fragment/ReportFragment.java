@@ -18,7 +18,6 @@ import com.example.couplecredit.adapter.CategoryDetailAdapter;
 import com.example.couplecredit.adapter.ReportAdapter;
 import com.example.couplecredit.api.AuthApiClient;
 import com.example.couplecredit.api.AuthApiModels;
-import com.example.couplecredit.database.CoupleRelationshipHelper;
 import com.example.couplecredit.utils.UserInfoManager;
 import com.example.couplecredit.utils.BillUtils;
 import com.github.mikephil.charting.charts.LineChart;
@@ -33,7 +32,6 @@ import com.github.mikephil.charting.data.PieDataSet;
 import com.github.mikephil.charting.data.PieEntry;
 import com.github.mikephil.charting.formatter.PercentFormatter;
 import com.github.mikephil.charting.formatter.ValueFormatter;
-import com.github.mikephil.charting.utils.ColorTemplate;
 import com.google.android.material.tabs.TabLayout;
 
 import java.util.ArrayList;
@@ -41,7 +39,6 @@ import java.util.Calendar;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Random;
 
 public class ReportFragment extends Fragment {
     private int currentYear;
@@ -198,27 +195,18 @@ public class ReportFragment extends Fragment {
         UserInfoManager.getCurrentUserInfo(getContext(), new UserInfoManager.UserInfoCallback() {
             @Override
             public void onUserInfoLoaded(int userId, String username, Integer relationshipId) {
-                if (relationshipId != null) {
-                    CoupleRelationshipHelper coupleHelper = new CoupleRelationshipHelper();
-                    coupleHelper.getUserRole(userId, new CoupleRelationshipHelper.UserRoleCallback() {
-                        @Override
-                        public void onRoleFound(int ownerId) {
-                            currentUserRole = ownerId;
-                        }
+                AuthApiClient.getCoupleRole(requireContext(), userId, new AuthApiClient.CoupleRoleCallback() {
+                    @Override
+                    public void onResult(boolean hasRelationship, int role, int relationshipId) {
+                        if (hasRelationship) currentUserRole = role;
+                        else currentUserRole = 1;
+                    }
 
-                        @Override
-                        public void onNoRelationshipFound() {
-                            currentUserRole = 1;
-                        }
-
-                        @Override
-                        public void onError(String error) {
-                            currentUserRole = 1;
-                        }
-                    });
-                } else {
-                    currentUserRole = 1;
-                }
+                    @Override
+                    public void onError(String error) {
+                        currentUserRole = 1;
+                    }
+                });
             }
 
             @Override
@@ -642,12 +630,18 @@ public class ReportFragment extends Fragment {
         List<PieEntry> entries = new ArrayList<>();
         List<CategoryDetailAdapter.CategoryDetail> categoryDetails = new ArrayList<>();
         List<Integer> colors = new ArrayList<>();
-        Random random = new Random();
+        int[] palette = {
+                0xFF4CAF50, 0xFFF44336, 0xFF2196F3, 0xFFFF9800,
+                0xFF9C27B0, 0xFF00BCD4, 0xFFFFEB3B, 0xFFE91E63,
+                0xFF3F51B5, 0xFF8BC34A, 0xFFFF5722, 0xFF607D8B
+        };
 
+        int idx = 0;
         for (Map.Entry<String, Float> entry : categoryTotals.entrySet()) {
             float amount = entry.getValue();
             float percentage = totalAmount == 0 ? 0 : amount / totalAmount * 100f;
-            int color = ColorTemplate.MATERIAL_COLORS[random.nextInt(ColorTemplate.MATERIAL_COLORS.length)];
+            int color = palette[idx % palette.length];
+            idx++;
             entries.add(new PieEntry(amount, entry.getKey()));
             colors.add(color);
             categoryDetails.add(new CategoryDetailAdapter.CategoryDetail(entry.getKey(), countBillsByCategory(entry.getKey()), amount, percentage, color));

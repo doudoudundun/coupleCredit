@@ -1,15 +1,34 @@
 const express = require("express");
 const { ApiError } = require("../errors");
-const { loadActiveRelationship, trimValue } = require("../utils/queryHelpers");
+const { cache, Keys, TTL } = require("../cache");
+const { loadActiveRelationship, trimValue, parseRequiredInteger } = require("../utils/queryHelpers");
 
 function createRecipeRouter({ pool }) {
   const router = express.Router();
 
+  function invalidateRecipeCache(userId) {
+    cache.del(Keys.recipes(userId));
+    cache.del(Keys.recipeCategories(userId));
+  }
+
+  async function replaceRecipeIngredients(recipeId, ingredients) {
+    if (!Array.isArray(ingredients) || ingredients.length === 0) return;
+    for (const ing of ingredients) {
+      await pool.execute(
+        `INSERT INTO recipe_ingredients (recipe_id, inventory_id, ingredient_name, quantity, unit)
+         VALUES (?, ?, ?, ?, ?)`,
+        [recipeId, ing.inventoryId || null, trimValue(ing.ingredientName), ing.quantity || 0, ing.unit || "个"]
+      );
+    }
+  }
+
   // GET /api/recipes?userId=
   router.get("/", async (req, res, next) => {
     try {
-      const userId = parseInt(req.query.userId, 10);
-      if (!userId || userId <= 0) throw new ApiError(400, "INVALID_REQUEST", "userId 参数无效");
+      const userId = parseRequiredInteger(Number(req.query.userId));
+
+      const cached = cache.get(Keys.recipes(userId));
+      if (cached) return res.json(cached);
 
       const relationship = await loadActiveRelationship(pool, userId);
       const relationshipId = relationship ? relationship.relationship_id : null;
@@ -47,16 +66,17 @@ function createRecipeRouter({ pool }) {
         updatedAt: r.updated_at
       }));
 
-      res.json({ ok: true, data: { items, relationshipId } });
+      const responseData = { ok: true, data: { items, relationshipId } };
+      cache.set(Keys.recipes(userId), responseData, TTL.RECIPES);
+      res.json(responseData);
     } catch (error) { next(error); }
   });
 
   // GET /api/recipes/:id?userId=
   router.get("/:id", async (req, res, next) => {
     try {
-      const userId = parseInt(req.query.userId, 10);
-      const recipeId = parseInt(req.params.id, 10);
-      if (!userId || !recipeId) throw new ApiError(400, "INVALID_REQUEST", "参数无效");
+      const userId = parseRequiredInteger(Number(req.query.userId));
+      const recipeId = parseRequiredInteger(Number(req.params.id));
 
       const [rows] = await pool.execute(
         `SELECT recipe_id, user_id, category_id, title, description, image_url, steps, created_at, updated_at
@@ -96,29 +116,23 @@ function createRecipeRouter({ pool }) {
   router.post("/", async (req, res, next) => {
     try {
       const { userId, title, description, imageUrl, steps, ingredients, categoryId } = req.body;
-      if (!userId || !title) throw new ApiError(400, "INVALID_REQUEST", "userId 和 title 必填");
+      const parsedUserId = parseRequiredInteger(Number(userId));
+      if (!title) throw new ApiError(400, "INVALID_REQUEST", "userId 和 title 必填");
 
-      const relationship = await loadActiveRelationship(pool, userId);
+      const relationship = await loadActiveRelationship(pool, parsedUserId);
       const relationshipId = relationship ? relationship.relationship_id : null;
 
       const [result] = await pool.execute(
         `INSERT INTO recipes (user_id, relationship_id, category_id, title, description, image_url, steps)
          VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [userId, relationshipId, categoryId || null, trimValue(title), description || null, imageUrl || null, steps || null]
+        [parsedUserId, relationshipId, categoryId || null, trimValue(title), description || null, imageUrl || null, steps || null]
       );
 
       const recipeId = result.insertId;
 
-      if (Array.isArray(ingredients) && ingredients.length > 0) {
-        for (const ing of ingredients) {
-          await pool.execute(
-            `INSERT INTO recipe_ingredients (recipe_id, inventory_id, ingredient_name, quantity, unit)
-             VALUES (?, ?, ?, ?, ?)`,
-            [recipeId, ing.inventoryId || null, trimValue(ing.ingredientName), ing.quantity || 0, ing.unit || "个"]
-          );
-        }
-      }
+      await replaceRecipeIngredients(recipeId, ingredients);
 
+      invalidateRecipeCache(parsedUserId);
       res.json({ ok: true, data: { recipeId } });
     } catch (error) { next(error); }
   });
@@ -126,9 +140,9 @@ function createRecipeRouter({ pool }) {
   // PUT /api/recipes/:id
   router.put("/:id", async (req, res, next) => {
     try {
-      const recipeId = parseInt(req.params.id, 10);
+      const recipeId = parseRequiredInteger(Number(req.params.id));
       const { userId, title, description, imageUrl, steps, ingredients, categoryId } = req.body;
-      if (!userId || !recipeId) throw new ApiError(400, "INVALID_REQUEST", "参数无效");
+      const parsedUserId = parseRequiredInteger(Number(userId));
 
       await pool.execute(
         `UPDATE recipes SET title = ?, description = ?, image_url = ?, steps = ?, category_id = ? WHERE recipe_id = ?`,
@@ -137,16 +151,9 @@ function createRecipeRouter({ pool }) {
 
       // Replace ingredients
       await pool.execute(`DELETE FROM recipe_ingredients WHERE recipe_id = ?`, [recipeId]);
-      if (Array.isArray(ingredients) && ingredients.length > 0) {
-        for (const ing of ingredients) {
-          await pool.execute(
-            `INSERT INTO recipe_ingredients (recipe_id, inventory_id, ingredient_name, quantity, unit)
-             VALUES (?, ?, ?, ?, ?)`,
-            [recipeId, ing.inventoryId || null, trimValue(ing.ingredientName), ing.quantity || 0, ing.unit || "个"]
-          );
-        }
-      }
+      await replaceRecipeIngredients(recipeId, ingredients);
 
+      invalidateRecipeCache(parsedUserId);
       res.json({ ok: true, message: "菜谱更新成功" });
     } catch (error) { next(error); }
   });
@@ -154,13 +161,13 @@ function createRecipeRouter({ pool }) {
   // DELETE /api/recipes/:id?userId=
   router.delete("/:id", async (req, res, next) => {
     try {
-      const recipeId = parseInt(req.params.id, 10);
-      const userId = parseInt(req.query.userId, 10);
-      if (!recipeId || !userId) throw new ApiError(400, "INVALID_REQUEST", "参数无效");
+      const recipeId = parseRequiredInteger(Number(req.params.id));
+      const userId = parseRequiredInteger(Number(req.query.userId));
 
       const [result] = await pool.execute(`DELETE FROM recipes WHERE recipe_id = ? AND user_id = ?`, [recipeId, userId]);
       if (result.affectedRows === 0) throw new ApiError(404, "NOT_FOUND", "菜谱不存在或无权删除");
 
+      invalidateRecipeCache(userId);
       res.json({ ok: true, message: "菜谱删除成功" });
     } catch (error) { next(error); }
   });
@@ -168,9 +175,8 @@ function createRecipeRouter({ pool }) {
   // POST /api/recipes/:id/cook — consume linked inventory items
   router.post("/:id/cook", async (req, res, next) => {
     try {
-      const recipeId = parseInt(req.params.id, 10);
-      const userId = parseInt(req.body.userId, 10);
-      if (!recipeId || !userId) throw new ApiError(400, "INVALID_REQUEST", "参数无效");
+      const recipeId = parseRequiredInteger(Number(req.params.id));
+      const userId = parseRequiredInteger(Number(req.body.userId));
 
       const [ingredients] = await pool.execute(
         `SELECT ri.id, ri.inventory_id, ri.ingredient_name, ri.quantity, ri.unit, i.quantity AS stock
@@ -193,6 +199,7 @@ function createRecipeRouter({ pool }) {
         results.push({ name: ing.ingredient_name, consumed: needed, unit: ing.unit, hadEnough: stock >= needed });
       }
 
+      invalidateRecipeCache(userId);
       res.json({ ok: true, data: { results, warnings } });
     } catch (error) { next(error); }
   });

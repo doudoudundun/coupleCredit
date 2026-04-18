@@ -4,7 +4,7 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.util.Log;
 
-import com.example.couplecredit.database.CoupleRelationshipHelper;
+import com.example.couplecredit.api.AuthApiClient;
 
 /**
  * 用户信息管理工具类
@@ -122,30 +122,25 @@ public class UserInfoManager {
                 return;
             }
 
-            CoupleRelationshipHelper coupleHelper = new CoupleRelationshipHelper();
-            coupleHelper.getUserRelationshipIdOptimized(userId, new CoupleRelationshipHelper.RelationshipIdCallback() {
+            AuthApiClient.getRelationshipId(context, userId, new AuthApiClient.SimpleIdCallback() {
                 @Override
-                public void onRelationshipIdFound(int relationshipId) {
+                public void onSuccess(int relId) {
                     long endTime = System.currentTimeMillis();
-                    Log.d(TAG, "获取用户信息完成，耗时: " + (endTime - startTime) + "ms, relationshipId: " + relationshipId);
-
-                    cachedUserInfo = new UserInfoCache(userId, username, relationshipId);
-                    callback.onUserInfoLoaded(userId, username, relationshipId);
+                    if (relId > 0) {
+                        Log.d(TAG, "获取用户信息完成，耗时: " + (endTime - startTime) + "ms, relationshipId: " + relId);
+                        cachedUserInfo = new UserInfoCache(userId, username, relId);
+                        callback.onUserInfoLoaded(userId, username, relId);
+                    } else {
+                        Log.d(TAG, "获取用户信息完成，耗时: " + (endTime - startTime) + "ms, 无情侣关系");
+                        cachedUserInfo = new UserInfoCache(userId, username, null);
+                        callback.onUserInfoLoaded(userId, username, null);
+                    }
                 }
 
                 @Override
-                public void onNoRelationshipFound() {
+                public void onError(String e) {
                     long endTime = System.currentTimeMillis();
-                    Log.d(TAG, "获取用户信息完成，耗时: " + (endTime - startTime) + "ms, 无情侣关系");
-
-                    cachedUserInfo = new UserInfoCache(userId, username, null);
-                    callback.onUserInfoLoaded(userId, username, null);
-                }
-
-                @Override
-                public void onError(String error) {
-                    long endTime = System.currentTimeMillis();
-                    Log.e(TAG, "获取用户信息失败，耗时: " + (endTime - startTime) + "ms, 错误: " + error);
+                    Log.e(TAG, "获取用户信息失败，耗时: " + (endTime - startTime) + "ms, 错误: " + e);
                     callback.onUserInfoLoaded(userId, username, null);
                 }
             });

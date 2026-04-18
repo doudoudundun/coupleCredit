@@ -1,14 +1,21 @@
 /**
- * 服务器端共享验证和查询工具
+ * Server-side shared validation and query utilities
  */
 const { ApiError } = require("../errors");
+const { cache, Keys, TTL } = require("../cache");
 
 async function loadActiveRelationship(pool, userId) {
+  const cacheKey = Keys.relationship(userId);
+  const cached = cache.get(cacheKey);
+  if (cached) return cached;
+
   const [rows] = await pool.execute(
     "SELECT relationship_id, user_id_1, user_id_2 FROM couple_relationships WHERE status = 'active' AND (user_id_1 = ? OR user_id_2 = ?) ORDER BY relationship_id DESC LIMIT 1",
     [userId, userId]
   );
-  return rows.length > 0 ? rows[0] : null;
+  const result = rows.length > 0 ? rows[0] : null;
+  cache.set(cacheKey, result, TTL.REL);
+  return result;
 }
 
 function trimValue(value) {

@@ -41,8 +41,9 @@ import com.example.couplecredit.activity.MainActivity;
 import com.example.couplecredit.activity.ToastDemoActivity;
 import com.example.couplecredit.activity.UserSettingsActivity;
 import com.example.couplecredit.api.AvatarUploadApi;
+import com.example.couplecredit.api.AuthApiClient;
+import com.example.couplecredit.api.AuthApiModels;
 import com.example.couplecredit.config.DatabaseConfig;
-import com.example.couplecredit.database.MySQLDatabaseHelper;
 import com.example.couplecredit.utils.AvatarCacheManager;
 import com.example.couplecredit.utils.AvatarUpdateManager;
 import com.example.couplecredit.utils.NicknameCache;
@@ -59,7 +60,9 @@ public class MyFragment extends Fragment {
     private LinearLayout llLogin;
     private LinearLayout llUserSettings;
     private LinearLayout llInventory;
+    private LinearLayout llCoupleInfo;
     private TextView tvLoginText;
+    private TextView tvCoupleInfo;
     private View viewSettingsDivider;
     private ImageView ivUserAvatar;
 
@@ -131,7 +134,9 @@ public class MyFragment extends Fragment {
         llLogin = view.findViewById(R.id.ll_login);
         llUserSettings = view.findViewById(R.id.ll_user_settings);
         llInventory = view.findViewById(R.id.ll_inventory);
+        llCoupleInfo = view.findViewById(R.id.ll_couple_info);
         tvLoginText = view.findViewById(R.id.tv_login_text);
+        tvCoupleInfo = view.findViewById(R.id.tv_couple_info);
         viewSettingsDivider = view.findViewById(R.id.view_settings_divider);
         ivUserAvatar = view.findViewById(R.id.iv_user_avatar);
     }
@@ -373,6 +378,7 @@ public class MyFragment extends Fragment {
                 tvLoginText.setText(spannedText);
                 llUserSettings.setVisibility(View.VISIBLE);
                 viewSettingsDivider.setVisibility(View.VISIBLE);
+                loadCoupleInfo();
 
                 String cachedNickname = NicknameCache.getCachedNickname(getContext(), username);
                 if (cachedNickname != null) {
@@ -380,11 +386,13 @@ public class MyFragment extends Fragment {
                     Spanned cachedSpannedText = Html.fromHtml(cachedHtmlText, Html.FROM_HTML_MODE_LEGACY);
                     tvLoginText.setText(cachedSpannedText);
                 } else {
-                    MySQLDatabaseHelper.getUserNickname(username, new MySQLDatabaseHelper.UserNicknameCallback() {
+                    int profileUserId = UserInfoManager.getCurrentUserId(getContext());
+                    AuthApiClient.getUserProfile(getContext(), profileUserId, new AuthApiClient.ProfileCallback() {
                         @Override
-                        public void onSuccess(String nickname) {
+                        public void onSuccess(AuthApiModels.UserProfileData profile) {
                             if (getActivity() != null) {
                                 getActivity().runOnUiThread(() -> {
+                                    String nickname = profile.nickname;
                                     String displayName = (nickname != null && !nickname.trim().isEmpty()) ? nickname : username;
                                     NicknameCache.cacheNickname(getContext(), username, displayName);
                                     String nicknameHtmlText = "<big><b>" + displayName + "</b></big><br><small>ID: " + userId + "</small>";
@@ -397,7 +405,7 @@ public class MyFragment extends Fragment {
                         }
 
                         @Override
-                        public void onError(String error) {
+                        public void onError(String e) {
                             if (getActivity() != null) {
                                 getActivity().runOnUiThread(() -> {
                                     NicknameCache.cacheNickname(getContext(), username, username);
@@ -417,6 +425,41 @@ public class MyFragment extends Fragment {
             llUserSettings.setVisibility(View.GONE);
             viewSettingsDivider.setVisibility(View.GONE);
             ivUserAvatar.setImageResource(R.drawable.ic_default_avatar);
+            llCoupleInfo.setVisibility(View.GONE);
         }
+    }
+
+    private void loadCoupleInfo() {
+        if (!isLoggedIn || getContext() == null) {
+            llCoupleInfo.setVisibility(View.GONE);
+            return;
+        }
+        int uid = UserInfoManager.getCurrentUserId(getContext());
+        AuthApiClient.queryCoupleInfo(getContext(), uid, new AuthApiClient.CoupleInfoCallback() {
+            @Override
+            public void onCoupleFound(int partnerId, String partnerName, String partnerNickname, int relationshipId) {
+                if (getActivity() == null) return;
+                getActivity().runOnUiThread(() -> {
+                    String display = partnerNickname != null && !partnerNickname.isEmpty() ? partnerNickname : partnerName;
+                    tvCoupleInfo.setText("已绑定: " + display);
+                    llCoupleInfo.setVisibility(View.VISIBLE);
+                });
+            }
+
+            @Override
+            public void onNoCoupleFound() {
+                if (getActivity() == null) return;
+                getActivity().runOnUiThread(() -> {
+                    tvCoupleInfo.setText("未绑定情侣");
+                    llCoupleInfo.setVisibility(View.VISIBLE);
+                });
+            }
+
+            @Override
+            public void onError(String message) {
+                if (getActivity() == null) return;
+                getActivity().runOnUiThread(() -> llCoupleInfo.setVisibility(View.GONE));
+            }
+        });
     }
 }

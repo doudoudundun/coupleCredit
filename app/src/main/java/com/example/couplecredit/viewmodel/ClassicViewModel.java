@@ -11,8 +11,6 @@ import androidx.lifecycle.MutableLiveData;
 import com.example.couplecredit.model.BillBean;
 import com.example.couplecredit.api.AuthApiClient;
 import com.example.couplecredit.api.AuthApiModels;
-import com.example.couplecredit.database.BillDatabaseHelper;
-import com.example.couplecredit.database.DatabaseInitializer;
 import com.example.couplecredit.utils.CategoryIconMapper;
 import com.example.couplecredit.utils.UserInfoManager;
 
@@ -116,19 +114,8 @@ public class ClassicViewModel extends AndroidViewModel {
         }
 
         // 检查是否有数据库配置
-        boolean hasDatabaseConfig = DatabaseInitializer.hasDatabaseConfig();
-        Log.d("ClassicViewModel", "数据库配置检查结果: hasDatabaseConfig=" + hasDatabaseConfig);
-
-        if (!hasDatabaseConfig) {
-            // 无数据库配置，使用 HTTP API
-            Log.d("ClassicViewModel", "选择 HTTP API 模式");
-            loadBillDataViaHttpApi(year, month);
-            return;
-        }
-
-        // 有数据库配置，使用 JDBC
-        Log.d("ClassicViewModel", "选择 JDBC 模式");
-        loadBillDataViaJdbc(year, month, monthPattern, loadStartTime);
+        Log.d("ClassicViewModel", "使用 HTTP API 模式");
+        loadBillDataViaHttpApi(year, month);
     }
 
     /**
@@ -209,80 +196,6 @@ public class ClassicViewModel extends AndroidViewModel {
             @Override
             public void onError(String message) {
                 Log.e("ClassicViewModel", "HTTP API 查询失败: " + message);
-                displayItems.clear();
-                totalIncome.postValue(0.0);
-                totalExpense.postValue(0.0);
-                bumpVersion();
-            }
-        });
-    }
-
-    /**
-     * 通过 JDBC 加载账单数据（本地模式）
-     */
-    private void loadBillDataViaJdbc(int year, int month, String monthPattern, long loadStartTime) {
-        // 获取当前用户信息（userId与relationshipId）并按月份查询
-        UserInfoManager.getCurrentUserInfo(getApplication(), new UserInfoManager.UserInfoCallback() {
-            @Override
-            public void onUserInfoLoaded(int userId, String username, Integer relationshipId) {
-                BillDatabaseHelper helper = new BillDatabaseHelper(getApplication());
-                String selection = "date LIKE ?";
-                String[] selectionArgs = new String[]{monthPattern};
-
-                helper.queryBillsWithUserFilter(userId, relationshipId, selection, selectionArgs, new BillDatabaseHelper.QueryCallback() {
-                    @Override
-                    public void onSuccess(List<Map<String, Object>> results) {
-                        billItems.clear();
-                        for (Map<String, Object> row : results) {
-                            try {
-                                long billId = ((Number) row.get("_id")).longValue();
-                                double amount = ((Number) row.get("amount")).doubleValue();
-                                String type = (String) row.get("type");
-                                String title = (String) row.get("title");
-                                int incomeType = ((Number) row.get("income_type")).intValue();
-                                int owner = row.get("owner") != null ? ((Number) row.get("owner")).intValue() : 1;
-                                int uId = row.get("userId") != null ? ((Number) row.get("userId")).intValue() : userId;
-                                String dateStr = (String) row.get("date"); // yyyy-MM-dd
-                                String timeStr = (String) row.get("time"); // HH:mm:ss
-                                Integer isHelpObj = row.get("is_help") != null ? ((Number) row.get("is_help")).intValue() : 0;
-                                int isHelp = isHelpObj != null ? isHelpObj : 0;
-
-                                String[] dateParts = dateStr.split("-");
-                                int y = Integer.parseInt(dateParts[0]);
-                                int m = Integer.parseInt(dateParts[1]);
-                                int d = Integer.parseInt(dateParts[2]);
-
-                                int iconResId = CategoryIconMapper.getIconForCategory(type);
-
-                                billItems.add(new BillBean(billId, amount, y, m, d, owner, uId,
-                                        type, title, iconResId, incomeType, timeStr, title, isHelp));
-                            } catch (Exception e) {
-                                Log.e("ClassicViewModel", "解析账单行失败", e);
-                            }
-                        }
-
-                        processAndDisplayData();
-                        sumAmounts();
-                        bumpVersion();
-
-                        long uiEndTime = System.currentTimeMillis();
-                        Log.d("ClassicViewModel", "数据处理完成，总耗时: " + (uiEndTime - loadStartTime) + "ms");
-                    }
-
-                    @Override
-                    public void onError(String error) {
-                        Log.e("ClassicViewModel", "查询账单失败: " + error);
-                        displayItems.clear();
-                        totalIncome.postValue(0.0);
-                        totalExpense.postValue(0.0);
-                        bumpVersion();
-                    }
-                });
-            }
-
-            @Override
-            public void onError(String error) {
-                // 用户信息获取失败，同样清空
                 displayItems.clear();
                 totalIncome.postValue(0.0);
                 totalExpense.postValue(0.0);

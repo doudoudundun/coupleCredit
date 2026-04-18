@@ -356,4 +356,46 @@ public class AuthApiModels {
     public static class RecipeCategoryListData {
         public List<RecipeCategoryData> items;
     }
+
+    // User profile
+    public static class UserProfileResponse {
+        public boolean ok;
+        public UserProfileData data;
+        public ErrorBody error;
+    }
+
+    public static class UserProfileData {
+        public int userId;
+        public String username;
+        public String email;
+        public String nickname;
+        public String avatarUrl;
+    }
+
+    // Chat messages
+    public static class ChatMessageListResponse {
+        public boolean ok;
+        public ChatMessageListData data;
+    }
+
+    public static class ChatMessageListData {
+        public List<ChatMessageData> messages;
+    }
+
+    public static class ChatMessageData {
+        public long id;
+        @SerializedName("relationship_id")
+        public int relationshipId;
+        @SerializedName("user_id")
+        public int userId;
+        public String content;
+        @SerializedName("message_type")
+        public String messageType;
+        @SerializedName("display_time")
+        public String displayTime;
+        @SerializedName("created_at")
+        public long createdAt;
+        @SerializedName("is_liked")
+        public boolean isLiked;
+    }
 }

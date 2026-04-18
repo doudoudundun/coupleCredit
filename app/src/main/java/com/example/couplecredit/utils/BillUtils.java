@@ -13,7 +13,6 @@ import android.widget.TextView;
 
 import com.example.couplecredit.model.BillBean;
 import com.example.couplecredit.api.AuthApiClient;
-import com.example.couplecredit.database.BillDatabaseHelper;
 import com.example.couplecredit.R;
 
 import androidx.appcompat.app.AlertDialog;
@@ -67,7 +66,6 @@ public final class BillUtils {
                     return;
                 }
 
-                BillDatabaseHelper.clearCache();
                 if (callback != null) {
                     callback.onInsertSuccess(response.data.billId);
                 }
@@ -88,28 +86,7 @@ public final class BillUtils {
      * @deprecated 请使用新版本的insertBill方法
      */
 
-    // 辅助方法：执行实际的数据库插入操作
-    @Deprecated
-    private static void insertBillToDatabase(Context context, android.content.ContentValues values, Integer relationshipId, int userId, BillInsertCallback callback) {
-        BillDatabaseHelper billHelper = new BillDatabaseHelper(context);
-        billHelper.insertBill(values, new BillDatabaseHelper.BillInsertCallback() {
-            @Override
-            public void onInsertSuccess(long id) {
-                BillDatabaseHelper.clearCache();
-                if (callback != null) {
-                    callback.onInsertSuccess(id);
-                }
-            }
-
-            @Override
-            public void onInsertError(String error) {
-                Log.e("Utils", "账单插入失败: " + error);
-                if (callback != null) {
-                    callback.onInsertError(error);
-                }
-            }
-        });
-    }
+    // 辅助方法已移除（JDBC路径不再使用）
 
     @Deprecated
     public static void insertBill(Context context,int userId, String title, String type, double amount, String date, String time, int incomeType) {
@@ -143,7 +120,6 @@ public final class BillUtils {
         AuthApiClient.deleteBill(context, (int) bill.getBillId(), userId, new AuthApiClient.DeleteBillCallback() {
             @Override
             public void onSuccess() {
-                BillDatabaseHelper.clearCache();
                 if (callback != null) callback.onDeleteSuccess(1);
             }
 
@@ -174,7 +150,6 @@ public final class BillUtils {
         AuthApiClient.updateBill(context, (int) bill.getBillId(), userId, titleToUpdate, bill.getCategoryName(), newFare, newDate, newTime, incomeType, new AuthApiClient.UpdateBillCallback() {
             @Override
             public void onSuccess() {
-                BillDatabaseHelper.clearCache();
                 if (callback != null) {
                     callback.onUpdateSuccess(1);
                 }

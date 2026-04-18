@@ -29,15 +29,14 @@ import com.bumptech.glide.Glide;
 import com.bumptech.glide.load.resource.bitmap.CircleCrop;
 import com.example.couplecredit.R;
 import com.example.couplecredit.api.AuthApiClient;
+import com.example.couplecredit.api.AuthApiModels;
 import com.example.couplecredit.api.AvatarUploadApi;
-import com.example.couplecredit.database.MySQLDatabaseHelper;
 import com.example.couplecredit.utils.NicknameCache;
 import com.example.couplecredit.utils.UserInfoManager;
 import com.example.couplecredit.utils.AvatarCacheManager;
 import com.example.couplecredit.utils.AvatarUpdateManager;
 import com.example.couplecredit.config.ApiConfigManager;
 import com.example.couplecredit.config.DatabaseConfig;
-import com.example.couplecredit.database.CoupleRelationshipHelper;
 import com.example.couplecredit.activity.LoginActivity;
 
 public class UserSettingsActivity extends AppCompatActivity {
@@ -297,19 +296,21 @@ public class UserSettingsActivity extends AppCompatActivity {
      */
     private void updateUserInfo() {
         if (username != null && userId != null) {
-            // 获取用户昵称，如果有昵称则显示昵称，否则显示用户名
-            MySQLDatabaseHelper.getUserNickname(username, new MySQLDatabaseHelper.UserNicknameCallback() {
+            // 通过 HTTP API 获取用户昵称，如果有昵称则显示昵称，否则显示用户名
+            int userIdInt = Integer.parseInt(userId);
+            AuthApiClient.getUserProfile(this, userIdInt, new AuthApiClient.ProfileCallback() {
                 @Override
-                public void onSuccess(String nickname) {
+                public void onSuccess(AuthApiModels.UserProfileData profile) {
                     runOnUiThread(() -> {
+                        String nickname = profile.nickname;
                         String displayName = (nickname != null && !nickname.trim().isEmpty()) ? nickname : username;
                         String userInfoText = displayName + "\nID: " + userId;
                         tvUserInfo.setText(userInfoText);
                     });
                 }
-                
+
                 @Override
-                public void onError(String error) {
+                public void onError(String message) {
                     runOnUiThread(() -> {
                         // 查询昵称失败，使用用户名显示
                         String userInfoText = "用户名: " + username + "\nID: " + userId;
@@ -400,9 +401,8 @@ public class UserSettingsActivity extends AppCompatActivity {
      * 执行解绑情侣关系操作
      */
     private void performUnbind() {
-        CoupleRelationshipHelper coupleHelper = new CoupleRelationshipHelper();
         int userIdInt = Integer.parseInt(userId);
-        coupleHelper.unbindCouple(userIdInt, new CoupleRelationshipHelper.UnbindCallback() {
+        AuthApiClient.unbindCouple(this, userIdInt, new AuthApiClient.SimpleCallback() {
             @Override
             public void onSuccess() {
                 runOnUiThread(() -> {
@@ -452,21 +452,22 @@ public class UserSettingsActivity extends AppCompatActivity {
         
         // 显示进度提示
         Toast.makeText(this, "正在注销账户...", Toast.LENGTH_SHORT).show();
-        
-        // 调用数据库删除用户
-        MySQLDatabaseHelper.deleteUser(username, new MySQLDatabaseHelper.DatabaseCallback() {
+
+        // 通过 HTTP API 删除用户账户
+        int userIdInt = Integer.parseInt(userId);
+        AuthApiClient.deleteAccount(this, userIdInt, new AuthApiClient.SimpleCallback() {
             @Override
-            public void onSuccess(String message) {
+            public void onSuccess() {
                 runOnUiThread(() -> {
                     // 使用UserInfoManager清空用户登录状态
                     UserInfoManager.clearUserInfo(UserSettingsActivity.this);
-                    
+
                     // 发送退出登录广播
                     Intent broadcastIntent = new Intent("com.example.couplecredit.USER_LOGOUT");
                     LocalBroadcastManager.getInstance(UserSettingsActivity.this).sendBroadcast(broadcastIntent);
-                    
+
                     Toast.makeText(UserSettingsActivity.this, "账户注销成功", Toast.LENGTH_SHORT).show();
-                    
+
                     // 返回登录界面
                     Intent intent = new Intent(UserSettingsActivity.this, LoginActivity.class);
                     intent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
@@ -474,7 +475,7 @@ public class UserSettingsActivity extends AppCompatActivity {
                     finish();
                 });
             }
-            
+
             @Override
             public void onError(String error) {
                 runOnUiThread(() -> {
@@ -523,21 +524,22 @@ public class UserSettingsActivity extends AppCompatActivity {
         }
         
         Toast.makeText(this, "正在更新昵称...", Toast.LENGTH_SHORT).show();
-        
-        MySQLDatabaseHelper.updateUserNickname(username, newNickname, new MySQLDatabaseHelper.DatabaseCallback() {
+
+        int userIdInt = Integer.parseInt(userId);
+        AuthApiClient.updateNickname(this, userIdInt, newNickname, new AuthApiClient.SimpleCallback() {
             @Override
-            public void onSuccess(String message) {
+            public void onSuccess() {
                 runOnUiThread(() -> {
                     Toast.makeText(UserSettingsActivity.this, "昵称修改成功", Toast.LENGTH_SHORT).show();
-                    
+
                     // 清空昵称缓存，确保下次获取最新昵称
                     NicknameCache.clearNicknameCache(UserSettingsActivity.this, username);
-                    
+
                     // 刷新用户信息显示
                     updateUserInfo();
                 });
             }
-            
+
             @Override
             public void onError(String error) {
                 runOnUiThread(() -> {

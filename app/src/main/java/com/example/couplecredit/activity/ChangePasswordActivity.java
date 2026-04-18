@@ -12,7 +12,7 @@ import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.example.couplecredit.R;
-import com.example.couplecredit.database.MySQLDatabaseHelper;
+import com.example.couplecredit.api.AuthApiClient;
 import com.example.couplecredit.utils.UserInfoManager;
 
 public class ChangePasswordActivity extends AppCompatActivity {
@@ -97,10 +97,11 @@ public class ChangePasswordActivity extends AppCompatActivity {
         btnChangePassword.setEnabled(false);
         btnChangePassword.setText("修改中...");
         
-        // 调用数据库修改密码
-        MySQLDatabaseHelper.updatePassword(username, currentPassword, newPassword, new MySQLDatabaseHelper.DatabaseCallback() {
+        // 调用API修改密码
+        int userId = UserInfoManager.getCurrentUserId(this);
+        AuthApiClient.changePassword(this, userId, currentPassword, newPassword, new AuthApiClient.SimpleCallback() {
             @Override
-            public void onSuccess(String message) {
+            public void onSuccess() {
                 runOnUiThread(new Runnable() {
                     @Override
                     public void run() {
@@ -109,13 +110,13 @@ public class ChangePasswordActivity extends AppCompatActivity {
                     }
                 });
             }
-            
+
             @Override
-            public void onError(String error) {
+            public void onError(String e) {
                 runOnUiThread(new Runnable() {
                     @Override
                     public void run() {
-                        Toast.makeText(ChangePasswordActivity.this, error, Toast.LENGTH_SHORT).show();
+                        Toast.makeText(ChangePasswordActivity.this, e, Toast.LENGTH_SHORT).show();
                         btnChangePassword.setEnabled(true);
                         btnChangePassword.setText("修改密码");
                     }

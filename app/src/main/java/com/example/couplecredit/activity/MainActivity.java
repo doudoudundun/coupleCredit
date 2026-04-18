@@ -19,7 +19,6 @@ import androidx.fragment.app.FragmentTransaction;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
 import com.example.couplecredit.R;
-import com.example.couplecredit.database.DatabaseInitializer;
 import com.example.couplecredit.fragment.AddBillFragment;
 import com.example.couplecredit.fragment.HeadFragment;
 import com.example.couplecredit.fragment.InventoryFragment;
@@ -57,8 +56,6 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
 
         Utils.init(this);
-        DatabaseInitializer.initializeConnectionPoolAsync("MainActivity");
-        Log.d("MainActivity", "数据库连接池异步初始化已启动");
 
         new Thread(this::initializeChatData, "ChatRepositoryInitializer").start();
 
@@ -181,6 +178,14 @@ public class MainActivity extends AppCompatActivity {
         currentFragment = fragment;
         transaction.commit();
         syncBottomNavigationSelection(fragment);
+
+        if (fragment == inventoryFragment) {
+            inventoryFragment.refreshInventoryData();
+        } else if (fragment == recipeFragment) {
+            recipeFragment.refreshData();
+        } else if (fragment == headFragment) {
+            headFragment.refreshCurrentFragmentData();
+        }
     }
 
     public void navigateToHome() {

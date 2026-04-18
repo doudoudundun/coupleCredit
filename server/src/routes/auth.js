@@ -1,11 +1,8 @@
 const express = require("express");
 const bcrypt = require("bcrypt");
 const { ApiError } = require("../errors");
-const { loadActiveRelationship } = require("../utils/queryHelpers");
-
-function trimValue(value) {
-  return typeof value === "string" ? value.trim() : "";
-}
+const { loadActiveRelationship, trimValue } = require("../utils/queryHelpers");
+const { cache, Keys } = require("../cache");
 
 function createAuthRouter({ pool, config }) {
   const router = express.Router();
@@ -146,15 +143,115 @@ function createAuthRouter({ pool, config }) {
     }
   });
 
-  // PUT /api/auth/avatar — update user avatar URL
   router.put("/avatar", async (req, res, next) => {
     try {
       const { userId, avatarUrl } = req.body;
       if (!userId || !avatarUrl) throw new ApiError(400, "INVALID_REQUEST", "userId 和 avatarUrl 必填");
 
       await pool.execute(`UPDATE users SET avatar = ? WHERE id = ?`, [avatarUrl, userId]);
+      cache.del(Keys.profile(userId));
 
       res.json({ ok: true, message: "头像更新成功" });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.get("/profile", async (req, res, next) => {
+    try {
+      const userId = parseInt(req.query.userId, 10);
+      if (!userId || userId <= 0) throw new ApiError(400, "INVALID_REQUEST", "userId 参数无效");
+
+      const [rows] = await pool.execute(
+        "SELECT id, username, email, nickname, avatar FROM users WHERE id = ? LIMIT 1",
+        [userId]
+      );
+      if (rows.length === 0) throw new ApiError(404, "NOT_FOUND", "用户不存在");
+
+      const user = rows[0];
+      res.json({
+        ok: true,
+        data: {
+          userId: user.id,
+          username: user.username,
+          email: user.email,
+          nickname: user.nickname || null,
+          avatarUrl: user.avatar || null
+        }
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.get("/resolve", async (req, res, next) => {
+    try {
+      const username = trimValue(req.query.username);
+      if (!username) throw new ApiError(400, "INVALID_REQUEST", "username 参数无效");
+
+      const [rows] = await pool.execute(
+        "SELECT id FROM users WHERE username = ? LIMIT 1",
+        [username]
+      );
+      if (rows.length === 0) throw new ApiError(404, "NOT_FOUND", "用户不存在");
+
+      res.json({ ok: true, data: { userId: rows[0].id } });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.put("/nickname", async (req, res, next) => {
+    try {
+      const { userId, nickname } = req.body;
+      if (!userId) throw new ApiError(400, "INVALID_REQUEST", "userId 必填");
+
+      await pool.execute("UPDATE users SET nickname = ? WHERE id = ?", [nickname || null, userId]);
+      cache.del(Keys.profile(userId));
+      res.json({ ok: true, message: "昵称更新成功" });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.put("/password", async (req, res, next) => {
+    try {
+      const { userId, currentPassword, newPassword } = req.body;
+      if (!userId || !currentPassword || !newPassword) {
+        throw new ApiError(400, "INVALID_REQUEST", "参数不完整");
+      }
+
+      const [rows] = await pool.execute(
+        "SELECT password FROM users WHERE id = ? LIMIT 1",
+        [userId]
+      );
+      if (rows.length === 0) throw new ApiError(404, "NOT_FOUND", "用户不存在");
+
+      const matched = await bcrypt.compare(currentPassword, rows[0].password);
+      if (!matched) throw new ApiError(401, "WRONG_PASSWORD", "当前密码错误");
+
+      const hashed = await bcrypt.hash(newPassword, config.bcryptRounds);
+      await pool.execute("UPDATE users SET password = ? WHERE id = ?", [hashed, userId]);
+      res.json({ ok: true, message: "密码修改成功" });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.delete("/account", async (req, res, next) => {
+    try {
+      const userId = parseInt(req.query.userId, 10);
+      if (!userId || userId <= 0) throw new ApiError(400, "INVALID_REQUEST", "userId 参数无效");
+
+      await pool.execute(
+        "DELETE FROM couple_relationships WHERE user_id_1 = ? OR user_id_2 = ?",
+        [userId, userId]
+      );
+      await pool.execute("DELETE FROM users WHERE id = ?", [userId]);
+      cache.del(Keys.profile(userId));
+      cache.del(Keys.relationship(userId));
+      cache.del(Keys.coupleRole(userId));
+      res.json({ ok: true, message: "账号已删除" });
     } catch (error) {
       next(error);
     }

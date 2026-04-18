@@ -96,6 +96,15 @@ public class ApiConfigManager {
         return !customUrl.trim().contains(".lhr.life");
     }
 
+    public static String resolveResourceUrl(Context context, String resourceUrl) {
+        if (resourceUrl == null || resourceUrl.isEmpty()) return null;
+        if (resourceUrl.startsWith("http://") || resourceUrl.startsWith("https://")
+                || resourceUrl.startsWith("content://") || resourceUrl.startsWith("file://")) {
+            return resourceUrl;
+        }
+        return getBaseUrl(context) + resourceUrl;
+    }
+
     /**
      * 测试服务器连接
      * @param context 上下文

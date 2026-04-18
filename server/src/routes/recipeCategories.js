@@ -1,9 +1,14 @@
 const express = require("express");
 const { ApiError } = require("../errors");
+const { cache, Keys, TTL } = require("../cache");
 const { loadActiveRelationship, trimValue } = require("../utils/queryHelpers");
 
 function createRecipeCategoryRouter({ pool }) {
   const router = express.Router();
+
+  function invalidateCategoryCache(userId) {
+    cache.del(Keys.recipeCategories(userId));
+  }
 
   // GET /api/recipe-categories?userId=
   router.get("/", async (req, res, next) => {
@@ -11,9 +16,14 @@ function createRecipeCategoryRouter({ pool }) {
       const userId = parseInt(req.query.userId, 10);
       if (!userId || userId <= 0) throw new ApiError(400, "INVALID_REQUEST", "userId 参数无效");
 
+      const cached = cache.get(Keys.recipeCategories(userId));
+      if (cached) return res.json(cached);
+
       const relationship = await loadActiveRelationship(pool, userId);
       if (!relationship) {
-        return res.json({ ok: true, data: { items: [] } });
+        const empty = { ok: true, data: { items: [] } };
+        cache.set(Keys.recipeCategories(userId), empty, TTL.RECIPE_CATS);
+        return res.json(empty);
       }
 
       const [rows] = await pool.execute(
@@ -32,7 +42,9 @@ function createRecipeCategoryRouter({ pool }) {
         createdAt: r.created_at
       }));
 
-      res.json({ ok: true, data: { items } });
+      const responseData = { ok: true, data: { items } };
+      cache.set(Keys.recipeCategories(userId), responseData, TTL.RECIPE_CATS);
+      res.json(responseData);
     } catch (error) { next(error); }
   });
 
@@ -50,6 +62,7 @@ function createRecipeCategoryRouter({ pool }) {
         [relationship.relationship_id, trimValue(name), sortOrder || 0]
       );
 
+      invalidateCategoryCache(userId);
       res.json({ ok: true, data: { categoryId: result.insertId } });
     } catch (error) {
       if (error.code === "ER_DUP_ENTRY") {
@@ -81,6 +94,7 @@ function createRecipeCategoryRouter({ pool }) {
         params
       );
 
+      invalidateCategoryCache(userId);
       res.json({ ok: true, message: "种类更新成功" });
     } catch (error) { next(error); }
   });
@@ -101,6 +115,7 @@ function createRecipeCategoryRouter({ pool }) {
       );
       if (result.affectedRows === 0) throw new ApiError(404, "NOT_FOUND", "种类不存在");
 
+      invalidateCategoryCache(userId);
       res.json({ ok: true, message: "种类删除成功" });
     } catch (error) { next(error); }
   });

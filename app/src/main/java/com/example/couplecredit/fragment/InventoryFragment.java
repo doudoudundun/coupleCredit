@@ -57,6 +57,7 @@ import java.io.File;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -98,8 +99,8 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
 
     private boolean isLoggedIn;
 
-    private final String[] categories = {"全部", "食材", "日用品", "调料", "饮品", "药品", "其他"};
-    private final String[] addCategories = {"食材", "日用品", "调料", "饮品", "药品", "其他"};
+    private final String[] defaultCategories = {"食材", "日用品", "调料", "饮品", "药品", "其他"};
+    private final List<String> dynamicCategories = new ArrayList<>();
     private final String[] units = {"个", "包", "瓶", "盒", "袋", "斤", "克", "升", "毫升"};
 
     private ImageView pendingImageView;
@@ -203,7 +204,9 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
         lowStockList.clear();
         recentActivityList.clear();
         for (InventoryViewModel.InventoryItem vi : viewModel.getInventoryList()) {
-            inventoryList.add(convertItem(vi));
+            InventoryItem converted = convertItem(vi);
+            ensureDynamicCategory(converted.category);
+            inventoryList.add(converted);
         }
         for (InventoryViewModel.InventoryItem vi : viewModel.getLowStockList()) {
             lowStockList.add(convertItem(vi));
@@ -267,8 +270,9 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
     private void setupRecyclerViews() {
         rvInventoryList.setLayoutManager(new LinearLayoutManager(getContext()));
         rvRecentActivity.setLayoutManager(new LinearLayoutManager(getContext(), LinearLayoutManager.HORIZONTAL, false));
-        inventoryAdapter = new InventoryAdapter(filteredInventoryList, this);
-        recentActivityAdapter = new RecentActivityAdapter(recentActivityList);
+        inventoryAdapter = new InventoryAdapter(requireContext(), filteredInventoryList, this);
+        recentActivityAdapter = new RecentActivityAdapter(requireContext(), recentActivityList);
+        recentActivityAdapter.setOnItemClickListener(this::showInventoryDialog);
         rvInventoryList.setAdapter(inventoryAdapter);
         rvRecentActivity.setAdapter(recentActivityAdapter);
     }
@@ -285,9 +289,44 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
         });
     }
 
+    private List<String> getFilterCategories() {
+        LinkedHashSet<String> all = new LinkedHashSet<>();
+        all.add("全部");
+        for (String category : defaultCategories) all.add(category);
+        all.addAll(dynamicCategories);
+        for (InventoryItem item : inventoryList) {
+            if (item.category != null && !item.category.trim().isEmpty()) {
+                all.add(item.category.trim());
+            }
+        }
+        return new ArrayList<>(all);
+    }
+
+    private List<String> getDialogCategories() {
+        LinkedHashSet<String> all = new LinkedHashSet<>();
+        for (String category : defaultCategories) all.add(category);
+        all.addAll(dynamicCategories);
+        for (InventoryItem item : inventoryList) {
+            if (item.category != null && !item.category.trim().isEmpty()) {
+                all.add(item.category.trim());
+            }
+        }
+        all.add("+ 自定义分类");
+        return new ArrayList<>(all);
+    }
+
+    private void ensureDynamicCategory(String category) {
+        if (category == null) return;
+        String trimmed = category.trim();
+        if (trimmed.isEmpty()) return;
+        if (!dynamicCategories.contains(trimmed)) {
+            dynamicCategories.add(trimmed);
+        }
+    }
+
     private void buildCategoryTags() {
         llCategoryTags.removeAllViews();
-        for (String cat : categories) {
+        for (String cat : getFilterCategories()) {
             TextView tag = createCategoryTag(cat, activeCategories.contains(cat));
             tag.setOnClickListener(v -> toggleCategoryFilter(cat));
             llCategoryTags.addView(tag);
@@ -413,6 +452,7 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
         if (response != null && response.data != null && response.data.items != null) {
             for (AuthApiModels.InventoryItemData itemData : response.data.items) {
                 InventoryItem item = fromApiItem(itemData);
+                ensureDynamicCategory(item.category);
                 inventoryList.add(item);
                 if (item.isLowStock()) {
                     lowStockList.add(item);
@@ -576,13 +616,47 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
         TextView tvAiGenerate = dialogView.findViewById(R.id.tv_ai_generate);
         TextView btnSubmit = dialogView.findViewById(R.id.btn_add_inventory);
 
-        ArrayAdapter<String> categoryAdapter = new ArrayAdapter<>(requireContext(), android.R.layout.simple_spinner_item, addCategories);
+        List<String> dialogCategories = getDialogCategories();
+        ArrayAdapter<String> categoryAdapter = new ArrayAdapter<>(requireContext(), android.R.layout.simple_spinner_item, dialogCategories);
         categoryAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         spinnerCategoryDialog.setAdapter(categoryAdapter);
 
-        ArrayAdapter<String> unitAdapter = new ArrayAdapter<>(requireContext(), android.R.layout.simple_spinner_item, units);
-        unitAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-        spinnerUnit.setAdapter(unitAdapter);
+        spinnerCategoryDialog.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(android.widget.AdapterView<?> parent, View view, int position, long id) {
+                String selected = dialogCategories.get(position);
+                if (!"+ 自定义分类".equals(selected)) return;
+
+                EditText input = new EditText(requireContext());
+                input.setHint("输入分类名称");
+                input.setSingleLine(true);
+                new AlertDialog.Builder(requireContext(), R.style.CustomDialogStyle)
+                        .setTitle("自定义分类")
+                        .setView(input)
+                        .setPositiveButton("确定", (d, w) -> {
+                            String custom = input.getText().toString().trim();
+                            if (custom.isEmpty()) {
+                                Toast.makeText(requireContext(), "分类名称不能为空", Toast.LENGTH_SHORT).show();
+                                spinnerCategoryDialog.setSelection(0);
+                                return;
+                            }
+                            ensureDynamicCategory(custom);
+                            List<String> updated = getDialogCategories();
+                            ArrayAdapter<String> updatedAdapter = new ArrayAdapter<>(requireContext(), android.R.layout.simple_spinner_item, updated);
+                            updatedAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+                            spinnerCategoryDialog.setAdapter(updatedAdapter);
+                            int idx = updated.indexOf(custom);
+                            spinnerCategoryDialog.setSelection(Math.max(idx, 0));
+                            buildCategoryTags();
+                        })
+                        .setNegativeButton("取消", (d, w) -> spinnerCategoryDialog.setSelection(0))
+                        .show();
+            }
+
+            @Override
+            public void onNothingSelected(android.widget.AdapterView<?> parent) {
+            }
+        });
 
         View.OnClickListener imageClickListener = v -> {
             pendingImageView = ivAddImage;
@@ -613,8 +687,12 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
             if (existingItem.imageUrl != null && !existingItem.imageUrl.isEmpty()) {
                 Glide.with(this).load(resolveImageUrl(existingItem.imageUrl)).placeholder(R.drawable.ic_inventory_placeholder).into(ivAddImage);
             }
-            setSpinnerSelection(spinnerCategoryDialog, addCategories, existingItem.category);
-            setSpinnerSelection(spinnerUnit, units, existingItem.unit);
+            ensureDynamicCategory(existingItem.category);
+            List<String> updatedDialogCategories = getDialogCategories();
+            ArrayAdapter<String> updatedCategoryAdapter = new ArrayAdapter<>(requireContext(), android.R.layout.simple_spinner_item, updatedDialogCategories);
+            updatedCategoryAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+            spinnerCategoryDialog.setAdapter(updatedCategoryAdapter);
+            setSpinnerSelection(spinnerCategoryDialog, updatedDialogCategories.toArray(new String[0]), existingItem.category);
         } else {
             tvDialogTitle.setText("新增物资");
             btnSubmit.setText("添加物资");

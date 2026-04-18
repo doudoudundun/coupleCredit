@@ -21,9 +21,10 @@ import java.util.List;
 
 import com.bumptech.glide.Glide;
 import com.bumptech.glide.load.resource.bitmap.CircleCrop;
+import com.example.couplecredit.api.AuthApiClient;
+import com.example.couplecredit.api.AuthApiModels;
 import com.example.couplecredit.utils.UserInfoManager;
 import com.example.couplecredit.utils.AvatarCacheManager;
-import com.example.couplecredit.database.MySQLDatabaseHelper;
 import com.example.couplecredit.utils.NicknameCache;
 
 /**
@@ -327,12 +328,13 @@ public class ChatMessageAdapter extends RecyclerView.Adapter<ChatMessageAdapter.
                     return;
                 }
                 
-                // 缓存中没有，从数据库查询
-                MySQLDatabaseHelper.getUserNicknameById(message.getUserId(), new MySQLDatabaseHelper.UserNicknameCallback() {
+                // 缓存中没有，从API查询
+                AuthApiClient.getUserProfile(context, message.getUserId(), new AuthApiClient.ProfileCallback() {
                     @Override
-                    public void onSuccess(String nickname) {
+                    public void onSuccess(AuthApiModels.UserProfileData profile) {
                         if (context instanceof android.app.Activity) {
                             ((android.app.Activity) context).runOnUiThread(() -> {
+                                String nickname = profile.nickname;
                                 if (nickname != null && !nickname.trim().isEmpty()) {
                                     tvUsername.setText(nickname);
                                     // 缓存昵称
@@ -343,9 +345,9 @@ public class ChatMessageAdapter extends RecyclerView.Adapter<ChatMessageAdapter.
                             });
                         }
                     }
-                    
+
                     @Override
-                    public void onError(String error) {
+                    public void onError(String e) {
                         if (context instanceof android.app.Activity) {
                             ((android.app.Activity) context).runOnUiThread(() -> {
                                 // 查询失败，显示用户名

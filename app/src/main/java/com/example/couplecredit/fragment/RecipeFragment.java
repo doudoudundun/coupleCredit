@@ -27,6 +27,7 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.bumptech.glide.Glide;
 import com.example.couplecredit.R;
+import com.example.couplecredit.activity.CartActivity;
 import com.example.couplecredit.activity.LoginActivity;
 import com.example.couplecredit.adapter.RecipeAdapter;
 import com.example.couplecredit.adapter.RecipeCategoryAdapter;
@@ -56,14 +57,16 @@ public class RecipeFragment extends Fragment implements RecipeAdapter.RecipeActi
 
     private RecipeAdapter recipeAdapter;
     private RecipeCategoryAdapter categoryAdapter;
-    private final List<AuthApiModels.RecipeItemData> recipeList = new ArrayList<>();
     private final List<AuthApiModels.RecipeItemData> allRecipes = new ArrayList<>();
     private final List<AuthApiModels.RecipeCategoryData> categoryList = new ArrayList<>();
     private boolean isLoggedIn;
+    private TextView tvCartBadge;
+    private View btnCart;
 
     private ImageView pendingImageView;
     private String pendingImageUrl;
     private boolean imageChanged = false;
+    private boolean isClickScrolling = false;
 
     private static final int IMAGE_MAX_DIMENSION = 1024;
     private static final int IMAGE_JPEG_QUALITY = 80;
@@ -87,16 +90,42 @@ public class RecipeFragment extends Fragment implements RecipeAdapter.RecipeActi
         tvRecipeCount = view.findViewById(R.id.tv_recipe_count);
         fabAddRecipe = view.findViewById(R.id.fab_add_recipe);
         btnAddCategory = view.findViewById(R.id.btn_add_category);
+        btnCart = view.findViewById(R.id.btn_cart);
+        tvCartBadge = view.findViewById(R.id.tv_cart_badge);
+
+        btnCart.setOnClickListener(v -> {
+            startActivity(new Intent(requireContext(), CartActivity.class));
+        });
 
         rvRecipeList.setLayoutManager(new LinearLayoutManager(getContext()));
-        recipeAdapter = new RecipeAdapter(recipeList, this);
+        recipeAdapter = new RecipeAdapter(this);
         rvRecipeList.setAdapter(recipeAdapter);
 
         rvCategoryList.setLayoutManager(new LinearLayoutManager(getContext()));
         categoryAdapter = new RecipeCategoryAdapter(categoryId -> {
-            filterRecipes();
+            recipeAdapter.setData(categoryList, allRecipes);
+            tvRecipeCount.setText(allRecipes.size() + " 道菜");
+            updateEmptyState();
+            int pos = recipeAdapter.getCategoryPosition(categoryId);
+            isClickScrolling = true;
+            ((LinearLayoutManager) rvRecipeList.getLayoutManager()).scrollToPositionWithOffset(pos, 0);
+            rvRecipeList.postDelayed(() -> isClickScrolling = false, 300);
         });
         rvCategoryList.setAdapter(categoryAdapter);
+
+        rvRecipeList.addOnScrollListener(new RecyclerView.OnScrollListener() {
+            @Override
+            public void onScrolled(@NonNull RecyclerView rv, int dx, int dy) {
+                if (isClickScrolling) return;
+                LinearLayoutManager lm = (LinearLayoutManager) rv.getLayoutManager();
+                if (lm == null) return;
+                int firstVisible = lm.findFirstVisibleItemPosition();
+                if (firstVisible == RecyclerView.NO_POSITION) return;
+                int catId = recipeAdapter.getCategoryIdAt(firstVisible);
+                int targetPos = categoryAdapter.findPositionByCategoryId(catId);
+                categoryAdapter.setSelectedPosition(targetPos, true);
+            }
+        });
 
         btnAddCategory.setOnClickListener(v -> showAddCategoryDialog());
 
@@ -110,14 +139,36 @@ public class RecipeFragment extends Fragment implements RecipeAdapter.RecipeActi
         refreshData();
     }
 
+    @Override
+    public void onResume() {
+        super.onResume();
+        updateCartBadge();
+    }
+
+    private void updateCartBadge() {
+        if (tvCartBadge == null) return;
+        int size = CartActivity.getCartSize(requireContext());
+        if (size > 0) {
+            tvCartBadge.setVisibility(View.VISIBLE);
+            tvCartBadge.setText(size > 9 ? "9+" : String.valueOf(size));
+        } else {
+            tvCartBadge.setVisibility(View.GONE);
+        }
+        updateCategoryCartBadges();
+    }
+
+    private void updateCategoryCartBadges() {
+        List<AuthApiModels.RecipeItemData> cartRecipes = CartActivity.getCartItems(requireContext());
+        categoryAdapter.updateCartCounts(cartRecipes);
+    }
+
     public void refreshData() {
         if (!isAdded()) return;
         isLoggedIn = UserInfoManager.isUserLoggedIn(requireContext());
         updateLoginUI();
         if (!isLoggedIn) {
-            recipeList.clear();
             allRecipes.clear();
-            recipeAdapter.updateData(recipeList);
+            recipeAdapter.setData(categoryList, allRecipes);
             updateEmptyState();
             return;
         }
@@ -134,6 +185,7 @@ public class RecipeFragment extends Fragment implements RecipeAdapter.RecipeActi
                         categoryList.addAll(response.data.items);
                     }
                     categoryAdapter.updateData(categoryList);
+                    recipeAdapter.setData(categoryList, allRecipes);
                 });
             }
             @Override public void onError(String e) { /* silent */ }
@@ -148,7 +200,9 @@ public class RecipeFragment extends Fragment implements RecipeAdapter.RecipeActi
                     if (response != null && response.data != null && response.data.items != null) {
                         allRecipes.addAll(response.data.items);
                     }
-                    filterRecipes();
+                    recipeAdapter.setData(categoryList, allRecipes);
+                    tvRecipeCount.setText(allRecipes.size() + " 道菜");
+                    updateEmptyState();
                 });
             }
 
@@ -159,19 +213,6 @@ public class RecipeFragment extends Fragment implements RecipeAdapter.RecipeActi
                         Toast.makeText(requireContext(), "加载菜谱失败: " + error, Toast.LENGTH_SHORT).show());
             }
         });
-    }
-
-    private void filterRecipes() {
-        int selectedCategoryId = categoryAdapter.getSelectedCategoryId();
-        recipeList.clear();
-        for (AuthApiModels.RecipeItemData item : allRecipes) {
-            if (selectedCategoryId == 0 || (item.categoryId != null && item.categoryId == selectedCategoryId)) {
-                recipeList.add(item);
-            }
-        }
-        recipeAdapter.updateData(recipeList);
-        tvRecipeCount.setText(allRecipes.size() + " 道菜");
-        updateEmptyState();
     }
 
     private void showAddCategoryDialog() {
@@ -208,8 +249,8 @@ public class RecipeFragment extends Fragment implements RecipeAdapter.RecipeActi
     }
 
     private void updateEmptyState() {
-        llEmptyState.setVisibility(recipeList.isEmpty() && isLoggedIn ? View.VISIBLE : View.GONE);
-        rvRecipeList.setVisibility(recipeList.isEmpty() ? View.GONE : View.VISIBLE);
+        llEmptyState.setVisibility(allRecipes.isEmpty() && isLoggedIn ? View.VISIBLE : View.GONE);
+        rvRecipeList.setVisibility(allRecipes.isEmpty() ? View.GONE : View.VISIBLE);
     }
 
     private void openLoginPage() {
@@ -219,6 +260,169 @@ public class RecipeFragment extends Fragment implements RecipeAdapter.RecipeActi
     @Override
     public void onEdit(AuthApiModels.RecipeItemData item) {
         showRecipeDialog(item);
+    }
+
+    private AlertDialog currentDetailDialog;
+
+    private void showRecipeDetailDialog(AuthApiModels.RecipeItemData item) {
+        if (currentDetailDialog != null && currentDetailDialog.isShowing()) {
+            currentDetailDialog.dismiss();
+        }
+
+        AlertDialog.Builder builder = new AlertDialog.Builder(requireContext(), R.style.CustomDialogStyle);
+        View dialogView = LayoutInflater.from(getContext()).inflate(R.layout.dialog_recipe_detail, null);
+        builder.setView(dialogView);
+        AlertDialog dialog = builder.create();
+        currentDetailDialog = dialog;
+
+        TextView tvName = dialogView.findViewById(R.id.tv_detail_name);
+        TextView tvDesc = dialogView.findViewById(R.id.tv_detail_desc);
+        ImageView ivImage = dialogView.findViewById(R.id.iv_detail_image);
+        LinearLayout llIngredients = dialogView.findViewById(R.id.ll_detail_ingredients);
+        TextView tvStepsLabel = dialogView.findViewById(R.id.tv_detail_steps_label);
+        LinearLayout llSteps = dialogView.findViewById(R.id.ll_detail_steps);
+        TextView btnClose = dialogView.findViewById(R.id.btn_detail_close);
+
+        tvName.setText(item.title != null ? item.title : "");
+        tvDesc.setText(item.description != null ? item.description : "");
+
+        if (item.imageUrl != null && !item.imageUrl.isEmpty()) {
+            String url = ApiConfigManager.resolveResourceUrl(requireContext(), item.imageUrl);
+            Glide.with(this).load(url).placeholder(R.drawable.ic_inventory_placeholder).into(ivImage);
+        } else {
+            ivImage.setVisibility(View.GONE);
+        }
+
+        int dp = (int) (requireContext().getResources().getDisplayMetrics().density);
+
+        // Loading hint for ingredients
+        TextView tvLoading = new TextView(requireContext());
+        tvLoading.setText("加载食材中...");
+        tvLoading.setTextSize(13);
+        tvLoading.setTextColor(0xFF999999);
+        llIngredients.addView(tvLoading);
+
+        // Steps from list data (already available)
+        renderSteps(llSteps, tvStepsLabel, item.steps, dp);
+
+        btnClose.setOnClickListener(v -> dialog.dismiss());
+        dialog.setOnDismissListener(d -> { if (currentDetailDialog == dialog) currentDetailDialog = null; });
+        dialog.setCanceledOnTouchOutside(true);
+        dialog.show();
+        if (dialog.getWindow() != null) {
+            int w = (int) (requireContext().getResources().getDisplayMetrics().widthPixels * 0.9);
+            int h = (int) (requireContext().getResources().getDisplayMetrics().heightPixels * 0.85);
+            dialog.getWindow().setLayout(w, h);
+        }
+
+        // Load ingredients async — update the same dialog
+        int userId = UserInfoManager.getCurrentUserId(requireContext());
+        AuthApiClient.getRecipeDetail(requireContext(), item.recipeId, userId, new AuthApiClient.RecipeDetailCallback() {
+            @Override
+            public void onSuccess(AuthApiModels.RecipeDetailResponse response) {
+                if (!isAdded() || !dialog.isShowing()) return;
+                requireActivity().runOnUiThread(() -> {
+                    if (response == null || response.data == null) return;
+                    llIngredients.removeAllViews();
+                    if (response.data.ingredients != null && !response.data.ingredients.isEmpty()) {
+                        populateIngredients(llIngredients, response.data.ingredients, dp);
+                    } else {
+                        TextView tvNone = new TextView(requireContext());
+                        tvNone.setText("暂无食材信息");
+                        tvNone.setTextSize(13);
+                        tvNone.setTextColor(0xFF999999);
+                        llIngredients.addView(tvNone);
+                    }
+                    // Update steps if server has newer data
+                    if (response.data.steps != null && !response.data.steps.equals(item.steps)) {
+                        llSteps.removeAllViews();
+                        renderSteps(llSteps, tvStepsLabel, response.data.steps, dp);
+                    }
+                });
+            }
+            @Override public void onError(String e) {
+                if (!isAdded() || !dialog.isShowing()) return;
+                requireActivity().runOnUiThread(() -> {
+                    llIngredients.removeAllViews();
+                    TextView tvErr = new TextView(requireContext());
+                    tvErr.setText("食材加载失败");
+                    tvErr.setTextSize(13);
+                    tvErr.setTextColor(0xFF999999);
+                    llIngredients.addView(tvErr);
+                });
+            }
+        });
+    }
+
+
+    private void populateIngredients(LinearLayout llIngredients, List<AuthApiModels.IngredientData> ingredients, int dp) {
+        llIngredients.removeAllViews();
+        for (AuthApiModels.IngredientData ing : ingredients) {
+            LinearLayout row = new LinearLayout(requireContext());
+            row.setOrientation(LinearLayout.HORIZONTAL);
+            row.setPadding(0, dp * 4, 0, dp * 4);
+
+            TextView tvDot = new TextView(requireContext());
+            tvDot.setText("• ");
+            tvDot.setTextSize(14);
+            tvDot.setTextColor(0xFF333333);
+            row.addView(tvDot);
+
+            TextView tvIngName = new TextView(requireContext());
+            tvIngName.setText(ing.ingredientName);
+            tvIngName.setTextSize(14);
+            tvIngName.setTextColor(0xFF333333);
+            LinearLayout.LayoutParams lpName = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1);
+            tvIngName.setLayoutParams(lpName);
+            row.addView(tvIngName);
+
+            TextView tvQty = new TextView(requireContext());
+            tvQty.setText((long) ing.quantity + " " + ing.unit);
+            tvQty.setTextSize(14);
+            tvQty.setTextColor(0xFF666666);
+            row.addView(tvQty);
+
+            llIngredients.addView(row);
+        }
+    }
+
+
+    private void renderSteps(LinearLayout llSteps, TextView tvStepsLabel, String steps, int dp) {
+        String stepsStr = steps.replace("[\"", "").replace("\"]", "").replace("\",\"", "\n");
+        String[] stepLines = stepsStr.split("\n");
+        if (stepLines.length == 0 || (stepLines.length == 1 && stepLines[0].trim().isEmpty())) return;
+        tvStepsLabel.setVisibility(View.VISIBLE);
+        for (int i = 0; i < stepLines.length; i++) {
+            LinearLayout row = new LinearLayout(requireContext());
+            row.setOrientation(LinearLayout.HORIZONTAL);
+            row.setPadding(0, dp * 6, 0, dp * 6);
+            row.setGravity(Gravity.TOP);
+
+            TextView tvNum = new TextView(requireContext());
+            tvNum.setText("  " + (i + 1) + ". ");
+            tvNum.setTextSize(14);
+            tvNum.setTextColor(0xFF07C160);
+            tvNum.setTypeface(null, android.graphics.Typeface.BOLD);
+            row.addView(tvNum);
+
+            TextView tvStep = new TextView(requireContext());
+            tvStep.setText(stepLines[i].trim());
+            tvStep.setTextSize(14);
+            tvStep.setTextColor(0xFF333333);
+            tvStep.setLineSpacing(dp * 4, 1f);
+            LinearLayout.LayoutParams lpStep = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1);
+            tvStep.setLayoutParams(lpStep);
+            row.addView(tvStep);
+
+            llSteps.addView(row);
+
+            if (i < stepLines.length - 1) {
+                View divider = new View(requireContext());
+                divider.setBackgroundColor(0xFFEEEEEE);
+                llSteps.addView(divider, new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT, Math.max(1, dp)));
+            }
+        }
     }
 
     @Override
@@ -247,35 +451,14 @@ public class RecipeFragment extends Fragment implements RecipeAdapter.RecipeActi
     }
 
     @Override
-    public void onCook(AuthApiModels.RecipeItemData item) {
-        int userId = UserInfoManager.getCurrentUserId(requireContext());
-        AuthApiClient.cookRecipe(requireContext(), item.recipeId, userId, new AuthApiClient.CookCallback() {
-            @Override
-            public void onSuccess(AuthApiModels.CookResponse response) {
-                if (!isAdded()) return;
-                requireActivity().runOnUiThread(() -> {
-                    StringBuilder msg = new StringBuilder();
-                    if (response.data != null && response.data.results != null) {
-                        for (AuthApiModels.CookResultItem r : response.data.results) {
-                            msg.append(r.name).append(" -").append((long) r.consumed).append(r.unit).append("\n");
-                        }
-                    }
-                    if (response.data != null && response.data.warnings != null && !response.data.warnings.isEmpty()) {
-                        msg.append("\n注意:\n");
-                        for (String w : response.data.warnings) msg.append(w).append("\n");
-                    }
-                    new AlertDialog.Builder(requireContext())
-                            .setTitle("烹饪完成")
-                            .setMessage(msg.toString().trim())
-                            .setPositiveButton("好的", null)
-                            .show();
-                });
-            }
-            @Override public void onError(String e) {
-                if (!isAdded()) return;
-                requireActivity().runOnUiThread(() -> Toast.makeText(requireContext(), "烹饪失败: " + e, Toast.LENGTH_SHORT).show());
-            }
-        });
+    public void onItemClick(AuthApiModels.RecipeItemData item) {
+        showRecipeDetailDialog(item);
+    }
+
+    @Override
+    public void onAddToCart(AuthApiModels.RecipeItemData item) {
+        CartActivity.addToCart(requireContext(), item);
+        updateCartBadge();
     }
 
     private void showRecipeDialog(@Nullable AuthApiModels.RecipeItemData existing) {
@@ -326,7 +509,7 @@ public class RecipeFragment extends Fragment implements RecipeAdapter.RecipeActi
             pendingImageUrl = existing.imageUrl;
             imageChanged = false;
             if (existing.imageUrl != null && !existing.imageUrl.isEmpty()) {
-                String url = resolveImageUrl(existing.imageUrl);
+                String url = ApiConfigManager.resolveResourceUrl(requireContext(), existing.imageUrl);
                 Glide.with(this).load(url).placeholder(R.drawable.ic_inventory_placeholder).into(ivImage);
             }
         } else {
@@ -538,12 +721,6 @@ public class RecipeFragment extends Fragment implements RecipeAdapter.RecipeActi
         } catch (Exception e) {
             return null;
         }
-    }
-
-    private String resolveImageUrl(String imageUrl) {
-        if (imageUrl == null || imageUrl.isEmpty()) return null;
-        if (imageUrl.startsWith("http://") || imageUrl.startsWith("https://") || imageUrl.startsWith("content://") || imageUrl.startsWith("file://")) return imageUrl;
-        return ApiConfigManager.getBaseUrl(requireContext()) + imageUrl;
     }
 
     @Override

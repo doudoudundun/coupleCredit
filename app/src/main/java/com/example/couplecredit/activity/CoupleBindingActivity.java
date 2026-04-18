@@ -17,13 +17,11 @@ import android.widget.Toast;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 
-import com.example.couplecredit.database.CoupleRelationshipHelper;
 import com.example.couplecredit.R;
-import com.example.couplecredit.database.MySQLDatabaseHelper;
+import com.example.couplecredit.api.AuthApiClient;
 
 public class CoupleBindingActivity extends AppCompatActivity {
     private Button btnGenerateInvite, btnInputInvite;
-    private CoupleRelationshipHelper coupleHelper;
     private SharedPreferences sharedPreferences;
     private int currentUserId;
     private String currentUsername;
@@ -44,8 +42,6 @@ public class CoupleBindingActivity extends AppCompatActivity {
     }
 
     private void initData() {
-        coupleHelper = new CoupleRelationshipHelper();
-        
         // 从Intent获取用户信息
         Intent intent = getIntent();
         String intentUserId = intent.getStringExtra("userId");
@@ -64,17 +60,17 @@ public class CoupleBindingActivity extends AppCompatActivity {
         }
         
         // 通过username查询真正的用户ID
-        MySQLDatabaseHelper.getUserIdByUsername(currentUsername, new MySQLDatabaseHelper.UserIdCallback() {
+        AuthApiClient.resolveUsername(this, currentUsername, new AuthApiClient.SimpleIdCallback() {
             @Override
             public void onSuccess(int userId) {
                 currentUserId = userId;
                 // 用户ID获取成功，可以继续后续操作
             }
-            
+
             @Override
-            public void onError(String error) {
+            public void onError(String message) {
                 runOnUiThread(() -> {
-                    Toast.makeText(CoupleBindingActivity.this, "获取用户信息失败: " + error, Toast.LENGTH_SHORT).show();
+                    Toast.makeText(CoupleBindingActivity.this, "获取用户信息失败: " + message, Toast.LENGTH_SHORT).show();
                     finish();
                 });
             }
@@ -90,9 +86,9 @@ public class CoupleBindingActivity extends AppCompatActivity {
         btnGenerateInvite.setEnabled(false);
         btnGenerateInvite.setText("生成中...");
 
-        coupleHelper.generateInviteCode(currentUserId, new CoupleRelationshipHelper.InviteCodeCallback() {
+        AuthApiClient.generateInviteCode(this, currentUserId, new AuthApiClient.InviteCodeCallback() {
             @Override
-            public void onInviteCodeGenerated(String inviteCode) {
+            public void onSuccess(String inviteCode) {
                 runOnUiThread(() -> {
                     btnGenerateInvite.setEnabled(true);
                     btnGenerateInvite.setText("发起邀请");
@@ -101,11 +97,11 @@ public class CoupleBindingActivity extends AppCompatActivity {
             }
 
             @Override
-            public void onError(String error) {
+            public void onError(String message) {
                 runOnUiThread(() -> {
                     btnGenerateInvite.setEnabled(true);
                     btnGenerateInvite.setText("发起邀请");
-                    Toast.makeText(CoupleBindingActivity.this, error, Toast.LENGTH_SHORT).show();
+                    Toast.makeText(CoupleBindingActivity.this, message, Toast.LENGTH_SHORT).show();
                 });
             }
         });
@@ -170,30 +166,21 @@ public class CoupleBindingActivity extends AppCompatActivity {
     }
 
     private void searchAndBindCouple(String inviteCode, AlertDialog dialog, Button btnConfirm) {
-        coupleHelper.findUserByInviteCode(inviteCode, new CoupleRelationshipHelper.UserSearchCallback() {
+        AuthApiClient.searchByInviteCode(this, inviteCode, new AuthApiClient.UserSearchCallback() {
             @Override
-            public void onUserFound(int userId, String username) {
+            public void onFound(int userId, String username, String nickname) {
                 runOnUiThread(() -> {
-                    // 显示确认绑定对话框
-                    showBindConfirmDialog(userId, username, dialog, btnConfirm);
+                    String displayName = (nickname != null && !nickname.isEmpty()) ? nickname : username;
+                    showBindConfirmDialog(userId, displayName, dialog, btnConfirm);
                 });
             }
 
             @Override
-            public void onUserNotFound() {
+            public void onError(String message) {
                 runOnUiThread(() -> {
                     btnConfirm.setEnabled(true);
                     btnConfirm.setText("确认");
-                    Toast.makeText(CoupleBindingActivity.this, "邀请码无效或已过期", Toast.LENGTH_SHORT).show();
-                });
-            }
-
-            @Override
-            public void onError(String error) {
-                runOnUiThread(() -> {
-                    btnConfirm.setEnabled(true);
-                    btnConfirm.setText("确认");
-                    Toast.makeText(CoupleBindingActivity.this, error, Toast.LENGTH_SHORT).show();
+                    Toast.makeText(CoupleBindingActivity.this, message, Toast.LENGTH_SHORT).show();
                 });
             }
         });
@@ -206,22 +193,22 @@ public class CoupleBindingActivity extends AppCompatActivity {
         
         builder.setPositiveButton("确定", (confirmDialog, which) -> {
             // 创建情侣关系
-            coupleHelper.createCoupleRelationship(inviterId, currentUserId, new CoupleRelationshipHelper.CoupleCallback() {
+            AuthApiClient.bindCouple(CoupleBindingActivity.this, inviterId, currentUserId, new AuthApiClient.SimpleIdCallback() {
                 @Override
-                public void onSuccess(String message) {
+                public void onSuccess(int relationshipId) {
                     runOnUiThread(() -> {
-                        Toast.makeText(CoupleBindingActivity.this, message, Toast.LENGTH_LONG).show();
+                        Toast.makeText(CoupleBindingActivity.this, "绑定成功", Toast.LENGTH_LONG).show();
                         inputDialog.dismiss();
                         finish(); // 返回上一页面
                     });
                 }
 
                 @Override
-                public void onError(String error) {
+                public void onError(String message) {
                     runOnUiThread(() -> {
                         btnConfirm.setEnabled(true);
                         btnConfirm.setText("确认");
-                        Toast.makeText(CoupleBindingActivity.this, error, Toast.LENGTH_SHORT).show();
+                        Toast.makeText(CoupleBindingActivity.this, message, Toast.LENGTH_SHORT).show();
                     });
                 }
             });

@@ -12,8 +12,8 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.example.couplecredit.model.BillBean;
 import com.example.couplecredit.R;
-import com.example.couplecredit.database.CoupleRelationshipHelper;
-import com.example.couplecredit.database.MySQLDatabaseHelper;
+import com.example.couplecredit.api.AuthApiClient;
+import com.example.couplecredit.api.AuthApiModels;
 import com.example.couplecredit.utils.NicknameCache;
 import com.example.couplecredit.utils.UserInfoManager;
 
@@ -57,36 +57,27 @@ public class BillAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
             public void onUserInfoLoaded(int userId, String username, Integer relationshipId) {
                 currentUserId = userId;
                 currentRelationshipId = relationshipId;
-                
-                // 如果有情侣关系，获取用户角色
-                if (relationshipId != null) {
-                    CoupleRelationshipHelper coupleHelper = new CoupleRelationshipHelper();
-                    coupleHelper.getUserRole(userId, new CoupleRelationshipHelper.UserRoleCallback() {
-                        @Override
-                        public void onRoleFound(int ownerId) {
-                            currentUserRole = ownerId;
-                            // 预加载昵称缓存
-                            preloadNicknames();
+
+                // 获取用户角色
+                AuthApiClient.getCoupleRole(context, userId, new AuthApiClient.CoupleRoleCallback() {
+                    @Override
+                    public void onResult(boolean hasRelationship, int role, int relId) {
+                        if (hasRelationship) {
+                            currentUserRole = role;
+                        } else {
+                            currentUserRole = 1;
                         }
-                        
-                        @Override
-                        public void onNoRelationshipFound() {
-                            currentUserRole = 1; // 默认为1
-                            preloadNicknames();
-                        }
-                        
-                        @Override
-                        public void onError(String error) {
-                            currentUserRole = 1; // 默认为1
-                            preloadNicknames();
-                        }
-                    });
-                } else {
-                    currentUserRole = 1; // 无情侣关系时默认为1
-                    preloadNicknames();
-                }
+                        preloadNicknames();
+                    }
+
+                    @Override
+                    public void onError(String error) {
+                        currentUserRole = 1;
+                        preloadNicknames();
+                    }
+                });
             }
-            
+
             @Override
             public void onError(String error) {
                 // 获取失败时使用默认值
@@ -171,17 +162,17 @@ public class BillAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
             return;
         }
         
-        // 缓存不存在或过期，查询数据库
-        MySQLDatabaseHelper dbHelper = new MySQLDatabaseHelper();
-        dbHelper.getUserNicknameById(currentUserId, new MySQLDatabaseHelper.UserNicknameCallback() {
+        // 缓存不存在或过期，查询API
+        AuthApiClient.getUserProfile(context, currentUserId, new AuthApiClient.ProfileCallback() {
             @Override
-            public void onSuccess(String nickname) {
+            public void onSuccess(AuthApiModels.UserProfileData profile) {
+                String nickname = profile.nickname;
                 String displayName = (nickname != null && !nickname.trim().isEmpty()) ? nickname : "自己";
                 currentUserNickname = displayName;
-                
+
                 // 缓存昵称
                 NicknameCache.cacheNickname(context, String.valueOf(currentUserId), displayName);
-                
+
                 // 如果有情侣关系，继续获取对方昵称
                 if (currentRelationshipId != null) {
                     loadPartnerNickname();
@@ -190,14 +181,14 @@ public class BillAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
                     notifyDataSetChanged();
                 }
             }
-            
+
             @Override
-            public void onError(String error) {
+            public void onError(String e) {
                 currentUserNickname = "自己";
-                
+
                 // 即使查询失败也缓存默认值
                 NicknameCache.cacheNickname(context, String.valueOf(currentUserId), "自己");
-                
+
                 if (currentRelationshipId != null) {
                     loadPartnerNickname();
                 } else {
@@ -209,24 +200,23 @@ public class BillAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
     }
     
     private void loadPartnerNickname() {
-        CoupleRelationshipHelper coupleHelper = new CoupleRelationshipHelper();
-        coupleHelper.getCoupleInfo(currentUserId, new CoupleRelationshipHelper.CoupleInfoCallback() {
+        AuthApiClient.queryCoupleInfo(context, currentUserId, new AuthApiClient.CoupleInfoCallback() {
             @Override
-            public void onCoupleFound(int coupleId, String coupleName, String coupleNickname) {
-                partnerNickname = (coupleNickname != null && !coupleNickname.trim().isEmpty()) ? coupleNickname : coupleName;
-                if (partnerNickname == null) partnerNickname = "对方";
-                
+            public void onCoupleFound(int partnerId, String partnerName, String partnerNickname, int relationshipId) {
+                BillAdapter.this.partnerNickname = (partnerNickname != null && !partnerNickname.trim().isEmpty()) ? partnerNickname : partnerName;
+                if (BillAdapter.this.partnerNickname == null) BillAdapter.this.partnerNickname = "对方";
+
                 nicknamesCached = true;
                 notifyDataSetChanged();
             }
-            
+
             @Override
             public void onNoCoupleFound() {
                 partnerNickname = "对方";
                 nicknamesCached = true;
                 notifyDataSetChanged();
             }
-            
+
             @Override
             public void onError(String error) {
                 partnerNickname = "对方";

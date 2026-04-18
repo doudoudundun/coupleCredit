@@ -1,961 +1,320 @@
 package com.example.couplecredit.repository;
 
 import android.content.Context;
+import android.os.Handler;
+import android.os.Looper;
 import android.util.Log;
 
-import com.example.couplecredit.utils.UserInfoManager;
+import com.example.couplecredit.api.AuthApiClient;
+import com.example.couplecredit.api.AuthApiModels;
 import com.example.couplecredit.model.ChatMessage;
-import com.example.couplecredit.database.MySQLDatabaseHelper;
-import com.example.couplecredit.utils.NicknameCache;
-import com.example.couplecredit.database.DatabaseConnectionPool;
-import com.example.couplecredit.utils.DatabaseResourceManager;
-import com.example.couplecredit.config.DatabaseConfig;
-import com.example.couplecredit.database.DatabaseInitializer;
+import com.example.couplecredit.utils.UserInfoManager;
 
-import java.sql.Connection;
-import java.sql.DriverManager;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
-/**
- * 云端聊天数据仓库类
- * 负责与阿里云MySQL数据库进行交互，实现聊天消息的云端存储
- * 提供完整的CRUD操作和数据同步功能
- */
 public class CloudChatRepository {
-    
+
     private static final String TAG = "CloudChatRepository";
-    
-    // 数据库连接配置（从ChatMessageHelper获取）
-    // 使用统一的数据库配置
-    
-    // 线程池用于异步数据库操作
-    private final ExecutorService databaseExecutor;
-    
-    // 当前用户信息
-    private int currentRelationshipId = -1; // 从UserInfoManager获取
-    private int currentUserId = -1; // 从UserInfoManager获取
-    private String currentUsername = null; // 从UserInfoManager获取
-    private Context context; // 用于获取用户信息
-    
-    /**
-     * 构造函数
-     * @param context 应用上下文
-     */
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
+
+    private int currentRelationshipId = -1;
+    private boolean relationshipResolved = false;
+    private final List<Runnable> pendingOperations = new ArrayList<>();
+    private int currentUserId = -1;
+    private String currentUsername = null;
+    private Context context;
+
     public CloudChatRepository(Context context) {
         this.context = context;
-        this.databaseExecutor = Executors.newFixedThreadPool(4);
-        
-        // 使用统一的连接池初始化工具（异步）
-        DatabaseInitializer.initializeConnectionPoolAsync(TAG);
-        
-        // 初始化用户信息
         initializeUserInfo();
     }
-    
-    /**
-     * 获取数据库连接（使用连接池）
-     * @return 数据库连接对象
-     * @throws SQLException 连接异常
-     */
-    private Connection getConnection() throws SQLException {
-        try {
-            return DatabaseConnectionPool.getInstance().getConnection();
-        } catch (SQLException e) {
-            Log.w(TAG, "连接池获取连接失败，尝试直接连接: " + e.getMessage());
-            // 降级到直接连接
-            try {
-                Class.forName("com.mysql.jdbc.Driver");
-                return DriverManager.getConnection(DatabaseConfig.DB_URL, DatabaseConfig.DB_USER, DatabaseConfig.DB_PASSWORD);
-            } catch (ClassNotFoundException cnfe) {
-                throw new SQLException("MySQL驱动加载失败", cnfe);
-            }
-        }
-    }
-    
-    /**
-     * 初始化用户信息（优化版本，使用UserInfoManager缓存）
-     */
+
     public void initializeUserInfo() {
         if (UserInfoManager.isUserLoggedIn(context)) {
-            // 优先使用同步方法获取基本用户信息
             int userId = UserInfoManager.getCurrentUserId(context);
             String username = UserInfoManager.getCurrentUsername(context);
-            
+
             if (userId > 0 && username != null) {
                 currentUserId = userId;
                 currentUsername = username;
-                Log.d(TAG, "用户信息初始化成功(同步): userId=" + currentUserId + ", username=" + currentUsername);
-                
-                // 异步获取relationshipId
-                UserInfoManager.getCurrentUserInfo(context, new UserInfoManager.UserInfoCallback() {
-                    @Override
-                    public void onUserInfoLoaded(int userId, String username, Integer relationshipId) {
-                        currentRelationshipId = relationshipId != null ? relationshipId : -1;
-                        Log.d(TAG, "relationshipId初始化成功: " + currentRelationshipId);
-                    }
-                    
-                    @Override
-                    public void onError(String error) {
-                        Log.w(TAG, "获取relationshipId失败: " + error + "，使用默认值");
-                        currentRelationshipId = 1;
-                    }
-                });
-            } else {
-                // 如果同步获取失败，使用异步方式获取完整信息
-                UserInfoManager.getCurrentUserInfo(context, new UserInfoManager.UserInfoCallback() {
-                    @Override
-                    public void onUserInfoLoaded(int userId, String username, Integer relationshipId) {
-                        currentUserId = userId;
-                        currentUsername = username;
-                        currentRelationshipId = relationshipId != null ? relationshipId : -1;
-                        Log.d(TAG, "用户信息初始化成功(异步): userId=" + userId + ", username=" + username + ", relationshipId=" + relationshipId);
-                    }
-                    
-                    @Override
-                    public void onError(String error) {
-                        Log.e(TAG, "获取用户信息失败: " + error);
-                        // 使用默认值
-                        currentUserId = 1;
-                        currentRelationshipId = 1;
-                    }
-                });
             }
+
+            UserInfoManager.getCurrentUserInfo(context, new UserInfoManager.UserInfoCallback() {
+                @Override
+                public void onUserInfoLoaded(int userId, String username, Integer relationshipId) {
+                    currentRelationshipId = relationshipId != null ? relationshipId : -1;
+                    relationshipResolved = true;
+                    flushPendingOperations();
+                }
+                @Override
+                public void onError(String error) {
+                    currentRelationshipId = -1;
+                    relationshipResolved = true;
+                    flushPendingOperations();
+                }
+            });
         } else {
-            Log.w(TAG, "用户未登录，无法初始化用户信息");
-            // 使用默认值
-            currentUserId = 1;
-            currentRelationshipId = 1;
+            relationshipResolved = true;
         }
     }
-    
-    /**
-     * 插入聊天消息到云端数据库
-     * @param message 聊天消息对象
-     * @param userId 用户ID
-     * @param callback 插入完成后的回调
-     */
+
+    private synchronized void flushPendingOperations() {
+        for (Runnable op : pendingOperations) {
+            op.run();
+        }
+        pendingOperations.clear();
+    }
+
+    private synchronized void executeWhenReady(Runnable operation) {
+        if (relationshipResolved) {
+            operation.run();
+        } else {
+            pendingOperations.add(operation);
+        }
+    }
+
     public void insertMessage(ChatMessage message, int userId, InsertCallback callback) {
-        databaseExecutor.execute(() -> {
-            Connection conn = null;
-            PreparedStatement stmt = null;
-            
-            try {
-                conn = getConnection();
-                
-                // SQL插入语句，对应新的云端chat_messages表结构
-                String sql = "INSERT INTO chat_messages (relationship_id, user_id, content, " +
-                           "message_type, display_time, created_at, avatar_url, is_liked, is_deleted, " +
-                           "bill_id, is_bill_candidate) " +
-                           "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
-                
-                stmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS);
-                
-                // 确保有有效的用户ID
-                if (currentUserId <= 0) {
-                    Log.w(TAG, "用户ID无效，尝试重新获取用户信息");
-                    initializeUserInfo();
-                    if (currentUserId <= 0) {
-                        if (callback != null) {
-                            callback.onError(new SQLException("无效的用户ID，用户未登录"));
+        executeWhenReady(() -> {
+            AuthApiClient.insertChatMessage(context, currentRelationshipId, userId,
+                    message.getContent(), "text", message.getTimestamp(), message.isLiked(),
+                    new AuthApiClient.ChatInsertCallback() {
+                        @Override
+                        public void onSuccess(long messageId) {
+                            Log.d(TAG, "消息插入成功，ID: " + messageId);
+                            if (callback != null) {
+                                mainHandler.post(() -> callback.onSuccess(messageId));
+                            }
                         }
-                        return;
-                    }
-                }
-                
-                // 根据用户是否绑定情侣关系设置relationship_id
-                if (currentRelationshipId > 0) {
-                    stmt.setInt(1, currentRelationshipId);  // 已绑定情侣关系
-                    Log.d(TAG, "插入情侣聊天消息，relationshipId: " + currentRelationshipId);
-                } else {
-                    stmt.setNull(1, java.sql.Types.INTEGER);  // 单身用户，设置为NULL
-                    Log.d(TAG, "插入单身用户个人消息，userId: " + currentUserId);
-                }
-                stmt.setInt(2, userId);                 // 用户ID
-                stmt.setString(3, message.getContent()); // 消息内容
-                stmt.setString(4, "text");              // 消息类型，默认为文本
-                stmt.setString(5, message.getTimestamp()); // 显示时间
-                stmt.setLong(6, System.currentTimeMillis()); // 创建时间戳
-                stmt.setString(7, null);                // 头像URL，暂时为null
-                stmt.setBoolean(8, message.isLiked());   // 是否点赞
-                stmt.setBoolean(9, false);               // 是否删除，默认false
-                stmt.setObject(10, null);               // bill_id，默认null
-                stmt.setBoolean(11, false);             // is_bill_candidate，默认false
-                
-                int affectedRows = stmt.executeUpdate();
-                
-                if (affectedRows > 0) {
-                    // 获取生成的主键ID
-                    ResultSet generatedKeys = stmt.getGeneratedKeys();
-                    if (generatedKeys.next()) {
-                        long messageId = generatedKeys.getLong(1);
-                        Log.d(TAG, "消息插入成功，ID: " + messageId);
-                        
-                        if (callback != null) {
-                            callback.onSuccess(messageId);
+                        @Override
+                        public void onError(String e) {
+                            Log.e(TAG, "消息插入失败: " + e);
+                            if (callback != null) {
+                                mainHandler.post(() -> callback.onError(new Exception(e)));
+                            }
                         }
-                    }
-                } else {
-                    Log.e(TAG, "消息插入失败，没有受影响的行");
-                    if (callback != null) {
-                        callback.onError(new SQLException("插入失败，没有受影响的行"));
-                    }
-                }
-                
-            } catch (SQLException e) {
-                Log.e(TAG, "插入消息时发生数据库错误", e);
-                if (callback != null) {
-                    callback.onError(e);
-                }
-            } finally {
-                // 关闭资源
-                closeResources(conn, stmt, null);
-            }
+                    });
         });
     }
-    
-    // 添加新的insertMessage方法重载，匹配ChatSyncService的调用
-    public void insertMessage(long relationshipId, int userId, String content, 
-                             String messageType, String timestamp, String avatarUrl, 
-                             boolean isLiked, InsertCallback callback) {
-        databaseExecutor.execute(() -> {
-            Connection conn = null;
-            PreparedStatement stmt = null;
-            
-            try {
-                conn = getConnection();
-                
-                // SQL插入语句，对应新的云端chat_messages表结构
-                String sql = "INSERT INTO chat_messages (relationship_id, user_id, content, " +
-                           "message_type, display_time, created_at, avatar_url, is_liked, is_deleted, " +
-                           "bill_id, is_bill_candidate) " +
-                           "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
-                
-                stmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS);
-                stmt.setLong(1, relationshipId);        // 关系ID
-                stmt.setInt(2, userId);                // 用户ID
-                stmt.setString(3, content);             // 消息内容
-                stmt.setString(4, messageType);         // 消息类型
-                stmt.setString(5, timestamp);           // 显示时间
-                stmt.setLong(6, System.currentTimeMillis()); // 创建时间戳
-                stmt.setString(7, avatarUrl);           // 头像URL
-                stmt.setBoolean(8, isLiked);            // 是否点赞
-                stmt.setBoolean(9, false);              // 是否删除，默认false
-                stmt.setObject(10, null);               // bill_id，默认null
-                stmt.setBoolean(11, false);             // is_bill_candidate，默认false
-                
-                int affectedRows = stmt.executeUpdate();
-                
-                if (affectedRows > 0) {
-                    // 获取生成的主键ID
-                    ResultSet generatedKeys = stmt.getGeneratedKeys();
-                    if (generatedKeys.next()) {
-                        long messageId = generatedKeys.getLong(1);
-                        Log.d(TAG, "消息插入成功，ID: " + messageId);
-                        
-                        if (callback != null) {
-                            callback.onSuccess(messageId);
+
+    public void insertMessage(long relationshipId, int userId, String content,
+                              String messageType, String displayTime, String avatarUrl, boolean isLiked, InsertCallback callback) {
+        insertMessage(relationshipId, userId, content, messageType, displayTime, isLiked, callback);
+    }
+
+    public void insertMessage(long relationshipId, int userId, String content,
+                              String messageType, String displayTime, boolean isLiked, InsertCallback callback) {
+        executeWhenReady(() -> {
+            int relId = relationshipId > 0 ? (int) relationshipId : currentRelationshipId;
+            AuthApiClient.insertChatMessage(context, relId, userId,
+                    content, messageType, displayTime, isLiked,
+                    new AuthApiClient.ChatInsertCallback() {
+                        @Override
+                        public void onSuccess(long messageId) {
+                            Log.d(TAG, "消息插入成功，ID: " + messageId);
+                            if (callback != null) {
+                                mainHandler.post(() -> callback.onSuccess(messageId));
+                            }
                         }
-                    }
-                } else {
-                    Log.e(TAG, "消息插入失败，没有受影响的行");
-                    if (callback != null) {
-                        callback.onError(new SQLException("插入失败，没有受影响的行"));
-                    }
-                }
-                
-            } catch (SQLException e) {
-                Log.e(TAG, "插入消息时发生数据库错误", e);
-                if (callback != null) {
-                    callback.onError(e);
-                }
-            } finally {
-                // 关闭资源
-                closeResources(conn, stmt, null);
-            }
+                        @Override
+                        public void onError(String e) {
+                            Log.e(TAG, "消息插入失败: " + e);
+                            if (callback != null) {
+                                mainHandler.post(() -> callback.onError(new Exception(e)));
+                            }
+                        }
+                    });
         });
     }
-    
-    /**
-     * 从云端数据库获取所有聊天消息（优化版：合并查询减少数据库访问）
-     * @param callback 查询完成后的回调
-     */
+
     public void getAllMessages(QueryCallback callback) {
-        databaseExecutor.execute(() -> {
-            Connection conn = null;
-            PreparedStatement stmt = null;
-            ResultSet rs = null;
-            
-            try {
-                // 确保有有效的用户ID
-                if (currentUserId <= 0) {
-                    Log.w(TAG, "用户ID无效，尝试重新获取用户信息");
-                    initializeUserInfo();
-                    if (currentUserId <= 0) {
-                        if (callback != null) {
-                            callback.onError(new SQLException("无效的用户ID，用户未登录"));
+        executeWhenReady(() -> {
+            if (currentRelationshipId <= 0) {
+                if (callback != null) callback.onSuccess(new ArrayList<>());
+                return;
+            }
+            AuthApiClient.getChatMessages(context, currentRelationshipId, 200, null,
+                    new AuthApiClient.ChatMessageListCallback() {
+                        @Override
+                        public void onSuccess(List<AuthApiModels.ChatMessageData> messages) {
+                            List<ChatMessage> result = convertToChatMessages(messages);
+                            if (callback != null) {
+                                mainHandler.post(() -> callback.onSuccess(result));
+                            }
                         }
-                        return;
-                    }
-                }
-                
-                conn = getConnection();
-                
-                String sql;
-                
-                // 根据用户是否绑定情侣关系选择不同的查询策略
-                // 优化：使用JOIN查询一次性获取消息和用户信息，减少查询次数
-                if (currentRelationshipId > 0) {
-                    // 已绑定情侣关系：查询当前关系的所有消息，同时获取用户昵称
-                    sql = "SELECT cm.id, cm.user_id, cm.content, cm.message_type, cm.display_time, " +
-                          "cm.avatar_url, cm.is_liked, cm.created_at, cm.bill_id, cm.is_bill_candidate, " +
-                          "COALESCE(u.nickname, u.username, 'Unknown') as username " +
-                          "FROM chat_messages cm " +
-                          "LEFT JOIN users u ON cm.user_id = u.id " +
-                          "WHERE cm.relationship_id = ? AND cm.is_deleted = 0 " +
-                          "ORDER BY cm.created_at ASC";
-                    stmt = conn.prepareStatement(sql);
-                    stmt.setInt(1, currentRelationshipId);
-                    Log.d(TAG, "查询情侣聊天消息（优化版），relationshipId: " + currentRelationshipId);
-                } else {
-                    // 未绑定情侣关系：查询当前用户的个人消息，同时获取用户昵称
-                    sql = "SELECT cm.id, cm.user_id, cm.content, cm.message_type, cm.display_time, " +
-                          "cm.avatar_url, cm.is_liked, cm.created_at, cm.bill_id, cm.is_bill_candidate, " +
-                          "COALESCE(u.nickname, u.username, 'Unknown') as username " +
-                          "FROM chat_messages cm " +
-                          "LEFT JOIN users u ON cm.user_id = u.id " +
-                          "WHERE cm.user_id = ? AND cm.relationship_id IS NULL AND cm.is_deleted = 0 " +
-                          "ORDER BY cm.created_at ASC";
-                    stmt = conn.prepareStatement(sql);
-                    stmt.setInt(1, currentUserId);
-                    Log.d(TAG, "查询单身用户个人消息，userId: " + currentUserId);
-                }
-                
-                rs = stmt.executeQuery();
-                
-                List<ChatMessage> messages = new ArrayList<>();
-                
-                while (rs.next()) {
-                    // 将数据库记录转换为ChatMessage对象
-                    // 需要根据user_id判断是否为当前用户发送的消息
-                    int messageUserId = rs.getInt("user_id");
-                    boolean isSentByMe = (messageUserId == currentUserId);
-                    
-                    // 优化：直接使用JOIN查询获取的用户名，避免额外的数据库查询
-                    String username = rs.getString("username");
-                    
-                    ChatMessage message = new ChatMessage(
-                        username, // 直接使用JOIN查询获取的用户名
-                        messageUserId, // 设置用户ID
-                        rs.getString("content"),
-                        rs.getString("display_time"),
-                        getAvatarResourceId(messageUserId), // 根据user_id获取头像资源ID
-                        null, // avatarUri
-                        isSentByMe
-                    );
-                    
-                    message.setLiked(rs.getBoolean("is_liked"));
-                    
-                    // 设置云端消息ID用于精确匹配点赞操作
-                    Long cloudId = (Long) rs.getObject("id");
-                    message.setCloudMessageId(cloudId);
-                    message.setRelationshipId(currentRelationshipId);
-                    
-                    messages.add(message);
-                }
-                
-                Log.d(TAG, "成功获取 " + messages.size() + " 条消息");
-                
-                if (callback != null) {
-                    callback.onSuccess(messages);
-                }
-                
-            } catch (SQLException e) {
-                Log.e(TAG, "查询消息时发生数据库错误", e);
-                if (callback != null) {
-                    callback.onError(e);
-                }
-            } finally {
-                closeResources(conn, stmt, rs);
-            }
+                        @Override
+                        public void onError(String e) {
+                            Log.e(TAG, "查询消息失败: " + e);
+                            if (callback != null) {
+                                mainHandler.post(() -> callback.onError(new Exception(e)));
+                            }
+                        }
+                    });
         });
     }
-    
-    /**
-     * 更新消息点赞状态（改进版：使用云端消息ID进行精确匹配）
-     * @param cloudMessageId 云端消息ID（用于精确匹配）
-     * @param messageContent 消息内容（备用匹配条件）
-     * @param timestamp 消息时间戳（备用匹配条件）
-     * @param isLiked 新的点赞状态
-     * @param callback 更新完成后的回调
-     */
+
     public void updateMessageLikeStatus(long cloudMessageId, String messageContent, String timestamp, boolean isLiked, UpdateCallback callback) {
-        databaseExecutor.execute(() -> {
-            Connection conn = null;
-            PreparedStatement stmt = null;
-            
-            try {
-                conn = getConnection();
-                
-                // 强制使用云端消息ID进行精确匹配
-                if (cloudMessageId <= 0) {
-                    Log.e(TAG, "无法更新云端消息点赞状态：缺少云端消息ID");
-                    if (callback != null) {
-                        callback.onError(new SQLException("无法更新消息：缺少云端消息ID"));
-                    }
-                    return; // 直接返回，不执行更新操作
-                }
-                
-                String sql;
-                if (currentRelationshipId > 0) {
-                    sql = "UPDATE chat_messages SET is_liked = ? " +
-                          "WHERE id = ? AND relationship_id = ? AND is_deleted = 0";
-                } else {
-                    sql = "UPDATE chat_messages SET is_liked = ? " +
-                          "WHERE id = ? AND user_id = ? AND relationship_id IS NULL AND is_deleted = 0";
-                }
-                
-                stmt = conn.prepareStatement(sql);
-                stmt.setBoolean(1, isLiked);
-                stmt.setLong(2, cloudMessageId);
-                if (currentRelationshipId > 0) {
-                    stmt.setInt(3, currentRelationshipId);
-                } else {
-                    stmt.setInt(3, currentUserId);
-                }
-                
-                int affectedRows = stmt.executeUpdate();
-                
-                if (affectedRows > 0) {
-                    Log.d(TAG, "消息点赞状态更新成功");
-                    if (callback != null) {
-                        callback.onSuccess();
-                    }
-                } else {
-                    Log.w(TAG, "没有找到匹配的消息进行更新");
-                    if (callback != null) {
-                        callback.onError(new SQLException("没有找到匹配的消息"));
-                    }
-                }
-                
-            } catch (SQLException e) {
-                Log.e(TAG, "更新消息时发生数据库错误", e);
+        AuthApiClient.toggleChatLike(context, cloudMessageId, isLiked, new AuthApiClient.SimpleCallback() {
+            @Override
+            public void onSuccess() {
                 if (callback != null) {
-                    callback.onError(e);
+                    mainHandler.post(() -> callback.onSuccess());
                 }
-            } finally {
-                closeResources(conn, stmt, null);
+            }
+            @Override
+            public void onError(String e) {
+                if (callback != null) {
+                    mainHandler.post(() -> callback.onError(new Exception(e)));
+                }
             }
         });
     }
-    
-    /**
-     * 删除消息（软删除，设置is_deleted标志）
-     * @param messageId 云端消息ID（用于精确匹配）
-     * @param messageContent 消息内容（备用匹配条件）
-     * @param timestamp 消息时间戳（备用匹配条件）
-     * @param callback 删除完成后的回调
-     */
+
     public void deleteMessage(long messageId, String messageContent, String timestamp, DeleteCallback callback) {
-        databaseExecutor.execute(() -> {
-            Connection conn = null;
-            PreparedStatement stmt = null;
-            
-            try {
-                conn = getConnection();
-                
-                // 强制使用消息ID进行精确匹配
-                if (messageId <= 0) {
-                    Log.e(TAG, "无法删除云端消息：缺少云端消息ID");
-                    if (callback != null) {
-                        callback.onError(new SQLException("无法删除消息：缺少云端消息ID"));
-                    }
-                    return; // 直接返回，不执行删除操作
-                }
-
-                String sql;
-                if (currentRelationshipId > 0) {
-                    sql = "UPDATE chat_messages SET is_deleted = 1 " +
-                          "WHERE id = ? AND relationship_id = ? AND is_deleted = 0";
-                } else {
-                    sql = "UPDATE chat_messages SET is_deleted = 1 " +
-                          "WHERE id = ? AND user_id = ? AND relationship_id IS NULL AND is_deleted = 0";
-                }
-
-                stmt = conn.prepareStatement(sql);
-                stmt.setLong(1, messageId);
-                if (currentRelationshipId > 0) {
-                    stmt.setInt(2, currentRelationshipId);
-                } else {
-                    stmt.setInt(2, currentUserId);
-                }
-                
-                int affectedRows = stmt.executeUpdate();
-                
-                if (affectedRows > 0) {
-                    Log.d(TAG, "消息删除成功，影响行数：" + affectedRows);
-                    if (callback != null) {
-                        callback.onSuccess();
-                    }
-                } else {
-                    Log.w(TAG, "没有找到匹配的消息进行删除");
-                    if (callback != null) {
-                        callback.onError(new SQLException("没有找到匹配的消息"));
-                    }
-                }
-                
-            } catch (SQLException e) {
-                Log.e(TAG, "删除消息时发生数据库错误", e);
+        AuthApiClient.deleteChatMessage(context, messageId, new AuthApiClient.SimpleCallback() {
+            @Override
+            public void onSuccess() {
                 if (callback != null) {
-                    callback.onError(e);
+                    mainHandler.post(() -> callback.onSuccess());
                 }
-            } finally {
-                closeResources(conn, stmt, null);
+            }
+            @Override
+            public void onError(String e) {
+                if (callback != null) {
+                    mainHandler.post(() -> callback.onError(new Exception(e)));
+                }
             }
         });
     }
-    
-    /**
-     * 搜索消息（优化版：合并查询减少数据库访问）
-     * @param keyword 搜索关键词
-     * @param callback 搜索完成后的回调
-     */
+
     public void searchMessages(String keyword, QueryCallback callback) {
-        databaseExecutor.execute(() -> {
-            Connection conn = null;
-            PreparedStatement stmt = null;
-            ResultSet rs = null;
-            
-            try {
-                conn = getConnection();
-                
-                // 根据用户是否绑定情侣关系选择不同的查询语句
-                // 优化：使用JOIN查询一次性获取消息和用户信息，减少查询次数
-                String sql;
-                if (currentRelationshipId > 0) {
-                    // 已绑定情侣关系，查询情侣聊天消息，同时获取用户昵称
-                    sql = "SELECT cm.id, cm.user_id, cm.content, cm.message_type, cm.display_time, " +
-                          "cm.avatar_url, cm.is_liked, cm.created_at, cm.bill_id, cm.is_bill_candidate, " +
-                          "COALESCE(u.nickname, u.username, 'Unknown') as username " +
-                          "FROM chat_messages cm " +
-                          "LEFT JOIN users u ON cm.user_id = u.id " +
-                          "WHERE cm.relationship_id = ? AND cm.is_deleted = 0 " +
-                          "AND (cm.content LIKE ? OR COALESCE(u.nickname, u.username) LIKE ?) " +
-                          "ORDER BY cm.created_at ASC";
-                } else {
-                    // 单身用户，查询个人消息，同时获取用户昵称
-                    sql = "SELECT cm.id, cm.user_id, cm.content, cm.message_type, cm.display_time, " +
-                          "cm.avatar_url, cm.is_liked, cm.created_at, cm.bill_id, cm.is_bill_candidate, " +
-                          "COALESCE(u.nickname, u.username, 'Unknown') as username " +
-                          "FROM chat_messages cm " +
-                          "LEFT JOIN users u ON cm.user_id = u.id " +
-                          "WHERE cm.user_id = ? AND cm.relationship_id IS NULL AND cm.is_deleted = 0 " +
-                          "AND (cm.content LIKE ? OR COALESCE(u.nickname, u.username) LIKE ?) " +
-                          "ORDER BY cm.created_at ASC";
-                }
-                
-                stmt = conn.prepareStatement(sql);
-                if (currentRelationshipId > 0) {
-                    stmt.setInt(1, currentRelationshipId);
-                } else {
-                    stmt.setInt(1, currentUserId);
-                }
-                String searchPattern = "%" + keyword + "%";
-                stmt.setString(2, searchPattern);
-                stmt.setString(3, searchPattern);
-                
-                rs = stmt.executeQuery();
-                
-                List<ChatMessage> messages = new ArrayList<>();
-                
-                while (rs.next()) {
-                    // 将数据库记录转换为ChatMessage对象
-                    // 需要根据user_id判断是否为当前用户发送的消息
-                    int messageUserId = rs.getInt("user_id");
-                    boolean isSentByMe = (messageUserId == currentUserId);
-                    
-                    // 优化：直接使用JOIN查询获取的用户名，避免额外的数据库查询
-                    String username = rs.getString("username");
-                    
-                    ChatMessage message = new ChatMessage(
-                        username, // 直接使用JOIN查询获取的用户名
-                        messageUserId, // 设置用户ID
-                        rs.getString("content"),
-                        rs.getString("display_time"),
-                        getAvatarResourceId(messageUserId), // 根据user_id获取头像资源ID
-                        null, // avatarUri
-                        isSentByMe
-                    );
-                    
-                    message.setLiked(rs.getBoolean("is_liked"));
-                    Long cloudId = (Long) rs.getObject("id");
-                    message.setCloudMessageId(cloudId);
-                    message.setRelationshipId(currentRelationshipId);
-                    messages.add(message);
-                }
-                
-                Log.d(TAG, "搜索到 " + messages.size() + " 条匹配消息");
-                
-                if (callback != null) {
-                    callback.onSuccess(messages);
-                }
-                
-            } catch (SQLException e) {
-                Log.e(TAG, "搜索消息时发生数据库错误", e);
-                if (callback != null) {
-                    callback.onError(e);
-                }
-            } finally {
-                closeResources(conn, stmt, rs);
+        executeWhenReady(() -> {
+            if (currentRelationshipId <= 0) {
+                if (callback != null) callback.onSuccess(new ArrayList<>());
+                return;
             }
+            AuthApiClient.searchChatMessages(context, currentRelationshipId, keyword,
+                    new AuthApiClient.ChatMessageListCallback() {
+                        @Override
+                        public void onSuccess(List<AuthApiModels.ChatMessageData> messages) {
+                            List<ChatMessage> result = convertToChatMessages(messages);
+                            if (callback != null) {
+                                mainHandler.post(() -> callback.onSuccess(result));
+                            }
+                        }
+                        @Override
+                        public void onError(String e) {
+                            if (callback != null) {
+                                mainHandler.post(() -> callback.onError(new Exception(e)));
+                            }
+                        }
+                    });
         });
     }
-    
-    /**
-     * 批量获取聊天数据（优化版：一次性获取消息、用户信息和统计数据）
-     * 用于应用启动时减少查询次数
-     * @param callback 查询完成后的回调
-     */
+
     public void getBatchChatData(BatchDataCallback callback) {
-        databaseExecutor.execute(() -> {
-            Connection conn = null;
-            PreparedStatement stmt = null;
-            ResultSet rs = null;
-            
-            try {
-                conn = getConnection();
-                
-                // 批量查询：消息数据 + 用户信息 + 统计信息
-                String sql;
-                if (currentRelationshipId > 0) {
-                    // 情侣关系：获取消息、用户信息和统计数据
-                    sql = "SELECT " +
-                          "cm.id, cm.user_id, cm.content, cm.message_type, cm.display_time, " +
-                          "cm.avatar_url, cm.is_liked, cm.created_at, cm.bill_id, cm.is_bill_candidate, " +
-                          "COALESCE(u.nickname, u.username, 'Unknown') as username, " +
-                          "COUNT(*) OVER() as total_messages, " +
-                          "SUM(CASE WHEN cm.is_liked = 1 THEN 1 ELSE 0 END) OVER() as liked_messages " +
-                          "FROM chat_messages cm " +
-                          "LEFT JOIN users u ON cm.user_id = u.id " +
-                          "WHERE cm.relationship_id = ? AND cm.is_deleted = 0 " +
-                          "ORDER BY cm.created_at ASC";
-                } else {
-                    // 单身用户：获取个人消息、用户信息和统计数据
-                    sql = "SELECT " +
-                          "cm.id, cm.user_id, cm.content, cm.message_type, cm.display_time, " +
-                          "cm.avatar_url, cm.is_liked, cm.created_at, cm.bill_id, cm.is_bill_candidate, " +
-                          "COALESCE(u.nickname, u.username, 'Unknown') as username, " +
-                          "COUNT(*) OVER() as total_messages, " +
-                          "SUM(CASE WHEN cm.is_liked = 1 THEN 1 ELSE 0 END) OVER() as liked_messages " +
-                          "FROM chat_messages cm " +
-                          "LEFT JOIN users u ON cm.user_id = u.id " +
-                          "WHERE cm.user_id = ? AND cm.relationship_id IS NULL AND cm.is_deleted = 0 " +
-                          "ORDER BY cm.created_at ASC";
+        getAllMessages(new QueryCallback() {
+            @Override
+            public void onSuccess(List<ChatMessage> messages) {
+                int liked = 0;
+                for (ChatMessage m : messages) {
+                    if (m.isLiked()) liked++;
                 }
-                
-                stmt = conn.prepareStatement(sql);
-                if (currentRelationshipId > 0) {
-                    stmt.setInt(1, currentRelationshipId);
-                } else {
-                    stmt.setInt(1, currentUserId);
-                }
-                
-                rs = stmt.executeQuery();
-                
-                List<ChatMessage> messages = new ArrayList<>();
-                int totalMessages = 0;
-                int likedMessages = 0;
-                
-                while (rs.next()) {
-                    // 获取统计信息（只需要获取一次）
-                    if (totalMessages == 0) {
-                        totalMessages = rs.getInt("total_messages");
-                        likedMessages = rs.getInt("liked_messages");
-                    }
-                    
-                    // 构建消息对象
-                    int messageUserId = rs.getInt("user_id");
-                    boolean isSentByMe = (messageUserId == currentUserId);
-                    String username = rs.getString("username");
-                    
-                    ChatMessage message = new ChatMessage(
-                        username,
-                        messageUserId,
-                        rs.getString("content"),
-                        rs.getString("display_time"),
-                        getAvatarResourceId(messageUserId),
-                        null,
-                        isSentByMe
-                    );
-                    
-                    message.setLiked(rs.getBoolean("is_liked"));
-                    Long cloudId = (Long) rs.getObject("id");
-                    message.setCloudMessageId(cloudId);
-                    message.setRelationshipId(currentRelationshipId);
-                    messages.add(message);
-                }
-                
-                Log.d(TAG, "批量获取数据成功：" + messages.size() + " 条消息，" + likedMessages + " 条点赞");
-                
+                BatchChatData data = new BatchChatData(messages, liked, currentUserId);
                 if (callback != null) {
-                    BatchChatData batchData = new BatchChatData(messages, totalMessages, likedMessages);
-                    callback.onSuccess(batchData);
+                    mainHandler.post(() -> callback.onSuccess(data));
                 }
-                
-            } catch (SQLException e) {
-                Log.e(TAG, "批量获取聊天数据时发生错误", e);
+            }
+            @Override
+            public void onError(Exception e) {
                 if (callback != null) {
-                    callback.onError(e);
+                    mainHandler.post(() -> callback.onError(e));
                 }
-            } finally {
-                closeResources(conn, stmt, rs);
             }
         });
     }
-    
-    /**
-     * 批量聊天数据类
-     */
-    public static class BatchChatData {
-        public final List<ChatMessage> messages;
-        public final int totalMessages;
-        public final int likedMessages;
-        
-        public BatchChatData(List<ChatMessage> messages, int totalMessages, int likedMessages) {
-            this.messages = messages;
-            this.totalMessages = totalMessages;
-            this.likedMessages = likedMessages;
+
+    private List<ChatMessage> convertToChatMessages(List<AuthApiModels.ChatMessageData> data) {
+        List<ChatMessage> result = new ArrayList<>();
+        if (data == null) return result;
+        for (AuthApiModels.ChatMessageData d : data) {
+            String timestamp = d.displayTime != null ? d.displayTime : String.valueOf(d.createdAt);
+            ChatMessage msg = new ChatMessage("", d.userId, d.content, timestamp, 0, null, false);
+            msg.setId((int) d.id);
+            msg.setLiked(d.isLiked);
+            msg.setMessageType(d.messageType != null ? d.messageType : "text");
+            msg.setRelationshipId(d.relationshipId);
+            msg.setCloudMessageId(d.id);
+            result.add(msg);
+        }
+        return result;
+    }
+
+    public void setCurrentRelationshipId(int relationshipId) {
+        this.currentRelationshipId = relationshipId;
+    }
+
+    public void setCurrentUserInfo(int userId, String username) {
+        this.currentUserId = userId;
+        this.currentUsername = username;
+    }
+
+    public void setCurrentUserInfo(int userId, String username, Integer relationshipId) {
+        this.currentUserId = userId;
+        this.currentUsername = username;
+        if (relationshipId != null) {
+            this.currentRelationshipId = relationshipId;
         }
     }
-    
-    /**
-     * 批量数据查询回调接口
-     */
+
+    public void testConnection(ConnectionTestCallback callback) {
+        if (callback != null) {
+            callback.onSuccess(true, "HTTP API mode");
+        }
+    }
+
+    public void cleanup() {
+        mainHandler.removeCallbacksAndMessages(null);
+    }
+
+    public interface InsertCallback {
+        void onSuccess(long messageId);
+        void onError(Exception e);
+    }
+
+    public interface QueryCallback {
+        void onSuccess(List<ChatMessage> messages);
+        void onError(Exception e);
+    }
+
+    public interface UpdateCallback {
+        void onSuccess();
+        void onError(Exception e);
+    }
+
+    public interface DeleteCallback {
+        void onSuccess();
+        void onError(Exception e);
+    }
+
     public interface BatchDataCallback {
         void onSuccess(BatchChatData batchData);
         void onError(Exception e);
     }
 
-    /**
-     * 测试数据库连接
-     * @param callback 测试完成后的回调
-     */
-    public void testConnection(ConnectionTestCallback callback) {
-        databaseExecutor.execute(() -> {
-            Connection conn = null;
-            
-            try {
-                conn = getConnection();
-                
-                if (conn != null && !conn.isClosed()) {
-                    Log.d(TAG, "数据库连接测试成功");
-                    if (callback != null) {
-                        callback.onSuccess("连接成功");
-                    }
-                } else {
-                    Log.e(TAG, "数据库连接测试失败");
-                    if (callback != null) {
-                        callback.onError(new SQLException("连接失败"));
-                    }
-                }
-                
-            } catch (SQLException e) {
-                Log.e(TAG, "数据库连接测试异常", e);
-                if (callback != null) {
-                    callback.onError(e);
-                }
-            } finally {
-                DatabaseResourceManager.closeConnection(conn);
-            }
-        });
-    }
-    
-    /**
-     * 关闭数据库资源（使用统一的资源管理器）
-     * @param conn 数据库连接
-     * @param stmt 预处理语句
-     * @param rs 结果集
-     */
-    private void closeResources(Connection conn, PreparedStatement stmt, ResultSet rs) {
-        DatabaseResourceManager.closeResources(conn, stmt, rs);
-    }
-    
-    /**
-     * 设置当前关系ID
-     * @param relationshipId 关系ID
-     */
-    public void setCurrentRelationshipId(int relationshipId) {
-        this.currentRelationshipId = relationshipId;
-    }
-    
-    /**
-     * 设置当前用户信息
-     * @param userId 用户ID
-     * @param username 用户名
-     */
-    public void setCurrentUserInfo(int userId, String username) {
-        this.currentUserId = userId;
-        this.currentUsername = username;
-        Log.d(TAG, "设置当前用户信息: ID=" + userId + ", 用户名=" + username);
-    }
-    
-    /**
-     * 设置当前用户信息（包含关系ID）
-     * @param userId 用户ID
-     * @param username 用户名
-     * @param relationshipId 关系ID
-     */
-    public void setCurrentUserInfo(int userId, String username, Integer relationshipId) {
-        this.currentUserId = userId;
-        this.currentUsername = username;
-        this.currentRelationshipId = relationshipId != null ? relationshipId : -1;
-        Log.d(TAG, "设置当前用户信息: ID=" + userId + ", 用户名=" + username + ", 关系ID=" + relationshipId);
-    }
-    
-    /**
-     * 获取当前用户ID
-     * @return 当前用户ID
-     */
-    private int getCurrentUserId() {
-        return currentUserId;
-    }
-    
-    /**
-     * 根据用户ID获取用户名
-     * @param userId 用户ID
-     * @return 用户名
-     */
-    private String getUsernameById(int userId) {
-        // 优先从缓存获取昵称
-        String cachedNickname = null;
-        if (userId == currentUserId && currentUsername != null) {
-            cachedNickname = NicknameCache.getCachedNickname(context, currentUsername);
-            if (cachedNickname != null) {
-                return cachedNickname;
-            }
-        }
-        
-        // 缓存中没有，尝试从数据库获取昵称（同步方式）
-        try {
-            String nickname = getUserNicknameByIdSync(userId);
-            if (nickname != null && !nickname.isEmpty()) {
-                // 缓存昵称
-                if (userId == currentUserId && currentUsername != null) {
-                    NicknameCache.cacheNickname(context, currentUsername, nickname);
-                }
-                return nickname;
-            }
-        } catch (Exception e) {
-            Log.w(TAG, "获取用户昵称失败: " + e.getMessage());
-        }
-        
-        // 如果获取昵称失败，返回默认值
-        if (userId == currentUserId) {
-            return currentUsername != null ? currentUsername : "我";
-        } else {
-            return "伴侣";
+    public static class BatchChatData {
+        public List<ChatMessage> messages;
+        public int likedMessages;
+        public int currentUserId;
+
+        public BatchChatData(List<ChatMessage> messages, int likedMessages, int currentUserId) {
+            this.messages = messages;
+            this.likedMessages = likedMessages;
+            this.currentUserId = currentUserId;
         }
     }
-    
-    /**
-     * 同步获取用户昵称（仅在数据库线程中调用）
-     * @param userId 用户ID
-     * @return 用户昵称，如果没有昵称则返回用户名
-     */
-    private String getUserNicknameByIdSync(int userId) throws SQLException {
-        Connection conn = null;
-        PreparedStatement stmt = null;
-        ResultSet rs = null;
-        
-        try {
-            conn = getConnection();
-            String sql = "SELECT nickname, username FROM users WHERE id = ? AND status = 'active'";
-            stmt = conn.prepareStatement(sql);
-            stmt.setInt(1, userId);
-            
-            rs = stmt.executeQuery();
-            
-            if (rs.next()) {
-                String nickname = rs.getString("nickname");
-                String username = rs.getString("username");
-                // 如果昵称为空或null，返回用户名
-                return (nickname != null && !nickname.trim().isEmpty()) ? nickname : username;
-            } else {
-                return null;
-            }
-        } finally {
-            closeResources(conn, stmt, rs);
-        }
-    }
-    
-    /**
-     * 根据用户ID获取头像资源ID
-     * @param userId 用户ID
-     * @return 头像资源ID
-     */
-    private int getAvatarResourceId(int userId) {
-        // 简化实现：根据用户ID返回不同的头像资源
-        if (userId == currentUserId) {
-            return android.R.drawable.ic_menu_myplaces; // 当前用户头像
-        } else {
-            return android.R.drawable.ic_menu_gallery; // 伴侣头像
-        }
-    }
-    
-    /**
-     * 清理资源
-     */
-    public void cleanup() {
-        if (databaseExecutor != null && !databaseExecutor.isShutdown()) {
-            databaseExecutor.shutdown();
-        }
-    }
-    
-    // ==================== 回调接口定义 ====================
-    
-    /**
-     * 插入操作回调接口
-     */
-    public interface InsertCallback {
-        void onSuccess(long messageId);
-        void onError(Exception e);
-    }
-    
-    /**
-     * 查询操作回调接口
-     */
-    public interface QueryCallback {
-        void onSuccess(List<ChatMessage> messages);
-        void onError(Exception e);
-    }
-    
-    /**
-     * 更新操作回调接口
-     */
-    public interface UpdateCallback {
-        void onSuccess();
-        void onError(Exception e);
-    }
-    
-    /**
-     * 删除操作回调接口
-     */
-    public interface DeleteCallback {
-        void onSuccess();
-        void onError(Exception e);
-    }
-    
-    /**
-     * 连接测试回调接口
-     */
+
     public interface ConnectionTestCallback {
-        void onSuccess(String message);
-        void onError(Exception e);
+        void onSuccess(boolean connected, String message);
     }
 }

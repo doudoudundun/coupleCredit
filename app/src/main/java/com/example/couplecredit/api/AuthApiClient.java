@@ -18,6 +18,8 @@ import java.io.OutputStreamWriter;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
 
 public class AuthApiClient {
     private static final String TAG = "AuthApiClient";
@@ -327,12 +329,10 @@ public class AuthApiClient {
                     connection.setReadTimeout(15000);
 
                     try (DataOutputStream dos = new DataOutputStream(connection.getOutputStream())) {
-                        // part header
                         dos.writeBytes("--" + boundary + "\r\n");
                         dos.writeBytes("Content-Disposition: form-data; name=\"image\"; filename=\"" + fileName + "\"\r\n");
                         dos.writeBytes("Content-Type: image/jpeg\r\n\r\n");
 
-                        // file data
                         byte[] buffer = new byte[4096];
                         int bytesRead;
                         while ((bytesRead = imageStream.read(buffer)) != -1) {
@@ -383,8 +383,6 @@ public class AuthApiClient {
             }
         }.execute();
     }
-
-    // --- Recipe APIs ---
 
     public static void queryRecipes(Context context, int userId, RecipeListCallback callback) {
         doRequest(context, "GET", "/api/recipes?userId=" + userId, null, new RawCallback() {
@@ -464,15 +462,263 @@ public class AuthApiClient {
         doRequest(context, "DELETE", "/api/recipe-categories/" + categoryId + "?userId=" + userId, null, simpleMutationCallback("删除种类", callback));
     }
 
+    private static RawCallback fireAndForgetCallback(final SimpleCallback callback) {
+        return new RawCallback() {
+            @Override public void onSuccess(String json) { if (callback != null) callback.onSuccess(); }
+            @Override public void onError(String m) { if (callback != null) callback.onError(m); }
+        };
+    }
+
     public static void updateAvatar(Context context, int userId, String avatarUrl, SimpleCallback callback) {
         String body = "{\"userId\":" + userId + ",\"avatarUrl\":" + GSON.toJson(avatarUrl) + "}";
-        doRequest(context, "PUT", "/api/auth/avatar", body, new RawCallback() {
+        doRequest(context, "PUT", "/api/auth/avatar", body, fireAndForgetCallback(callback));
+    }
+
+    public interface ProfileCallback {
+        void onSuccess(AuthApiModels.UserProfileData profile);
+        void onError(String message);
+    }
+
+    public static void getUserProfile(Context context, int userId, ProfileCallback callback) {
+        doRequest(context, "GET", "/api/auth/profile?userId=" + userId, null, new RawCallback() {
             @Override public void onSuccess(String json) {
-                if (callback != null) callback.onSuccess();
+                if (callback == null) return;
+                try {
+                    AuthApiModels.UserProfileResponse r = GSON.fromJson(normalizeJsonPayload(json), AuthApiModels.UserProfileResponse.class);
+                    if (r != null && r.ok && r.data != null) callback.onSuccess(r.data);
+                    else callback.onError(extractError(r != null ? r.error : null, json));
+                } catch (Exception e) { callback.onError(buildParseError("用户信息", json)); }
             }
-            @Override public void onError(String m) {
-                if (callback != null) callback.onError(m);
+            @Override public void onError(String m) { if (callback != null) callback.onError(m); }
+        });
+    }
+
+    public static void resolveUsername(Context context, String username, SimpleIdCallback callback) {
+        doRequest(context, "GET", "/api/auth/resolve?username=" + username, null, new RawCallback() {
+            @Override public void onSuccess(String json) {
+                if (callback == null) return;
+                try {
+                    com.google.gson.JsonObject obj = GSON.fromJson(normalizeJsonPayload(json), com.google.gson.JsonObject.class);
+                    if (obj != null && obj.has("ok") && obj.get("ok").getAsBoolean()) {
+                        int userId = obj.getAsJsonObject("data").get("userId").getAsInt();
+                        callback.onSuccess(userId);
+                    } else {
+                        callback.onError("用户不存在");
+                    }
+                } catch (Exception e) { callback.onError(buildParseError("解析用户名", json)); }
             }
+            @Override public void onError(String m) { if (callback != null) callback.onError(m); }
+        });
+    }
+
+    public interface SimpleIdCallback {
+        void onSuccess(int id);
+        void onError(String message);
+    }
+
+    public static void updateNickname(Context context, int userId, String nickname, SimpleCallback callback) {
+        String body = "{\"userId\":" + userId + ",\"nickname\":" + GSON.toJson(nickname) + "}";
+        doRequest(context, "PUT", "/api/auth/nickname", body, fireAndForgetCallback(callback));
+    }
+
+    public static void changePassword(Context context, int userId, String currentPassword, String newPassword, SimpleCallback callback) {
+        String body = "{\"userId\":" + userId + ",\"currentPassword\":" + GSON.toJson(currentPassword) + ",\"newPassword\":" + GSON.toJson(newPassword) + "}";
+        doRequest(context, "PUT", "/api/auth/password", body, fireAndForgetCallback(callback));
+    }
+
+    public static void deleteAccount(Context context, int userId, SimpleCallback callback) {
+        doRequest(context, "DELETE", "/api/auth/account?userId=" + userId, null, fireAndForgetCallback(callback));
+    }
+
+    public interface CoupleRoleCallback {
+        void onResult(boolean hasRelationship, int role, int relationshipId);
+        void onError(String message);
+    }
+
+    public static void getCoupleRole(Context context, int userId, CoupleRoleCallback callback) {
+        doRequest(context, "GET", "/api/couple/role?userId=" + userId, null, new RawCallback() {
+            @Override public void onSuccess(String json) {
+                if (callback == null) return;
+                try {
+                    com.google.gson.JsonObject obj = GSON.fromJson(normalizeJsonPayload(json), com.google.gson.JsonObject.class);
+                    if (obj != null && obj.has("ok") && obj.get("ok").getAsBoolean()) {
+                        com.google.gson.JsonObject data = obj.getAsJsonObject("data");
+                        boolean has = data.get("hasRelationship").getAsBoolean();
+                        if (has) {
+                            callback.onResult(true, data.get("role").getAsInt(), data.get("relationshipId").getAsInt());
+                        } else {
+                            callback.onResult(false, 0, 0);
+                        }
+                    } else {
+                        callback.onError("获取角色失败");
+                    }
+                } catch (Exception e) { callback.onError(buildParseError("情侣角色", json)); }
+            }
+            @Override public void onError(String m) { if (callback != null) callback.onError(m); }
+        });
+    }
+
+    public static void getRelationshipId(Context context, int userId, SimpleIdCallback callback) {
+        doRequest(context, "GET", "/api/couple/relationship-id?userId=" + userId, null, new RawCallback() {
+            @Override public void onSuccess(String json) {
+                if (callback == null) return;
+                try {
+                    com.google.gson.JsonObject obj = GSON.fromJson(normalizeJsonPayload(json), com.google.gson.JsonObject.class);
+                    if (obj != null && obj.has("ok") && obj.get("ok").getAsBoolean()) {
+                        com.google.gson.JsonObject data = obj.getAsJsonObject("data");
+                        if (data.has("relationshipId") && !data.get("relationshipId").isJsonNull()) {
+                            callback.onSuccess(data.get("relationshipId").getAsInt());
+                        } else {
+                            callback.onSuccess(0);
+                        }
+                    } else {
+                        callback.onError("获取关系ID失败");
+                    }
+                } catch (Exception e) { callback.onError(buildParseError("关系ID", json)); }
+            }
+            @Override public void onError(String m) { if (callback != null) callback.onError(m); }
+        });
+    }
+
+    public interface InviteCodeCallback {
+        void onSuccess(String inviteCode);
+        void onError(String message);
+    }
+
+    public static void generateInviteCode(Context context, int userId, InviteCodeCallback callback) {
+        doRequest(context, "POST", "/api/couple/generate-invite",
+                "{\"userId\":" + userId + "}", new RawCallback() {
+            @Override public void onSuccess(String json) {
+                if (callback == null) return;
+                try {
+                    com.google.gson.JsonObject obj = GSON.fromJson(normalizeJsonPayload(json), com.google.gson.JsonObject.class);
+                    if (obj != null && obj.has("ok") && obj.get("ok").getAsBoolean()) {
+                        String code = obj.getAsJsonObject("data").get("inviteCode").getAsString();
+                        callback.onSuccess(code);
+                    } else {
+                        callback.onError(extractError(null, json));
+                    }
+                } catch (Exception e) { callback.onError(buildParseError("生成邀请码", json)); }
+            }
+            @Override public void onError(String m) { if (callback != null) callback.onError(m); }
+        });
+    }
+
+    public interface UserSearchCallback {
+        void onFound(int userId, String username, String nickname);
+        void onError(String message);
+    }
+
+    public static void searchByInviteCode(Context context, String inviteCode, UserSearchCallback callback) {
+        doRequest(context, "GET", "/api/couple/search?inviteCode=" + inviteCode, null, new RawCallback() {
+            @Override public void onSuccess(String json) {
+                if (callback == null) return;
+                try {
+                    com.google.gson.JsonObject obj = GSON.fromJson(normalizeJsonPayload(json), com.google.gson.JsonObject.class);
+                    if (obj != null && obj.has("ok") && obj.get("ok").getAsBoolean()) {
+                        com.google.gson.JsonObject data = obj.getAsJsonObject("data");
+                        callback.onFound(data.get("userId").getAsInt(), data.get("username").getAsString(), data.get("nickname").getAsString());
+                    } else {
+                        callback.onError(extractError(null, json));
+                    }
+                } catch (Exception e) { callback.onError(buildParseError("搜索用户", json)); }
+            }
+            @Override public void onError(String m) { if (callback != null) callback.onError(m); }
+        });
+    }
+
+    public static void bindCouple(Context context, int inviterId, int inviteeId, SimpleIdCallback callback) {
+        doRequest(context, "POST", "/api/couple/bind",
+                "{\"inviterId\":" + inviterId + ",\"inviteeId\":" + inviteeId + "}", new RawCallback() {
+            @Override public void onSuccess(String json) {
+                if (callback == null) return;
+                try {
+                    com.google.gson.JsonObject obj = GSON.fromJson(normalizeJsonPayload(json), com.google.gson.JsonObject.class);
+                    if (obj != null && obj.has("ok") && obj.get("ok").getAsBoolean()) {
+                        int relId = obj.getAsJsonObject("data").get("relationshipId").getAsInt();
+                        callback.onSuccess(relId);
+                    } else {
+                        callback.onError(extractError(null, json));
+                    }
+                } catch (Exception e) { callback.onError(buildParseError("绑定情侣", json)); }
+            }
+            @Override public void onError(String m) { if (callback != null) callback.onError(m); }
+        });
+    }
+
+    public static void unbindCouple(Context context, int userId, SimpleCallback callback) {
+        doRequest(context, "DELETE", "/api/couple/unbind?userId=" + userId, null, fireAndForgetCallback(callback));
+    }
+
+    public interface ChatMessageListCallback {
+        void onSuccess(List<AuthApiModels.ChatMessageData> messages);
+        void onError(String message);
+    }
+
+    public static void getChatMessages(Context context, int relationshipId, int limit, Long before, ChatMessageListCallback callback) {
+        String path = "/api/chat/messages?relationshipId=" + relationshipId + "&limit=" + limit;
+        if (before != null) path += "&before=" + before;
+        doRequest(context, "GET", path, null, new RawCallback() {
+            @Override public void onSuccess(String json) {
+                if (callback == null) return;
+                try {
+                    AuthApiModels.ChatMessageListResponse r = GSON.fromJson(normalizeJsonPayload(json), AuthApiModels.ChatMessageListResponse.class);
+                    if (r != null && r.ok) callback.onSuccess(r.data.messages != null ? r.data.messages : new ArrayList<>());
+                    else callback.onError(extractError(null, json));
+                } catch (Exception e) { callback.onError(buildParseError("聊天消息", json)); }
+            }
+            @Override public void onError(String m) { if (callback != null) callback.onError(m); }
+        });
+    }
+
+    public interface ChatInsertCallback {
+        void onSuccess(long messageId);
+        void onError(String message);
+    }
+
+    public static void insertChatMessage(Context context, int relationshipId, int userId, String content, String messageType, String displayTime, boolean isLiked, ChatInsertCallback callback) {
+        String body = "{\"relationshipId\":" + relationshipId + ",\"userId\":" + userId +
+                ",\"content\":" + GSON.toJson(content) +
+                ",\"messageType\":" + GSON.toJson(messageType != null ? messageType : "text") +
+                (displayTime != null ? ",\"displayTime\":" + GSON.toJson(displayTime) : "") +
+                ",\"isLiked\":" + isLiked + "}";
+        doRequest(context, "POST", "/api/chat/messages", body, new RawCallback() {
+            @Override public void onSuccess(String json) {
+                if (callback == null) return;
+                try {
+                    com.google.gson.JsonObject obj = GSON.fromJson(normalizeJsonPayload(json), com.google.gson.JsonObject.class);
+                    if (obj != null && obj.has("ok") && obj.get("ok").getAsBoolean()) {
+                        long msgId = obj.getAsJsonObject("data").get("messageId").getAsLong();
+                        callback.onSuccess(msgId);
+                    } else {
+                        callback.onError(extractError(null, json));
+                    }
+                } catch (Exception e) { callback.onError(buildParseError("发送消息", json)); }
+            }
+            @Override public void onError(String m) { if (callback != null) callback.onError(m); }
+        });
+    }
+
+    public static void toggleChatLike(Context context, long messageId, boolean isLiked, SimpleCallback callback) {
+        doRequest(context, "PUT", "/api/chat/messages/" + messageId + "/like",
+                "{\"isLiked\":" + isLiked + "}", fireAndForgetCallback(callback));
+    }
+
+    public static void deleteChatMessage(Context context, long messageId, SimpleCallback callback) {
+        doRequest(context, "DELETE", "/api/chat/messages/" + messageId, null, fireAndForgetCallback(callback));
+    }
+
+    public static void searchChatMessages(Context context, int relationshipId, String keyword, ChatMessageListCallback callback) {
+        doRequest(context, "GET", "/api/chat/search?relationshipId=" + relationshipId + "&keyword=" + keyword, null, new RawCallback() {
+            @Override public void onSuccess(String json) {
+                if (callback == null) return;
+                try {
+                    AuthApiModels.ChatMessageListResponse r = GSON.fromJson(normalizeJsonPayload(json), AuthApiModels.ChatMessageListResponse.class);
+                    if (r != null && r.ok) callback.onSuccess(r.data.messages != null ? r.data.messages : new ArrayList<>());
+                    else callback.onError(extractError(null, json));
+                } catch (Exception e) { callback.onError(buildParseError("搜索消息", json)); }
+            }
+            @Override public void onError(String m) { if (callback != null) callback.onError(m); }
         });
     }
 

@@ -17,6 +17,7 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.bumptech.glide.Glide;
 import com.example.couplecredit.R;
+import com.example.couplecredit.config.ApiConfigManager;
 import com.example.couplecredit.fragment.InventoryFragment;
 import com.example.couplecredit.fragment.InventoryFragment.InventoryItem;
 
@@ -31,10 +32,12 @@ public class InventoryAdapter extends RecyclerView.Adapter<InventoryAdapter.View
         void onDelete(InventoryItem item);
     }
 
+    private final Context context;
     private List<InventoryItem> items;
     private final InventoryActionListener actionListener;
 
-    public InventoryAdapter(List<InventoryItem> items, InventoryActionListener actionListener) {
+    public InventoryAdapter(Context context, List<InventoryItem> items, InventoryActionListener actionListener) {
+        this.context = context;
         this.items = items;
         this.actionListener = actionListener;
     }
@@ -74,7 +77,7 @@ public class InventoryAdapter extends RecyclerView.Adapter<InventoryAdapter.View
 
         if (item.imageUrl != null && !item.imageUrl.isEmpty()) {
             Glide.with(holder.ivImage.getContext())
-                    .load(item.imageUrl)
+                    .load(ApiConfigManager.resolveResourceUrl(context, item.imageUrl))
                     .placeholder(R.drawable.ic_inventory_placeholder)
                     .error(R.drawable.ic_inventory_placeholder)
                     .centerCrop()

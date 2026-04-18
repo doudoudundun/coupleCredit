@@ -68,6 +68,10 @@
             android:label="家庭存货清单"
             android:parentActivityName=".activity.MainActivity" />
         <activity
+            android:name=".activity.CartActivity"
+            android:label="购物车"
+            android:parentActivityName=".activity.MainActivity" />
+        <activity
             android:name=".activity.ToastDemoActivity"
             android:label="自定义Toast演示"
             android:parentActivityName=".activity.MainActivity" />

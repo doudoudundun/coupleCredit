@@ -1,5 +1,6 @@
 package com.example.couplecredit.adapter;
 
+import android.content.Context;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -11,6 +12,7 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.bumptech.glide.Glide;
 import com.example.couplecredit.R;
+import com.example.couplecredit.config.ApiConfigManager;
 import com.example.couplecredit.fragment.InventoryFragment.InventoryItem;
 
 import java.util.Locale;
@@ -18,10 +20,21 @@ import java.util.List;
 
 public class RecentActivityAdapter extends RecyclerView.Adapter<RecentActivityAdapter.ViewHolder> {
 
-    private List<InventoryItem> items;
+    public interface OnItemClickListener {
+        void onItemClick(InventoryItem item);
+    }
 
-    public RecentActivityAdapter(List<InventoryItem> items) {
+    private final Context context;
+    private List<InventoryItem> items;
+    private OnItemClickListener clickListener;
+
+    public RecentActivityAdapter(Context context, List<InventoryItem> items) {
+        this.context = context;
         this.items = items;
+    }
+
+    public void setOnItemClickListener(OnItemClickListener listener) {
+        this.clickListener = listener;
     }
 
     public void updateData(List<InventoryItem> newItems) {
@@ -50,7 +63,7 @@ public class RecentActivityAdapter extends RecyclerView.Adapter<RecentActivityAd
 
         if (item.imageUrl != null && !item.imageUrl.isEmpty()) {
             Glide.with(holder.ivImage.getContext())
-                    .load(item.imageUrl)
+                    .load(ApiConfigManager.resolveResourceUrl(context, item.imageUrl))
                     .placeholder(R.drawable.ic_inventory_placeholder)
                     .error(R.drawable.ic_inventory_placeholder)
                     .centerCrop()
@@ -58,6 +71,10 @@ public class RecentActivityAdapter extends RecyclerView.Adapter<RecentActivityAd
         } else {
             holder.ivImage.setImageResource(R.drawable.ic_inventory_placeholder);
         }
+
+        holder.itemView.setOnClickListener(v -> {
+            if (clickListener != null) clickListener.onItemClick(item);
+        });
     }
 
     private String formatQuantity(double value) {

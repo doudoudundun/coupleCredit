@@ -13,7 +13,6 @@ import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentManager;
 
 import com.example.couplecredit.R;
-import com.example.couplecredit.database.DatabaseConnectionPool;
 import com.google.android.material.tabs.TabLayout;
 
 import java.util.ArrayList;
@@ -39,7 +38,6 @@ public class HeadFragment extends Fragment {
             saveTabPosition(position);
 
             if (position == 0) {
-                new Thread(() -> DatabaseConnectionPool.getInstance().warmUp()).start();
                 if (ClassicFragment == null) {
                     ClassicFragment = new ClassicModelFragment();
                 }

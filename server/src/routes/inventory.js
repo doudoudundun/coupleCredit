@@ -1,5 +1,6 @@
 const express = require("express");
 const { ApiError } = require("../errors");
+const { cache, Keys, TTL } = require("../cache");
 const { loadActiveRelationship, trimValue, parseRequiredInteger, parseRequiredFloat } = require("../utils/queryHelpers");
 
 function normalizeNullableText(value) {
@@ -16,9 +17,17 @@ function normalizeNullableText(value) {
 function createInventoryRouter({ pool }) {
   const router = express.Router();
 
+  function invalidateInventoryCache(userId) {
+    cache.del(Keys.inventory(userId));
+  }
+
   router.get("/", async (req, res, next) => {
     try {
       const userId = parseRequiredInteger(parseInt(req.query.userId, 10));
+
+      const cached = cache.get(Keys.inventory(userId));
+      if (cached) return res.json(cached);
+
       const relationship = await loadActiveRelationship(pool, userId);
       const relationshipId = relationship ? relationship.relationship_id : null;
 
@@ -47,14 +56,16 @@ function createInventoryRouter({ pool }) {
         isLowStock: row.quantity <= row.threshold
       }));
 
-      res.json({
+      const responseData = {
         ok: true,
         message: "查询成功",
         data: {
           items,
           relationshipId
         }
-      });
+      };
+      cache.set(Keys.inventory(userId), responseData, TTL.INVENTORY);
+      res.json(responseData);
     } catch (error) {
       next(error);
     }
@@ -183,6 +194,7 @@ function createInventoryRouter({ pool }) {
           [userId, relationshipId, name, category, imageUrl, quantity, unit, threshold, note, aiImagePrompt]
         );
 
+        invalidateInventoryCache(userId);
         res.status(201).json({
           ok: true,
           message: "存货添加成功",
@@ -293,6 +305,7 @@ function createInventoryRouter({ pool }) {
 
       await pool.execute(`UPDATE inventory SET ${updates.join(", ")} WHERE inventory_id = ?`, params);
 
+      invalidateInventoryCache(userId);
       res.json({ ok: true, message: "存货更新成功" });
     } catch (error) {
       next(error);
@@ -338,6 +351,7 @@ function createInventoryRouter({ pool }) {
         [consumeAmount, inventoryId]
       );
 
+      invalidateInventoryCache(userId);
       res.json({
         ok: true,
         message: "消耗记录成功",
@@ -387,6 +401,7 @@ function createInventoryRouter({ pool }) {
         [addAmount, inventoryId]
       );
 
+      invalidateInventoryCache(userId);
       res.json({
         ok: true,
         message: "补货成功",
@@ -424,6 +439,7 @@ function createInventoryRouter({ pool }) {
         throw new ApiError(404, "NOT_FOUND", "存货不存在或无权删除");
       }
 
+      invalidateInventoryCache(userId);
       res.json({ ok: true, message: "存货删除成功" });
     } catch (error) {
       next(error);
