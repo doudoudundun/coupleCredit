@@ -72,6 +72,31 @@ public class AuthApiClient {
         void onError(String message);
     }
 
+    public interface RecipeListCallback {
+        void onSuccess(AuthApiModels.RecipeListResponse response);
+        void onError(String message);
+    }
+
+    public interface RecipeDetailCallback {
+        void onSuccess(AuthApiModels.RecipeDetailResponse response);
+        void onError(String message);
+    }
+
+    public interface RecipeMutationCallback {
+        void onSuccess();
+        void onError(String message);
+    }
+
+    public interface CookCallback {
+        void onSuccess(AuthApiModels.CookResponse response);
+        void onError(String message);
+    }
+
+    public interface RecipeCategoryListCallback {
+        void onSuccess(AuthApiModels.RecipeCategoryListResponse response);
+        void onError(String message);
+    }
+
     private interface RawCallback {
         void onSuccess(String json);
         void onError(String message);
@@ -354,6 +379,86 @@ public class AuthApiClient {
         }.execute();
     }
 
+    // --- Recipe APIs ---
+
+    public static void queryRecipes(Context context, int userId, RecipeListCallback callback) {
+        doRequest(context, "GET", "/api/recipes?userId=" + userId, null, new RawCallback() {
+            @Override public void onSuccess(String json) {
+                if (callback == null) return;
+                try {
+                    AuthApiModels.RecipeListResponse r = GSON.fromJson(normalizeJsonPayload(json), AuthApiModels.RecipeListResponse.class);
+                    if (r != null && r.ok) callback.onSuccess(r);
+                    else callback.onError(extractError(r != null ? r.error : null, json));
+                } catch (Exception e) { callback.onError(buildParseError("菜谱列表", json)); }
+            }
+            @Override public void onError(String m) { if (callback != null) callback.onError(m); }
+        });
+    }
+
+    public static void getRecipeDetail(Context context, int recipeId, int userId, RecipeDetailCallback callback) {
+        doRequest(context, "GET", "/api/recipes/" + recipeId + "?userId=" + userId, null, new RawCallback() {
+            @Override public void onSuccess(String json) {
+                if (callback == null) return;
+                try {
+                    AuthApiModels.RecipeDetailResponse r = GSON.fromJson(normalizeJsonPayload(json), AuthApiModels.RecipeDetailResponse.class);
+                    if (r != null && r.ok) callback.onSuccess(r);
+                    else callback.onError(extractError(r != null ? r.error : null, json));
+                } catch (Exception e) { callback.onError(buildParseError("菜谱详情", json)); }
+            }
+            @Override public void onError(String m) { if (callback != null) callback.onError(m); }
+        });
+    }
+
+    public static void createRecipe(Context context, AuthApiModels.CreateRecipeRequest req, RecipeMutationCallback callback) {
+        doRequest(context, "POST", "/api/recipes", GSON.toJson(req), simpleMutationCallback("创建菜谱", callback));
+    }
+
+    public static void updateRecipe(Context context, int recipeId, AuthApiModels.UpdateRecipeRequest req, RecipeMutationCallback callback) {
+        doRequest(context, "PUT", "/api/recipes/" + recipeId, GSON.toJson(req), simpleMutationCallback("更新菜谱", callback));
+    }
+
+    public static void deleteRecipe(Context context, int recipeId, int userId, RecipeMutationCallback callback) {
+        doRequest(context, "DELETE", "/api/recipes/" + recipeId + "?userId=" + userId, null, simpleMutationCallback("删除菜谱", callback));
+    }
+
+    public static void cookRecipe(Context context, int recipeId, int userId, CookCallback callback) {
+        doRequest(context, "POST", "/api/recipes/" + recipeId + "/cook",
+                GSON.toJson(new AuthApiModels.CookRequest(userId)), new RawCallback() {
+            @Override public void onSuccess(String json) {
+                if (callback == null) return;
+                try {
+                    AuthApiModels.CookResponse r = GSON.fromJson(normalizeJsonPayload(json), AuthApiModels.CookResponse.class);
+                    if (r != null && r.ok) callback.onSuccess(r);
+                    else callback.onError("烹饪失败");
+                } catch (Exception e) { callback.onError(buildParseError("烹饪", json)); }
+            }
+            @Override public void onError(String m) { if (callback != null) callback.onError(m); }
+        });
+    }
+
+    public static void queryRecipeCategories(Context context, int userId, RecipeCategoryListCallback callback) {
+        doRequest(context, "GET", "/api/recipe-categories?userId=" + userId, null, new RawCallback() {
+            @Override public void onSuccess(String json) {
+                if (callback == null) return;
+                try {
+                    AuthApiModels.RecipeCategoryListResponse r = GSON.fromJson(normalizeJsonPayload(json), AuthApiModels.RecipeCategoryListResponse.class);
+                    if (r != null && r.ok) callback.onSuccess(r);
+                    else callback.onError(extractError(r != null ? r.error : null, json));
+                } catch (Exception e) { callback.onError(buildParseError("菜谱种类", json)); }
+            }
+            @Override public void onError(String m) { if (callback != null) callback.onError(m); }
+        });
+    }
+
+    public static void createRecipeCategory(Context context, int userId, String name, RecipeMutationCallback callback) {
+        String body = "{\"userId\":" + userId + ",\"name\":" + GSON.toJson(name) + "}";
+        doRequest(context, "POST", "/api/recipe-categories", body, simpleMutationCallback("创建种类", callback));
+    }
+
+    public static void deleteRecipeCategory(Context context, int categoryId, int userId, RecipeMutationCallback callback) {
+        doRequest(context, "DELETE", "/api/recipe-categories/" + categoryId + "?userId=" + userId, null, simpleMutationCallback("删除种类", callback));
+    }
+
     public static void deleteBill(Context context, int billId, int userId, DeleteBillCallback callback) {
         doRequest(context, "DELETE", "/api/bills/" + billId + "?userId=" + userId,
                 null,
@@ -438,6 +543,32 @@ public class AuthApiClient {
     }
 
     private static RawCallback simpleMutationCallback(String operation, InventoryMutationCallback callback) {
+        return new RawCallback() {
+            @Override
+            public void onSuccess(String json) {
+                if (callback != null) {
+                    try {
+                        AuthApiModels.SimpleResponse response = GSON.fromJson(normalizeJsonPayload(json), AuthApiModels.SimpleResponse.class);
+                        if (response != null && response.ok) {
+                            callback.onSuccess();
+                        } else {
+                            callback.onError(extractError(response != null ? response.error : null, json));
+                        }
+                    } catch (Exception e) {
+                        Log.e(TAG, operation + "响应解析失败: " + json, e);
+                        callback.onError(buildParseError(operation, json));
+                    }
+                }
+            }
+
+            @Override
+            public void onError(String message) {
+                if (callback != null) callback.onError(message);
+            }
+        };
+    }
+
+    private static RawCallback simpleMutationCallback(String operation, RecipeMutationCallback callback) {
         return new RawCallback() {
             @Override
             public void onSuccess(String json) {

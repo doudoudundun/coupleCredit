@@ -16,7 +16,7 @@ function createRecipeRouter({ pool }) {
 
       let query, params;
       if (relationshipId) {
-        query = `SELECT r.recipe_id, r.user_id, r.title, r.description, r.image_url, r.steps,
+        query = `SELECT r.recipe_id, r.user_id, r.category_id, r.title, r.description, r.image_url, r.steps,
                  r.created_at, r.updated_at,
                  (SELECT COUNT(*) FROM recipe_ingredients ri WHERE ri.recipe_id = r.recipe_id) AS ingredientCount
                  FROM recipes r
@@ -24,7 +24,7 @@ function createRecipeRouter({ pool }) {
                  ORDER BY r.updated_at DESC`;
         params = [relationshipId, userId];
       } else {
-        query = `SELECT r.recipe_id, r.user_id, r.title, r.description, r.image_url, r.steps,
+        query = `SELECT r.recipe_id, r.user_id, r.category_id, r.title, r.description, r.image_url, r.steps,
                  r.created_at, r.updated_at,
                  (SELECT COUNT(*) FROM recipe_ingredients ri WHERE ri.recipe_id = r.recipe_id) AS ingredientCount
                  FROM recipes r
@@ -37,6 +37,7 @@ function createRecipeRouter({ pool }) {
       const items = rows.map(r => ({
         recipeId: r.recipe_id,
         userId: r.user_id,
+        categoryId: r.category_id,
         title: r.title,
         description: r.description,
         imageUrl: r.image_url,
@@ -58,7 +59,7 @@ function createRecipeRouter({ pool }) {
       if (!userId || !recipeId) throw new ApiError(400, "INVALID_REQUEST", "参数无效");
 
       const [rows] = await pool.execute(
-        `SELECT recipe_id, user_id, title, description, image_url, steps, created_at, updated_at
+        `SELECT recipe_id, user_id, category_id, title, description, image_url, steps, created_at, updated_at
          FROM recipes WHERE recipe_id = ?`, [recipeId]);
       if (rows.length === 0) throw new ApiError(404, "NOT_FOUND", "菜谱不存在");
 
@@ -72,6 +73,7 @@ function createRecipeRouter({ pool }) {
         data: {
           recipeId: recipe.recipe_id,
           userId: recipe.user_id,
+          categoryId: recipe.category_id,
           title: recipe.title,
           description: recipe.description,
           imageUrl: recipe.image_url,
@@ -93,16 +95,16 @@ function createRecipeRouter({ pool }) {
   // POST /api/recipes
   router.post("/", async (req, res, next) => {
     try {
-      const { userId, title, description, imageUrl, steps, ingredients } = req.body;
+      const { userId, title, description, imageUrl, steps, ingredients, categoryId } = req.body;
       if (!userId || !title) throw new ApiError(400, "INVALID_REQUEST", "userId 和 title 必填");
 
       const relationship = await loadActiveRelationship(pool, userId);
       const relationshipId = relationship ? relationship.relationship_id : null;
 
       const [result] = await pool.execute(
-        `INSERT INTO recipes (user_id, relationship_id, title, description, image_url, steps)
-         VALUES (?, ?, ?, ?, ?, ?)`,
-        [userId, relationshipId, trimValue(title), description || null, imageUrl || null, steps || null]
+        `INSERT INTO recipes (user_id, relationship_id, category_id, title, description, image_url, steps)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [userId, relationshipId, categoryId || null, trimValue(title), description || null, imageUrl || null, steps || null]
       );
 
       const recipeId = result.insertId;
@@ -125,12 +127,12 @@ function createRecipeRouter({ pool }) {
   router.put("/:id", async (req, res, next) => {
     try {
       const recipeId = parseInt(req.params.id, 10);
-      const { userId, title, description, imageUrl, steps, ingredients } = req.body;
+      const { userId, title, description, imageUrl, steps, ingredients, categoryId } = req.body;
       if (!userId || !recipeId) throw new ApiError(400, "INVALID_REQUEST", "参数无效");
 
       await pool.execute(
-        `UPDATE recipes SET title = ?, description = ?, image_url = ?, steps = ? WHERE recipe_id = ?`,
-        [trimValue(title), description || null, imageUrl || null, steps || null, recipeId]
+        `UPDATE recipes SET title = ?, description = ?, image_url = ?, steps = ?, category_id = ? WHERE recipe_id = ?`,
+        [trimValue(title), description || null, imageUrl || null, steps || null, categoryId !== undefined ? categoryId : null, recipeId]
       );
 
       // Replace ingredients

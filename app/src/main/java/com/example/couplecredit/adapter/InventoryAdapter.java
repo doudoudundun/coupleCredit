@@ -1,18 +1,15 @@
 package com.example.couplecredit.adapter;
 
-import android.app.AlertDialog;
 import android.content.Context;
 import android.graphics.Color;
-import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.GradientDrawable;
 import android.view.LayoutInflater;
-import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
-import android.widget.PopupMenu;
+import android.widget.PopupWindow;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
@@ -120,7 +117,7 @@ public class InventoryAdapter extends RecyclerView.Adapter<InventoryAdapter.View
         container.setPadding(dp * 4, dp * 8, dp * 4, dp * 8);
 
         GradientDrawable bg = new GradientDrawable();
-        bg.setCornerRadius(dp * 16);
+        bg.setCornerRadius(dp * 12);
         bg.setColor(Color.WHITE);
         container.setBackground(bg);
 
@@ -135,12 +132,11 @@ public class InventoryAdapter extends RecyclerView.Adapter<InventoryAdapter.View
             TextView row = new TextView(ctx);
             row.setText(labels[i]);
             row.setTextColor(colors[i]);
-            row.setTextSize(15);
-            row.setPadding(dp * 16, dp * 12, dp * 16, dp * 12);
+            row.setTextSize(14);
+            row.setPadding(dp * 16, dp * 10, dp * 16, dp * 10);
             row.setGravity(android.view.Gravity.CENTER);
             int fi = i;
             row.setOnClickListener(v -> {
-                if (dialogRef[0] != null) dialogRef[0].dismiss();
                 actions[fi].run();
             });
             container.addView(row);
@@ -152,21 +148,26 @@ public class InventoryAdapter extends RecyclerView.Adapter<InventoryAdapter.View
             }
         }
 
-        AlertDialog.Builder builder = new AlertDialog.Builder(ctx, R.style.CustomDialogStyle);
-        builder.setView(container);
-        AlertDialog dialog = builder.create();
-        if (dialog.getWindow() != null) {
-            dialog.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
-        }
-        dialogRef[0] = dialog;
-        dialog.show();
+        int popupWidth = dp * 120;
+        container.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED);
+        int popupHeight = container.getMeasuredHeight();
 
-        if (dialog.getWindow() != null) {
-            dialog.getWindow().setLayout(dp * 140, ViewGroup.LayoutParams.WRAP_CONTENT);
+        PopupWindow popup = new PopupWindow(container, popupWidth, ViewGroup.LayoutParams.WRAP_CONTENT, true);
+        popup.setOutsideTouchable(true);
+        popup.setElevation(dp * 6);
+
+        int offsetX = anchor.getWidth() - popupWidth + dp * 4;
+        int[] location = new int[2];
+        anchor.getLocationOnScreen(location);
+        int screenHeight = ctx.getResources().getDisplayMetrics().heightPixels;
+        boolean showAbove = location[1] + anchor.getHeight() + popupHeight > screenHeight;
+
+        if (showAbove) {
+            popup.showAsDropDown(anchor, offsetX, -(anchor.getHeight() + popupHeight));
+        } else {
+            popup.showAsDropDown(anchor, offsetX, 0);
         }
     }
-
-    private final AlertDialog[] dialogRef = new AlertDialog[1];
 
     private String formatDate(String dateStr) {
         if (dateStr == null) {

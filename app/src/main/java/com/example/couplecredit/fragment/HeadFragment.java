@@ -24,32 +24,36 @@ public class HeadFragment extends Fragment {
     private FragmentManager fragmentManager;
     private Fragment ClassicFragment;
     private Fragment ChatFragment;
+    private Fragment ReportFragment;
     private TabLayout segmentedTab;
-    private boolean isClassicMode = true;
+    private int currentTabPosition = 0;
     private final List<String> currentTabs = new ArrayList<>();
     private SharedPreferences sharedPreferences;
     private static final String PREFS_NAME = "HeadFragmentPrefs";
-    private static final String KEY_IS_CLASSIC_MODE = "isClassicMode";
+    private static final String KEY_TAB_POSITION = "tabPosition";
     private final TabLayout.OnTabSelectedListener onTabSelectedListener = new TabLayout.OnTabSelectedListener() {
         @Override
         public void onTabSelected(TabLayout.Tab tab) {
             int position = tab.getPosition();
+            currentTabPosition = position;
+            saveTabPosition(position);
+
             if (position == 0) {
                 new Thread(() -> DatabaseConnectionPool.getInstance().warmUp()).start();
-
                 if (ClassicFragment == null) {
                     ClassicFragment = new ClassicModelFragment();
                 }
                 fragmentManager.beginTransaction().replace(R.id.fg_change, ClassicFragment, "classic").commit();
-                isClassicMode = true;
-                saveMode(true);
             } else if (position == 1) {
                 if (ChatFragment == null) {
                     ChatFragment = new ChatModelFragment();
                 }
                 fragmentManager.beginTransaction().replace(R.id.fg_change, ChatFragment, "chat").commit();
-                isClassicMode = false;
-                saveMode(false);
+            } else if (position == 2) {
+                if (ReportFragment == null) {
+                    ReportFragment = new com.example.couplecredit.fragment.ReportFragment();
+                }
+                fragmentManager.beginTransaction().replace(R.id.fg_change, ReportFragment, "report").commit();
             }
         }
 
@@ -73,30 +77,37 @@ public class HeadFragment extends Fragment {
         super.onViewCreated(view, savedInstanceState);
 
         sharedPreferences = requireActivity().getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
-        isClassicMode = sharedPreferences.getBoolean(KEY_IS_CLASSIC_MODE, true);
+        currentTabPosition = sharedPreferences.getInt(KEY_TAB_POSITION, 0);
 
         segmentedTab = view.findViewById(R.id.segmented_tab);
         fragmentManager = getChildFragmentManager();
 
         if (currentTabs.isEmpty()) {
-            currentTabs.add("经典模式");
-            currentTabs.add("聊天模式");
+            currentTabs.add("首页");
+            currentTabs.add("聊天");
+            currentTabs.add("报表");
         }
 
         Fragment existing = fragmentManager.findFragmentById(R.id.fg_change);
         if (existing == null) {
             ClassicFragment = new ClassicModelFragment();
             ChatFragment = new ChatModelFragment();
+            ReportFragment = new com.example.couplecredit.fragment.ReportFragment();
 
-            if (isClassicMode) {
-                fragmentManager.beginTransaction().replace(R.id.fg_change, ClassicFragment, "classic").commit();
-            } else {
-                fragmentManager.beginTransaction().replace(R.id.fg_change, ChatFragment, "chat").commit();
+            Fragment initial;
+            String tag;
+            switch (currentTabPosition) {
+                case 1: initial = ChatFragment; tag = "chat"; break;
+                case 2: initial = ReportFragment; tag = "report"; break;
+                default: initial = ClassicFragment; tag = "classic"; break;
             }
-        } else if (isClassicMode) {
-            ClassicFragment = existing;
+            fragmentManager.beginTransaction().replace(R.id.fg_change, initial, tag).commit();
         } else {
-            ChatFragment = existing;
+            switch (currentTabPosition) {
+                case 0: ClassicFragment = existing; break;
+                case 1: ChatFragment = existing; break;
+                default: ReportFragment = existing; break;
+            }
         }
 
         setupSegmentedTab();
@@ -109,16 +120,16 @@ public class HeadFragment extends Fragment {
             }
         }
 
-        TabLayout.Tab selectedTab = segmentedTab.getTabAt(isClassicMode ? 0 : 1);
+        TabLayout.Tab selectedTab = segmentedTab.getTabAt(currentTabPosition);
         if (selectedTab != null) {
             selectedTab.select();
         }
         segmentedTab.addOnTabSelectedListener(onTabSelectedListener);
     }
 
-    private void saveMode(boolean isClassic) {
+    private void saveTabPosition(int position) {
         SharedPreferences.Editor editor = sharedPreferences.edit();
-        editor.putBoolean(KEY_IS_CLASSIC_MODE, isClassic);
+        editor.putInt(KEY_TAB_POSITION, position);
         editor.apply();
     }
 
@@ -127,8 +138,26 @@ public class HeadFragment extends Fragment {
     }
 
     public void refreshCurrentFragmentData() {
-        if (isClassicMode && ClassicFragment instanceof ClassicModelFragment) {
+        if (currentTabPosition == 0 && ClassicFragment instanceof ClassicModelFragment) {
             ((ClassicModelFragment) ClassicFragment).refreshBillData();
+        } else if (currentTabPosition == 2 && ReportFragment instanceof com.example.couplecredit.fragment.ReportFragment) {
+            ((com.example.couplecredit.fragment.ReportFragment) ReportFragment).refreshChartData();
+        }
+    }
+
+    public com.example.couplecredit.fragment.ReportFragment getReportFragment() {
+        if (ReportFragment instanceof com.example.couplecredit.fragment.ReportFragment) {
+            return (com.example.couplecredit.fragment.ReportFragment) ReportFragment;
+        }
+        return null;
+    }
+
+    public void switchToReportTab() {
+        if (segmentedTab != null) {
+            TabLayout.Tab reportTab = segmentedTab.getTabAt(2);
+            if (reportTab != null) {
+                reportTab.select();
+            }
         }
     }
 }

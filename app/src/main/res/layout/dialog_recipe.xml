@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="@drawable/dialog_background"
+    android:padding="24dp">
+
+    <TextView
+        android:id="@+id/tv_dialog_title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="添加菜谱"
+        android:textSize="20sp"
+        android:textStyle="bold"
+        android:textColor="#1A1A1A"
+        android:gravity="center"
+        android:layout_marginBottom="16dp" />
+
+    <EditText
+        android:id="@+id/et_recipe_title"
+        android:layout_width="match_parent"
+        android:layout_height="44dp"
+        android:hint="菜谱名称"
+        android:inputType="text"
+        android:maxLines="1"
+        android:background="@drawable/input_background"
+        android:paddingStart="14dp"
+        android:paddingEnd="14dp"
+        android:textSize="14sp"
+        android:layout_marginBottom="10dp" />
+
+    <EditText
+        android:id="@+id/et_recipe_desc"
+        android:layout_width="match_parent"
+        android:layout_height="44dp"
+        android:hint="描述（可选）"
+        android:inputType="text"
+        android:maxLines="1"
+        android:background="@drawable/input_background"
+        android:paddingStart="14dp"
+        android:paddingEnd="14dp"
+        android:textSize="14sp"
+        android:layout_marginBottom="10dp" />
+
+    <EditText
+        android:id="@+id/et_recipe_steps"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="步骤（每行一步，可选）"
+        android:inputType="textMultiLine"
+        android:maxLines="4"
+        android:minHeight="60dp"
+        android:background="@drawable/input_background"
+        android:paddingStart="14dp"
+        android:paddingEnd="14dp"
+        android:paddingTop="10dp"
+        android:paddingBottom="10dp"
+        android:textSize="14sp"
+        android:gravity="top"
+        android:layout_marginBottom="10dp" />
+
+    <!-- Image area -->
+    <FrameLayout
+        android:id="@+id/fl_recipe_image"
+        android:layout_width="80dp"
+        android:layout_height="80dp"
+        android:layout_gravity="center_horizontal"
+        android:layout_marginBottom="8dp"
+        android:foreground="?attr/selectableItemBackground"
+        android:clickable="true"
+        android:focusable="true">
+
+        <ImageView
+            android:id="@+id/iv_recipe_image"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:scaleType="centerCrop"
+            android:background="@drawable/image_placeholder_background"
+            android:src="@drawable/ic_add_image_placeholder" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="24dp"
+            android:layout_gravity="bottom"
+            android:background="#80000000"
+            android:gravity="center"
+            android:text="添加图片"
+            android:textColor="@android:color/white"
+            android:textSize="10sp" />
+    </FrameLayout>
+
+    <!-- Ingredients header -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="食材清单"
+        android:textSize="14sp"
+        android:textStyle="bold"
+        android:textColor="#333333"
+        android:layout_marginBottom="8dp" />
+
+    <LinearLayout
+        android:id="@+id/ll_ingredients"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical" />
+
+    <TextView
+        android:id="@+id/btn_add_ingredient"
+        android:layout_width="match_parent"
+        android:layout_height="36dp"
+        android:gravity="center"
+        android:text="+ 添加食材"
+        android:textSize="13sp"
+        android:textColor="#07C160"
+        android:background="@drawable/category_tag_background"
+        android:layout_marginBottom="16dp" />
+
+    <TextView
+        android:id="@+id/btn_save_recipe"
+        android:layout_width="match_parent"
+        android:layout_height="46dp"
+        android:gravity="center"
+        android:text="保存"
+        android:textSize="16sp"
+        android:textColor="@android:color/white"
+        android:textStyle="bold"
+        android:background="@drawable/button_background"
+        android:clickable="true"
+        android:focusable="true" />
+</LinearLayout>

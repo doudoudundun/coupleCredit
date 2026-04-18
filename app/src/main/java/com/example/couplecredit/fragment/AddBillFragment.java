@@ -676,9 +676,9 @@ public class AddBillFragment extends Fragment {
             }
             
             // 刷新ReportFragment的图表数据
-            ReportFragment reportFragment = mainActivity.getReportFragment();
-            if (reportFragment != null) {
-                reportFragment.refreshChartData();
+            if (headFragment instanceof HeadFragment) {
+                com.example.couplecredit.fragment.ReportFragment rf = ((HeadFragment) headFragment).getReportFragment();
+                if (rf != null) { rf.refreshChartData(); }
             }
         }
     }

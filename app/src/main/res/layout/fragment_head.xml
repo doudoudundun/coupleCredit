@@ -14,7 +14,7 @@
         android:layout_marginTop="0dp"
         android:elevation="0dp"
         android:outlineSpotShadowColor="@color/white"
-        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/segmented_tab"
         app:layout_constraintBottom_toBottomOf="parent"/>
 
     <!-- 顶部蒙版遮罩 -->

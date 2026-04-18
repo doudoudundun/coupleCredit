@@ -123,12 +123,12 @@ public class ClassicModelFragment extends Fragment implements BillAdapter.OnItem
         if (mainActivity == null) {
             return;
         }
-        ReportFragment reportFragment = mainActivity.getReportFragment();
-        mainActivity.showFragment(reportFragment);
-        BottomNavigationView bottomNav = mainActivity.findViewById(R.id.bottom_nav);
-        if (bottomNav != null) {
-            bottomNav.setSelectedItemId(R.id.nav_report);
+        HeadFragment headFragment = mainActivity.getHeadFragment();
+        com.example.couplecredit.fragment.ReportFragment reportFragment = headFragment != null ? headFragment.getReportFragment() : null;
+        if (reportFragment == null) {
+            reportFragment = new com.example.couplecredit.fragment.ReportFragment();
         }
+        headFragment.switchToReportTab();
         reportFragment.updateDisplay(currentYear, currentMonth, type);
     }
 
@@ -233,10 +233,9 @@ public class ClassicModelFragment extends Fragment implements BillAdapter.OnItem
                                 if (rowsAffected > 0) {
                                     refreshBillData();
                                     if (getActivity() instanceof MainActivity) {
-                                        ReportFragment reportFragment = ((MainActivity) getActivity()).getReportFragment();
-                                        if (reportFragment != null) {
-                                            reportFragment.refreshChartData();
-                                        }
+                                        HeadFragment hf = ((MainActivity) getActivity()).getHeadFragment();
+                                        com.example.couplecredit.fragment.ReportFragment rf = hf != null ? hf.getReportFragment() : null;
+                                        if (rf != null) { rf.refreshChartData(); }
                                     }
                                     mDialog.dismiss();
                                 }
@@ -286,10 +285,9 @@ public class ClassicModelFragment extends Fragment implements BillAdapter.OnItem
                                 if (rowsDeleted > 0) {
                                     refreshBillData();
                                     if (getActivity() instanceof MainActivity) {
-                                        ReportFragment reportFragment = ((MainActivity) getActivity()).getReportFragment();
-                                        if (reportFragment != null) {
-                                            reportFragment.refreshChartData();
-                                        }
+                                        HeadFragment hf = ((MainActivity) getActivity()).getHeadFragment();
+                                        com.example.couplecredit.fragment.ReportFragment rf = hf != null ? hf.getReportFragment() : null;
+                                        if (rf != null) { rf.refreshChartData(); }
                                     }
                                     if (mDialog != null) {
                                         mDialog.dismiss();

@@ -11,14 +11,14 @@
         android:title="@string/second_page" />
 
     <item
-        android:id="@+id/nav_report"
-        android:icon="@drawable/ic_report"
-        android:title="@string/third_page" />
-
-    <item
         android:id="@+id/nav_inventory"
         android:icon="@drawable/ic_inventory"
         android:title="@string/inventory" />
+
+    <item
+        android:id="@+id/nav_recipe"
+        android:icon="@drawable/ic_inventory"
+        android:title="@string/recipe" />
 
     <item
         android:id="@+id/nav_my"

@@ -24,7 +24,7 @@ import com.example.couplecredit.fragment.AddBillFragment;
 import com.example.couplecredit.fragment.HeadFragment;
 import com.example.couplecredit.fragment.InventoryFragment;
 import com.example.couplecredit.fragment.MyFragment;
-import com.example.couplecredit.fragment.ReportFragment;
+import com.example.couplecredit.fragment.RecipeFragment;
 import com.example.couplecredit.repository.ChatRepository;
 import com.example.couplecredit.utils.UserInfoManager;
 import com.github.mikephil.charting.utils.Utils;
@@ -35,8 +35,8 @@ public class MainActivity extends AppCompatActivity {
     private FragmentManager fragmentManager;
     private HeadFragment headFragment;
     private AddBillFragment addBillFragment;
-    private ReportFragment reportFragment;
     private InventoryFragment inventoryFragment;
+    private RecipeFragment recipeFragment;
     private MyFragment myFragment;
     private BottomNavigationView mBottomNav;
     private Fragment currentFragment;
@@ -87,8 +87,8 @@ public class MainActivity extends AppCompatActivity {
         if (savedInstanceState == null) {
             headFragment = new HeadFragment();
             addBillFragment = new AddBillFragment();
-            reportFragment = new ReportFragment();
             inventoryFragment = new InventoryFragment();
+            recipeFragment = new RecipeFragment();
             myFragment = new MyFragment();
 
             if (username != null && id != null) {
@@ -102,8 +102,8 @@ public class MainActivity extends AppCompatActivity {
         } else {
             headFragment = (HeadFragment) fragmentManager.findFragmentByTag("head");
             addBillFragment = (AddBillFragment) fragmentManager.findFragmentByTag("addBill");
-            reportFragment = (ReportFragment) fragmentManager.findFragmentByTag("report");
             inventoryFragment = (InventoryFragment) fragmentManager.findFragmentByTag("inventory");
+            recipeFragment = (RecipeFragment) fragmentManager.findFragmentByTag("recipe");
             myFragment = (MyFragment) fragmentManager.findFragmentByTag("my");
 
             for (Fragment fragment : fragmentManager.getFragments()) {
@@ -123,11 +123,11 @@ public class MainActivity extends AppCompatActivity {
             } else if (itemId == R.id.nav_addbill) {
                 showFragment(addBillFragment);
                 return true;
-            } else if (itemId == R.id.nav_report) {
-                showFragment(reportFragment);
-                return true;
             } else if (itemId == R.id.nav_inventory) {
                 showFragment(inventoryFragment);
+                return true;
+            } else if (itemId == R.id.nav_recipe) {
+                showFragment(recipeFragment);
                 return true;
             } else if (itemId == R.id.nav_my) {
                 showFragment(myFragment);
@@ -203,21 +203,17 @@ public class MainActivity extends AppCompatActivity {
         return headFragment;
     }
 
-    public ReportFragment getReportFragment() {
-        return reportFragment;
-    }
-
     private void initAllFragments() {
         FragmentTransaction transaction = fragmentManager.beginTransaction().setReorderingAllowed(true);
         transaction.add(R.id.fragment_container, headFragment, "head");
         transaction.add(R.id.fragment_container, addBillFragment, "addBill");
-        transaction.add(R.id.fragment_container, reportFragment, "report");
         transaction.add(R.id.fragment_container, inventoryFragment, "inventory");
+        transaction.add(R.id.fragment_container, recipeFragment, "recipe");
         transaction.add(R.id.fragment_container, myFragment, "my");
         transaction.hide(headFragment);
         transaction.hide(addBillFragment);
-        transaction.hide(reportFragment);
         transaction.hide(inventoryFragment);
+        transaction.hide(recipeFragment);
         transaction.hide(myFragment);
         transaction.commitNow();
         currentFragment = null;
@@ -267,12 +263,12 @@ public class MainActivity extends AppCompatActivity {
             headFragment.refreshCurrentFragmentData();
         }
 
-        if (reportFragment != null) {
-            reportFragment.refreshChartData();
-        }
-
         if (inventoryFragment != null) {
             inventoryFragment.refreshInventoryData();
+        }
+
+        if (recipeFragment != null) {
+            recipeFragment.refreshData();
         }
 
         Log.d("MainActivity", "首页数据刷新完成");
@@ -305,10 +301,10 @@ public class MainActivity extends AppCompatActivity {
             return R.id.nav_head;
         } else if (fragment == addBillFragment) {
             return R.id.nav_addbill;
-        } else if (fragment == reportFragment) {
-            return R.id.nav_report;
         } else if (fragment == inventoryFragment) {
             return R.id.nav_inventory;
+        } else if (fragment == recipeFragment) {
+            return R.id.nav_recipe;
         } else if (fragment == myFragment) {
             return R.id.nav_my;
         }

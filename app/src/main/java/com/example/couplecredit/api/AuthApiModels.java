@@ -223,4 +223,137 @@ public class AuthApiModels {
             this.incomeType = incomeType;
         }
     }
+
+    // --- Recipe models ---
+
+    public static class RecipeListResponse {
+        public boolean ok;
+        public RecipeListData data;
+        public ErrorBody error;
+    }
+
+    public static class RecipeListData {
+        public List<RecipeItemData> items;
+        public Integer relationshipId;
+    }
+
+    public static class RecipeItemData {
+        public int recipeId;
+        public int userId;
+        public Integer categoryId;
+        public String title;
+        public String description;
+        public String imageUrl;
+        public String steps;
+        public int ingredientCount;
+        public String createdAt;
+        public String updatedAt;
+    }
+
+    public static class RecipeDetailResponse {
+        public boolean ok;
+        public RecipeDetailData data;
+        public ErrorBody error;
+    }
+
+    public static class RecipeDetailData {
+        public int recipeId;
+        public int userId;
+        public String title;
+        public String description;
+        public String imageUrl;
+        public String steps;
+        public String createdAt;
+        public String updatedAt;
+        public List<IngredientData> ingredients;
+    }
+
+    public static class IngredientData {
+        public int id;
+        public Integer inventoryId;
+        public String ingredientName;
+        public double quantity;
+        public String unit;
+    }
+
+    public static class CreateRecipeRequest {
+        public int userId;
+        public String title;
+        public String description;
+        public String imageUrl;
+        public String steps;
+        public Integer categoryId;
+        public java.util.List<IngredientData> ingredients;
+
+        public CreateRecipeRequest(int userId, String title, String description, String imageUrl, String steps, Integer categoryId, java.util.List<IngredientData> ingredients) {
+            this.userId = userId;
+            this.title = title;
+            this.description = description;
+            this.imageUrl = imageUrl;
+            this.steps = steps;
+            this.categoryId = categoryId;
+            this.ingredients = ingredients;
+        }
+    }
+
+    public static class UpdateRecipeRequest {
+        public int userId;
+        public String title;
+        public String description;
+        public String imageUrl;
+        public String steps;
+        public Integer categoryId;
+        public java.util.List<IngredientData> ingredients;
+
+        public UpdateRecipeRequest(int userId, String title, String description, String imageUrl, String steps, Integer categoryId, java.util.List<IngredientData> ingredients) {
+            this.userId = userId;
+            this.title = title;
+            this.description = description;
+            this.imageUrl = imageUrl;
+            this.steps = steps;
+            this.categoryId = categoryId;
+            this.ingredients = ingredients;
+        }
+    }
+
+    public static class CookRequest {
+        public int userId;
+        public CookRequest(int userId) { this.userId = userId; }
+    }
+
+    public static class CookResponse {
+        public boolean ok;
+        public CookResultData data;
+    }
+
+    public static class CookResultData {
+        public List<CookResultItem> results;
+        public List<String> warnings;
+    }
+
+    public static class CookResultItem {
+        public String name;
+        public double consumed;
+        public String unit;
+        public boolean hadEnough;
+    }
+
+    // Recipe Categories
+    public static class RecipeCategoryData {
+        public int categoryId;
+        public int relationshipId;
+        public String name;
+        public int sortOrder;
+        public String createdAt;
+    }
+
+    public static class RecipeCategoryListResponse {
+        public boolean ok;
+        public RecipeCategoryListData data;
+        public ErrorBody error;
+    }
+
+    public static class RecipeCategoryListData {
+        public List<RecipeCategoryData> items;
+    }
 }

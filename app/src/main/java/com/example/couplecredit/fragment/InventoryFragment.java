@@ -81,6 +81,7 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
     private LinearLayout cardRecent;
     private TextView tvRecentCount;
     private View fabAddInventory;
+    private TextView tvTitle;
 
     private InventoryAdapter inventoryAdapter;
     private RecentActivityAdapter recentActivityAdapter;
@@ -260,6 +261,7 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
         cardRecent = view.findViewById(R.id.card_recent);
         tvRecentCount = view.findViewById(R.id.tv_recent_count);
         fabAddInventory = view.findViewById(R.id.fab_add_inventory);
+        tvTitle = view.findViewById(R.id.tv_title);
     }
 
     private void setupRecyclerViews() {
