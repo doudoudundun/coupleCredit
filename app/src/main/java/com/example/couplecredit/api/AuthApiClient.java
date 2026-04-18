@@ -92,6 +92,11 @@ public class AuthApiClient {
         void onError(String message);
     }
 
+    public interface SimpleCallback {
+        void onSuccess();
+        void onError(String message);
+    }
+
     public interface RecipeCategoryListCallback {
         void onSuccess(AuthApiModels.RecipeCategoryListResponse response);
         void onError(String message);
@@ -457,6 +462,18 @@ public class AuthApiClient {
 
     public static void deleteRecipeCategory(Context context, int categoryId, int userId, RecipeMutationCallback callback) {
         doRequest(context, "DELETE", "/api/recipe-categories/" + categoryId + "?userId=" + userId, null, simpleMutationCallback("删除种类", callback));
+    }
+
+    public static void updateAvatar(Context context, int userId, String avatarUrl, SimpleCallback callback) {
+        String body = "{\"userId\":" + userId + ",\"avatarUrl\":" + GSON.toJson(avatarUrl) + "}";
+        doRequest(context, "PUT", "/api/auth/avatar", body, new RawCallback() {
+            @Override public void onSuccess(String json) {
+                if (callback != null) callback.onSuccess();
+            }
+            @Override public void onError(String m) {
+                if (callback != null) callback.onError(m);
+            }
+        });
     }
 
     public static void deleteBill(Context context, int billId, int userId, DeleteBillCallback callback) {

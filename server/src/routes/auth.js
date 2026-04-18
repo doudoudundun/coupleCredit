@@ -146,6 +146,20 @@ function createAuthRouter({ pool, config }) {
     }
   });
 
+  // PUT /api/auth/avatar — update user avatar URL
+  router.put("/avatar", async (req, res, next) => {
+    try {
+      const { userId, avatarUrl } = req.body;
+      if (!userId || !avatarUrl) throw new ApiError(400, "INVALID_REQUEST", "userId 和 avatarUrl 必填");
+
+      await pool.execute(`UPDATE users SET avatar = ? WHERE id = ?`, [avatarUrl, userId]);
+
+      res.json({ ok: true, message: "头像更新成功" });
+    } catch (error) {
+      next(error);
+    }
+  });
+
   return router;
 }
 

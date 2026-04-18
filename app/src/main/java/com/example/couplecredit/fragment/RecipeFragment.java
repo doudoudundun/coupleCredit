@@ -2,8 +2,8 @@ package com.example.couplecredit.fragment;
 
 import android.app.AlertDialog;
 import android.content.Intent;
-import android.graphics.Color;
-import android.graphics.drawable.GradientDrawable;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.net.Uri;
 import android.os.Bundle;
 import android.text.TextUtils;
@@ -64,6 +64,9 @@ public class RecipeFragment extends Fragment implements RecipeAdapter.RecipeActi
     private ImageView pendingImageView;
     private String pendingImageUrl;
     private boolean imageChanged = false;
+
+    private static final int IMAGE_MAX_DIMENSION = 1024;
+    private static final int IMAGE_JPEG_QUALITY = 80;
 
     @Nullable
     @Override
@@ -383,6 +386,7 @@ public class RecipeFragment extends Fragment implements RecipeAdapter.RecipeActi
                 sb.append("]");
                 steps = sb.toString();
             }
+            final String finalSteps = steps;
 
             // Collect ingredients
             List<AuthApiModels.IngredientData> finalIngredients = new ArrayList<>();
@@ -404,34 +408,33 @@ public class RecipeFragment extends Fragment implements RecipeAdapter.RecipeActi
             }
 
             int userId = UserInfoManager.getCurrentUserId(requireContext());
-            String imageUrl = imageChanged ? pendingImageUrl : (existing != null ? existing.imageUrl : null);
 
-            if (existing == null) {
-                AuthApiModels.CreateRecipeRequest req = new AuthApiModels.CreateRecipeRequest(
-                        userId, title, desc, imageUrl, steps, null, finalIngredients);
-                AuthApiClient.createRecipe(requireContext(), req, new AuthApiClient.RecipeMutationCallback() {
-                    @Override public void onSuccess() {
-                        if (!isAdded()) return;
-                        requireActivity().runOnUiThread(() -> { dialog.dismiss(); refreshData(); });
+            if (imageChanged && pendingImageUrl != null) {
+                // Upload compressed image first, then save recipe
+                try {
+                    Uri imageUri = Uri.parse(pendingImageUrl);
+                    InputStream compressed = compressImage(imageUri);
+                    if (compressed != null) {
+                        String fileName = "recipe_" + System.currentTimeMillis() + ".jpg";
+                        AuthApiClient.uploadImage(requireContext(), compressed, fileName, new AuthApiClient.ImageUploadCallback() {
+                            @Override public void onSuccess(String serverUrl) {
+                                if (!isAdded()) return;
+                                requireActivity().runOnUiThread(() -> saveRecipe(dialog, userId, title, desc, finalSteps, serverUrl, existing, finalIngredients));
+                            }
+                            @Override public void onError(String e) {
+                                if (!isAdded()) return;
+                                requireActivity().runOnUiThread(() -> Toast.makeText(requireContext(), "图片上传失败: " + e, Toast.LENGTH_SHORT).show());
+                            }
+                        });
+                    } else {
+                        saveRecipe(dialog, userId, title, desc, finalSteps, null, existing, finalIngredients);
                     }
-                    @Override public void onError(String e) {
-                        if (!isAdded()) return;
-                        requireActivity().runOnUiThread(() -> Toast.makeText(requireContext(), e, Toast.LENGTH_SHORT).show());
-                    }
-                });
+                } catch (Exception e) {
+                    saveRecipe(dialog, userId, title, desc, finalSteps, null, existing, finalIngredients);
+                }
             } else {
-                AuthApiModels.UpdateRecipeRequest req = new AuthApiModels.UpdateRecipeRequest(
-                        userId, title, desc, imageUrl, steps, null, finalIngredients);
-                AuthApiClient.updateRecipe(requireContext(), existing.recipeId, req, new AuthApiClient.RecipeMutationCallback() {
-                    @Override public void onSuccess() {
-                        if (!isAdded()) return;
-                        requireActivity().runOnUiThread(() -> { dialog.dismiss(); refreshData(); });
-                    }
-                    @Override public void onError(String e) {
-                        if (!isAdded()) return;
-                        requireActivity().runOnUiThread(() -> Toast.makeText(requireContext(), e, Toast.LENGTH_SHORT).show());
-                    }
-                });
+                String imageUrl = existing != null ? existing.imageUrl : null;
+                saveRecipe(dialog, userId, title, desc, finalSteps, imageUrl, existing, finalIngredients);
             }
         });
 
@@ -439,6 +442,75 @@ public class RecipeFragment extends Fragment implements RecipeAdapter.RecipeActi
         if (dialog.getWindow() != null) {
             int w = (int) (requireContext().getResources().getDisplayMetrics().widthPixels * 0.85);
             dialog.getWindow().setLayout(w, ViewGroup.LayoutParams.WRAP_CONTENT);
+        }
+    }
+
+    private void saveRecipe(AlertDialog dialog, int userId, String title, String desc, String steps, String imageUrl, AuthApiModels.RecipeItemData existing, List<AuthApiModels.IngredientData> finalIngredients) {
+        if (existing == null) {
+            AuthApiModels.CreateRecipeRequest req = new AuthApiModels.CreateRecipeRequest(
+                    userId, title, desc, imageUrl, steps, null, finalIngredients);
+            AuthApiClient.createRecipe(requireContext(), req, new AuthApiClient.RecipeMutationCallback() {
+                @Override public void onSuccess() {
+                    if (!isAdded()) return;
+                    requireActivity().runOnUiThread(() -> { dialog.dismiss(); refreshData(); });
+                }
+                @Override public void onError(String e) {
+                    if (!isAdded()) return;
+                    requireActivity().runOnUiThread(() -> Toast.makeText(requireContext(), e, Toast.LENGTH_SHORT).show());
+                }
+            });
+        } else {
+            AuthApiModels.UpdateRecipeRequest req = new AuthApiModels.UpdateRecipeRequest(
+                    userId, title, desc, imageUrl, steps, null, finalIngredients);
+            AuthApiClient.updateRecipe(requireContext(), existing.recipeId, req, new AuthApiClient.RecipeMutationCallback() {
+                @Override public void onSuccess() {
+                    if (!isAdded()) return;
+                    requireActivity().runOnUiThread(() -> { dialog.dismiss(); refreshData(); });
+                }
+                @Override public void onError(String e) {
+                    if (!isAdded()) return;
+                    requireActivity().runOnUiThread(() -> Toast.makeText(requireContext(), e, Toast.LENGTH_SHORT).show());
+                }
+            });
+        }
+    }
+
+    private InputStream compressImage(Uri imageUri) {
+        try {
+            InputStream is = requireContext().getContentResolver().openInputStream(imageUri);
+            BitmapFactory.Options bounds = new BitmapFactory.Options();
+            bounds.inJustDecodeBounds = true;
+            BitmapFactory.decodeStream(is, null, bounds);
+            is.close();
+
+            int sampleSize = 1;
+            int halfW = bounds.outWidth / 2;
+            int halfH = bounds.outHeight / 2;
+            while ((halfW / sampleSize) >= IMAGE_MAX_DIMENSION && (halfH / sampleSize) >= IMAGE_MAX_DIMENSION) {
+                sampleSize *= 2;
+            }
+
+            is = requireContext().getContentResolver().openInputStream(imageUri);
+            BitmapFactory.Options opts = new BitmapFactory.Options();
+            opts.inSampleSize = sampleSize;
+            opts.inPreferredConfig = Bitmap.Config.ARGB_8888;
+            Bitmap bitmap = BitmapFactory.decodeStream(is, null, opts);
+            is.close();
+            if (bitmap == null) return null;
+
+            if (bitmap.getWidth() > IMAGE_MAX_DIMENSION || bitmap.getHeight() > IMAGE_MAX_DIMENSION) {
+                float scale = Math.min((float) IMAGE_MAX_DIMENSION / bitmap.getWidth(), (float) IMAGE_MAX_DIMENSION / bitmap.getHeight());
+                Bitmap scaled = Bitmap.createScaledBitmap(bitmap, Math.round(bitmap.getWidth() * scale), Math.round(bitmap.getHeight() * scale), true);
+                bitmap.recycle();
+                bitmap = scaled;
+            }
+
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            bitmap.compress(Bitmap.CompressFormat.JPEG, IMAGE_JPEG_QUALITY, baos);
+            bitmap.recycle();
+            return new ByteArrayInputStream(baos.toByteArray());
+        } catch (Exception e) {
+            return null;
         }
     }
 

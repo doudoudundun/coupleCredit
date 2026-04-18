@@ -1,158 +1,134 @@
 package com.example.couplecredit.api;
 
 import android.content.Context;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.net.Uri;
 import android.util.Log;
 
-import java.io.File;
-import java.io.FileOutputStream;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-/**
- * 头像上传API
- * 负责处理头像的上传和获取
- */
 public class AvatarUploadApi {
     private static final String TAG = "AvatarUploadApi";
     private static final ExecutorService executor = Executors.newCachedThreadPool();
-    
-    /**
-     * 头像上传回调接口
-     */
+    private static final int MAX_DIMENSION = 512;
+    private static final int JPEG_QUALITY = 80;
+
     public interface AvatarUploadCallback {
         void onUploadSuccess(String avatarUrl);
         void onUploadError(String error);
     }
-    
-    /**
-     * 头像上传回调接口（兼容旧版本）
-     */
+
     public interface UploadCallback {
         void onSuccess(String avatarUrl);
         void onError(String error);
     }
-    
-    /**
-     * 头像URL获取回调接口
-     */
+
     public interface AvatarUrlCallback {
         void onSuccess(String avatarUrl);
         void onError(String error);
     }
-    
-    /**
-     * 上传头像到服务器（静态方法）
-     * @param context 上下文
-     * @param userId 用户ID
-     * @param imageUri 图片URI
-     * @param callback 上传回调
-     */
+
     public static void uploadAvatar(Context context, int userId, Uri imageUri, AvatarUploadCallback callback) {
         executor.execute(() -> {
             try {
-                // 模拟上传过程
-                Thread.sleep(1000); // 模拟网络延迟
-                
-                // 这里应该是实际的网络上传逻辑
-                // 目前返回一个模拟的URL
-                String avatarUrl = "https://example.com/avatars/user_" + userId + "_" + System.currentTimeMillis() + ".jpg";
-                
-                if (callback != null) {
-                    callback.onUploadSuccess(avatarUrl);
+                InputStream compressed = compressImage(context, imageUri);
+                if (compressed == null) {
+                    if (callback != null) callback.onUploadError("图片压缩失败");
+                    return;
                 }
-                
-                Log.d(TAG, "Avatar uploaded successfully for user " + userId + ": " + avatarUrl);
-                
+
+                String fileName = "avatar_" + userId + "_" + System.currentTimeMillis() + ".jpg";
+                AuthApiClient.uploadImage(context, compressed, fileName, new AuthApiClient.ImageUploadCallback() {
+                    @Override public void onSuccess(String imageUrl) {
+                        // Save avatar URL to user profile
+                        AuthApiClient.updateAvatar(context, userId, imageUrl, new AuthApiClient.SimpleCallback() {
+                            @Override public void onSuccess() {
+                                Log.d(TAG, "Avatar uploaded and saved: " + imageUrl);
+                                if (callback != null) callback.onUploadSuccess(imageUrl);
+                            }
+                            @Override public void onError(String e) {
+                                Log.w(TAG, "Avatar uploaded but profile update failed: " + e);
+                                if (callback != null) callback.onUploadSuccess(imageUrl);
+                            }
+                        });
+                    }
+                    @Override public void onError(String e) {
+                        Log.e(TAG, "Avatar upload failed: " + e);
+                        if (callback != null) callback.onUploadError(e);
+                    }
+                });
             } catch (Exception e) {
-                Log.e(TAG, "Failed to upload avatar for user " + userId, e);
-                if (callback != null) {
-                    callback.onUploadError("上传失败: " + e.getMessage());
-                }
+                Log.e(TAG, "Failed to upload avatar", e);
+                if (callback != null) callback.onUploadError("上传失败: " + e.getMessage());
             }
         });
     }
-    
-    /**
-     * 上传头像到服务器（兼容旧版本回调）
-     * @param context 上下文
-     * @param userId 用户ID
-     * @param imageUri 图片URI
-     * @param callback 上传回调
-     */
+
     public static void uploadAvatar(Context context, int userId, Uri imageUri, UploadCallback callback) {
         uploadAvatar(context, userId, imageUri, new AvatarUploadCallback() {
-            @Override
-            public void onUploadSuccess(String avatarUrl) {
-                if (callback != null) {
-                    callback.onSuccess(avatarUrl);
-                }
+            @Override public void onUploadSuccess(String avatarUrl) {
+                if (callback != null) callback.onSuccess(avatarUrl);
             }
-            
-            @Override
-            public void onUploadError(String error) {
-                if (callback != null) {
-                    callback.onError(error);
-                }
+            @Override public void onUploadError(String error) {
+                if (callback != null) callback.onError(error);
             }
         });
     }
-    
-    /**
-     * 获取用户头像URL（实例方法）
-     * @param userId 用户ID
-     * @param callback 获取回调
-     */
+
     public void getAvatarUrl(int userId, AvatarUrlCallback callback) {
         executor.execute(() -> {
             try {
-                // 模拟网络请求
-                Thread.sleep(500); // 模拟网络延迟
-                
-                // 这里应该是实际的网络请求逻辑
-                // 目前返回一个模拟的URL，实际应该从服务器获取
+                Thread.sleep(500);
                 String avatarUrl = "https://example.com/avatars/user_" + userId + ".jpg";
-                
-                if (callback != null) {
-                    callback.onSuccess(avatarUrl);
-                }
-                
-                Log.d(TAG, "Avatar URL retrieved for user " + userId + ": " + avatarUrl);
-                
+                if (callback != null) callback.onSuccess(avatarUrl);
             } catch (Exception e) {
-                Log.e(TAG, "Failed to get avatar URL for user " + userId, e);
-                if (callback != null) {
-                    callback.onError("获取头像失败: " + e.getMessage());
-                }
+                if (callback != null) callback.onError("获取头像失败: " + e.getMessage());
             }
         });
     }
-    
-    /**
-     * 删除用户头像
-     * @param userId 用户ID
-     * @param callback 删除回调
-     */
-    public static void deleteAvatar(int userId, AvatarUploadCallback callback) {
-        executor.execute(() -> {
-            try {
-                // 模拟删除过程
-                Thread.sleep(500);
-                
-                // 这里应该是实际的删除逻辑
-                Log.d(TAG, "Avatar deleted for user " + userId);
-                
-                if (callback != null) {
-                    callback.onUploadSuccess("头像删除成功");
-                }
-                
-            } catch (Exception e) {
-                Log.e(TAG, "Failed to delete avatar for user " + userId, e);
-                if (callback != null) {
-                    callback.onUploadError("删除失败: " + e.getMessage());
-                }
+
+    private static InputStream compressImage(Context context, Uri imageUri) {
+        try {
+            InputStream is = context.getContentResolver().openInputStream(imageUri);
+            BitmapFactory.Options bounds = new BitmapFactory.Options();
+            bounds.inJustDecodeBounds = true;
+            BitmapFactory.decodeStream(is, null, bounds);
+            is.close();
+
+            int sampleSize = 1;
+            int halfW = bounds.outWidth / 2;
+            int halfH = bounds.outHeight / 2;
+            while ((halfW / sampleSize) >= MAX_DIMENSION && (halfH / sampleSize) >= MAX_DIMENSION) {
+                sampleSize *= 2;
             }
-        });
+
+            is = context.getContentResolver().openInputStream(imageUri);
+            BitmapFactory.Options opts = new BitmapFactory.Options();
+            opts.inSampleSize = sampleSize;
+            opts.inPreferredConfig = Bitmap.Config.ARGB_8888;
+            Bitmap bitmap = BitmapFactory.decodeStream(is, null, opts);
+            is.close();
+            if (bitmap == null) return null;
+
+            if (bitmap.getWidth() > MAX_DIMENSION || bitmap.getHeight() > MAX_DIMENSION) {
+                float scale = Math.min((float) MAX_DIMENSION / bitmap.getWidth(), (float) MAX_DIMENSION / bitmap.getHeight());
+                Bitmap scaled = Bitmap.createScaledBitmap(bitmap, Math.round(bitmap.getWidth() * scale), Math.round(bitmap.getHeight() * scale), true);
+                bitmap.recycle();
+                bitmap = scaled;
+            }
+
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            bitmap.compress(Bitmap.CompressFormat.JPEG, JPEG_QUALITY, baos);
+            bitmap.recycle();
+            return new ByteArrayInputStream(baos.toByteArray());
+        } catch (Exception e) {
+            Log.e(TAG, "compressImage failed", e);
+            return null;
+        }
     }
 }
