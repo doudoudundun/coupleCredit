@@ -7,6 +7,7 @@ const { createAuthRouter } = require("./routes/auth");
 const { createBillsRouter } = require("./routes/bills");
 const { createInventoryRouter } = require("./routes/inventory");
 const { createUploadRouter } = require("./routes/upload");
+const { createRecipeRouter } = require("./routes/recipes");
 const { sendError } = require("./errors");
 
 const config = readConfig();
@@ -20,6 +21,7 @@ app.use("/api/auth", createAuthRouter({ pool, config }));
 app.use("/api/bills", createBillsRouter({ pool }));
 app.use("/api/inventory", createInventoryRouter({ pool }));
 app.use("/api/upload", createUploadRouter());
+app.use("/api/recipes", createRecipeRouter({ pool }));
 app.use((error, _req, res, _next) => {
   console.error("Unhandled error:", error);
   sendError(res, error);
