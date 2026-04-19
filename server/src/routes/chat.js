@@ -45,8 +45,7 @@ function createChatRouter({ pool }) {
         sql += " AND created_at < ?";
         params.push(before);
       }
-      sql += " ORDER BY created_at DESC LIMIT ?";
-      params.push(limit);
+      sql += " ORDER BY created_at DESC LIMIT " + Math.floor(limit);
 
       const [rows] = await pool.execute(sql, params);
 
