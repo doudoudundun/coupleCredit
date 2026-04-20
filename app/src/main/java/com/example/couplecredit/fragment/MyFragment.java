@@ -437,7 +437,7 @@ public class MyFragment extends Fragment {
         int uid = UserInfoManager.getCurrentUserId(getContext());
         AuthApiClient.queryCoupleInfo(getContext(), uid, new AuthApiClient.CoupleInfoCallback() {
             @Override
-            public void onCoupleFound(int partnerId, String partnerName, String partnerNickname, int relationshipId) {
+            public void onCoupleFound(int partnerId, String partnerName, String partnerNickname, String partnerAvatarUrl, int relationshipId) {
                 if (getActivity() == null) return;
                 getActivity().runOnUiThread(() -> {
                     String display = partnerNickname != null && !partnerNickname.isEmpty() ? partnerNickname : partnerName;

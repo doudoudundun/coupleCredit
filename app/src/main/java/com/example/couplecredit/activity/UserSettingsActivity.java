@@ -328,7 +328,7 @@ public class UserSettingsActivity extends AppCompatActivity {
         int userIdInt = Integer.parseInt(userId);
         AuthApiClient.queryCoupleInfo(this, userIdInt, new AuthApiClient.CoupleInfoCallback() {
             @Override
-            public void onCoupleFound(int partnerId, String partnerName, String partnerNickname, int relationshipId) {
+            public void onCoupleFound(int partnerId, String partnerName, String partnerNickname, String partnerAvatarUrl, int relationshipId) {
                 runOnUiThread(() -> {
                     String displayName = (partnerNickname != null && !partnerNickname.trim().isEmpty()) ? partnerNickname : partnerName;
                     tvCoupleInfo.setText(displayName);

@@ -18,6 +18,7 @@ import com.example.couplecredit.adapter.CategoryDetailAdapter;
 import com.example.couplecredit.adapter.ReportAdapter;
 import com.example.couplecredit.api.AuthApiClient;
 import com.example.couplecredit.api.AuthApiModels;
+import com.example.couplecredit.utils.DataRefreshBus;
 import com.example.couplecredit.utils.UserInfoManager;
 import com.example.couplecredit.utils.BillUtils;
 import com.github.mikephil.charting.charts.LineChart;
@@ -41,6 +42,7 @@ import java.util.List;
 import java.util.Map;
 
 public class ReportFragment extends Fragment {
+    private final DataRefreshBus.Listener refreshListener = () -> refreshChartData();
     private int currentYear;
     private int currentMonth;
     private TextView tv_month_choose;
@@ -189,6 +191,14 @@ public class ReportFragment extends Fragment {
         }
         setupSegmentedTab();
         initUserInfo();
+
+        DataRefreshBus.subscribe(refreshListener);
+    }
+
+    @Override
+    public void onDestroyView() {
+        DataRefreshBus.unsubscribe(refreshListener);
+        super.onDestroyView();
     }
 
     private void initUserInfo() {

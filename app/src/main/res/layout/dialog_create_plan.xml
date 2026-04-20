@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="@drawable/dialog_background"
+    android:padding="24dp">
+
+    <TextView
+        android:id="@+id/tv_dialog_title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="创建共同计划"
+        android:textSize="18sp"
+        android:textStyle="bold"
+        android:textColor="#1A1A1A"
+        android:gravity="center"
+        android:layout_marginBottom="16dp" />
+
+    <EditText
+        android:id="@+id/et_plan_name"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:hint="计划名称，例如旅行基金"
+        android:textSize="14sp"
+        android:background="@drawable/input_background"
+        android:paddingHorizontal="16dp"
+        android:layout_marginBottom="10dp" />
+
+    <EditText
+        android:id="@+id/et_plan_amount"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:hint="初始值，可填 0"
+        android:inputType="numberDecimal"
+        android:textSize="14sp"
+        android:background="@drawable/input_background"
+        android:paddingHorizontal="16dp"
+        android:layout_marginBottom="10dp" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="16dp"
+        android:orientation="horizontal">
+
+        <TextView
+            android:id="@+id/btn_vis_both"
+            android:layout_width="0dp"
+            android:layout_height="36dp"
+            android:layout_marginEnd="6dp"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text="双方可见"
+            android:textColor="@android:color/white"
+            android:textSize="13sp"
+            android:background="@drawable/button_background" />
+
+        <TextView
+            android:id="@+id/btn_vis_self"
+            android:layout_width="0dp"
+            android:layout_height="36dp"
+            android:layout_marginStart="6dp"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text="仅自己"
+            android:textColor="#6B7280"
+            android:textSize="13sp"
+            android:background="@drawable/btn_cancel_background" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal">
+
+        <TextView
+            android:id="@+id/btn_cancel"
+            android:layout_width="0dp"
+            android:layout_height="44dp"
+            android:layout_marginEnd="6dp"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text="取消"
+            android:textSize="14sp"
+            android:textColor="#6B7280"
+            android:clickable="true"
+            android:focusable="true"
+            android:background="@drawable/btn_cancel_background" />
+
+        <TextView
+            android:id="@+id/btn_confirm"
+            android:layout_width="0dp"
+            android:layout_height="44dp"
+            android:layout_marginStart="6dp"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text="创建"
+            android:textSize="14sp"
+            android:textColor="@android:color/white"
+            android:textStyle="bold"
+            android:clickable="true"
+            android:focusable="true"
+            android:background="@drawable/button_background" />
+    </LinearLayout>
+
+</LinearLayout>

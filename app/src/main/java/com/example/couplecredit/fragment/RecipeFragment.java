@@ -34,6 +34,7 @@ import com.example.couplecredit.adapter.RecipeCategoryAdapter;
 import com.example.couplecredit.api.AuthApiClient;
 import com.example.couplecredit.api.AuthApiModels;
 import com.example.couplecredit.config.ApiConfigManager;
+import com.example.couplecredit.utils.DataRefreshBus;
 import com.example.couplecredit.utils.UserInfoManager;
 
 import java.io.ByteArrayInputStream;
@@ -42,8 +43,11 @@ import java.io.File;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 public class RecipeFragment extends Fragment implements RecipeAdapter.RecipeActionListener {
+
+    private final DataRefreshBus.Listener refreshListener = () -> refreshData();
 
     private RecyclerView rvRecipeList;
     private RecyclerView rvCategoryList;
@@ -137,6 +141,14 @@ public class RecipeFragment extends Fragment implements RecipeAdapter.RecipeActi
         btnLoginPrompt.setOnClickListener(v -> openLoginPage());
 
         refreshData();
+
+        DataRefreshBus.subscribe(refreshListener);
+    }
+
+    @Override
+    public void onDestroyView() {
+        DataRefreshBus.unsubscribe(refreshListener);
+        super.onDestroyView();
     }
 
     @Override
@@ -216,29 +228,35 @@ public class RecipeFragment extends Fragment implements RecipeAdapter.RecipeActi
     }
 
     private void showAddCategoryDialog() {
-        EditText input = new EditText(requireContext());
-        input.setHint("种类名称");
-        input.setPadding(48, 32, 48, 32);
-        new AlertDialog.Builder(requireContext(), R.style.CustomDialogStyle)
-                .setTitle("添加种类")
-                .setView(input)
-                .setPositiveButton("添加", (d, w) -> {
-                    String name = input.getText().toString().trim();
-                    if (TextUtils.isEmpty(name)) return;
-                    int userId = UserInfoManager.getCurrentUserId(requireContext());
-                    AuthApiClient.createRecipeCategory(requireContext(), userId, name, new AuthApiClient.RecipeMutationCallback() {
-                        @Override public void onSuccess() {
-                            if (!isAdded()) return;
-                            requireActivity().runOnUiThread(() -> { refreshData(); });
-                        }
-                        @Override public void onError(String e) {
-                            if (!isAdded()) return;
-                            requireActivity().runOnUiThread(() -> Toast.makeText(requireContext(), e, Toast.LENGTH_SHORT).show());
-                        }
-                    });
-                })
-                .setNegativeButton("取消", null)
-                .show();
+        View dialogView = LayoutInflater.from(requireContext()).inflate(R.layout.dialog_add_recipe_category, null);
+        AlertDialog dialog = new AlertDialog.Builder(requireContext(), R.style.CustomDialogStyle)
+                .setView(dialogView)
+                .create();
+
+        EditText etName = dialogView.findViewById(R.id.et_category_name);
+        dialogView.findViewById(R.id.btn_cancel).setOnClickListener(v -> dialog.dismiss());
+        dialogView.findViewById(R.id.btn_confirm).setOnClickListener(v -> {
+            String name = etName.getText().toString().trim();
+            if (TextUtils.isEmpty(name)) return;
+            dialog.dismiss();
+            int userId = UserInfoManager.getCurrentUserId(requireContext());
+            AuthApiClient.createRecipeCategory(requireContext(), userId, name, new AuthApiClient.RecipeMutationCallback() {
+                @Override public void onSuccess() {
+                    if (!isAdded()) return;
+                    requireActivity().runOnUiThread(() -> { refreshData(); });
+                }
+                @Override public void onError(String e) {
+                    if (!isAdded()) return;
+                    requireActivity().runOnUiThread(() -> Toast.makeText(requireContext(), e, Toast.LENGTH_SHORT).show());
+                }
+            });
+        });
+
+        dialog.show();
+        if (dialog.getWindow() != null) {
+            int w = (int) (requireContext().getResources().getDisplayMetrics().widthPixels * 0.85f);
+            dialog.getWindow().setLayout(w, ViewGroup.LayoutParams.WRAP_CONTENT);
+        }
     }
 
     private void updateLoginUI() {
@@ -388,6 +406,7 @@ public class RecipeFragment extends Fragment implements RecipeAdapter.RecipeActi
 
 
     private void renderSteps(LinearLayout llSteps, TextView tvStepsLabel, String steps, int dp) {
+        if (steps == null || steps.trim().isEmpty()) return;
         String stepsStr = steps.replace("[\"", "").replace("\"]", "").replace("\",\"", "\n");
         String[] stepLines = stepsStr.split("\n");
         if (stepLines.length == 0 || (stepLines.length == 1 && stepLines[0].trim().isEmpty())) return;
@@ -535,12 +554,31 @@ public class RecipeFragment extends Fragment implements RecipeAdapter.RecipeActi
         // Ingredients list
         List<AuthApiModels.IngredientData> ingredients = new ArrayList<>();
 
+        // Pre-load inventory for ingredient linking
+        List<AuthApiModels.InventoryItemData> inventoryItems = new ArrayList<>();
+        if (UserInfoManager.isUserLoggedIn(requireContext())) {
+            int uid = UserInfoManager.getCurrentUserId(requireContext());
+            AuthApiClient.queryInventory(requireContext(), uid, new AuthApiClient.InventoryListCallback() {
+                @Override public void onSuccess(AuthApiModels.InventoryListResponse response) {
+                    if (!isAdded()) return;
+                    requireActivity().runOnUiThread(() -> {
+                        inventoryItems.clear();
+                        if (response != null && response.data != null && response.data.items != null) {
+                            inventoryItems.addAll(response.data.items);
+                        }
+                    });
+                }
+                @Override public void onError(String message) {}
+            });
+        }
+
         btnAddIngredient.setOnClickListener(v -> {
             int dp = (int) (requireContext().getResources().getDisplayMetrics().density);
             LinearLayout row = new LinearLayout(requireContext());
             row.setOrientation(LinearLayout.HORIZONTAL);
             row.setGravity(Gravity.CENTER_VERTICAL);
 
+            // Clickable ingredient name — tap to pick from inventory or type manually
             EditText etName = new EditText(requireContext());
             etName.setHint("食材名");
             etName.setTextSize(13);
@@ -570,6 +608,28 @@ public class RecipeFragment extends Fragment implements RecipeAdapter.RecipeActi
             row.addView(etName);
             row.addView(etQty);
             row.addView(etUnit);
+
+            // Long-press on name to pick from inventory
+            etName.setOnLongClickListener(nameView -> {
+                if (inventoryItems.isEmpty()) {
+                    Toast.makeText(requireContext(), "暂无库存物资", Toast.LENGTH_SHORT).show();
+                    return true;
+                }
+                String[] names = new String[inventoryItems.size()];
+                for (int i = 0; i < inventoryItems.size(); i++) names[i] = inventoryItems.get(i).name;
+                new AlertDialog.Builder(requireContext())
+                        .setTitle("选择库存物资")
+                        .setItems(names, (d, which) -> {
+                            AuthApiModels.InventoryItemData item = inventoryItems.get(which);
+                            etName.setText(item.name);
+                            etUnit.setText(item.unit);
+                            row.setTag(item.inventoryId);
+                        })
+                        .setNegativeButton("手动输入", null)
+                        .show();
+                return true;
+            });
+
             llIngredients.addView(row);
         });
 
@@ -609,6 +669,8 @@ public class RecipeFragment extends Fragment implements RecipeAdapter.RecipeActi
                         ing.ingredientName = iName;
                         ing.quantity = TextUtils.isEmpty(iQty) ? 0 : Double.parseDouble(iQty);
                         ing.unit = TextUtils.isEmpty(iUnit) ? "个" : iUnit;
+                        Object tag = row.getTag();
+                        if (tag instanceof Integer) ing.inventoryId = (Integer) tag;
                         finalIngredients.add(ing);
                     }
                 }

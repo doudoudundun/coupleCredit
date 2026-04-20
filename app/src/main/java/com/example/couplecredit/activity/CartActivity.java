@@ -35,6 +35,7 @@ import java.util.Locale;
 
 public class CartActivity extends AppCompatActivity {
 
+
     private static final String PREFS_NAME = "recipe_cart";
     private static final String KEY_CART = "cart_items";
     private static final Gson GSON = new Gson();
@@ -127,6 +128,7 @@ public class CartActivity extends AppCompatActivity {
         if (index >= cartItems.size()) {
             cartItems.clear();
             saveCart();
+            com.example.couplecredit.utils.DataRefreshBus.refreshAll();
             new AlertDialog.Builder(this)
                     .setTitle("烹饪完成")
                     .setMessage("所有菜品已烹饪完成，食材已自动扣除")

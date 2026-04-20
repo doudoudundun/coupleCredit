@@ -22,8 +22,12 @@ import com.example.couplecredit.utils.BillUtils;
 import com.example.couplecredit.model.ChatMessage;
 import com.example.couplecredit.utils.MessageTextParser;
 import com.example.couplecredit.utils.CategoryIconMapper;
+import com.example.couplecredit.api.AuthApiClient;
+import com.example.couplecredit.api.AuthApiModels;
+import com.example.couplecredit.utils.UserInfoManager;
 
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Date;
@@ -51,6 +55,7 @@ public class ChatBillingDialog extends Dialog {
     private TextView tvExpense, tvIncome;
     private EditText etAmount, etNote;
     private Spinner spinnerCategory;
+    private Spinner spinnerSharedPlan;
     private TextView tvDate, tvTime;
     private TextView tvPayerSelf, tvPayerPartner, tvPayerShared;
     private Button btnCancel, btnSave;
@@ -64,6 +69,8 @@ public class ChatBillingDialog extends Dialog {
     // 分类数据 - 使用CategoryIconMapper统一管理
     private List<String> expenseCategories = CategoryIconMapper.getExpenseCategories();
     private List<String> incomeCategories = CategoryIconMapper.getIncomeCategories();
+    private final List<AuthApiModels.SharedPlanData> sharedPlans = new ArrayList<>();
+    private final List<String> sharedPlanLabels = new ArrayList<>();
     
     /**
      * 账单保存回调接口
@@ -128,6 +135,7 @@ public class ChatBillingDialog extends Dialog {
         
         // 初始化分类下拉框
         setupCategorySpinner();
+        setupSharedPlanSpinner();
         
         // 设置默认日期时间
         setDefaultDateTime();
@@ -147,6 +155,7 @@ public class ChatBillingDialog extends Dialog {
         
         // 分类选择
         spinnerCategory = view.findViewById(R.id.spinner_category);
+        spinnerSharedPlan = view.findViewById(R.id.spinner_shared_plan);
         
         // 日期时间
         tvDate = view.findViewById(R.id.tv_date);
@@ -208,6 +217,46 @@ public class ChatBillingDialog extends Dialog {
         spinnerCategory.setAdapter(adapter);
     }
     
+    private void setupSharedPlanSpinner() {
+        sharedPlanLabels.clear();
+        sharedPlanLabels.add("不关联计划");
+        ArrayAdapter<String> adapter = new ArrayAdapter<>(context, android.R.layout.simple_spinner_item, sharedPlanLabels);
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        spinnerSharedPlan.setAdapter(adapter);
+        if (!UserInfoManager.isUserLoggedIn(context)) return;
+        int userId = UserInfoManager.getCurrentUserId(context);
+        AuthApiClient.querySharedPlans(context, userId, new AuthApiClient.SharedPlanListCallback() {
+            @Override
+            public void onSuccess(AuthApiModels.SharedPlanListResponse response) {
+                sharedPlans.clear();
+                sharedPlanLabels.clear();
+                sharedPlanLabels.add("不关联计划");
+                if (response != null && response.data != null && response.data.items != null) {
+                    sharedPlans.addAll(response.data.items);
+                    for (AuthApiModels.SharedPlanData plan : sharedPlans) {
+                        sharedPlanLabels.add(plan.name + "（￥" + String.format(Locale.getDefault(), "%.2f", plan.currentBalance) + "）");
+                    }
+                }
+                ((android.app.Activity) context).runOnUiThread(() -> {
+                    ArrayAdapter<String> updated = new ArrayAdapter<>(context, android.R.layout.simple_spinner_item, sharedPlanLabels);
+                    updated.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+                    spinnerSharedPlan.setAdapter(updated);
+                });
+            }
+
+            @Override
+            public void onError(String message) {
+            }
+        });
+    }
+
+    private Integer getSelectedSharedPlanId() {
+        if (!isExpense || spinnerSharedPlan == null) return null;
+        int position = spinnerSharedPlan.getSelectedItemPosition();
+        if (position <= 0 || position - 1 >= sharedPlans.size()) return null;
+        return sharedPlans.get(position - 1).planId;
+    }
+
     /**
      * 设置默认日期时间
      */
@@ -288,34 +337,45 @@ public class ChatBillingDialog extends Dialog {
      */
     private void switchToExpense() {
         isExpense = true;
-        
+
         // 更新UI状态
         tvExpense.setBackgroundResource(R.drawable.tab_selected_background);
         tvExpense.setTextColor(context.getResources().getColor(android.R.color.white));
         tvIncome.setBackgroundResource(R.drawable.tab_unselected_background);
         tvIncome.setTextColor(context.getResources().getColor(R.color.text_secondary));
-        
+
+        if (spinnerSharedPlan != null) {
+            spinnerSharedPlan.setEnabled(true);
+            spinnerSharedPlan.setAlpha(1f);
+        }
+
         // 更新分类列表
         updateCategorySpinner();
-        
+
         // 如果有解析结果且是支出分类，重新选择
         if (parseResult != null && parseResult.hasCategory() && parseResult.getIncomeType() == 0) {
             selectCategoryInSpinner(parseResult.getCategory());
         }
     }
-    
+
     /**
      * 切换到收入模式
      */
     private void switchToIncome() {
         isExpense = false;
-        
+
         // 更新UI状态
         tvIncome.setBackgroundResource(R.drawable.tab_selected_background);
         tvIncome.setTextColor(context.getResources().getColor(android.R.color.white));
         tvExpense.setBackgroundResource(R.drawable.tab_unselected_background);
         tvExpense.setTextColor(context.getResources().getColor(R.color.text_secondary));
-        
+
+        if (spinnerSharedPlan != null) {
+            spinnerSharedPlan.setSelection(0);
+            spinnerSharedPlan.setEnabled(false);
+            spinnerSharedPlan.setAlpha(0.5f);
+        }
+
         // 更新分类列表
         updateCategorySpinner();
     }
@@ -487,9 +547,11 @@ public class ChatBillingDialog extends Dialog {
             // 如果备注为空，使用分类作为标题
             String title = note.isEmpty() ? category : note;
             
+            Integer sharedPlanId = getSelectedSharedPlanId();
+
             // 调用BillUtils.insertBill保存账单
-            BillUtils.insertBill(context, title, category, amount, date, time, 
-                incomeType, selectedPayer, new BillUtils.BillInsertCallback() {
+            BillUtils.insertBill(context, title, category, amount, date, time,
+                incomeType, selectedPayer, sharedPlanId, new BillUtils.BillInsertCallback() {
                     @Override
                     public void onInsertSuccess(long id) {
                         // 保存成功

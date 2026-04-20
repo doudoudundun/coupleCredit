@@ -119,7 +119,7 @@ function createAuthRouter({ pool, config }) {
         : relationship.user_id_1;
 
       const [partners] = await pool.execute(
-        "SELECT id, username, nickname FROM users WHERE id = ? LIMIT 1",
+        "SELECT id, username, nickname, avatar FROM users WHERE id = ? LIMIT 1",
         [partnerId]
       );
 
@@ -135,6 +135,7 @@ function createAuthRouter({ pool, config }) {
           partnerId: partner.id,
           partnerName: partner.username,
           partnerNickname: partner.nickname || null,
+          partnerAvatarUrl: partner.avatar || null,
           relationshipId: relationship.relationship_id
         }
       });

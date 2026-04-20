@@ -713,7 +713,7 @@ public class ChatViewModel extends AndroidViewModel {
         // 监听同步错误
         syncService.getSyncErrorLiveData().observeForever(error -> {
             if (error != null && !error.isEmpty()) {
-                errorMessage.postValue(error);
+                syncStatusMessage.postValue("SYNC_FAILED");
             }
         });
     }

@@ -15,7 +15,6 @@
         android:layout_height="50dp"
         android:background="@android:color/white">
 
-
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -212,11 +211,24 @@
                 android:id="@+id/tv_shared"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:layout_marginEnd="8dp"
                 android:background="@drawable/gray_rounded_background"
                 android:padding="8dp"
                 android:text="共同"
                 android:textColor="#666666"
                 android:textSize="12sp" />
+
+            <!-- 小钱包按钮 -->
+            <TextView
+                android:id="@+id/tv_wallet"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/gray_rounded_background"
+                android:padding="8dp"
+                android:text="小钱包"
+                android:textColor="#666666"
+                android:textSize="12sp"
+                android:visibility="gone" />
 
         </LinearLayout>
 

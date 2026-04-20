@@ -11,8 +11,10 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentManager;
+import androidx.fragment.app.FragmentTransaction;
 
 import com.example.couplecredit.R;
+import com.example.couplecredit.activity.MainActivity;
 import com.google.android.material.tabs.TabLayout;
 
 import java.util.ArrayList;
@@ -24,6 +26,9 @@ public class HeadFragment extends Fragment {
     private Fragment ClassicFragment;
     private Fragment ChatFragment;
     private Fragment ReportFragment;
+    private Fragment SharedPlansFragment;
+    private Fragment AddBillFragment;
+    private Fragment currentChildFragment;
     private TabLayout segmentedTab;
     private int currentTabPosition = 0;
     private final List<String> currentTabs = new ArrayList<>();
@@ -36,23 +41,7 @@ public class HeadFragment extends Fragment {
             int position = tab.getPosition();
             currentTabPosition = position;
             saveTabPosition(position);
-
-            if (position == 0) {
-                if (ClassicFragment == null) {
-                    ClassicFragment = new ClassicModelFragment();
-                }
-                fragmentManager.beginTransaction().replace(R.id.fg_change, ClassicFragment, "classic").commit();
-            } else if (position == 1) {
-                if (ChatFragment == null) {
-                    ChatFragment = new ChatModelFragment();
-                }
-                fragmentManager.beginTransaction().replace(R.id.fg_change, ChatFragment, "chat").commit();
-            } else if (position == 2) {
-                if (ReportFragment == null) {
-                    ReportFragment = new com.example.couplecredit.fragment.ReportFragment();
-                }
-                fragmentManager.beginTransaction().replace(R.id.fg_change, ReportFragment, "report").commit();
-            }
+            showChildFragment(position);
         }
 
         @Override
@@ -83,32 +72,97 @@ public class HeadFragment extends Fragment {
         if (currentTabs.isEmpty()) {
             currentTabs.add("首页");
             currentTabs.add("聊天");
+            currentTabs.add("计划");
             currentTabs.add("报表");
+            currentTabs.add("记账");
         }
 
-        Fragment existing = fragmentManager.findFragmentById(R.id.fg_change);
-        if (existing == null) {
-            ClassicFragment = new ClassicModelFragment();
-            ChatFragment = new ChatModelFragment();
-            ReportFragment = new com.example.couplecredit.fragment.ReportFragment();
-
-            Fragment initial;
-            String tag;
-            switch (currentTabPosition) {
-                case 1: initial = ChatFragment; tag = "chat"; break;
-                case 2: initial = ReportFragment; tag = "report"; break;
-                default: initial = ClassicFragment; tag = "classic"; break;
-            }
-            fragmentManager.beginTransaction().replace(R.id.fg_change, initial, tag).commit();
-        } else {
-            switch (currentTabPosition) {
-                case 0: ClassicFragment = existing; break;
-                case 1: ChatFragment = existing; break;
-                default: ReportFragment = existing; break;
-            }
-        }
-
+        restoreOrCreateChildFragments();
         setupSegmentedTab();
+        showChildFragment(currentTabPosition);
+    }
+
+    private void restoreOrCreateChildFragments() {
+        ClassicFragment = fragmentManager.findFragmentByTag("classic");
+        ChatFragment = fragmentManager.findFragmentByTag("chat");
+        SharedPlansFragment = fragmentManager.findFragmentByTag("sharedPlans");
+        ReportFragment = fragmentManager.findFragmentByTag("report");
+        AddBillFragment = fragmentManager.findFragmentByTag("addBill");
+
+        if (ClassicFragment == null) {
+            ClassicFragment = new ClassicModelFragment();
+        }
+        if (ChatFragment == null) {
+            ChatFragment = new ChatModelFragment();
+        }
+        if (SharedPlansFragment == null) {
+            SharedPlansFragment = new com.example.couplecredit.fragment.SharedPlansFragment();
+        }
+        if (ReportFragment == null) {
+            ReportFragment = new com.example.couplecredit.fragment.ReportFragment();
+        }
+        if (AddBillFragment == null) {
+            AddBillFragment = new com.example.couplecredit.fragment.AddBillFragment();
+        }
+
+        FragmentTransaction transaction = fragmentManager.beginTransaction().setReorderingAllowed(true);
+        if (!ClassicFragment.isAdded()) {
+            transaction.add(R.id.fg_change, ClassicFragment, "classic");
+        }
+        if (!ChatFragment.isAdded()) {
+            transaction.add(R.id.fg_change, ChatFragment, "chat");
+        }
+        if (!SharedPlansFragment.isAdded()) {
+            transaction.add(R.id.fg_change, SharedPlansFragment, "sharedPlans");
+        }
+        if (!ReportFragment.isAdded()) {
+            transaction.add(R.id.fg_change, ReportFragment, "report");
+        }
+        if (!AddBillFragment.isAdded()) {
+            transaction.add(R.id.fg_change, AddBillFragment, "addBill");
+        }
+        transaction.hide(ClassicFragment);
+        transaction.hide(ChatFragment);
+        transaction.hide(SharedPlansFragment);
+        transaction.hide(ReportFragment);
+        transaction.hide(AddBillFragment);
+        transaction.commitNow();
+        currentChildFragment = null;
+    }
+
+    private void showChildFragment(int position) {
+        Fragment target;
+        switch (position) {
+            case 1:
+                target = ChatFragment;
+                break;
+            case 2:
+                target = SharedPlansFragment;
+                break;
+            case 3:
+                target = ReportFragment;
+                break;
+            case 4:
+                target = AddBillFragment;
+                break;
+            default:
+                target = ClassicFragment;
+                break;
+        }
+
+        if (target == null || target == currentChildFragment) {
+            return;
+        }
+
+        FragmentTransaction transaction = fragmentManager.beginTransaction().setReorderingAllowed(true);
+        if (currentChildFragment != null && currentChildFragment.isAdded()) {
+            transaction.hide(currentChildFragment);
+        }
+        if (target.isAdded()) {
+            transaction.show(target);
+        }
+        transaction.commit();
+        currentChildFragment = target;
     }
 
     private void setupSegmentedTab() {
@@ -119,7 +173,7 @@ public class HeadFragment extends Fragment {
         }
 
         TabLayout.Tab selectedTab = segmentedTab.getTabAt(currentTabPosition);
-        if (selectedTab != null) {
+        if (selectedTab != null && !selectedTab.isSelected()) {
             selectedTab.select();
         }
         segmentedTab.addOnTabSelectedListener(onTabSelectedListener);
@@ -138,7 +192,7 @@ public class HeadFragment extends Fragment {
     public void refreshCurrentFragmentData() {
         if (currentTabPosition == 0 && ClassicFragment instanceof ClassicModelFragment) {
             ((ClassicModelFragment) ClassicFragment).refreshBillData();
-        } else if (currentTabPosition == 2 && ReportFragment instanceof com.example.couplecredit.fragment.ReportFragment) {
+        } else if (currentTabPosition == 3 && ReportFragment instanceof com.example.couplecredit.fragment.ReportFragment) {
             ((com.example.couplecredit.fragment.ReportFragment) ReportFragment).refreshChartData();
         }
     }
@@ -150,9 +204,16 @@ public class HeadFragment extends Fragment {
         return null;
     }
 
+    public com.example.couplecredit.fragment.SharedPlansFragment getSharedPlansFragment() {
+        if (SharedPlansFragment instanceof com.example.couplecredit.fragment.SharedPlansFragment) {
+            return (com.example.couplecredit.fragment.SharedPlansFragment) SharedPlansFragment;
+        }
+        return null;
+    }
+
     public void switchToReportTab() {
         if (segmentedTab != null) {
-            TabLayout.Tab reportTab = segmentedTab.getTabAt(2);
+            TabLayout.Tab reportTab = segmentedTab.getTabAt(3);
             if (reportTab != null) {
                 reportTab.select();
             }

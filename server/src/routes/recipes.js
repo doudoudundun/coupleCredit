@@ -172,34 +172,59 @@ function createRecipeRouter({ pool }) {
     } catch (error) { next(error); }
   });
 
-  // POST /api/recipes/:id/cook — consume linked inventory items
+  // POST /api/recipes/:id/cook — consume inventory by ingredient name matching
   router.post("/:id/cook", async (req, res, next) => {
     try {
       const recipeId = parseRequiredInteger(Number(req.params.id));
       const userId = parseRequiredInteger(Number(req.body.userId));
 
+      // Get recipe ingredients
       const [ingredients] = await pool.execute(
-        `SELECT ri.id, ri.inventory_id, ri.ingredient_name, ri.quantity, ri.unit, i.quantity AS stock
-         FROM recipe_ingredients ri
-         LEFT JOIN inventory i ON ri.inventory_id = i.inventory_id
-         WHERE ri.recipe_id = ? AND ri.inventory_id IS NOT NULL`, [recipeId]);
+        `SELECT ri.ingredient_name, ri.quantity, ri.unit FROM recipe_ingredients ri WHERE ri.recipe_id = ?`,
+        [recipeId]);
+
+      if (ingredients.length === 0) {
+        return res.json({ ok: true, data: { results: [], warnings: [] } });
+      }
+
+      // Get user's inventory (including partner's shared items)
+      const relationship = await loadActiveRelationship(pool, userId);
+      const relationshipId = relationship ? relationship.relationship_id : null;
+
+      let invQuery, invParams;
+      if (relationshipId) {
+        invQuery = `SELECT inventory_id, name, quantity, unit FROM inventory WHERE (user_id = ? OR relationship_id = ?)`;
+        invParams = [userId, relationshipId];
+      } else {
+        invQuery = `SELECT inventory_id, name, quantity, unit FROM inventory WHERE user_id = ?`;
+        invParams = [userId];
+      }
+      const [inventory] = await pool.execute(invQuery, invParams);
 
       const results = [];
       const warnings = [];
 
       for (const ing of ingredients) {
         const needed = parseFloat(ing.quantity) || 0;
-        const stock = parseFloat(ing.stock) || 0;
+        if (needed <= 0) continue;
+
+        // Find matching inventory item by name
+        const match = inventory.find(inv => inv.name === ing.ingredient_name);
+        if (!match) continue;
+
+        const stock = parseFloat(match.quantity) || 0;
         if (stock < needed) {
-          warnings.push(`${ing.ingredient_name}: 需 ${needed} ${ing.unit}，仅剩 ${stock} ${ing.unit}`);
+          warnings.push(`${ing.ingredient_name}: 需 ${needed} ${ing.unit}，仅剩 ${stock} ${match.unit}`);
         }
         await pool.execute(
           `UPDATE inventory SET quantity = GREATEST(quantity - ?, 0), last_consumed_at = NOW() WHERE inventory_id = ?`,
-          [needed, ing.inventory_id]);
+          [needed, match.inventory_id]);
         results.push({ name: ing.ingredient_name, consumed: needed, unit: ing.unit, hadEnough: stock >= needed });
       }
 
       invalidateRecipeCache(userId);
+      cache.del(Keys.inventory(userId));
+      cache.delPrefix(`bills:${userId}:`);
       res.json({ ok: true, data: { results, warnings } });
     } catch (error) { next(error); }
   });

@@ -69,7 +69,7 @@ public class AuthApiClient {
     }
 
     public interface CoupleInfoCallback {
-        void onCoupleFound(int partnerId, String partnerName, String partnerNickname, int relationshipId);
+        void onCoupleFound(int partnerId, String partnerName, String partnerNickname, String partnerAvatarUrl, int relationshipId);
         void onNoCoupleFound();
         void onError(String message);
     }
@@ -101,6 +101,16 @@ public class AuthApiClient {
 
     public interface RecipeCategoryListCallback {
         void onSuccess(AuthApiModels.RecipeCategoryListResponse response);
+        void onError(String message);
+    }
+
+    public interface SharedPlanListCallback {
+        void onSuccess(AuthApiModels.SharedPlanListResponse response);
+        void onError(String message);
+    }
+
+    public interface SharedPlanMutationCallback {
+        void onSuccess();
         void onError(String message);
     }
 
@@ -178,8 +188,12 @@ public class AuthApiClient {
     }
 
     public static void createBill(Context context, int userId, String billOwner, String title, String type, double amount, String date, String time, int incomeType, BillCallback callback) {
+        createBill(context, userId, billOwner, null, title, type, amount, date, time, incomeType, callback);
+    }
+
+    public static void createBill(Context context, int userId, String billOwner, Integer sharedPlanId, String title, String type, double amount, String date, String time, int incomeType, BillCallback callback) {
         doRequest(context, "POST", "/api/bills",
-                GSON.toJson(new AuthApiModels.CreateBillRequest(userId, billOwner, title, type, amount, date, time, incomeType)),
+                GSON.toJson(new AuthApiModels.CreateBillRequest(userId, billOwner, sharedPlanId, title, type, amount, date, time, incomeType)),
                 new RawCallback() {
                     @Override
                     public void onSuccess(String json) {
@@ -291,8 +305,9 @@ public class AuthApiClient {
                                     int partnerId = data.get("partnerId").getAsInt();
                                     String partnerName = data.get("partnerName").getAsString();
                                     String partnerNickname = data.has("partnerNickname") && !data.get("partnerNickname").isJsonNull() ? data.get("partnerNickname").getAsString() : null;
+                                    String partnerAvatarUrl = data.has("partnerAvatarUrl") && !data.get("partnerAvatarUrl").isJsonNull() ? data.get("partnerAvatarUrl").getAsString() : null;
                                     int relationshipId = data.get("relationshipId").getAsInt();
-                                    callback.onCoupleFound(partnerId, partnerName, partnerNickname, relationshipId);
+                                    callback.onCoupleFound(partnerId, partnerName, partnerNickname, partnerAvatarUrl, relationshipId);
                                 } else {
                                     callback.onNoCoupleFound();
                                 }
@@ -722,6 +737,48 @@ public class AuthApiClient {
         });
     }
 
+    public static void querySharedPlans(Context context, int userId, SharedPlanListCallback callback) {
+        doRequest(context, "GET", "/api/shared-plans?userId=" + userId,
+                null,
+                new RawCallback() {
+                    @Override
+                    public void onSuccess(String json) {
+                        if (callback == null) return;
+                        try {
+                            AuthApiModels.SharedPlanListResponse response = GSON.fromJson(normalizeJsonPayload(json), AuthApiModels.SharedPlanListResponse.class);
+                            if (response != null && response.ok) callback.onSuccess(response);
+                            else callback.onError(extractError(response != null ? response.error : null, json));
+                        } catch (Exception e) {
+                            Log.e(TAG, "querySharedPlans 响应解析失败: " + json, e);
+                            callback.onError(buildParseError("共同计划查询", json));
+                        }
+                    }
+
+                    @Override
+                    public void onError(String message) {
+                        if (callback != null) callback.onError(message);
+                    }
+                });
+    }
+
+    public static void createSharedPlan(Context context, AuthApiModels.CreateSharedPlanRequest request, SharedPlanMutationCallback callback) {
+        doRequest(context, "POST", "/api/shared-plans",
+                GSON.toJson(request),
+                sharedPlanMutationCallback("创建共同计划", callback));
+    }
+
+    public static void adjustSharedPlan(Context context, int planId, AuthApiModels.AdjustSharedPlanRequest request, SharedPlanMutationCallback callback) {
+        doRequest(context, "POST", "/api/shared-plans/" + planId + "/adjust",
+                GSON.toJson(request),
+                sharedPlanMutationCallback("调整共同计划", callback));
+    }
+
+    public static void deleteSharedPlan(Context context, int planId, int userId, SharedPlanMutationCallback callback) {
+        doRequest(context, "DELETE", "/api/shared-plans/" + planId + "?userId=" + userId,
+                null,
+                sharedPlanMutationCallback("删除共同计划", callback));
+    }
+
     public static void deleteBill(Context context, int billId, int userId, DeleteBillCallback callback) {
         doRequest(context, "DELETE", "/api/bills/" + billId + "?userId=" + userId,
                 null,
@@ -832,6 +889,32 @@ public class AuthApiClient {
     }
 
     private static RawCallback simpleMutationCallback(String operation, RecipeMutationCallback callback) {
+        return new RawCallback() {
+            @Override
+            public void onSuccess(String json) {
+                if (callback != null) {
+                    try {
+                        AuthApiModels.SimpleResponse response = GSON.fromJson(normalizeJsonPayload(json), AuthApiModels.SimpleResponse.class);
+                        if (response != null && response.ok) {
+                            callback.onSuccess();
+                        } else {
+                            callback.onError(extractError(response != null ? response.error : null, json));
+                        }
+                    } catch (Exception e) {
+                        Log.e(TAG, operation + "响应解析失败: " + json, e);
+                        callback.onError(buildParseError(operation, json));
+                    }
+                }
+            }
+
+            @Override
+            public void onError(String message) {
+                if (callback != null) callback.onError(message);
+            }
+        };
+    }
+
+    private static RawCallback sharedPlanMutationCallback(String operation, SharedPlanMutationCallback callback) {
         return new RawCallback() {
             @Override
             public void onSuccess(String json) {

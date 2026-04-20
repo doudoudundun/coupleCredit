@@ -19,7 +19,7 @@ import androidx.fragment.app.FragmentTransaction;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
 import com.example.couplecredit.R;
-import com.example.couplecredit.fragment.AddBillFragment;
+import com.example.couplecredit.utils.DataRefreshBus;
 import com.example.couplecredit.fragment.HeadFragment;
 import com.example.couplecredit.fragment.InventoryFragment;
 import com.example.couplecredit.fragment.MyFragment;
@@ -33,7 +33,6 @@ public class MainActivity extends AppCompatActivity {
 
     private FragmentManager fragmentManager;
     private HeadFragment headFragment;
-    private AddBillFragment addBillFragment;
     private InventoryFragment inventoryFragment;
     private RecipeFragment recipeFragment;
     private MyFragment myFragment;
@@ -83,7 +82,6 @@ public class MainActivity extends AppCompatActivity {
 
         if (savedInstanceState == null) {
             headFragment = new HeadFragment();
-            addBillFragment = new AddBillFragment();
             inventoryFragment = new InventoryFragment();
             recipeFragment = new RecipeFragment();
             myFragment = new MyFragment();
@@ -98,7 +96,6 @@ public class MainActivity extends AppCompatActivity {
             initAllFragments();
         } else {
             headFragment = (HeadFragment) fragmentManager.findFragmentByTag("head");
-            addBillFragment = (AddBillFragment) fragmentManager.findFragmentByTag("addBill");
             inventoryFragment = (InventoryFragment) fragmentManager.findFragmentByTag("inventory");
             recipeFragment = (RecipeFragment) fragmentManager.findFragmentByTag("recipe");
             myFragment = (MyFragment) fragmentManager.findFragmentByTag("my");
@@ -116,9 +113,6 @@ public class MainActivity extends AppCompatActivity {
             int itemId = item.getItemId();
             if (itemId == R.id.nav_head) {
                 showFragment(headFragment);
-                return true;
-            } else if (itemId == R.id.nav_addbill) {
-                showFragment(addBillFragment);
                 return true;
             } else if (itemId == R.id.nav_inventory) {
                 showFragment(inventoryFragment);
@@ -183,8 +177,6 @@ public class MainActivity extends AppCompatActivity {
             inventoryFragment.refreshInventoryData();
         } else if (fragment == recipeFragment) {
             recipeFragment.refreshData();
-        } else if (fragment == headFragment) {
-            headFragment.refreshCurrentFragmentData();
         }
     }
 
@@ -211,12 +203,10 @@ public class MainActivity extends AppCompatActivity {
     private void initAllFragments() {
         FragmentTransaction transaction = fragmentManager.beginTransaction().setReorderingAllowed(true);
         transaction.add(R.id.fragment_container, headFragment, "head");
-        transaction.add(R.id.fragment_container, addBillFragment, "addBill");
         transaction.add(R.id.fragment_container, inventoryFragment, "inventory");
         transaction.add(R.id.fragment_container, recipeFragment, "recipe");
         transaction.add(R.id.fragment_container, myFragment, "my");
         transaction.hide(headFragment);
-        transaction.hide(addBillFragment);
         transaction.hide(inventoryFragment);
         transaction.hide(recipeFragment);
         transaction.hide(myFragment);
@@ -285,7 +275,7 @@ public class MainActivity extends AppCompatActivity {
         }
 
         refreshHomePageData();
-        Log.d("MainActivity", "所有Fragment登录状态已刷新");
+        DataRefreshBus.refreshAll();
     }
 
     private void syncBottomNavigationSelection(Fragment fragment) {
@@ -294,18 +284,18 @@ public class MainActivity extends AppCompatActivity {
         }
 
         int itemId = getBottomNavigationItemId(fragment);
-        if (itemId == 0 || mBottomNav.getSelectedItemId() == itemId) {
+        if (itemId == 0) {
+            itemId = R.id.nav_head;
+        }
+        if (mBottomNav.getSelectedItemId() == itemId) {
             return;
         }
-
         mBottomNav.getMenu().findItem(itemId).setChecked(true);
     }
 
     private int getBottomNavigationItemId(Fragment fragment) {
         if (fragment == headFragment) {
             return R.id.nav_head;
-        } else if (fragment == addBillFragment) {
-            return R.id.nav_addbill;
         } else if (fragment == inventoryFragment) {
             return R.id.nav_inventory;
         } else if (fragment == recipeFragment) {
@@ -314,6 +304,17 @@ public class MainActivity extends AppCompatActivity {
             return R.id.nav_my;
         }
         return 0;
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        if (intent != null && intent.getStringExtra("username") != null) {
+            DataRefreshBus.refreshAll();
+            if (inventoryFragment != null) inventoryFragment.refreshInventoryData();
+            if (recipeFragment != null) recipeFragment.refreshData();
+        }
     }
 
     @Override

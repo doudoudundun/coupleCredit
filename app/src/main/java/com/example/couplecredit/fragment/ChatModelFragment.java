@@ -643,8 +643,7 @@ public class ChatModelFragment extends Fragment {
                     dialog.setOnBillSavedListener(new ChatBillingDialog.OnBillSavedListener() {
                         @Override
                         public void onBillSaved(long billId) {
-                            // 账单保存成功，可以在这里添加额外的处理逻辑
-                            // 例如：刷新统计数据、发送广播通知等
+                            com.example.couplecredit.utils.DataRefreshBus.refreshAll();
                         }
                         
                         @Override

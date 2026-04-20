@@ -48,6 +48,7 @@ import com.example.couplecredit.api.AuthApiClient;
 import com.example.couplecredit.api.AuthApiModels;
 import com.example.couplecredit.config.ApiConfigManager;
 import com.example.couplecredit.utils.InventoryUtils;
+import com.example.couplecredit.utils.DataRefreshBus;
 import com.example.couplecredit.utils.UserInfoManager;
 import com.example.couplecredit.viewmodel.InventoryViewModel;
 
@@ -163,6 +164,8 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
             }
     );
 
+    private final DataRefreshBus.Listener refreshListener = () -> refreshInventoryData();
+
     @Nullable
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
@@ -197,6 +200,14 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
         } else {
             refreshInventoryData();
         }
+
+        DataRefreshBus.subscribe(refreshListener);
+    }
+
+    @Override
+    public void onDestroyView() {
+        DataRefreshBus.unsubscribe(refreshListener);
+        super.onDestroyView();
     }
 
     private void restoreFromViewModel() {

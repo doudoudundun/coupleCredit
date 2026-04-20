@@ -32,6 +32,10 @@ public final class BillUtils {
      * 插入账单（新版本 - 自动获取当前用户信息）
      */
     public static void insertBill(Context context, String title, String type, double amount, String date, String time, int incomeType, String billOwner, BillInsertCallback callback) {
+        insertBill(context, title, type, amount, date, time, incomeType, billOwner, null, callback);
+    }
+
+    public static void insertBill(Context context, String title, String type, double amount, String date, String time, int incomeType, String billOwner, Integer sharedPlanId, BillInsertCallback callback) {
         if (context == null) {
             if (callback != null) {
                 callback.onInsertError("页面状态异常，请重新进入记账页");
@@ -56,7 +60,7 @@ public final class BillUtils {
             return;
         }
 
-        AuthApiClient.createBill(context, userId, billOwner, title, type, amount, date, time, incomeType, new AuthApiClient.BillCallback() {
+        AuthApiClient.createBill(context, userId, billOwner, sharedPlanId, title, type, amount, date, time, incomeType, new AuthApiClient.BillCallback() {
             @Override
             public void onSuccess(com.example.couplecredit.api.AuthApiModels.BillResponse response) {
                 if (response == null || response.data == null) {

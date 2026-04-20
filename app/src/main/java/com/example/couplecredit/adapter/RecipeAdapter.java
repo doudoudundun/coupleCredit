@@ -35,8 +35,9 @@ public class RecipeAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder>
     // Flat list: String = category header, RecipeItemData = recipe card
     private final List<Object> flatList = new ArrayList<>();
     private final RecipeActionListener listener;
-    // Map: category position in flatList -> category name
+    // Parallel lists: category position in flatList and its categoryId
     private final List<Integer> categoryPositions = new ArrayList<>();
+    private final List<Integer> categoryIds = new ArrayList<>();
 
     public RecipeAdapter(RecipeActionListener listener) {
         this.listener = listener;
@@ -45,6 +46,7 @@ public class RecipeAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder>
     public void setData(List<AuthApiModels.RecipeCategoryData> categories, List<AuthApiModels.RecipeItemData> allRecipes) {
         flatList.clear();
         categoryPositions.clear();
+        categoryIds.clear();
 
         Map<Integer, List<AuthApiModels.RecipeItemData>> byCategory = new LinkedHashMap<>();
         List<AuthApiModels.RecipeItemData> uncategorized = new ArrayList<>();
@@ -59,15 +61,17 @@ public class RecipeAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder>
 
         for (AuthApiModels.RecipeCategoryData cat : categories) {
             List<AuthApiModels.RecipeItemData> catRecipes = byCategory.get(cat.categoryId);
+            categoryPositions.add(flatList.size());
+            categoryIds.add(cat.categoryId);
+            flatList.add(cat.name);
             if (catRecipes != null && !catRecipes.isEmpty()) {
-                categoryPositions.add(flatList.size());
-                flatList.add(cat.name);
                 flatList.addAll(catRecipes);
             }
         }
 
         if (!uncategorized.isEmpty()) {
             categoryPositions.add(flatList.size());
+            categoryIds.add(0);
             flatList.add("未分类");
             flatList.addAll(uncategorized);
         }
@@ -80,14 +84,9 @@ public class RecipeAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder>
     }
 
     public int getCategoryPosition(int categoryId) {
-        // Find category position by matching recipes with that categoryId
-        for (int i = 0; i < flatList.size(); i++) {
-            Object item = flatList.get(i);
-            if (item instanceof AuthApiModels.RecipeItemData) {
-                AuthApiModels.RecipeItemData r = (AuthApiModels.RecipeItemData) item;
-                if (r.categoryId != null && r.categoryId == categoryId) {
-                    return i - 1; // scroll to the category header above this recipe
-                }
+        for (int i = 0; i < categoryIds.size(); i++) {
+            if (categoryIds.get(i) == categoryId) {
+                return categoryPositions.get(i);
             }
         }
         return 0;

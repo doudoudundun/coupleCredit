@@ -77,6 +77,7 @@ function createBillsRouter({ pool }) {
   router.post("/", async (req, res, next) => {
     try {
       const userId = parseRequiredInteger(req.body.userId);
+      const sharedPlanId = parseOptionalInteger(req.body.sharedPlanId);
       const { relationshipId, owner, isHelp } = await resolveBillOwnership(pool, req.body);
       const title = trimValue(req.body.title);
       const type = trimValue(req.body.type);
@@ -89,10 +90,37 @@ function createBillsRouter({ pool }) {
         throw new ApiError(400, "INVALID_REQUEST", "请求参数不完整或格式不正确");
       }
 
+      // Pre-check shared plan before inserting bill
+      if (sharedPlanId) {
+        const [plans] = await pool.execute(
+          "SELECT plan_id, current_balance FROM shared_plans WHERE plan_id = ? AND (created_by = ? OR (relationship_id = ? AND visibility = 'both')) LIMIT 1",
+          [sharedPlanId, userId, relationshipId]
+        );
+        if (plans.length === 0) throw new ApiError(404, "NOT_FOUND", "共同计划不存在或无权使用");
+        if (incomeType === 0 && parseFloat(plans[0].current_balance) < amount) {
+          throw new ApiError(400, "INSUFFICIENT_BALANCE", "小钱包余额不足");
+        }
+      }
+
       const [result] = await pool.execute(
-        "INSERT INTO bills (relationship_id, owner, user_id, title, type, amount, date, time, income_type, is_help) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        [relationshipId, owner, userId, title, type, amount, date, time, incomeType, isHelp]
+        "INSERT INTO bills (relationship_id, shared_plan_id, owner, user_id, title, type, amount, date, time, income_type, is_help) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        [relationshipId, sharedPlanId, owner, userId, title, type, amount, date, time, incomeType, isHelp]
       );
+
+      if (sharedPlanId) {
+        if (incomeType === 0) {
+          await pool.execute("UPDATE shared_plans SET current_balance = current_balance - ? WHERE plan_id = ?", [amount, sharedPlanId]);
+        } else {
+          await pool.execute("UPDATE shared_plans SET current_balance = current_balance + ? WHERE plan_id = ?", [amount, sharedPlanId]);
+        }
+        const relationship = await loadActiveRelationship(pool, userId);
+        if (relationship) {
+          cache.del(Keys.sharedPlans(relationship.user_id_1));
+          cache.del(Keys.sharedPlans(relationship.user_id_2));
+        } else {
+          cache.del(Keys.sharedPlans(userId));
+        }
+      }
 
       res.status(201).json({
         ok: true,
@@ -100,6 +128,7 @@ function createBillsRouter({ pool }) {
         data: {
           billId: result.insertId,
           relationshipId,
+          sharedPlanId,
           owner,
           userId,
           title,
@@ -132,7 +161,6 @@ function createBillsRouter({ pool }) {
       if (cached) return res.json(cached);
 
       const datePattern = `${year}-${String(month).padStart(2, '0')}-%`;
-      const datePattern = `${year}-${String(month).padStart(2, '0')}-%`;
 
       // 获取情侣关系
       const relationship = await loadActiveRelationship(pool, userId);
@@ -144,7 +172,7 @@ function createBillsRouter({ pool }) {
 
       if (relationshipId) {
         // 有情侣关系：查询自己和对方的账单
-        query = `SELECT bill_id as billId, user_id as userId, title, type, amount, date, time, income_type as incomeType, owner, is_help as isHelp, relationship_id as relationshipId
+        query = `SELECT bill_id as billId, user_id as userId, shared_plan_id as sharedPlanId, title, type, amount, date, time, income_type as incomeType, owner, is_help as isHelp, relationship_id as relationshipId
                  FROM bills
                  WHERE (user_id = ? OR relationship_id = ?)
                  AND date LIKE ?
@@ -152,7 +180,7 @@ function createBillsRouter({ pool }) {
         params = [userId, relationshipId, datePattern];
       } else {
         // 无情侣关系：只查询自己的账单
-        query = `SELECT bill_id as billId, user_id as userId, title, type, amount, date, time, income_type as incomeType, owner, is_help as isHelp, relationship_id as relationshipId
+        query = `SELECT bill_id as billId, user_id as userId, shared_plan_id as sharedPlanId, title, type, amount, date, time, income_type as incomeType, owner, is_help as isHelp, relationship_id as relationshipId
                  FROM bills
                  WHERE user_id = ? AND date LIKE ?
                  ORDER BY date DESC, bill_id DESC`;
@@ -183,13 +211,28 @@ function createBillsRouter({ pool }) {
       const billId = parseRequiredInteger(parseInt(req.params.id, 10));
       const userId = parseRequiredInteger(parseInt(req.query.userId, 10));
 
-      const [result] = await pool.execute(
-        "DELETE FROM bills WHERE bill_id = ? AND user_id = ?",
+      const [rows] = await pool.execute(
+        "SELECT shared_plan_id, income_type, amount FROM bills WHERE bill_id = ? AND user_id = ?",
         [billId, userId]
       );
+      if (rows.length === 0) throw new ApiError(404, "NOT_FOUND", "账单不存在或无权删除");
 
-      if (result.affectedRows === 0) {
-        throw new ApiError(404, "NOT_FOUND", "账单不存在或无权删除");
+      const bill = rows[0];
+      await pool.execute("DELETE FROM bills WHERE bill_id = ? AND user_id = ?", [billId, userId]);
+
+      if (bill.shared_plan_id) {
+        const delta = bill.income_type === 0 ? bill.amount : -bill.amount;
+        await pool.execute(
+          "UPDATE shared_plans SET current_balance = current_balance + ? WHERE plan_id = ?",
+          [delta, bill.shared_plan_id]
+        );
+        const relationship = await loadActiveRelationship(pool, userId);
+        if (relationship) {
+          cache.del(Keys.sharedPlans(relationship.user_id_1));
+          cache.del(Keys.sharedPlans(relationship.user_id_2));
+        } else {
+          cache.del(Keys.sharedPlans(userId));
+        }
       }
 
       cache.delPrefix(`bills:${userId}:`);

@@ -26,6 +26,7 @@ import com.example.couplecredit.activity.MainActivity;
 import com.example.couplecredit.adapter.BillAdapter;
 import com.example.couplecredit.utils.BillUtils;
 import com.example.couplecredit.utils.CategoryIconMapper;
+import com.example.couplecredit.utils.DataRefreshBus;
 import com.example.couplecredit.viewmodel.ClassicViewModel;
 import com.google.android.material.bottomnavigation.BottomNavigationView;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
@@ -37,6 +38,7 @@ import java.util.List;
 import java.util.Locale;
 
 public class ClassicModelFragment extends Fragment implements BillAdapter.OnItemClickListener {
+    private final DataRefreshBus.Listener refreshListener = () -> refreshBillData();
     private RecyclerView rvBillList;
     private BillAdapter billAdapter;
     private List<Object> displayItems;
@@ -116,6 +118,14 @@ public class ClassicModelFragment extends Fragment implements BillAdapter.OnItem
 
         viewModel.initialize();
         tvMonthTitle.setOnClickListener(v -> showDatePickerDialog());
+
+        DataRefreshBus.subscribe(refreshListener);
+    }
+
+    @Override
+    public void onDestroyView() {
+        DataRefreshBus.unsubscribe(refreshListener);
+        super.onDestroyView();
     }
 
     private void openReportFragment(String type) {

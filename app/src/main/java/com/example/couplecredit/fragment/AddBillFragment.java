@@ -11,10 +11,13 @@ import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.graphics.drawable.GradientDrawable;
+import android.widget.ArrayAdapter;
 import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
+import android.widget.PopupWindow;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -29,11 +32,17 @@ import com.example.couplecredit.R;
 import com.example.couplecredit.utils.CustomToast;
 import com.example.couplecredit.utils.BillUtils;
 import com.example.couplecredit.utils.CategoryIconMapper;
+import com.example.couplecredit.utils.DataRefreshBus;
+import com.example.couplecredit.utils.UserInfoManager;
+import com.example.couplecredit.api.AuthApiClient;
+import com.example.couplecredit.api.AuthApiModels;
 import com.google.android.material.tabs.TabLayout;
 
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Date;
+import java.util.List;
 import java.util.Locale;
 
 // 在类的顶部添加导入
@@ -70,6 +79,10 @@ public class AddBillFragment extends Fragment {
     private StringBuilder currentAmount = new StringBuilder("0");
     private boolean isExpense = true;
     private Calendar selectedDate = Calendar.getInstance(); // 选中的日期
+    private TextView tvWallet;
+    private final List<AuthApiModels.SharedPlanData> sharedPlans = new ArrayList<>();
+    private int selectedSharedPlanIndex = -1;
+    private final DataRefreshBus.Listener refreshListener = () -> loadSharedPlans();
 
     @Nullable
     @Override
@@ -91,9 +104,31 @@ public class AddBillFragment extends Fragment {
         
         // 默认显示支出模式（这个调用要放在initializeCategoryStyles之后）
         switchToExpense();
-        
+
+        DataRefreshBus.subscribe(refreshListener);
         return view;
     }
+
+    @Override
+    public void onDestroyView() {
+        DataRefreshBus.unsubscribe(refreshListener);
+
+        if (gridCategories != null) {
+            gridCategories.removeAllViews();
+            gridCategories = null;
+        }
+
+        tvAmountDisplay = null;
+        etNote = null;
+        tvDate = null;
+        tvSelf = null;
+        tvPartner = null;
+        tvShared = null;
+        tvWallet = null;
+
+        super.onDestroyView();
+    }
+
 
     private void initViews(View view) {
         // 支出/收入切换
@@ -129,6 +164,11 @@ public class AddBillFragment extends Fragment {
         tvSelf = view.findViewById(R.id.tv_self);
         tvPartner = view.findViewById(R.id.tv_partner);
         tvShared = view.findViewById(R.id.tv_shared);
+
+        // 小钱包按钮
+        tvWallet = view.findViewById(R.id.tv_wallet);
+        tvWallet.setOnClickListener(v -> showWalletPopup());
+        loadSharedPlans();
         
         // 设置分类选择监听器
         setupCategoryListeners(view);
@@ -179,16 +219,21 @@ public class AddBillFragment extends Fragment {
     private void switchToExpense() {
         isExpense = true;
         billType = "支出";
-        // 显示支出分类
         showExpenseCategories();
         updateAmountDisplay();
+        if (tvWallet != null && !sharedPlans.isEmpty()) {
+            tvWallet.setVisibility(View.VISIBLE);
+        }
     }
-    
+
     private void switchToIncome() {
         isExpense = false;
         billType = "收入";
         showIncomeCategories();
         updateAmountDisplay();
+        if (tvWallet != null && !sharedPlans.isEmpty()) {
+            tvWallet.setVisibility(View.VISIBLE);
+        }
     }
     
     private void selectOwner(String owner, TextView selectedView) {
@@ -614,32 +659,35 @@ public class AddBillFragment extends Fragment {
             
             // 确定收入类型：支出为0，收入为1
             int incomeType = isExpense ? 0 : 1;
-            
+
+            // 获取选中的小钱包ID
+            Integer sharedPlanId = null;
+            if (selectedSharedPlanIndex >= 0 && selectedSharedPlanIndex < sharedPlans.size()) {
+                sharedPlanId = sharedPlans.get(selectedSharedPlanIndex).planId;
+            }
+
             // 使用新版本的BillUtils.insertBill方法，自动获取当前用户信息
-            BillUtils.insertBill(getContext(), 
+            BillUtils.insertBill(getContext(),
                 note.isEmpty() ? selectedCategory : note, // 如果没有备注就用分类作为标题
-                selectedCategory, 
-                amount, 
-                dateString, 
+                selectedCategory,
+                amount,
+                dateString,
                 timeString,
                 incomeType,
                 billOwner, // 传递账单归属信息
+                sharedPlanId, // 小钱包ID
                 new BillUtils.BillInsertCallback() {
                     @Override
                     public void onInsertSuccess(long id) {
                         if (getActivity() != null) {
                             getActivity().runOnUiThread(() -> {
-                                CustomToast.show(getActivity(), "账单保存成功"); //定制化Toast
-                                
-                                // 通知首页刷新数据
+                                CustomToast.show(getActivity(), "账单保存成功");
                                 notifyHomePageRefresh();
-                                
-                                // 清空输入
                                 clearInputs();
                             });
                         }
                     }
-                    
+
                     @Override
                     public void onInsertError(String error) {
                         if (getActivity() != null) {
@@ -655,34 +703,10 @@ public class AddBillFragment extends Fragment {
         }
     }
     
-    // 通知首页刷新数据
     private void notifyHomePageRefresh() {
-        if (getActivity() instanceof MainActivity) {
-            MainActivity mainActivity = (MainActivity) getActivity();
-            // 获取HeadFragment实例
-            Fragment headFragment = mainActivity.getSupportFragmentManager().findFragmentByTag("HeadFragment");
-            if (headFragment == null) {
-                // 如果通过tag找不到，尝试通过已知的fragment实例获取
-                headFragment = mainActivity.getHeadFragment();
-            }
-            
-            if (headFragment instanceof HeadFragment) {
-                HeadFragment head = (HeadFragment) headFragment;
-                // 获取当前显示的ClassicModelFragment并刷新数据
-                ClassicModelFragment classicFragment = head.getClassicFragment();
-                if (classicFragment != null) {
-                    classicFragment.refreshBillData();
-                }
-            }
-            
-            // 刷新ReportFragment的图表数据
-            if (headFragment instanceof HeadFragment) {
-                com.example.couplecredit.fragment.ReportFragment rf = ((HeadFragment) headFragment).getReportFragment();
-                if (rf != null) { rf.refreshChartData(); }
-            }
-        }
+        com.example.couplecredit.utils.DataRefreshBus.refreshAll();
     }
-    
+
     private void clearAndContinue() {
         // 保持分类和归属选择，只清空金额和备注
         currentAmount = new StringBuilder("0");
@@ -696,13 +720,14 @@ public class AddBillFragment extends Fragment {
         etNote.setText("");
         selectedCategory = "";
         billOwner = "自己";
-        
+        selectedSharedPlanIndex = -1;
+
         // 重置UI状态
         updateAmountDisplay();
         resetOwnerButtons();
         tvSelf.setBackgroundResource(R.drawable.blue_rounded_background);
         tvSelf.setTextColor(getResources().getColor(android.R.color.white));
-        
+
         if (getView() != null) {
             resetCategoryTextColors(getView());
         }
@@ -914,6 +939,131 @@ public class AddBillFragment extends Fragment {
         }
     }
 
+    private void loadSharedPlans() {
+        if (!isAdded() || tvWallet == null) return;
+        if (!UserInfoManager.isUserLoggedIn(requireContext())) {
+            sharedPlans.clear();
+            selectedSharedPlanIndex = -1;
+            tvWallet.setText("小钱包");
+            tvWallet.setVisibility(View.GONE);
+            return;
+        }
+
+        final Integer previouslySelectedPlanId = (selectedSharedPlanIndex >= 0 && selectedSharedPlanIndex < sharedPlans.size())
+                ? sharedPlans.get(selectedSharedPlanIndex).planId
+                : null;
+
+        int userId = UserInfoManager.getCurrentUserId(requireContext());
+        AuthApiClient.querySharedPlans(requireContext(), userId, new AuthApiClient.SharedPlanListCallback() {
+            @Override
+            public void onSuccess(AuthApiModels.SharedPlanListResponse response) {
+                if (!isAdded()) return;
+                requireActivity().runOnUiThread(() -> {
+                    sharedPlans.clear();
+                    if (response != null && response.data != null && response.data.items != null) {
+                        sharedPlans.addAll(response.data.items);
+                    }
+
+                    selectedSharedPlanIndex = -1;
+                    if (previouslySelectedPlanId != null) {
+                        for (int i = 0; i < sharedPlans.size(); i++) {
+                            if (sharedPlans.get(i).planId == previouslySelectedPlanId) {
+                                selectedSharedPlanIndex = i;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (sharedPlans.isEmpty()) {
+                        tvWallet.setText("小钱包");
+                        tvWallet.setBackgroundResource(R.drawable.gray_rounded_background);
+                        tvWallet.setTextColor(getResources().getColor(android.R.color.darker_gray));
+                        tvWallet.setVisibility(View.GONE);
+                    } else {
+                        if (selectedSharedPlanIndex >= 0 && selectedSharedPlanIndex < sharedPlans.size()) {
+                            tvWallet.setText(sharedPlans.get(selectedSharedPlanIndex).name);
+                            tvWallet.setBackgroundResource(R.drawable.blue_rounded_background);
+                            tvWallet.setTextColor(getResources().getColor(android.R.color.white));
+                        } else {
+                            tvWallet.setText("小钱包");
+                            tvWallet.setBackgroundResource(R.drawable.gray_rounded_background);
+                            tvWallet.setTextColor(getResources().getColor(android.R.color.darker_gray));
+                        }
+                        tvWallet.setVisibility(isExpense ? View.VISIBLE : View.GONE);
+                    }
+                });
+            }
+
+            @Override
+            public void onError(String message) {}
+        });
+    }
+
+    private void showWalletPopup() {
+        if (sharedPlans.isEmpty()) return;
+
+        LinearLayout container = new LinearLayout(requireContext());
+        container.setOrientation(LinearLayout.VERTICAL);
+        GradientDrawable bg = new GradientDrawable();
+        bg.setColor(0xFFFFFFFF);
+        bg.setCornerRadius(dp(10));
+        container.setBackground(bg);
+        int pad = dp(4);
+        container.setPadding(pad, pad, pad, pad);
+
+        // "不关联"选项
+        TextView noneItem = createPopupItem("不关联", selectedSharedPlanIndex < 0);
+        noneItem.setOnClickListener(v -> {
+            selectedSharedPlanIndex = -1;
+            tvWallet.setText("小钱包");
+            tvWallet.setBackgroundResource(R.drawable.gray_rounded_background);
+            tvWallet.setTextColor(getResources().getColor(android.R.color.darker_gray));
+            popup.dismiss();
+        });
+        container.addView(noneItem);
+
+        for (int i = 0; i < sharedPlans.size(); i++) {
+            AuthApiModels.SharedPlanData plan = sharedPlans.get(i);
+            String label = plan.name + " ￥" + String.format(Locale.getDefault(), "%.2f", plan.currentBalance);
+            TextView item = createPopupItem(label, selectedSharedPlanIndex == i);
+            final int idx = i;
+            item.setOnClickListener(v -> {
+                selectedSharedPlanIndex = idx;
+                tvWallet.setText(plan.name);
+                tvWallet.setBackgroundResource(R.drawable.blue_rounded_background);
+                tvWallet.setTextColor(getResources().getColor(android.R.color.white));
+                popup.dismiss();
+            });
+            container.addView(item);
+        }
+
+        container.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED);
+        popup = new PopupWindow(container, container.getMeasuredWidth(), ViewGroup.LayoutParams.WRAP_CONTENT, true);
+        popup.setOutsideTouchable(true);
+        popup.setElevation(dp(6));
+        popup.showAsDropDown(tvWallet, 0, -dp(4));
+    }
+
+    private PopupWindow popup;
+
+    private TextView createPopupItem(String text, boolean selected) {
+        TextView tv = new TextView(requireContext());
+        tv.setText(text);
+        tv.setTextSize(13);
+        tv.setPadding(dp(14), dp(10), dp(14), dp(10));
+        if (selected) {
+            tv.setTextColor(getResources().getColor(com.example.couplecredit.R.color.primary_color));
+            tv.setTypeface(null, android.graphics.Typeface.BOLD);
+        } else {
+            tv.setTextColor(0xFF333333);
+        }
+        return tv;
+    }
+
+    private int dp(int v) {
+        return (int) (v * getResources().getDisplayMetrics().density);
+    }
+
     /**
      * 根据屏幕尺寸调整布局参数
      * 确保在不同设备上都有良好的显示效果
@@ -923,42 +1073,20 @@ public class AddBillFragment extends Fragment {
             Log.w("AddBillFragment", "gridCategories is null, cannot adjust layout");
             return;
         }
-        
+
         try {
             // 获取屏幕密度
             float density = getResources().getDisplayMetrics().density;
-            
+
             // 根据屏幕密度调整间距
             int spacing = (int) (8 * density); // 8dp转换为px
             gridCategories.setPadding(spacing, spacing, spacing, spacing);
-            
+
             // 记录日志用于调试
             // 调整屏幕布局
-            
+
         } catch (Exception e) {
             Log.e("AddBillFragment", "Error adjusting layout for screen size", e);
         }
-    }
-    
-    @Override
-    public void onDestroyView() {
-        super.onDestroyView();
-        
-        // 清理引用，防止内存泄漏
-        if (gridCategories != null) {
-            gridCategories.removeAllViews();
-            gridCategories = null;
-        }
-        
-        // 清理其他可能的引用
-        tvAmountDisplay = null;
-        etNote = null;
-        tvDate = null;
-
-        tvSelf = null;
-        tvPartner = null;
-        tvShared = null;
-        
-        // 清理视图引用
     }
 }

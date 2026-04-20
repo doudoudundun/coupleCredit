@@ -122,6 +122,29 @@
             android:paddingHorizontal="12dp" />
     </LinearLayout>
 
+    <!-- 共同计划选择 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="16dp"
+        android:orientation="vertical">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp"
+            android:text="共同计划"
+            android:textColor="#333333"
+            android:textSize="14sp" />
+
+        <Spinner
+            android:id="@+id/spinner_shared_plan"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:background="@drawable/spinner_background"
+            android:paddingHorizontal="12dp" />
+    </LinearLayout>
+
     <!-- 日期选择 -->
     <LinearLayout
         android:layout_width="match_parent"

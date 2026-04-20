@@ -16,6 +16,7 @@ public class AuthApiModels {
     public static class BillData {
         public long billId;
         public Integer relationshipId;
+        public Integer sharedPlanId;
         public int owner;
         public int userId;
         public String title;
@@ -205,6 +206,7 @@ public class AuthApiModels {
     public static class CreateBillRequest {
         public final int userId;
         public final String billOwner;
+        public final Integer sharedPlanId;
         public final String title;
         public final String type;
         public final double amount;
@@ -212,9 +214,10 @@ public class AuthApiModels {
         public final String time;
         public final int incomeType;
 
-        public CreateBillRequest(int userId, String billOwner, String title, String type, double amount, String date, String time, int incomeType) {
+        public CreateBillRequest(int userId, String billOwner, Integer sharedPlanId, String title, String type, double amount, String date, String time, int incomeType) {
             this.userId = userId;
             this.billOwner = billOwner;
+            this.sharedPlanId = sharedPlanId;
             this.title = title;
             this.type = type;
             this.amount = amount;
@@ -397,5 +400,55 @@ public class AuthApiModels {
         public long createdAt;
         @SerializedName("is_liked")
         public boolean isLiked;
+    }
+
+    // Shared plans
+    public static class SharedPlanData {
+        public int planId;
+        public Integer relationshipId;
+        public int createdBy;
+        public String name;
+        public double initialAmount;
+        public double currentBalance;
+        public String visibility;
+        public String createdAt;
+        public String updatedAt;
+    }
+
+    public static class SharedPlanListData {
+        public List<SharedPlanData> items;
+        public Integer relationshipId;
+    }
+
+    public static class SharedPlanListResponse {
+        public boolean ok;
+        public SharedPlanListData data;
+        public ErrorBody error;
+    }
+
+    public static class CreateSharedPlanRequest {
+        public final int userId;
+        public final String name;
+        public final double initialAmount;
+        public final String visibility;
+
+        public CreateSharedPlanRequest(int userId, String name, double initialAmount, String visibility) {
+            this.userId = userId;
+            this.name = name;
+            this.initialAmount = initialAmount;
+            this.visibility = visibility;
+        }
+    }
+
+    public static class AdjustSharedPlanRequest {
+        public final int userId;
+        public final double amount;
+        public final String direction;
+
+        public AdjustSharedPlanRequest(int userId, double amount, String direction) {
+            this.userId = userId;
+            this.amount = amount;
+            this.direction = direction;
+        }
     }
 }

@@ -202,7 +202,7 @@ public class BillAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
     private void loadPartnerNickname() {
         AuthApiClient.queryCoupleInfo(context, currentUserId, new AuthApiClient.CoupleInfoCallback() {
             @Override
-            public void onCoupleFound(int partnerId, String partnerName, String partnerNickname, int relationshipId) {
+            public void onCoupleFound(int partnerId, String partnerName, String partnerNickname, String partnerAvatarUrl, int relationshipId) {
                 BillAdapter.this.partnerNickname = (partnerNickname != null && !partnerNickname.trim().isEmpty()) ? partnerNickname : partnerName;
                 if (BillAdapter.this.partnerNickname == null) BillAdapter.this.partnerNickname = "对方";
 
