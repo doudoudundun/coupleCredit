@@ -17,8 +17,12 @@ function normalizeNullableText(value) {
 function createInventoryRouter({ pool }) {
   const router = express.Router();
 
-  function invalidateInventoryCache(userId) {
+  function invalidateInventoryCache(userId, relationship) {
     cache.del(Keys.inventory(userId));
+    if (relationship) {
+      cache.del(Keys.inventory(relationship.user_id_1));
+      cache.del(Keys.inventory(relationship.user_id_2));
+    }
   }
 
   router.get("/", async (req, res, next) => {
@@ -53,7 +57,7 @@ function createInventoryRouter({ pool }) {
       const [rows] = await pool.execute(query, params);
       const items = rows.map(row => ({
         ...row,
-        isLowStock: row.quantity <= row.threshold
+        isLowStock: Number(row.quantity) <= Number(row.threshold)
       }));
 
       const responseData = {
@@ -99,7 +103,7 @@ function createInventoryRouter({ pool }) {
       const [rows] = await pool.execute(query, params);
       const items = rows.map(row => ({
         ...row,
-        isLowStock: row.quantity <= row.threshold
+        isLowStock: Number(row.quantity) <= Number(row.threshold)
       }));
 
       res.json({
@@ -135,7 +139,6 @@ function createInventoryRouter({ pool }) {
       const note = normalizeNullableText(req.body.note);
       const aiImagePrompt = normalizeNullableText(req.body.aiImagePrompt);
 
-      // 查找同名物品（同一用户或同一关系范围内）
       let findQuery;
       let findParams;
       if (relationshipId) {
@@ -148,7 +151,6 @@ function createInventoryRouter({ pool }) {
       const [existing] = await pool.execute(findQuery, findParams);
 
       if (existing.length > 0) {
-        // 同名物品存在：合并数量，有新图片则覆盖
         const existingItem = existing[0];
         const newQuantity = Number(existingItem.quantity) + quantity;
         const updates = ["quantity = ?", "updated_at = NOW()"];
@@ -169,6 +171,7 @@ function createInventoryRouter({ pool }) {
           params
         );
 
+        invalidateInventoryCache(userId, relationship);
         res.json({
           ok: true,
           message: "已合并到同名物资",
@@ -187,14 +190,13 @@ function createInventoryRouter({ pool }) {
           }
         });
       } else {
-        // 新物品，直接插入
         const [result] = await pool.execute(
           `INSERT INTO inventory (user_id, relationship_id, name, category, image_url, quantity, unit, threshold, note, ai_image_prompt, created_at, updated_at)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
           [userId, relationshipId, name, category, imageUrl, quantity, unit, threshold, note, aiImagePrompt]
         );
 
-        invalidateInventoryCache(userId);
+        invalidateInventoryCache(userId, relationship);
         res.status(201).json({
           ok: true,
           message: "存货添加成功",
@@ -305,7 +307,7 @@ function createInventoryRouter({ pool }) {
 
       await pool.execute(`UPDATE inventory SET ${updates.join(", ")} WHERE inventory_id = ?`, params);
 
-      invalidateInventoryCache(userId);
+      invalidateInventoryCache(userId, relationship);
       res.json({ ok: true, message: "存货更新成功" });
     } catch (error) {
       next(error);
@@ -351,7 +353,7 @@ function createInventoryRouter({ pool }) {
         [consumeAmount, inventoryId]
       );
 
-      invalidateInventoryCache(userId);
+      invalidateInventoryCache(userId, relationship);
       res.json({
         ok: true,
         message: "消耗记录成功",
@@ -401,7 +403,7 @@ function createInventoryRouter({ pool }) {
         [addAmount, inventoryId]
       );
 
-      invalidateInventoryCache(userId);
+      invalidateInventoryCache(userId, relationship);
       res.json({
         ok: true,
         message: "补货成功",
@@ -439,7 +441,7 @@ function createInventoryRouter({ pool }) {
         throw new ApiError(404, "NOT_FOUND", "存货不存在或无权删除");
       }
 
-      invalidateInventoryCache(userId);
+      invalidateInventoryCache(userId, relationship);
       res.json({ ok: true, message: "存货删除成功" });
     } catch (error) {
       next(error);

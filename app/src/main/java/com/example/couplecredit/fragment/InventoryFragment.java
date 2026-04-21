@@ -57,6 +57,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -101,8 +102,9 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
     private boolean isLoggedIn;
 
     private final String[] defaultCategories = {"食材", "日用品", "调料", "饮品", "药品", "其他"};
+    private static final String CUSTOM_UNIT_OPTION = "+ 自定义单位";
     private final List<String> dynamicCategories = new ArrayList<>();
-    private final String[] units = {"个", "包", "瓶", "盒", "袋", "斤", "克", "升", "毫升"};
+    private final String[] defaultUnits = {"个", "包", "瓶", "盒", "袋", "斤", "克", "升", "毫升"};
 
     private ImageView pendingImageView;
     private String pendingImageUrl;
@@ -342,6 +344,21 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
             tag.setOnClickListener(v -> toggleCategoryFilter(cat));
             llCategoryTags.addView(tag);
         }
+    }
+
+    private List<String> getDialogUnits(@Nullable String existingUnit) {
+        LinkedHashSet<String> all = new LinkedHashSet<>(Arrays.asList(defaultUnits));
+        for (InventoryItem item : inventoryList) {
+            if (item.unit != null && !item.unit.trim().isEmpty()) {
+                all.add(item.unit.trim());
+            }
+        }
+        if (existingUnit != null && !existingUnit.trim().isEmpty()) {
+            all.add(existingUnit.trim());
+        }
+        List<String> result = new ArrayList<>(all);
+        result.add(CUSTOM_UNIT_OPTION);
+        return result;
     }
 
     private TextView createCategoryTag(String text, boolean active) {
@@ -627,6 +644,11 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
         TextView tvAiGenerate = dialogView.findViewById(R.id.tv_ai_generate);
         TextView btnSubmit = dialogView.findViewById(R.id.btn_add_inventory);
 
+        List<String> unitOptions = getDialogUnits(existingItem != null ? existingItem.unit : null);
+        ArrayAdapter<String> unitAdapter = new ArrayAdapter<>(requireContext(), android.R.layout.simple_spinner_item, unitOptions);
+        unitAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        spinnerUnit.setAdapter(unitAdapter);
+
         List<String> dialogCategories = getDialogCategories();
         ArrayAdapter<String> categoryAdapter = new ArrayAdapter<>(requireContext(), android.R.layout.simple_spinner_item, dialogCategories);
         categoryAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
@@ -635,7 +657,7 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
         spinnerCategoryDialog.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
             @Override
             public void onItemSelected(android.widget.AdapterView<?> parent, View view, int position, long id) {
-                String selected = dialogCategories.get(position);
+                String selected = String.valueOf(parent.getItemAtPosition(position));
                 if (!"+ 自定义分类".equals(selected)) return;
 
                 EditText input = new EditText(requireContext());
@@ -661,6 +683,45 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
                             buildCategoryTags();
                         })
                         .setNegativeButton("取消", (d, w) -> spinnerCategoryDialog.setSelection(0))
+                        .show();
+            }
+
+            @Override
+            public void onNothingSelected(android.widget.AdapterView<?> parent) {
+            }
+        });
+
+        final int[] lastUnitSelection = {0};
+        spinnerUnit.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(android.widget.AdapterView<?> parent, View view, int position, long id) {
+                String selected = String.valueOf(parent.getItemAtPosition(position));
+                if (!CUSTOM_UNIT_OPTION.equals(selected)) {
+                    lastUnitSelection[0] = position;
+                    return;
+                }
+
+                EditText input = new EditText(requireContext());
+                input.setHint("输入单位名称");
+                input.setSingleLine(true);
+                new AlertDialog.Builder(requireContext(), R.style.CustomDialogStyle)
+                        .setTitle("自定义单位")
+                        .setView(input)
+                        .setPositiveButton("确定", (d, w) -> {
+                            String custom = input.getText().toString().trim();
+                            if (custom.isEmpty()) {
+                                Toast.makeText(requireContext(), "单位名称不能为空", Toast.LENGTH_SHORT).show();
+                                spinnerUnit.setSelection(lastUnitSelection[0]);
+                                return;
+                            }
+                            List<String> updatedUnits = getDialogUnits(custom);
+                            ArrayAdapter<String> updatedUnitAdapter = new ArrayAdapter<>(requireContext(), android.R.layout.simple_spinner_item, updatedUnits);
+                            updatedUnitAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+                            spinnerUnit.setAdapter(updatedUnitAdapter);
+                            int idx = updatedUnits.indexOf(custom);
+                            spinnerUnit.setSelection(Math.max(idx, 0));
+                        })
+                        .setNegativeButton("取消", (d, w) -> spinnerUnit.setSelection(lastUnitSelection[0]))
                         .show();
             }
 
@@ -703,8 +764,10 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
             ArrayAdapter<String> updatedCategoryAdapter = new ArrayAdapter<>(requireContext(), android.R.layout.simple_spinner_item, updatedDialogCategories);
             updatedCategoryAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
             spinnerCategoryDialog.setAdapter(updatedCategoryAdapter);
-            setSpinnerSelection(spinnerCategoryDialog, updatedDialogCategories.toArray(new String[0]), existingItem.category);
+            setSpinnerSelection(spinnerCategoryDialog, updatedDialogCategories, existingItem.category);
+            setSpinnerSelection(spinnerUnit, unitOptions, existingItem.unit);
         } else {
+            spinnerUnit.setSelection(0);
             tvDialogTitle.setText("新增物资");
             btnSubmit.setText("添加物资");
         }
@@ -1113,7 +1176,7 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
         item.lastConsumedAt = normalizeDateTime(itemData.lastConsumedAt);
         item.note = itemData.note;
         item.aiImagePrompt = itemData.aiImagePrompt;
-        item.isLowStock = itemData.isLowStock || item.quantity <= item.threshold;
+        item.isLowStock = item.quantity <= item.threshold;
         item.lastActionLabel = resolveActionLabel(item);
         return item;
     }
@@ -1147,12 +1210,12 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
         return String.format(Locale.getDefault(), "%.1f", value);
     }
 
-    private void setSpinnerSelection(Spinner spinner, String[] values, String target) {
+    private void setSpinnerSelection(Spinner spinner, List<String> values, String target) {
         if (target == null) {
             return;
         }
-        for (int i = 0; i < values.length; i++) {
-            if (target.equals(values[i])) {
+        for (int i = 0; i < values.size(); i++) {
+            if (target.equals(values.get(i))) {
                 spinner.setSelection(i);
                 return;
             }

@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="@drawable/dialog_background"
+    android:padding="4dp">
+
+    <TextView
+        android:id="@+id/btn_recipe_edit"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:minWidth="120dp"
+        android:paddingHorizontal="14dp"
+        android:paddingVertical="10dp"
+        android:text="编辑菜谱"
+        android:textColor="#333333"
+        android:textSize="13sp" />
+
+    <TextView
+        android:id="@+id/btn_recipe_delete"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:minWidth="120dp"
+        android:paddingHorizontal="14dp"
+        android:paddingVertical="10dp"
+        android:text="删除菜谱"
+        android:textColor="#E53935"
+        android:textSize="13sp" />
+
+</LinearLayout>

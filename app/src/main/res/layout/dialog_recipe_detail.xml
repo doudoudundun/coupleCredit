@@ -11,100 +11,115 @@
         android:orientation="vertical"
         android:padding="24dp">
 
-        <!-- Close button -->
-        <FrameLayout
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="12dp">
+            android:layout_marginBottom="12dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
 
             <TextView
                 android:id="@+id/tv_detail_title"
-                android:layout_width="match_parent"
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
+                android:layout_weight="1"
                 android:text="菜谱详情"
-                android:textSize="20sp"
-                android:textStyle="bold"
                 android:textColor="#1A1A1A"
-                android:gravity="center" />
+                android:textSize="20sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/btn_detail_edit"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:paddingHorizontal="8dp"
+                android:paddingVertical="6dp"
+                android:text="编辑"
+                android:textColor="#07C160"
+                android:textSize="14sp" />
+
+            <TextView
+                android:id="@+id/btn_detail_delete"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:paddingHorizontal="8dp"
+                android:paddingVertical="6dp"
+                android:text="删除"
+                android:textColor="#E53935"
+                android:textSize="14sp" />
 
             <TextView
                 android:id="@+id/btn_detail_close"
                 android:layout_width="32dp"
                 android:layout_height="32dp"
-                android:text="✕"
-                android:textSize="16sp"
-                android:textColor="#999999"
+                android:background="?attr/selectableItemBackgroundBorderless"
                 android:gravity="center"
-                android:layout_gravity="end|center_vertical"
-                android:background="?attr/selectableItemBackgroundBorderless" />
-        </FrameLayout>
+                android:text="✕"
+                android:textColor="#999999"
+                android:textSize="16sp" />
+        </LinearLayout>
 
-        <!-- Image -->
         <ImageView
             android:id="@+id/iv_detail_image"
             android:layout_width="match_parent"
             android:layout_height="180dp"
-            android:scaleType="centerCrop"
+            android:layout_marginBottom="16dp"
             android:background="@drawable/image_placeholder_background"
-            android:src="@drawable/ic_inventory_placeholder"
-            android:layout_marginBottom="16dp" />
+            android:scaleType="centerCrop"
+            android:src="@drawable/ic_inventory_placeholder" />
 
-        <!-- Recipe name -->
         <TextView
             android:id="@+id/tv_detail_name"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:textSize="20sp"
-            android:textStyle="bold"
+            android:layout_marginBottom="6dp"
             android:textColor="#1A1A1A"
-            android:layout_marginBottom="6dp" />
+            android:textSize="20sp"
+            android:textStyle="bold" />
 
-        <!-- Description -->
         <TextView
             android:id="@+id/tv_detail_desc"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:textSize="14sp"
-            android:textColor="#666666"
+            android:layout_marginBottom="16dp"
             android:lineSpacingExtra="4dp"
-            android:layout_marginBottom="16dp" />
+            android:textColor="#666666"
+            android:textSize="14sp" />
 
-        <!-- Ingredients section -->
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp"
             android:text="所需食材"
-            android:textSize="16sp"
-            android:textStyle="bold"
             android:textColor="#333333"
-            android:layout_marginBottom="8dp" />
+            android:textSize="16sp"
+            android:textStyle="bold" />
 
         <LinearLayout
             android:id="@+id/ll_detail_ingredients"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="vertical"
+            android:layout_marginBottom="16dp"
             android:background="@drawable/input_background"
-            android:padding="12dp"
-            android:layout_marginBottom="16dp" />
+            android:orientation="vertical"
+            android:padding="12dp" />
 
-        <!-- Steps section -->
         <TextView
             android:id="@+id/tv_detail_steps_label"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp"
             android:text="烹饪步骤"
+            android:textColor="#333333"
             android:textSize="16sp"
             android:textStyle="bold"
-            android:textColor="#333333"
-            android:layout_marginBottom="8dp"
             android:visibility="gone" />
 
         <LinearLayout
             android:id="@+id/ll_detail_steps"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:layout_marginBottom="20dp" />
+            android:layout_marginBottom="20dp"
+            android:orientation="vertical" />
     </LinearLayout>
 </ScrollView>

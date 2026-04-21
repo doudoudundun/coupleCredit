@@ -14,6 +14,7 @@ import android.view.ViewGroup;
 import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
+import android.widget.PopupWindow;
 import android.widget.Spinner;
 import android.widget.ArrayAdapter;
 import android.widget.TextView;
@@ -22,6 +23,7 @@ import android.widget.Toast;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
+import androidx.recyclerview.widget.ItemTouchHelper;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
@@ -39,7 +41,6 @@ import com.example.couplecredit.utils.UserInfoManager;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
-import java.io.File;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
@@ -66,6 +67,7 @@ public class RecipeFragment extends Fragment implements RecipeAdapter.RecipeActi
     private boolean isLoggedIn;
     private TextView tvCartBadge;
     private View btnCart;
+    private ItemTouchHelper categoryTouchHelper;
 
     private ImageView pendingImageView;
     private String pendingImageUrl;
@@ -97,25 +99,106 @@ public class RecipeFragment extends Fragment implements RecipeAdapter.RecipeActi
         btnCart = view.findViewById(R.id.btn_cart);
         tvCartBadge = view.findViewById(R.id.tv_cart_badge);
 
-        btnCart.setOnClickListener(v -> {
-            startActivity(new Intent(requireContext(), CartActivity.class));
-        });
+        btnCart.setOnClickListener(v -> startActivity(new Intent(requireContext(), CartActivity.class)));
 
         rvRecipeList.setLayoutManager(new LinearLayoutManager(getContext()));
         recipeAdapter = new RecipeAdapter(this);
         rvRecipeList.setAdapter(recipeAdapter);
 
         rvCategoryList.setLayoutManager(new LinearLayoutManager(getContext()));
-        categoryAdapter = new RecipeCategoryAdapter(categoryId -> {
-            recipeAdapter.setData(categoryList, allRecipes);
-            tvRecipeCount.setText(allRecipes.size() + " 道菜");
-            updateEmptyState();
-            int pos = recipeAdapter.getCategoryPosition(categoryId);
-            isClickScrolling = true;
-            ((LinearLayoutManager) rvRecipeList.getLayoutManager()).scrollToPositionWithOffset(pos, 0);
-            rvRecipeList.postDelayed(() -> isClickScrolling = false, 300);
+        categoryAdapter = new RecipeCategoryAdapter(new RecipeCategoryAdapter.CategoryListener() {
+            @Override
+            public void onCategoryClick(int categoryId) {
+                recipeAdapter.setData(categoryList, allRecipes);
+                tvRecipeCount.setText(allRecipes.size() + " 道菜");
+                updateEmptyState();
+                int pos = recipeAdapter.getCategoryPosition(categoryId);
+                isClickScrolling = true;
+                RecyclerView.LayoutManager layoutManager = rvRecipeList.getLayoutManager();
+                if (layoutManager instanceof LinearLayoutManager) {
+                    ((LinearLayoutManager) layoutManager).scrollToPositionWithOffset(pos, 0);
+                }
+                rvRecipeList.postDelayed(() -> isClickScrolling = false, 300);
+            }
+
+            @Override
+            public void onCategoryDragStart(RecyclerView.ViewHolder holder) {
+                if (categoryTouchHelper != null) {
+                    categoryTouchHelper.startDrag(holder);
+                }
+            }
+
+            @Override
+            public void onCategoryOrderChanged(List<AuthApiModels.RecipeCategoryData> orderedItems) {
+                categoryList.clear();
+                categoryList.addAll(orderedItems);
+                recipeAdapter.setData(categoryList, allRecipes);
+                if (!isAdded()) return;
+                int userId = UserInfoManager.getCurrentUserId(requireContext());
+                List<Integer> orderedIds = new ArrayList<>();
+                for (AuthApiModels.RecipeCategoryData item : orderedItems) {
+                    orderedIds.add(item.categoryId);
+                }
+                AuthApiClient.reorderRecipeCategories(requireContext(), userId, orderedIds, new AuthApiClient.RecipeMutationCallback() {
+                    @Override
+                    public void onSuccess() {
+                        if (!isAdded()) return;
+                        requireActivity().runOnUiThread(() -> Toast.makeText(requireContext(), "分类顺序已更新", Toast.LENGTH_SHORT).show());
+                    }
+
+                    @Override
+                    public void onError(String e) {
+                        if (!isAdded()) return;
+                        requireActivity().runOnUiThread(() -> {
+                            Toast.makeText(requireContext(), e, Toast.LENGTH_SHORT).show();
+                            refreshData();
+                        });
+                    }
+                });
+            }
         });
         rvCategoryList.setAdapter(categoryAdapter);
+
+        categoryTouchHelper = new ItemTouchHelper(new ItemTouchHelper.SimpleCallback(ItemTouchHelper.UP | ItemTouchHelper.DOWN, 0) {
+            private boolean orderChanged = false;
+
+            @Override
+            public int getMovementFlags(@NonNull RecyclerView recyclerView, @NonNull RecyclerView.ViewHolder viewHolder) {
+                if (viewHolder.getAdapterPosition() <= 0) {
+                    return makeMovementFlags(0, 0);
+                }
+                return super.getMovementFlags(recyclerView, viewHolder);
+            }
+
+            @Override
+            public boolean onMove(@NonNull RecyclerView recyclerView, @NonNull RecyclerView.ViewHolder viewHolder, @NonNull RecyclerView.ViewHolder target) {
+                if (target.getAdapterPosition() <= 0) {
+                    return false;
+                }
+                boolean moved = categoryAdapter.moveCategory(viewHolder.getAdapterPosition(), target.getAdapterPosition());
+                if (moved) {
+                    orderChanged = true;
+                    categoryList.clear();
+                    categoryList.addAll(categoryAdapter.getCategories());
+                    recipeAdapter.setData(categoryList, allRecipes);
+                }
+                return moved;
+            }
+
+            @Override
+            public void clearView(@NonNull RecyclerView recyclerView, @NonNull RecyclerView.ViewHolder viewHolder) {
+                super.clearView(recyclerView, viewHolder);
+                if (orderChanged) {
+                    orderChanged = false;
+                    categoryAdapter.notifyOrderPersisted();
+                }
+            }
+
+            @Override
+            public void onSwiped(@NonNull RecyclerView.ViewHolder viewHolder, int direction) {
+            }
+        });
+        categoryTouchHelper.attachToRecyclerView(rvCategoryList);
 
         rvRecipeList.addOnScrollListener(new RecyclerView.OnScrollListener() {
             @Override
@@ -132,16 +215,13 @@ public class RecipeFragment extends Fragment implements RecipeAdapter.RecipeActi
         });
 
         btnAddCategory.setOnClickListener(v -> showAddCategoryDialog());
-
         fabAddRecipe.setOnClickListener(v -> {
             if (!isLoggedIn) { openLoginPage(); return; }
             showRecipeDialog(null);
         });
-
         btnLoginPrompt.setOnClickListener(v -> openLoginPage());
 
         refreshData();
-
         DataRefreshBus.subscribe(refreshListener);
     }
 
@@ -200,7 +280,7 @@ public class RecipeFragment extends Fragment implements RecipeAdapter.RecipeActi
                     recipeAdapter.setData(categoryList, allRecipes);
                 });
             }
-            @Override public void onError(String e) { /* silent */ }
+            @Override public void onError(String e) { }
         });
 
         AuthApiClient.queryRecipes(requireContext(), userId, new AuthApiClient.RecipeListCallback() {
@@ -243,8 +323,9 @@ public class RecipeFragment extends Fragment implements RecipeAdapter.RecipeActi
             AuthApiClient.createRecipeCategory(requireContext(), userId, name, new AuthApiClient.RecipeMutationCallback() {
                 @Override public void onSuccess() {
                     if (!isAdded()) return;
-                    requireActivity().runOnUiThread(() -> { refreshData(); });
+                    requireActivity().runOnUiThread(this::refreshData);
                 }
+                private void refreshData() { RecipeFragment.this.refreshData(); }
                 @Override public void onError(String e) {
                     if (!isAdded()) return;
                     requireActivity().runOnUiThread(() -> Toast.makeText(requireContext(), e, Toast.LENGTH_SHORT).show());
@@ -300,6 +381,8 @@ public class RecipeFragment extends Fragment implements RecipeAdapter.RecipeActi
         TextView tvStepsLabel = dialogView.findViewById(R.id.tv_detail_steps_label);
         LinearLayout llSteps = dialogView.findViewById(R.id.ll_detail_steps);
         TextView btnClose = dialogView.findViewById(R.id.btn_detail_close);
+        TextView btnEdit = dialogView.findViewById(R.id.btn_detail_edit);
+        TextView btnDelete = dialogView.findViewById(R.id.btn_detail_delete);
 
         tvName.setText(item.title != null ? item.title : "");
         tvDesc.setText(item.description != null ? item.description : "");
@@ -313,27 +396,28 @@ public class RecipeFragment extends Fragment implements RecipeAdapter.RecipeActi
 
         int dp = (int) (requireContext().getResources().getDisplayMetrics().density);
 
-        // Loading hint for ingredients
         TextView tvLoading = new TextView(requireContext());
         tvLoading.setText("加载食材中...");
         tvLoading.setTextSize(13);
         tvLoading.setTextColor(0xFF999999);
         llIngredients.addView(tvLoading);
 
-        // Steps from list data (already available)
         renderSteps(llSteps, tvStepsLabel, item.steps, dp);
 
         btnClose.setOnClickListener(v -> dialog.dismiss());
+        btnEdit.setOnClickListener(v -> {
+            dialog.dismiss();
+            showRecipeDialog(item);
+        });
+        btnDelete.setOnClickListener(v -> {
+            dialog.dismiss();
+            onDelete(item);
+        });
         dialog.setOnDismissListener(d -> { if (currentDetailDialog == dialog) currentDetailDialog = null; });
+        dialog.setCancelable(true);
         dialog.setCanceledOnTouchOutside(true);
-        dialog.show();
-        if (dialog.getWindow() != null) {
-            int w = (int) (requireContext().getResources().getDisplayMetrics().widthPixels * 0.9);
-            int h = (int) (requireContext().getResources().getDisplayMetrics().heightPixels * 0.85);
-            dialog.getWindow().setLayout(w, h);
-        }
+        showDialogWide(dialog);
 
-        // Load ingredients async — update the same dialog
         int userId = UserInfoManager.getCurrentUserId(requireContext());
         AuthApiClient.getRecipeDetail(requireContext(), item.recipeId, userId, new AuthApiClient.RecipeDetailCallback() {
             @Override
@@ -351,7 +435,6 @@ public class RecipeFragment extends Fragment implements RecipeAdapter.RecipeActi
                         tvNone.setTextColor(0xFF999999);
                         llIngredients.addView(tvNone);
                     }
-                    // Update steps if server has newer data
                     if (response.data.steps != null && !response.data.steps.equals(item.steps)) {
                         llSteps.removeAllViews();
                         renderSteps(llSteps, tvStepsLabel, response.data.steps, dp);
@@ -372,6 +455,15 @@ public class RecipeFragment extends Fragment implements RecipeAdapter.RecipeActi
         });
     }
 
+
+    private void showDialogWide(AlertDialog dialog) {
+        dialog.show();
+        if (dialog.getWindow() != null) {
+            int screenWidth = requireContext().getResources().getDisplayMetrics().widthPixels;
+            int width = (int) (screenWidth * 0.85);
+            dialog.getWindow().setLayout(width, ViewGroup.LayoutParams.WRAP_CONTENT);
+        }
+    }
 
     private void populateIngredients(LinearLayout llIngredients, List<AuthApiModels.IngredientData> ingredients, int dp) {
         llIngredients.removeAllViews();
@@ -395,7 +487,7 @@ public class RecipeFragment extends Fragment implements RecipeAdapter.RecipeActi
             row.addView(tvIngName);
 
             TextView tvQty = new TextView(requireContext());
-            tvQty.setText((long) ing.quantity + " " + ing.unit);
+            tvQty.setText(formatDecimal(ing.quantity) + " " + ing.unit);
             tvQty.setTextSize(14);
             tvQty.setTextColor(0xFF666666);
             row.addView(tvQty);
@@ -404,6 +496,12 @@ public class RecipeFragment extends Fragment implements RecipeAdapter.RecipeActi
         }
     }
 
+    private String formatDecimal(double value) {
+        if (value == (long) value) {
+            return String.valueOf((long) value);
+        }
+        return String.format(Locale.getDefault(), "%.2f", value).replaceAll("0+$", "").replaceAll("\\.$", "");
+    }
 
     private void renderSteps(LinearLayout llSteps, TextView tvStepsLabel, String steps, int dp) {
         if (steps == null || steps.trim().isEmpty()) return;
@@ -438,36 +536,43 @@ public class RecipeFragment extends Fragment implements RecipeAdapter.RecipeActi
             if (i < stepLines.length - 1) {
                 View divider = new View(requireContext());
                 divider.setBackgroundColor(0xFFEEEEEE);
-                llSteps.addView(divider, new LinearLayout.LayoutParams(
-                        LinearLayout.LayoutParams.MATCH_PARENT, Math.max(1, dp)));
+                llSteps.addView(divider, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, Math.max(1, dp)));
             }
         }
     }
 
     @Override
     public void onDelete(AuthApiModels.RecipeItemData item) {
-        new AlertDialog.Builder(requireContext(), R.style.CustomDialogStyle)
-                .setTitle("删除菜谱")
-                .setMessage("确定删除\"" + item.title + "\"吗？")
-                .setPositiveButton("删除", (d, w) -> {
-                    int userId = UserInfoManager.getCurrentUserId(requireContext());
-                    AuthApiClient.deleteRecipe(requireContext(), item.recipeId, userId, new AuthApiClient.RecipeMutationCallback() {
-                        @Override public void onSuccess() {
-                            if (!isAdded()) return;
-                            requireActivity().runOnUiThread(() -> {
-                                Toast.makeText(requireContext(), "删除成功", Toast.LENGTH_SHORT).show();
-                                refreshData();
-                            });
-                        }
-                        @Override public void onError(String e) {
-                            if (!isAdded()) return;
-                            requireActivity().runOnUiThread(() -> Toast.makeText(requireContext(), e, Toast.LENGTH_SHORT).show());
-                        }
+        View dialogView = LayoutInflater.from(requireContext()).inflate(R.layout.dialog_delete_recipe, null);
+        AlertDialog dialog = new AlertDialog.Builder(requireContext(), R.style.CustomDialogStyle)
+                .setView(dialogView)
+                .create();
+        ((TextView) dialogView.findViewById(R.id.tv_dialog_message)).setText("确定删除\"" + item.title + "\"吗？");
+        dialogView.findViewById(R.id.btn_cancel).setOnClickListener(v -> dialog.dismiss());
+        dialogView.findViewById(R.id.btn_confirm).setOnClickListener(v -> {
+            dialog.dismiss();
+            int userId = UserInfoManager.getCurrentUserId(requireContext());
+            AuthApiClient.deleteRecipe(requireContext(), item.recipeId, userId, new AuthApiClient.RecipeMutationCallback() {
+                @Override public void onSuccess() {
+                    if (!isAdded()) return;
+                    requireActivity().runOnUiThread(() -> {
+                        Toast.makeText(requireContext(), "删除成功", Toast.LENGTH_SHORT).show();
+                        refreshData();
                     });
-                })
-                .setNegativeButton("取消", null)
-                .show();
+                }
+                @Override public void onError(String e) {
+                    if (!isAdded()) return;
+                    requireActivity().runOnUiThread(() -> Toast.makeText(requireContext(), e, Toast.LENGTH_SHORT).show());
+                }
+            });
+        });
+        dialog.show();
+        if (dialog.getWindow() != null) {
+            int w = (int) (requireContext().getResources().getDisplayMetrics().widthPixels * 0.85f);
+            dialog.getWindow().setLayout(w, ViewGroup.LayoutParams.WRAP_CONTENT);
+        }
     }
+
 
     @Override
     public void onItemClick(AuthApiModels.RecipeItemData item) {
@@ -500,11 +605,10 @@ public class RecipeFragment extends Fragment implements RecipeAdapter.RecipeActi
         pendingImageUrl = null;
         imageChanged = false;
 
-        // Populate category spinner
         List<String> categoryNames = new ArrayList<>();
         categoryNames.add("未分类");
         List<Integer> categoryIds = new ArrayList<>();
-        categoryIds.add(0); // 0 = no category
+        categoryIds.add(0);
         for (AuthApiModels.RecipeCategoryData cat : categoryList) {
             categoryNames.add(cat.name);
             categoryIds.add(cat.categoryId);
@@ -513,7 +617,6 @@ public class RecipeFragment extends Fragment implements RecipeAdapter.RecipeActi
         spinnerAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         spinnerCategory.setAdapter(spinnerAdapter);
 
-        // Pre-select category for editing
         if (existing != null && existing.categoryId != null) {
             int idx = categoryIds.indexOf(existing.categoryId);
             if (idx >= 0) spinnerCategory.setSelection(idx);
@@ -531,30 +634,30 @@ public class RecipeFragment extends Fragment implements RecipeAdapter.RecipeActi
                 String url = ApiConfigManager.resolveResourceUrl(requireContext(), existing.imageUrl);
                 Glide.with(this).load(url).placeholder(R.drawable.ic_inventory_placeholder).into(ivImage);
             }
+            int userId = UserInfoManager.getCurrentUserId(requireContext());
+            AuthApiClient.getRecipeDetail(requireContext(), existing.recipeId, userId, new AuthApiClient.RecipeDetailCallback() {
+                @Override
+                public void onSuccess(AuthApiModels.RecipeDetailResponse response) {
+                    if (!isAdded() || response == null || response.data == null) return;
+                    requireActivity().runOnUiThread(() -> {
+                        llIngredients.removeAllViews();
+                        if (response.data.ingredients != null) {
+                            for (AuthApiModels.IngredientData ing : response.data.ingredients) {
+                                addIngredientRow(llIngredients, ing);
+                            }
+                        }
+                    });
+                }
+                @Override public void onError(String e) { }
+            });
         } else {
             tvTitle.setText("添加菜谱");
             btnSave.setText("添加菜谱");
-            // Pre-select current category filter
             int selectedCatId = categoryAdapter.getSelectedCategoryId();
             int idx = categoryIds.indexOf(selectedCatId);
             if (idx >= 0) spinnerCategory.setSelection(idx);
         }
 
-        // Image picker
-        flImage.setOnClickListener(v -> {
-            pendingImageView = ivImage;
-            // Reuse inventory's image picker via a simple gallery intent
-            Intent intent = new Intent(Intent.ACTION_PICK, android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
-            intent.setType("image/*");
-            if (intent.resolveActivity(requireContext().getPackageManager()) != null) {
-                startActivityForResult(intent, 2001);
-            }
-        });
-
-        // Ingredients list
-        List<AuthApiModels.IngredientData> ingredients = new ArrayList<>();
-
-        // Pre-load inventory for ingredient linking
         List<AuthApiModels.InventoryItemData> inventoryItems = new ArrayList<>();
         if (UserInfoManager.isUserLoggedIn(requireContext())) {
             int uid = UserInfoManager.getCurrentUserId(requireContext());
@@ -568,70 +671,20 @@ public class RecipeFragment extends Fragment implements RecipeAdapter.RecipeActi
                         }
                     });
                 }
-                @Override public void onError(String message) {}
+                @Override public void onError(String message) { }
             });
         }
 
-        btnAddIngredient.setOnClickListener(v -> {
-            int dp = (int) (requireContext().getResources().getDisplayMetrics().density);
-            LinearLayout row = new LinearLayout(requireContext());
-            row.setOrientation(LinearLayout.HORIZONTAL);
-            row.setGravity(Gravity.CENTER_VERTICAL);
-
-            // Clickable ingredient name — tap to pick from inventory or type manually
-            EditText etName = new EditText(requireContext());
-            etName.setHint("食材名");
-            etName.setTextSize(13);
-            etName.setBackground(null);
-            etName.setMinWidth(dp * 80);
-            LinearLayout.LayoutParams lp0 = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1);
-            etName.setLayoutParams(lp0);
-
-            EditText etQty = new EditText(requireContext());
-            etQty.setHint("数量");
-            etQty.setInputType(android.text.InputType.TYPE_CLASS_NUMBER | android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL);
-            etQty.setTextSize(13);
-            etQty.setBackground(null);
-            etQty.setMinWidth(dp * 40);
-            LinearLayout.LayoutParams lp1 = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-            lp1.setMargins(dp * 4, 0, dp * 4, 0);
-            etQty.setLayoutParams(lp1);
-
-            EditText etUnit = new EditText(requireContext());
-            etUnit.setHint("单位");
-            etUnit.setTextSize(13);
-            etUnit.setBackground(null);
-            etUnit.setMinWidth(dp * 30);
-            LinearLayout.LayoutParams lp2 = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-            etUnit.setLayoutParams(lp2);
-
-            row.addView(etName);
-            row.addView(etQty);
-            row.addView(etUnit);
-
-            // Long-press on name to pick from inventory
-            etName.setOnLongClickListener(nameView -> {
-                if (inventoryItems.isEmpty()) {
-                    Toast.makeText(requireContext(), "暂无库存物资", Toast.LENGTH_SHORT).show();
-                    return true;
-                }
-                String[] names = new String[inventoryItems.size()];
-                for (int i = 0; i < inventoryItems.size(); i++) names[i] = inventoryItems.get(i).name;
-                new AlertDialog.Builder(requireContext())
-                        .setTitle("选择库存物资")
-                        .setItems(names, (d, which) -> {
-                            AuthApiModels.InventoryItemData item = inventoryItems.get(which);
-                            etName.setText(item.name);
-                            etUnit.setText(item.unit);
-                            row.setTag(item.inventoryId);
-                        })
-                        .setNegativeButton("手动输入", null)
-                        .show();
-                return true;
-            });
-
-            llIngredients.addView(row);
+        flImage.setOnClickListener(v -> {
+            pendingImageView = ivImage;
+            Intent intent = new Intent(Intent.ACTION_PICK, android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
+            intent.setType("image/*");
+            if (intent.resolveActivity(requireContext().getPackageManager()) != null) {
+                startActivityForResult(intent, 2001);
+            }
         });
+
+        btnAddIngredient.setOnClickListener(v -> addIngredientRow(llIngredients, null, inventoryItems));
 
         btnSave.setOnClickListener(v -> {
             String title = etTitle.getText().toString().trim();
@@ -655,7 +708,6 @@ public class RecipeFragment extends Fragment implements RecipeAdapter.RecipeActi
             }
             final String finalSteps = steps;
 
-            // Collect ingredients
             List<AuthApiModels.IngredientData> finalIngredients = new ArrayList<>();
             for (int i = 0; i < llIngredients.getChildCount(); i++) {
                 View child = llIngredients.getChildAt(i);
@@ -681,7 +733,6 @@ public class RecipeFragment extends Fragment implements RecipeAdapter.RecipeActi
             Integer selectedCatId = (catPos > 0 && catPos < categoryIds.size()) ? categoryIds.get(catPos) : null;
 
             if (imageChanged && pendingImageUrl != null) {
-                // Upload compressed image first, then save recipe
                 try {
                     Uri imageUri = Uri.parse(pendingImageUrl);
                     InputStream compressed = compressImage(imageUri);
@@ -716,10 +767,79 @@ public class RecipeFragment extends Fragment implements RecipeAdapter.RecipeActi
         }
     }
 
+    private void addIngredientRow(LinearLayout llIngredients, @Nullable AuthApiModels.IngredientData existing) {
+        addIngredientRow(llIngredients, existing, new ArrayList<>());
+    }
+
+    private void addIngredientRow(LinearLayout llIngredients, @Nullable AuthApiModels.IngredientData existing, List<AuthApiModels.InventoryItemData> inventoryItems) {
+        int dp = (int) (requireContext().getResources().getDisplayMetrics().density);
+        LinearLayout row = new LinearLayout(requireContext());
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+
+        EditText etName = new EditText(requireContext());
+        etName.setHint("食材名");
+        etName.setTextSize(13);
+        etName.setBackground(null);
+        etName.setMinWidth(dp * 80);
+        LinearLayout.LayoutParams lp0 = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1);
+        etName.setLayoutParams(lp0);
+
+        EditText etQty = new EditText(requireContext());
+        etQty.setHint("数量");
+        etQty.setInputType(android.text.InputType.TYPE_CLASS_NUMBER | android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL);
+        etQty.setTextSize(13);
+        etQty.setBackground(null);
+        etQty.setMinWidth(dp * 40);
+        LinearLayout.LayoutParams lp1 = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        lp1.setMargins(dp * 4, 0, dp * 4, 0);
+        etQty.setLayoutParams(lp1);
+
+        EditText etUnit = new EditText(requireContext());
+        etUnit.setHint("单位");
+        etUnit.setTextSize(13);
+        etUnit.setBackground(null);
+        etUnit.setMinWidth(dp * 30);
+        LinearLayout.LayoutParams lp2 = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        etUnit.setLayoutParams(lp2);
+
+        row.addView(etName);
+        row.addView(etQty);
+        row.addView(etUnit);
+
+        if (existing != null) {
+            etName.setText(existing.ingredientName);
+            etQty.setText(existing.quantity % 1 == 0 ? String.valueOf((long) existing.quantity) : String.valueOf(existing.quantity));
+            etUnit.setText(existing.unit);
+            if (existing.inventoryId != null) row.setTag(existing.inventoryId);
+        }
+
+        etName.setOnLongClickListener(nameView -> {
+            if (inventoryItems.isEmpty()) {
+                Toast.makeText(requireContext(), "暂无库存物资", Toast.LENGTH_SHORT).show();
+                return true;
+            }
+            String[] names = new String[inventoryItems.size()];
+            for (int i = 0; i < inventoryItems.size(); i++) names[i] = inventoryItems.get(i).name;
+            new AlertDialog.Builder(requireContext())
+                    .setTitle("选择库存物资")
+                    .setItems(names, (d, which) -> {
+                        AuthApiModels.InventoryItemData item = inventoryItems.get(which);
+                        etName.setText(item.name);
+                        etUnit.setText(item.unit);
+                        row.setTag(item.inventoryId);
+                    })
+                    .setNegativeButton("手动输入", null)
+                    .show();
+            return true;
+        });
+
+        llIngredients.addView(row);
+    }
+
     private void saveRecipe(AlertDialog dialog, int userId, String title, String desc, String steps, String imageUrl, Integer categoryId, AuthApiModels.RecipeItemData existing, List<AuthApiModels.IngredientData> finalIngredients) {
         if (existing == null) {
-            AuthApiModels.CreateRecipeRequest req = new AuthApiModels.CreateRecipeRequest(
-                    userId, title, desc, imageUrl, steps, categoryId, finalIngredients);
+            AuthApiModels.CreateRecipeRequest req = new AuthApiModels.CreateRecipeRequest(userId, title, desc, imageUrl, steps, categoryId, finalIngredients);
             AuthApiClient.createRecipe(requireContext(), req, new AuthApiClient.RecipeMutationCallback() {
                 @Override public void onSuccess() {
                     if (!isAdded()) return;
@@ -731,8 +851,7 @@ public class RecipeFragment extends Fragment implements RecipeAdapter.RecipeActi
                 }
             });
         } else {
-            AuthApiModels.UpdateRecipeRequest req = new AuthApiModels.UpdateRecipeRequest(
-                    userId, title, desc, imageUrl, steps, categoryId, finalIngredients);
+            AuthApiModels.UpdateRecipeRequest req = new AuthApiModels.UpdateRecipeRequest(userId, title, desc, imageUrl, steps, categoryId, finalIngredients);
             AuthApiClient.updateRecipe(requireContext(), existing.recipeId, req, new AuthApiClient.RecipeMutationCallback() {
                 @Override public void onSuccess() {
                     if (!isAdded()) return;

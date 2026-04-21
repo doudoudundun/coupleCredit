@@ -192,7 +192,11 @@ public class MyFragment extends Fragment {
                         if (getActivity() != null) {
                             getActivity().runOnUiThread(() -> {
                                 Toast.makeText(getContext(), "头像上传成功", Toast.LENGTH_SHORT).show();
-                                AvatarUpdateManager.notifyAvatarUpdated(getContext(), userIdInt, imageUri.toString());
+                                SharedPreferences prefs = requireContext().getSharedPreferences("user_avatars", Context.MODE_PRIVATE);
+                                prefs.edit().putString(DatabaseConfig.PREF_AVATAR_URI + userId, avatarUrl).apply();
+                                AvatarCacheManager.getInstance(requireContext()).clearUserAvatarCache(userIdInt);
+                                AvatarUpdateManager.notifyAvatarUpdated(getContext(), userIdInt, avatarUrl);
+                                AvatarCacheManager.getInstance(requireContext()).loadAvatar(requireContext(), ivUserAvatar, userIdInt, avatarUrl);
                             });
                         }
                     }
@@ -266,7 +270,6 @@ public class MyFragment extends Fragment {
             if (selectedImageUri != null) {
                 uploadAvatarToServer(selectedImageUri);
                 setUserAvatar(selectedImageUri);
-                saveAvatarUri(selectedImageUri);
             }
         }
     }
@@ -282,17 +285,6 @@ public class MyFragment extends Fragment {
                         .into(ivUserAvatar);
 
                 if (showToast) {
-                    saveAvatarUri(imageUri);
-
-                    if (isLoggedIn && userId != null) {
-                        try {
-                            int userIdInt = Integer.parseInt(userId);
-                            AvatarUpdateManager.notifyAvatarUpdated(getContext(), userIdInt, imageUri.toString());
-                        } catch (NumberFormatException e) {
-                            Log.e("MyFragment", "通知头像更新失败", e);
-                        }
-                    }
-
                     Toast.makeText(getContext(), "头像设置成功", Toast.LENGTH_SHORT).show();
                 }
             } catch (Exception e) {

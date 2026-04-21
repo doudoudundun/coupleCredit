@@ -250,12 +250,8 @@ public class UserSettingsActivity extends AppCompatActivity {
         if (requestCode == REQUEST_IMAGE_PICK && resultCode == Activity.RESULT_OK && data != null) {
             Uri selectedImageUri = data.getData();
             if (selectedImageUri != null) {
-                // 上传头像到服务器
                 uploadAvatarToServer(selectedImageUri);
-                // 设置本地头像显示
                 setUserAvatar(selectedImageUri);
-                // 保存头像URI
-                saveAvatarUri(selectedImageUri);
             }
         }
     }
@@ -276,17 +272,13 @@ public class UserSettingsActivity extends AppCompatActivity {
      */
     private void loadSavedAvatar() {
         if (userId != null) {
-            SharedPreferences prefs = getSharedPreferences("user_avatars", Context.MODE_PRIVATE);
-            String savedUriString = prefs.getString(DatabaseConfig.PREF_AVATAR_URI + userId, null);
-            
-            if (savedUriString != null) {
-                try {
-                    Uri savedUri = Uri.parse(savedUriString);
-                    setUserAvatar(savedUri);
-                } catch (Exception e) {
-                    // 如果加载失败，使用默认头像
-                    ivUserAvatar.setImageResource(R.drawable.ic_default_avatar);
-                }
+            try {
+                int userIdInt = Integer.parseInt(userId);
+                SharedPreferences prefs = getSharedPreferences("user_avatars", Context.MODE_PRIVATE);
+                String savedUriString = prefs.getString(DatabaseConfig.PREF_AVATAR_URI + userId, null);
+                AvatarCacheManager.getInstance(this).loadAvatar(this, ivUserAvatar, userIdInt, savedUriString);
+            } catch (Exception e) {
+                ivUserAvatar.setImageResource(R.drawable.ic_default_avatar);
             }
         }
     }
@@ -565,10 +557,11 @@ public class UserSettingsActivity extends AppCompatActivity {
                 @Override
                  public void onUploadSuccess(String avatarUrl) {
                     runOnUiThread(() -> {
-                        // 清除旧的头像缓存
-                         AvatarCacheManager.getInstance(UserSettingsActivity.this).clearUserAvatarCache(userIdInt);
-                        // 发送头像更新广播
+                        AvatarCacheManager.getInstance(UserSettingsActivity.this).clearUserAvatarCache(userIdInt);
+                        SharedPreferences prefs = getSharedPreferences("user_avatars", Context.MODE_PRIVATE);
+                        prefs.edit().putString(DatabaseConfig.PREF_AVATAR_URI + userId, avatarUrl).apply();
                         AvatarUpdateManager.notifyAvatarUpdated(UserSettingsActivity.this, userIdInt, avatarUrl);
+                        AvatarCacheManager.getInstance(UserSettingsActivity.this).loadAvatar(UserSettingsActivity.this, ivUserAvatar, userIdInt, avatarUrl);
                         Toast.makeText(UserSettingsActivity.this, "头像上传成功", Toast.LENGTH_SHORT).show();
                     });
                 }

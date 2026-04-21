@@ -71,10 +71,10 @@ public class HeadFragment extends Fragment {
 
         if (currentTabs.isEmpty()) {
             currentTabs.add("首页");
+            currentTabs.add("记账");
             currentTabs.add("聊天");
             currentTabs.add("计划");
             currentTabs.add("报表");
-            currentTabs.add("记账");
         }
 
         restoreOrCreateChildFragments();
@@ -134,16 +134,16 @@ public class HeadFragment extends Fragment {
         Fragment target;
         switch (position) {
             case 1:
-                target = ChatFragment;
+                target = AddBillFragment;
                 break;
             case 2:
-                target = SharedPlansFragment;
+                target = ChatFragment;
                 break;
             case 3:
-                target = ReportFragment;
+                target = SharedPlansFragment;
                 break;
             case 4:
-                target = AddBillFragment;
+                target = ReportFragment;
                 break;
             default:
                 target = ClassicFragment;
@@ -192,7 +192,7 @@ public class HeadFragment extends Fragment {
     public void refreshCurrentFragmentData() {
         if (currentTabPosition == 0 && ClassicFragment instanceof ClassicModelFragment) {
             ((ClassicModelFragment) ClassicFragment).refreshBillData();
-        } else if (currentTabPosition == 3 && ReportFragment instanceof com.example.couplecredit.fragment.ReportFragment) {
+        } else if (currentTabPosition == 4 && ReportFragment instanceof com.example.couplecredit.fragment.ReportFragment) {
             ((com.example.couplecredit.fragment.ReportFragment) ReportFragment).refreshChartData();
         }
     }
@@ -213,7 +213,7 @@ public class HeadFragment extends Fragment {
 
     public void switchToReportTab() {
         if (segmentedTab != null) {
-            TabLayout.Tab reportTab = segmentedTab.getTabAt(3);
+            TabLayout.Tab reportTab = segmentedTab.getTabAt(4);
             if (reportTab != null) {
                 reportTab.select();
             }

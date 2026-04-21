@@ -86,9 +86,14 @@
 
                     <TextView
                         android:id="@+id/tv_total_balance"
-                        android:layout_width="wrap_content"
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="4dp"
+                        android:autoSizeMaxTextSize="22sp"
+                        android:autoSizeMinTextSize="14sp"
+                        android:autoSizeStepGranularity="1sp"
+                        android:autoSizeTextType="uniform"
+                        android:maxLines="1"
                         android:text="￥0.00"
                         android:textColor="@color/primary_color"
                         android:textSize="22sp"

@@ -126,7 +126,7 @@ public class InventoryViewModel extends AndroidViewModel {
         item.lastConsumedAt = normalizeDateTime(d.lastConsumedAt);
         item.note = d.note;
         item.aiImagePrompt = d.aiImagePrompt;
-        item.isLowStock = d.isLowStock || item.quantity <= item.threshold;
+        item.isLowStock = item.quantity <= item.threshold;
         item.lastActionLabel = resolveActionLabel(item);
         return item;
     }

@@ -48,9 +48,14 @@
 
         <TextView
             android:id="@+id/tv_balance"
-            android:layout_width="wrap_content"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="10dp"
+            android:autoSizeMaxTextSize="24sp"
+            android:autoSizeMinTextSize="14sp"
+            android:autoSizeStepGranularity="1sp"
+            android:autoSizeTextType="uniform"
+            android:maxLines="1"
             android:text="￥1000.00"
             android:textColor="#111827"
             android:textSize="24sp"

@@ -4,72 +4,98 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:layout_margin="6dp"
+    app:cardBackgroundColor="@android:color/white"
     app:cardCornerRadius="14dp"
-    app:cardElevation="2dp"
-    app:cardBackgroundColor="@android:color/white">
+    app:cardElevation="2dp">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:gravity="center_vertical"
         android:orientation="horizontal"
-        android:padding="12dp"
-        android:gravity="center_vertical">
+        android:padding="12dp">
 
         <ImageView
             android:id="@+id/iv_recipe_image"
             android:layout_width="64dp"
             android:layout_height="64dp"
-            android:scaleType="centerCrop"
             android:background="@drawable/image_placeholder_background"
+            android:scaleType="centerCrop"
             android:src="@drawable/ic_inventory_placeholder" />
 
         <LinearLayout
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
             android:layout_marginStart="12dp"
+            android:layout_weight="1"
             android:orientation="vertical">
 
-            <TextView
-                android:id="@+id/tv_recipe_title"
+            <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="菜谱名称"
-                android:textSize="15sp"
-                android:textStyle="bold"
-                android:textColor="#1A1A1A"
-                android:maxLines="1"
-                android:ellipsize="end" />
+                android:gravity="top"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:id="@+id/tv_recipe_title"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:ellipsize="end"
+                    android:maxLines="1"
+                    android:text="菜谱名称"
+                    android:textColor="#1A1A1A"
+                    android:textSize="15sp"
+                    android:textStyle="bold" />
+
+                <ImageButton
+                    android:id="@+id/btn_recipe_more"
+                    android:layout_width="28dp"
+                    android:layout_height="28dp"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:contentDescription="更多操作"
+                    android:padding="2dp"
+                    android:src="@android:drawable/ic_menu_more"
+                    app:tint="#999999" />
+            </LinearLayout>
 
             <TextView
                 android:id="@+id/tv_recipe_desc"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="描述"
-                android:textSize="12sp"
-                android:textColor="#999999"
-                android:maxLines="1"
+                android:layout_marginTop="2dp"
                 android:ellipsize="end"
-                android:layout_marginTop="2dp" />
+                android:maxLines="1"
+                android:text="描述"
+                android:textColor="#999999"
+                android:textSize="12sp" />
 
-            <TextView
-                android:id="@+id/tv_recipe_ingredients"
+            <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="3 种食材"
-                android:textSize="12sp"
-                android:textColor="#07C160"
-                android:layout_marginTop="4dp" />
-        </LinearLayout>
+                android:layout_marginTop="4dp"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
 
-        <ImageButton
-            android:id="@+id/btn_recipe_add"
-            android:layout_width="32dp"
-            android:layout_height="32dp"
-            android:src="@drawable/ic_add"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:contentDescription="加入购物车"
-            android:padding="2dp"
-            app:tint="#07C160" />
+                <TextView
+                    android:id="@+id/tv_recipe_ingredients"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="3 种食材"
+                    android:textColor="#07C160"
+                    android:textSize="12sp" />
+
+                <ImageButton
+                    android:id="@+id/btn_recipe_add"
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:contentDescription="加入购物车"
+                    android:padding="2dp"
+                    android:src="@drawable/ic_add"
+                    app:tint="#07C160" />
+            </LinearLayout>
+        </LinearLayout>
     </LinearLayout>
 </androidx.cardview.widget.CardView>

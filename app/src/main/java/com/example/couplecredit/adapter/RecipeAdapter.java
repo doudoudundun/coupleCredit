@@ -6,6 +6,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageButton;
 import android.widget.ImageView;
+import android.widget.PopupWindow;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
@@ -14,6 +15,7 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.bumptech.glide.Glide;
 import com.example.couplecredit.R;
 import com.example.couplecredit.api.AuthApiModels;
+import com.example.couplecredit.config.ApiConfigManager;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -32,10 +34,8 @@ public class RecipeAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder>
         void onDelete(AuthApiModels.RecipeItemData item);
     }
 
-    // Flat list: String = category header, RecipeItemData = recipe card
     private final List<Object> flatList = new ArrayList<>();
     private final RecipeActionListener listener;
-    // Parallel lists: category position in flatList and its categoryId
     private final List<Integer> categoryPositions = new ArrayList<>();
     private final List<Integer> categoryIds = new ArrayList<>();
 
@@ -96,7 +96,6 @@ public class RecipeAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder>
         if (flatPosition < 0 || flatPosition >= flatList.size()) return 0;
         Object item = flatList.get(flatPosition);
         if (item instanceof String) {
-            // It's a category header — find the first recipe below it
             for (int i = flatPosition + 1; i < flatList.size(); i++) {
                 Object next = flatList.get(i);
                 if (next instanceof AuthApiModels.RecipeItemData) {
@@ -146,8 +145,9 @@ public class RecipeAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder>
             rh.tvIngredients.setText(item.ingredientCount + " 种食材");
 
             if (item.imageUrl != null && !item.imageUrl.isEmpty()) {
+                String resolvedUrl = ApiConfigManager.resolveResourceUrl(rh.ivImage.getContext(), item.imageUrl);
                 Glide.with(rh.ivImage.getContext())
-                        .load(item.imageUrl)
+                        .load(resolvedUrl)
                         .placeholder(R.drawable.ic_inventory_placeholder)
                         .error(R.drawable.ic_inventory_placeholder)
                         .centerCrop()
@@ -159,10 +159,27 @@ public class RecipeAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder>
             rh.btnAdd.setOnClickListener(v -> {
                 if (listener != null) listener.onAddToCart(item);
             });
+            rh.btnMore.setOnClickListener(v -> showRecipeActions(v, item));
             rh.itemView.setOnClickListener(v -> {
                 if (listener != null) listener.onItemClick(item);
             });
         }
+    }
+
+    private void showRecipeActions(View anchor, AuthApiModels.RecipeItemData item) {
+        View popupView = LayoutInflater.from(anchor.getContext()).inflate(R.layout.popup_recipe_actions, null, false);
+        PopupWindow popupWindow = new PopupWindow(popupView, ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, true);
+        popupWindow.setOutsideTouchable(true);
+        popupView.findViewById(R.id.btn_recipe_edit).setOnClickListener(v -> {
+            popupWindow.dismiss();
+            if (listener != null) listener.onEdit(item);
+        });
+        popupView.findViewById(R.id.btn_recipe_delete).setOnClickListener(v -> {
+            popupWindow.dismiss();
+            if (listener != null) listener.onDelete(item);
+        });
+        popupView.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED);
+        popupWindow.showAsDropDown(anchor, -popupView.getMeasuredWidth() + anchor.getWidth(), 0);
     }
 
     @Override
@@ -179,6 +196,7 @@ public class RecipeAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder>
         TextView tvDesc;
         TextView tvIngredients;
         ImageButton btnAdd;
+        ImageButton btnMore;
 
         RecipeHolder(View itemView) {
             super(itemView);
@@ -187,6 +205,7 @@ public class RecipeAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder>
             tvDesc = itemView.findViewById(R.id.tv_recipe_desc);
             tvIngredients = itemView.findViewById(R.id.tv_recipe_ingredients);
             btnAdd = itemView.findViewById(R.id.btn_recipe_add);
+            btnMore = itemView.findViewById(R.id.btn_recipe_more);
         }
     }
 }

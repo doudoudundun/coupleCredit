@@ -14,7 +14,8 @@ function createPool(config) {
     keepAliveInitialDelay: 30000,
     idleTimeout: 60000,
     maxIdle: 10,
-    charset: "utf8mb4"
+    charset: "utf8mb4",
+    timezone: "+08:00"
   });
 }
 

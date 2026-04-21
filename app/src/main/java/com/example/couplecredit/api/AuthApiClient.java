@@ -473,20 +473,26 @@ public class AuthApiClient {
         doRequest(context, "POST", "/api/recipe-categories", body, simpleMutationCallback("创建种类", callback));
     }
 
+    public static void updateRecipeCategory(Context context, int categoryId, int userId, String name, Integer sortOrder, RecipeMutationCallback callback) {
+        StringBuilder body = new StringBuilder();
+        body.append("{\"userId\":").append(userId);
+        if (name != null) {
+            body.append(",\"name\":").append(GSON.toJson(name));
+        }
+        if (sortOrder != null) {
+            body.append(",\"sortOrder\":").append(sortOrder);
+        }
+        body.append("}");
+        doRequest(context, "PUT", "/api/recipe-categories/" + categoryId, body.toString(), simpleMutationCallback("更新种类", callback));
+    }
+
+    public static void reorderRecipeCategories(Context context, int userId, List<Integer> orderedCategoryIds, RecipeMutationCallback callback) {
+        String body = "{\"userId\":" + userId + ",\"orderedCategoryIds\":" + GSON.toJson(orderedCategoryIds) + "}";
+        doRequest(context, "PUT", "/api/recipe-categories/reorder/all", body, simpleMutationCallback("排序种类", callback));
+    }
+
     public static void deleteRecipeCategory(Context context, int categoryId, int userId, RecipeMutationCallback callback) {
         doRequest(context, "DELETE", "/api/recipe-categories/" + categoryId + "?userId=" + userId, null, simpleMutationCallback("删除种类", callback));
-    }
-
-    private static RawCallback fireAndForgetCallback(final SimpleCallback callback) {
-        return new RawCallback() {
-            @Override public void onSuccess(String json) { if (callback != null) callback.onSuccess(); }
-            @Override public void onError(String m) { if (callback != null) callback.onError(m); }
-        };
-    }
-
-    public static void updateAvatar(Context context, int userId, String avatarUrl, SimpleCallback callback) {
-        String body = "{\"userId\":" + userId + ",\"avatarUrl\":" + GSON.toJson(avatarUrl) + "}";
-        doRequest(context, "PUT", "/api/auth/avatar", body, fireAndForgetCallback(callback));
     }
 
     public interface ProfileCallback {
@@ -772,11 +778,15 @@ public class AuthApiClient {
                 GSON.toJson(request),
                 sharedPlanMutationCallback("调整共同计划", callback));
     }
-
     public static void deleteSharedPlan(Context context, int planId, int userId, SharedPlanMutationCallback callback) {
         doRequest(context, "DELETE", "/api/shared-plans/" + planId + "?userId=" + userId,
                 null,
                 sharedPlanMutationCallback("删除共同计划", callback));
+    }
+
+    public static void updateAvatar(Context context, int userId, String avatarUrl, SimpleCallback callback) {
+        String body = "{\"userId\":" + userId + ",\"avatarUrl\":" + GSON.toJson(avatarUrl) + "}";
+        doRequest(context, "PUT", "/api/auth/avatar", body, fireAndForgetCallback(callback));
     }
 
     public static void deleteBill(Context context, int billId, int userId, DeleteBillCallback callback) {
@@ -834,6 +844,20 @@ public class AuthApiClient {
                         if (callback != null) callback.onError(message);
                     }
                 });
+    }
+
+    private static RawCallback fireAndForgetCallback(final SimpleCallback callback) {
+        return new RawCallback() {
+            @Override
+            public void onSuccess(String json) {
+                if (callback != null) callback.onSuccess();
+            }
+
+            @Override
+            public void onError(String message) {
+                if (callback != null) callback.onError(message);
+            }
+        };
     }
 
     private static RawCallback inventoryListCallback(String operation, InventoryListCallback callback) {

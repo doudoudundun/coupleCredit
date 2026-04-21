@@ -17,8 +17,6 @@
         android:orientation="vertical"
         android:background="@android:color/transparent"
         android:elevation="0dp"
-        android:layout_marginTop="@dimen/chat_search_top_margin"
-        android:paddingTop="@dimen/chat_search_padding_top"
         app:layout_constraintTop_toTopOf="parent">
 
         <!-- 搜索功能区 -->

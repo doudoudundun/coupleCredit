@@ -3,6 +3,7 @@ package com.example.couplecredit.adapter;
 import android.content.Context;
 import android.graphics.Color;
 import android.view.LayoutInflater;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.TextView;
@@ -14,27 +15,30 @@ import com.example.couplecredit.R;
 import com.example.couplecredit.api.AuthApiModels;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 public class RecipeCategoryAdapter extends RecyclerView.Adapter<RecipeCategoryAdapter.ViewHolder> {
 
-    public interface CategoryClickListener {
+    public interface CategoryListener {
         void onCategoryClick(int categoryId);
+        void onCategoryDragStart(RecyclerView.ViewHolder holder);
+        void onCategoryOrderChanged(List<AuthApiModels.RecipeCategoryData> orderedItems);
     }
 
     private List<AuthApiModels.RecipeCategoryData> items = new ArrayList<>();
-    private final CategoryClickListener listener;
+    private final CategoryListener listener;
     private int selectedPosition = 0;
-    private Map<Integer, Integer> cartCountByCategory = new HashMap<>();
+    private final Map<Integer, Integer> cartCountByCategory = new HashMap<>();
 
-    public RecipeCategoryAdapter(CategoryClickListener listener) {
+    public RecipeCategoryAdapter(CategoryListener listener) {
         this.listener = listener;
     }
 
     public void updateData(List<AuthApiModels.RecipeCategoryData> newItems) {
-        this.items = newItems != null ? newItems : new ArrayList<>();
+        this.items = newItems != null ? new ArrayList<>(newItems) : new ArrayList<>();
         notifyDataSetChanged();
     }
 
@@ -56,7 +60,7 @@ public class RecipeCategoryAdapter extends RecyclerView.Adapter<RecipeCategoryAd
     }
 
     public List<AuthApiModels.RecipeCategoryData> getCategories() {
-        return items;
+        return new ArrayList<>(items);
     }
 
     public void setSelectedPosition(int position, boolean notify) {
@@ -75,6 +79,27 @@ public class RecipeCategoryAdapter extends RecyclerView.Adapter<RecipeCategoryAd
             if (items.get(i).categoryId == categoryId) return i + 1;
         }
         return 0;
+    }
+
+    public boolean moveCategory(int fromPosition, int toPosition) {
+        if (fromPosition <= 0 || toPosition <= 0) return false;
+        int fromIndex = fromPosition - 1;
+        int toIndex = toPosition - 1;
+        if (fromIndex < 0 || fromIndex >= items.size() || toIndex < 0 || toIndex >= items.size()) return false;
+        if (fromIndex == toIndex) return false;
+
+        Collections.swap(items, fromIndex, toIndex);
+        notifyItemMoved(fromPosition, toPosition);
+        if (selectedPosition == fromPosition) {
+            selectedPosition = toPosition;
+        } else if (selectedPosition == toPosition) {
+            selectedPosition = fromPosition;
+        }
+        return true;
+    }
+
+    public void notifyOrderPersisted() {
+        if (listener != null) listener.onCategoryOrderChanged(new ArrayList<>(items));
     }
 
     @Override
@@ -98,10 +123,16 @@ public class RecipeCategoryAdapter extends RecyclerView.Adapter<RecipeCategoryAd
         if (position == 0) {
             holder.tvName.setText("全部");
             categoryId = 0;
+            holder.itemView.setOnLongClickListener(null);
+            holder.itemView.setOnTouchListener(null);
         } else {
             AuthApiModels.RecipeCategoryData item = items.get(position - 1);
             holder.tvName.setText(item.name);
             categoryId = item.categoryId;
+            holder.itemView.setOnLongClickListener(v -> {
+                if (listener != null) listener.onCategoryDragStart(holder);
+                return true;
+            });
         }
 
         holder.tvName.setTextColor(isSelected ? Color.parseColor("#07C160") : Color.parseColor("#666666"));
@@ -110,7 +141,6 @@ public class RecipeCategoryAdapter extends RecyclerView.Adapter<RecipeCategoryAd
 
         int count;
         if (position == 0) {
-            // "全部" shows total cart count
             int total = 0;
             for (int c : cartCountByCategory.values()) total += c;
             count = total;

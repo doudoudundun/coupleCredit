@@ -145,7 +145,7 @@ public class CartActivity extends AppCompatActivity {
                 msg.append(item.title).append(": ");
                 if (response.data != null && response.data.results != null) {
                     for (AuthApiModels.CookResultItem r : response.data.results) {
-                        msg.append(r.name).append(" -").append((long) r.consumed).append(r.unit).append(" ");
+                        msg.append(r.name).append(" -").append(formatDecimal(r.consumed)).append(r.unit).append(" ");
                     }
                 }
                 if (response.data != null && response.data.warnings != null && !response.data.warnings.isEmpty()) {
@@ -170,6 +170,13 @@ public class CartActivity extends AppCompatActivity {
                 });
             }
         });
+    }
+
+    private String formatDecimal(double value) {
+        if (value == (long) value) {
+            return String.valueOf((long) value);
+        }
+        return String.format(Locale.getDefault(), "%.2f", value).replaceAll("0+$", "").replaceAll("\\.$", "");
     }
 
     public static void addToCart(android.content.Context context, AuthApiModels.RecipeItemData recipe) {
@@ -323,7 +330,7 @@ public class CartActivity extends AppCompatActivity {
                             row.addView(tvIngName);
 
                             TextView tvQty = new TextView(CartActivity.this);
-                            tvQty.setText((long) ing.quantity + " " + ing.unit);
+                            tvQty.setText(formatDecimal(ing.quantity) + " " + ing.unit);
                             tvQty.setTextSize(14);
                             tvQty.setTextColor(0xFF666666);
                             row.addView(tvQty);

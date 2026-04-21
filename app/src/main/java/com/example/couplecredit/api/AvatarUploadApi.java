@@ -45,7 +45,6 @@ public class AvatarUploadApi {
                 String fileName = "avatar_" + userId + "_" + System.currentTimeMillis() + ".jpg";
                 AuthApiClient.uploadImage(context, compressed, fileName, new AuthApiClient.ImageUploadCallback() {
                     @Override public void onSuccess(String imageUrl) {
-                        // Save avatar URL to user profile
                         AuthApiClient.updateAvatar(context, userId, imageUrl, new AuthApiClient.SimpleCallback() {
                             @Override public void onSuccess() {
                                 Log.d(TAG, "Avatar uploaded and saved: " + imageUrl);
@@ -80,14 +79,16 @@ public class AvatarUploadApi {
         });
     }
 
-    public void getAvatarUrl(int userId, AvatarUrlCallback callback) {
-        executor.execute(() -> {
-            try {
-                Thread.sleep(500);
-                String avatarUrl = "https://example.com/avatars/user_" + userId + ".jpg";
-                if (callback != null) callback.onSuccess(avatarUrl);
-            } catch (Exception e) {
-                if (callback != null) callback.onError("获取头像失败: " + e.getMessage());
+    public void getAvatarUrl(Context context, int userId, AvatarUrlCallback callback) {
+        AuthApiClient.getUserProfile(context, userId, new AuthApiClient.ProfileCallback() {
+            @Override
+            public void onSuccess(AuthApiModels.UserProfileData profile) {
+                if (callback != null) callback.onSuccess(profile != null ? profile.avatarUrl : null);
+            }
+
+            @Override
+            public void onError(String e) {
+                if (callback != null) callback.onError(e);
             }
         });
     }
