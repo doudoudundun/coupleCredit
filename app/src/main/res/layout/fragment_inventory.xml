@@ -10,7 +10,6 @@
         android:layout_height="match_parent"
         android:orientation="vertical">
 
-        <!-- Sticky header: title + stats -->
         <LinearLayout
             android:id="@+id/header_container"
             android:layout_width="match_parent"
@@ -39,24 +38,6 @@
                 android:text="管理家具用品与日常库存，和记账一样重要。"
                 android:textColor="#6B7280"
                 android:textSize="13sp" />
-
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
-                android:text="最近动态"
-                android:textColor="@android:color/black"
-                android:textSize="16sp"
-                android:textStyle="bold" />
-
-            <androidx.recyclerview.widget.RecyclerView
-                android:id="@+id/rv_recent_activity"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="6dp"
-                android:maxHeight="112dp"
-                android:paddingStart="2dp"
-                android:paddingEnd="2dp" />
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -120,7 +101,7 @@
                 </LinearLayout>
 
                 <LinearLayout
-                    android:id="@+id/card_recent"
+                    android:id="@+id/card_expiration"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
@@ -131,17 +112,17 @@
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="最近变动"
+                        android:text="临期/过期"
                         android:textColor="#6B7280"
                         android:textSize="12sp" />
 
                     <TextView
-                        android:id="@+id/tv_recent_count"
+                        android:id="@+id/tv_expiration_count"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="4dp"
                         android:text="0"
-                        android:textColor="@android:color/black"
+                        android:textColor="#F59E0B"
                         android:textSize="20sp"
                         android:textStyle="bold" />
                 </LinearLayout>
@@ -184,7 +165,6 @@
             </LinearLayout>
         </LinearLayout>
 
-        <!-- Sticky search + filters -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -227,7 +207,6 @@
             </HorizontalScrollView>
         </LinearLayout>
 
-        <!-- Scrollable content -->
         <androidx.core.widget.NestedScrollView
             android:layout_width="match_parent"
             android:layout_height="match_parent"
@@ -297,62 +276,95 @@
                     android:layout_height="wrap_content"
                     android:orientation="vertical">
 
-                    <TextView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="12dp"
-                        android:paddingStart="16dp"
-                        android:paddingEnd="16dp"
-                        android:text="物资列表"
-                        android:textColor="@android:color/black"
-                        android:textSize="16sp"
-                        android:textStyle="bold" />
-
-                    <androidx.recyclerview.widget.RecyclerView
-                        android:id="@+id/rv_inventory_list"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:nestedScrollingEnabled="false"
-                        android:paddingStart="8dp"
-                        android:paddingTop="8dp"
-                        android:paddingEnd="8dp" />
-
                     <LinearLayout
-                        android:id="@+id/ll_empty_state"
+                        android:id="@+id/layout_recent_activity_section"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:gravity="center"
                         android:orientation="vertical"
-                        android:padding="32dp"
                         android:visibility="gone">
 
-                        <ImageView
-                            android:layout_width="80dp"
-                            android:layout_height="80dp"
-                            android:alpha="0.5"
-                            android:src="@drawable/ic_empty_inventory" />
-
                         <TextView
-                            android:layout_width="wrap_content"
+                            android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:layout_marginTop="16dp"
-                            android:text="还没有物资记录"
-                            android:textColor="#999999"
-                            android:textSize="16sp" />
+                            android:layout_marginTop="12dp"
+                            android:paddingStart="16dp"
+                            android:paddingEnd="16dp"
+                            android:text="最近动态"
+                            android:textColor="@android:color/black"
+                            android:textSize="16sp"
+                            android:textStyle="bold" />
 
-                        <TextView
-                            android:layout_width="wrap_content"
+                        <androidx.recyclerview.widget.RecyclerView
+                            android:id="@+id/rv_recent_activity"
+                            android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="8dp"
-                            android:text="点击右下角按钮添加第一个物资"
-                            android:textColor="#C0C4CC"
-                            android:textSize="14sp" />
+                            android:nestedScrollingEnabled="false"
+                            android:paddingStart="8dp"
+                            android:paddingEnd="8dp" />
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:id="@+id/layout_inventory_section"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="12dp"
+                            android:paddingStart="16dp"
+                            android:paddingEnd="16dp"
+                            android:text="物资列表"
+                            android:textColor="@android:color/black"
+                            android:textSize="16sp"
+                            android:textStyle="bold" />
+
+                        <androidx.recyclerview.widget.RecyclerView
+                            android:id="@+id/rv_inventory_list"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:nestedScrollingEnabled="false"
+                            android:paddingStart="8dp"
+                            android:paddingTop="8dp"
+                            android:paddingEnd="8dp" />
+
+                        <LinearLayout
+                            android:id="@+id/ll_empty_state"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:gravity="center"
+                            android:orientation="vertical"
+                            android:padding="32dp"
+                            android:visibility="gone">
+
+                            <ImageView
+                                android:layout_width="80dp"
+                                android:layout_height="80dp"
+                                android:alpha="0.5"
+                                android:src="@drawable/ic_empty_inventory" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="16dp"
+                                android:text="还没有物资记录"
+                                android:textColor="#999999"
+                                android:textSize="16sp" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="8dp"
+                                android:text="点击右下角按钮添加第一个物资"
+                                android:textColor="#C0C4CC"
+                                android:textSize="14sp" />
+                        </LinearLayout>
                     </LinearLayout>
                 </LinearLayout>
-
             </LinearLayout>
         </androidx.core.widget.NestedScrollView>
-
     </LinearLayout>
 
     <com.google.android.material.floatingactionbutton.FloatingActionButton

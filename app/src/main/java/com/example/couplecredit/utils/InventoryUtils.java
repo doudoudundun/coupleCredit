@@ -45,7 +45,9 @@ public class InventoryUtils {
     }
 
     public static void createInventory(Context context, String name, String category, double quantity, String unit,
-                                       double threshold, String imageUrl, String note, String aiImagePrompt,
+                                       double threshold, String expirationMode, String expirationDate,
+                                       String productionDate, Integer shelfLifeDays, String imageUrl,
+                                       String note, String aiImagePrompt,
                                        InventoryMutationCallback callback) {
         int userId = UserInfoManager.getCurrentUserId(context);
         if (userId < 0) {
@@ -62,6 +64,10 @@ public class InventoryUtils {
                 quantity,
                 unit,
                 threshold,
+                emptyToNull(expirationMode),
+                emptyToNull(expirationDate),
+                emptyToNull(productionDate),
+                shelfLifeDays,
                 emptyToNull(imageUrl),
                 emptyToNull(note),
                 emptyToNull(aiImagePrompt)
@@ -71,8 +77,9 @@ public class InventoryUtils {
     }
 
     public static void updateInventory(Context context, int inventoryId, String name, String category, double quantity,
-                                       String unit, double threshold, String imageUrl, String note, String aiImagePrompt,
-                                       InventoryMutationCallback callback) {
+                                       String unit, double threshold, String expirationMode, String expirationDate,
+                                       String productionDate, Integer shelfLifeDays, String imageUrl, String note,
+                                       String aiImagePrompt, InventoryMutationCallback callback) {
         int userId = UserInfoManager.getCurrentUserId(context);
         if (userId < 0) {
             if (callback != null) {
@@ -88,6 +95,10 @@ public class InventoryUtils {
                 quantity,
                 unit,
                 threshold,
+                emptyToNull(expirationMode),
+                emptyToNullableString(expirationDate),
+                emptyToNullableString(productionDate),
+                shelfLifeDays,
                 emptyToNullableString(imageUrl),
                 emptyToNullableString(note),
                 emptyToNullableString(aiImagePrompt)

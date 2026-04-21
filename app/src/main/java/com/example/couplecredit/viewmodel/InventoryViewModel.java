@@ -26,12 +26,18 @@ public class InventoryViewModel extends AndroidViewModel {
         public double quantity;
         public String unit;
         public double threshold;
+        public String expirationMode;
+        public String expirationDate;
+        public String productionDate;
+        public Integer shelfLifeDays;
         public String createdAt;
         public String updatedAt;
         public String lastConsumedAt;
         public String note;
         public String aiImagePrompt;
         public boolean isLowStock;
+        public boolean isExpiring;
+        public boolean isExpired;
         public String lastActionLabel;
 
         public boolean isLowStock() {
@@ -121,12 +127,18 @@ public class InventoryViewModel extends AndroidViewModel {
         item.quantity = d.quantity;
         item.unit = d.unit;
         item.threshold = d.threshold;
+        item.expirationMode = d.expirationMode;
+        item.expirationDate = d.expirationDate;
+        item.productionDate = d.productionDate;
+        item.shelfLifeDays = d.shelfLifeDays;
         item.createdAt = normalizeDateTime(d.createdAt);
         item.updatedAt = normalizeDateTime(d.updatedAt);
         item.lastConsumedAt = normalizeDateTime(d.lastConsumedAt);
         item.note = d.note;
         item.aiImagePrompt = d.aiImagePrompt;
         item.isLowStock = item.quantity <= item.threshold;
+        item.isExpiring = d.isExpiring;
+        item.isExpired = d.isExpired;
         item.lastActionLabel = resolveActionLabel(item);
         return item;
     }

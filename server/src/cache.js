@@ -60,6 +60,7 @@ const Keys = {
   recipes: (userId) => `recipes:${userId}`,
   recipeCategories: (userId) => `recipe-cats:${userId}`,
   sharedPlans: (userId) => `shared-plans:${userId}`,
+  todos: (userId) => `todos:${userId}`,
 };
 
 // TTL constants (seconds)
@@ -72,6 +73,7 @@ const TTL = {
   RECIPES: 30,
   RECIPE_CATS: 60,
   SHARED_PLANS: 15,
+  TODOS: 15,
 };
 
 module.exports = { cache, Keys, TTL };

@@ -3,6 +3,16 @@ const { ApiError } = require("../errors");
 const { cache, Keys, TTL } = require("../cache");
 const { loadActiveRelationship, trimValue, parseRequiredInteger, parseRequiredFloat } = require("../utils/queryHelpers");
 
+const EXPIRING_WINDOW_DAYS = 3;
+const INVENTORY_SELECT_FIELDS = `inventory_id as inventoryId, user_id as userId, relationship_id as relationshipId,
+                 name, category, image_url as imageUrl, quantity, unit, threshold,
+                 created_at as createdAt, updated_at as updatedAt, last_consumed_at as lastConsumedAt,
+                 note, ai_image_prompt as aiImagePrompt,
+                 expiration_mode as expirationMode,
+                 DATE_FORMAT(expiration_date, '%Y-%m-%d') as expirationDate,
+                 DATE_FORMAT(production_date, '%Y-%m-%d') as productionDate,
+                 shelf_life_days as shelfLifeDays`;
+
 function normalizeNullableText(value) {
   if (value === undefined || value === null) {
     return null;
@@ -12,6 +22,181 @@ function normalizeNullableText(value) {
   }
   const trimmed = value.trim();
   return trimmed === "" ? null : trimmed;
+}
+
+function normalizeExpirationMode(value) {
+  if (value === undefined || value === null) {
+    return null;
+  }
+  if (typeof value !== "string") {
+    throw new ApiError(400, "INVALID_REQUEST", "保质期模式不正确");
+  }
+
+  const trimmed = value.trim();
+  if (trimmed === "") {
+    return null;
+  }
+  if (trimmed !== "date" && trimmed !== "calc") {
+    throw new ApiError(400, "INVALID_REQUEST", "保质期模式不正确");
+  }
+  return trimmed;
+}
+
+function createUtcDateOnly(year, month, day) {
+  return new Date(Date.UTC(year, month - 1, day));
+}
+
+function formatUtcDateOnly(date) {
+  const year = date.getUTCFullYear();
+  const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(date.getUTCDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function parseDateOnlyString(value, fieldLabel) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    throw new ApiError(400, "INVALID_REQUEST", `${fieldLabel}格式不正确`);
+  }
+
+  const [year, month, day] = value.split("-").map(Number);
+  const parsed = createUtcDateOnly(year, month, day);
+  if (
+    parsed.getUTCFullYear() !== year ||
+    parsed.getUTCMonth() !== month - 1 ||
+    parsed.getUTCDate() !== day
+  ) {
+    throw new ApiError(400, "INVALID_REQUEST", `${fieldLabel}格式不正确`);
+  }
+
+  return parsed;
+}
+
+function normalizeNullableDate(value, fieldLabel) {
+  if (value === undefined || value === null) {
+    return null;
+  }
+  if (typeof value !== "string") {
+    throw new ApiError(400, "INVALID_REQUEST", `${fieldLabel}格式不正确`);
+  }
+
+  const trimmed = value.trim();
+  if (trimmed === "") {
+    return null;
+  }
+
+  parseDateOnlyString(trimmed, fieldLabel);
+  return trimmed;
+}
+
+function parsePositiveInteger(value, fieldLabel) {
+  if (value === undefined || value === null || value === "") {
+    return null;
+  }
+
+  const parsed = typeof value === "number" ? value : Number(String(value).trim());
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    throw new ApiError(400, "INVALID_REQUEST", `${fieldLabel}必须是正整数`);
+  }
+
+  return parsed;
+}
+
+function addDaysToDateString(dateString, days) {
+  const parsed = parseDateOnlyString(dateString, "日期");
+  parsed.setUTCDate(parsed.getUTCDate() + days);
+  return formatUtcDateOnly(parsed);
+}
+
+function hasShelfLifeFields(source) {
+  return ["expirationMode", "expirationDate", "productionDate", "shelfLifeDays"]
+    .some(field => Object.prototype.hasOwnProperty.call(source, field));
+}
+
+function deriveShelfLifeFields(input) {
+  const expirationMode = normalizeExpirationMode(input.expirationMode);
+  const expirationDate = normalizeNullableDate(input.expirationDate, "到期日期");
+  const productionDate = normalizeNullableDate(input.productionDate, "生产日期");
+  const shelfLifeDays = parsePositiveInteger(input.shelfLifeDays, "保质期天数");
+
+  const hasAnyShelfLifeValue = expirationMode !== null || expirationDate !== null || productionDate !== null || shelfLifeDays !== null;
+  if (!hasAnyShelfLifeValue) {
+    return {
+      expirationMode: null,
+      expirationDate: null,
+      productionDate: null,
+      shelfLifeDays: null
+    };
+  }
+
+  if (expirationMode === "date") {
+    if (!expirationDate) {
+      throw new ApiError(400, "INVALID_REQUEST", "请选择到期日期");
+    }
+
+    return {
+      expirationMode,
+      expirationDate,
+      productionDate: null,
+      shelfLifeDays: null
+    };
+  }
+
+  if (expirationMode === "calc") {
+    if (!productionDate) {
+      throw new ApiError(400, "INVALID_REQUEST", "请选择生产日期");
+    }
+    if (shelfLifeDays === null) {
+      throw new ApiError(400, "INVALID_REQUEST", "请输入保质期天数");
+    }
+
+    return {
+      expirationMode,
+      expirationDate: addDaysToDateString(productionDate, shelfLifeDays),
+      productionDate,
+      shelfLifeDays
+    };
+  }
+
+  throw new ApiError(400, "INVALID_REQUEST", "请先选择保质期方式");
+}
+
+function resolveShelfLifeUpdate(existingShelfLife, input) {
+  const requestedMode = input.expirationMode !== undefined ? normalizeExpirationMode(input.expirationMode) : existingShelfLife.expirationMode;
+  const switchedModes = input.expirationMode !== undefined && requestedMode !== existingShelfLife.expirationMode;
+
+  return deriveShelfLifeFields({
+    expirationMode: requestedMode,
+    expirationDate: input.expirationDate !== undefined
+      ? input.expirationDate
+      : (!switchedModes && requestedMode === "date" ? existingShelfLife.expirationDate : null),
+    productionDate: input.productionDate !== undefined
+      ? input.productionDate
+      : (!switchedModes && requestedMode === "calc" ? existingShelfLife.productionDate : null),
+    shelfLifeDays: input.shelfLifeDays !== undefined
+      ? input.shelfLifeDays
+      : (!switchedModes && requestedMode === "calc" ? existingShelfLife.shelfLifeDays : null)
+  });
+}
+
+function addExpirationFlags(item, referenceDate = new Date()) {
+  if (!item.expirationDate) {
+    return {
+      ...item,
+      isExpiring: false,
+      isExpired: false
+    };
+  }
+
+  const today = formatUtcDateOnly(referenceDate);
+  const expiringThreshold = addDaysToDateString(today, EXPIRING_WINDOW_DAYS);
+  const isExpired = today > item.expirationDate;
+  const isExpiring = !isExpired && item.expirationDate <= expiringThreshold;
+
+  return {
+    ...item,
+    isExpiring,
+    isExpired
+  };
 }
 
 function createInventoryRouter({ pool }) {
@@ -39,23 +224,17 @@ function createInventoryRouter({ pool }) {
       let params;
 
       if (relationshipId) {
-        query = `SELECT inventory_id as inventoryId, user_id as userId, relationship_id as relationshipId,
-                 name, category, image_url as imageUrl, quantity, unit, threshold,
-                 created_at as createdAt, updated_at as updatedAt, last_consumed_at as lastConsumedAt,
-                 note, ai_image_prompt as aiImagePrompt
+        query = `SELECT ${INVENTORY_SELECT_FIELDS}
                  FROM inventory WHERE relationship_id = ? OR (user_id = ? AND relationship_id IS NULL) ORDER BY updated_at DESC`;
         params = [relationshipId, userId];
       } else {
-        query = `SELECT inventory_id as inventoryId, user_id as userId, relationship_id as relationshipId,
-                 name, category, image_url as imageUrl, quantity, unit, threshold,
-                 created_at as createdAt, updated_at as updatedAt, last_consumed_at as lastConsumedAt,
-                 note, ai_image_prompt as aiImagePrompt
+        query = `SELECT ${INVENTORY_SELECT_FIELDS}
                  FROM inventory WHERE user_id = ? AND relationship_id IS NULL ORDER BY updated_at DESC`;
         params = [userId];
       }
 
       const [rows] = await pool.execute(query, params);
-      const items = rows.map(row => ({
+      const items = rows.map(row => addExpirationFlags({
         ...row,
         isLowStock: Number(row.quantity) <= Number(row.threshold)
       }));
@@ -85,23 +264,17 @@ function createInventoryRouter({ pool }) {
       let params;
 
       if (relationshipId) {
-        query = `SELECT inventory_id as inventoryId, user_id as userId, relationship_id as relationshipId,
-                 name, category, image_url as imageUrl, quantity, unit, threshold,
-                 created_at as createdAt, updated_at as updatedAt, last_consumed_at as lastConsumedAt,
-                 note, ai_image_prompt as aiImagePrompt
+        query = `SELECT ${INVENTORY_SELECT_FIELDS}
                  FROM inventory WHERE (relationship_id = ? OR (user_id = ? AND relationship_id IS NULL)) AND quantity <= threshold ORDER BY quantity ASC`;
         params = [relationshipId, userId];
       } else {
-        query = `SELECT inventory_id as inventoryId, user_id as userId, relationship_id as relationshipId,
-                 name, category, image_url as imageUrl, quantity, unit, threshold,
-                 created_at as createdAt, updated_at as updatedAt, last_consumed_at as lastConsumedAt,
-                 note, ai_image_prompt as aiImagePrompt
+        query = `SELECT ${INVENTORY_SELECT_FIELDS}
                  FROM inventory WHERE user_id = ? AND relationship_id IS NULL AND quantity <= threshold ORDER BY quantity ASC`;
         params = [userId];
       }
 
       const [rows] = await pool.execute(query, params);
-      const items = rows.map(row => ({
+      const items = rows.map(row => addExpirationFlags({
         ...row,
         isLowStock: Number(row.quantity) <= Number(row.threshold)
       }));
@@ -138,14 +311,16 @@ function createInventoryRouter({ pool }) {
       const imageUrl = normalizeNullableText(req.body.imageUrl);
       const note = normalizeNullableText(req.body.note);
       const aiImagePrompt = normalizeNullableText(req.body.aiImagePrompt);
+      const shelfLife = deriveShelfLifeFields(req.body);
+      const includesShelfLifeFields = hasShelfLifeFields(req.body);
 
       let findQuery;
       let findParams;
       if (relationshipId) {
-        findQuery = "SELECT inventory_id, quantity, image_url FROM inventory WHERE name = ? AND (relationship_id = ? OR (user_id = ? AND relationship_id IS NULL)) LIMIT 1";
+        findQuery = "SELECT inventory_id, category, quantity, unit, threshold, image_url, note, ai_image_prompt, expiration_mode, DATE_FORMAT(expiration_date, '%Y-%m-%d') as expiration_date, DATE_FORMAT(production_date, '%Y-%m-%d') as production_date, shelf_life_days FROM inventory WHERE name = ? AND (relationship_id = ? OR (user_id = ? AND relationship_id IS NULL)) LIMIT 1";
         findParams = [name, relationshipId, userId];
       } else {
-        findQuery = "SELECT inventory_id, quantity, image_url FROM inventory WHERE name = ? AND user_id = ? AND relationship_id IS NULL LIMIT 1";
+        findQuery = "SELECT inventory_id, category, quantity, unit, threshold, image_url, note, ai_image_prompt, expiration_mode, DATE_FORMAT(expiration_date, '%Y-%m-%d') as expiration_date, DATE_FORMAT(production_date, '%Y-%m-%d') as production_date, shelf_life_days FROM inventory WHERE name = ? AND user_id = ? AND relationship_id IS NULL LIMIT 1";
         findParams = [name, userId];
       }
       const [existing] = await pool.execute(findQuery, findParams);
@@ -165,43 +340,62 @@ function createInventoryRouter({ pool }) {
           params.push(note);
         }
 
+        if (includesShelfLifeFields) {
+          updates.push("expiration_mode = ?");
+          params.push(shelfLife.expirationMode);
+          updates.push("expiration_date = ?");
+          params.push(shelfLife.expirationDate);
+          updates.push("production_date = ?");
+          params.push(shelfLife.productionDate);
+          updates.push("shelf_life_days = ?");
+          params.push(shelfLife.shelfLifeDays);
+        }
+
         params.push(existingItem.inventory_id);
         await pool.execute(
           `UPDATE inventory SET ${updates.join(", ")} WHERE inventory_id = ?`,
           params
         );
 
+        const mergedShelfLife = includesShelfLifeFields
+          ? shelfLife
+          : {
+              expirationMode: existingItem.expiration_mode,
+              expirationDate: existingItem.expiration_date,
+              productionDate: existingItem.production_date,
+              shelfLifeDays: existingItem.shelf_life_days
+            };
+
+        const mergedItem = addExpirationFlags({
+          inventoryId: existingItem.inventory_id,
+          userId,
+          relationshipId,
+          name,
+          category: existingItem.category,
+          imageUrl: imageUrl || existingItem.image_url,
+          quantity: newQuantity,
+          unit: existingItem.unit,
+          threshold: Number(existingItem.threshold),
+          note: note !== null ? note : existingItem.note,
+          aiImagePrompt: existingItem.ai_image_prompt,
+          expirationMode: mergedShelfLife.expirationMode,
+          expirationDate: mergedShelfLife.expirationDate,
+          productionDate: mergedShelfLife.productionDate,
+          shelfLifeDays: mergedShelfLife.shelfLifeDays,
+          isLowStock: newQuantity <= Number(existingItem.threshold)
+        });
+
         invalidateInventoryCache(userId, relationship);
         res.json({
           ok: true,
           message: "已合并到同名物资",
-          data: {
-            inventoryId: existingItem.inventory_id,
-            userId,
-            relationshipId,
-            name,
-            category,
-            imageUrl: imageUrl || existingItem.image_url,
-            quantity: newQuantity,
-            unit,
-            threshold,
-            note,
-            aiImagePrompt
-          }
+          data: mergedItem
         });
       } else {
         const [result] = await pool.execute(
-          `INSERT INTO inventory (user_id, relationship_id, name, category, image_url, quantity, unit, threshold, note, ai_image_prompt, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
-          [userId, relationshipId, name, category, imageUrl, quantity, unit, threshold, note, aiImagePrompt]
-        );
-
-        invalidateInventoryCache(userId, relationship);
-        res.status(201).json({
-          ok: true,
-          message: "存货添加成功",
-          data: {
-            inventoryId: result.insertId,
+          `INSERT INTO inventory (user_id, relationship_id, name, category, image_url, quantity, unit, threshold, note, ai_image_prompt, expiration_mode, expiration_date, production_date, shelf_life_days, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+          [
             userId,
             relationshipId,
             name,
@@ -211,8 +405,38 @@ function createInventoryRouter({ pool }) {
             unit,
             threshold,
             note,
-            aiImagePrompt
-          }
+            aiImagePrompt,
+            shelfLife.expirationMode,
+            shelfLife.expirationDate,
+            shelfLife.productionDate,
+            shelfLife.shelfLifeDays
+          ]
+        );
+
+        const createdItem = addExpirationFlags({
+          inventoryId: result.insertId,
+          userId,
+          relationshipId,
+          name,
+          category,
+          imageUrl,
+          quantity,
+          unit,
+          threshold,
+          note,
+          aiImagePrompt,
+          expirationMode: shelfLife.expirationMode,
+          expirationDate: shelfLife.expirationDate,
+          productionDate: shelfLife.productionDate,
+          shelfLifeDays: shelfLife.shelfLifeDays,
+          isLowStock: quantity <= threshold
+        });
+
+        invalidateInventoryCache(userId, relationship);
+        res.status(201).json({
+          ok: true,
+          message: "存货添加成功",
+          data: createdItem
         });
       }
     } catch (error) {
@@ -245,6 +469,38 @@ function createInventoryRouter({ pool }) {
 
       const updates = [];
       const params = [];
+
+      let existingFieldsQuery;
+      let existingFieldsParams;
+
+      if (relationshipId) {
+        existingFieldsQuery = "SELECT expiration_mode as expirationMode, DATE_FORMAT(expiration_date, '%Y-%m-%d') as expirationDate, DATE_FORMAT(production_date, '%Y-%m-%d') as productionDate, shelf_life_days as shelfLifeDays FROM inventory WHERE inventory_id = ? AND (relationship_id = ? OR (user_id = ? AND relationship_id IS NULL))";
+        existingFieldsParams = [inventoryId, relationshipId, userId];
+      } else {
+        existingFieldsQuery = "SELECT expiration_mode as expirationMode, DATE_FORMAT(expiration_date, '%Y-%m-%d') as expirationDate, DATE_FORMAT(production_date, '%Y-%m-%d') as productionDate, shelf_life_days as shelfLifeDays FROM inventory WHERE inventory_id = ? AND user_id = ? AND relationship_id IS NULL";
+        existingFieldsParams = [inventoryId, userId];
+      }
+
+      const [existingShelfLifeRows] = await pool.execute(existingFieldsQuery, existingFieldsParams);
+      const existingShelfLife = existingShelfLifeRows[0] || {
+        expirationMode: null,
+        expirationDate: null,
+        productionDate: null,
+        shelfLifeDays: null
+      };
+
+      if (hasShelfLifeFields(req.body)) {
+        const shelfLife = resolveShelfLifeUpdate(existingShelfLife, req.body);
+
+        updates.push("expiration_mode = ?");
+        params.push(shelfLife.expirationMode);
+        updates.push("expiration_date = ?");
+        params.push(shelfLife.expirationDate);
+        updates.push("production_date = ?");
+        params.push(shelfLife.productionDate);
+        updates.push("shelf_life_days = ?");
+        params.push(shelfLife.shelfLifeDays);
+      }
 
       if (req.body.name !== undefined) {
         const name = trimValue(req.body.name);
@@ -343,7 +599,7 @@ function createInventoryRouter({ pool }) {
         throw new ApiError(404, "NOT_FOUND", "存货不存在或无权操作");
       }
 
-      const currentQuantity = existing[0].quantity;
+      const currentQuantity = Number(existing[0].quantity);
       if (currentQuantity < consumeAmount) {
         throw new ApiError(400, "INSUFFICIENT_STOCK", `存量不足，当前存量: ${currentQuantity}`);
       }
@@ -397,7 +653,7 @@ function createInventoryRouter({ pool }) {
         throw new ApiError(404, "NOT_FOUND", "存货不存在或无权操作");
       }
 
-      const currentQuantity = existing[0].quantity;
+      const currentQuantity = Number(existing[0].quantity);
       await pool.execute(
         "UPDATE inventory SET quantity = quantity + ?, updated_at = NOW() WHERE inventory_id = ?",
         [addAmount, inventoryId]
@@ -477,4 +733,9 @@ function createInventoryRouter({ pool }) {
   return router;
 }
 
-module.exports = { createInventoryRouter };
+module.exports = {
+  createInventoryRouter,
+  deriveShelfLifeFields,
+  addExpirationFlags,
+  EXPIRING_WINDOW_DAYS
+};

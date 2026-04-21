@@ -24,6 +24,7 @@ import com.example.couplecredit.fragment.HeadFragment;
 import com.example.couplecredit.fragment.InventoryFragment;
 import com.example.couplecredit.fragment.MyFragment;
 import com.example.couplecredit.fragment.RecipeFragment;
+import com.example.couplecredit.fragment.TodoFragment;
 import com.example.couplecredit.repository.ChatRepository;
 import com.example.couplecredit.utils.UserInfoManager;
 import com.github.mikephil.charting.utils.Utils;
@@ -35,6 +36,7 @@ public class MainActivity extends AppCompatActivity {
     private HeadFragment headFragment;
     private InventoryFragment inventoryFragment;
     private RecipeFragment recipeFragment;
+    private TodoFragment todoFragment;
     private MyFragment myFragment;
     private BottomNavigationView mBottomNav;
     private Fragment currentFragment;
@@ -84,6 +86,7 @@ public class MainActivity extends AppCompatActivity {
             headFragment = new HeadFragment();
             inventoryFragment = new InventoryFragment();
             recipeFragment = new RecipeFragment();
+            todoFragment = new TodoFragment();
             myFragment = new MyFragment();
 
             if (username != null && id != null) {
@@ -98,6 +101,7 @@ public class MainActivity extends AppCompatActivity {
             headFragment = (HeadFragment) fragmentManager.findFragmentByTag("head");
             inventoryFragment = (InventoryFragment) fragmentManager.findFragmentByTag("inventory");
             recipeFragment = (RecipeFragment) fragmentManager.findFragmentByTag("recipe");
+            todoFragment = (TodoFragment) fragmentManager.findFragmentByTag("todo");
             myFragment = (MyFragment) fragmentManager.findFragmentByTag("my");
 
             for (Fragment fragment : fragmentManager.getFragments()) {
@@ -119,6 +123,9 @@ public class MainActivity extends AppCompatActivity {
                 return true;
             } else if (itemId == R.id.nav_recipe) {
                 showFragment(recipeFragment);
+                return true;
+            } else if (itemId == R.id.nav_todo) {
+                showFragment(todoFragment);
                 return true;
             } else if (itemId == R.id.nav_my) {
                 showFragment(myFragment);
@@ -177,6 +184,8 @@ public class MainActivity extends AppCompatActivity {
             inventoryFragment.refreshInventoryData();
         } else if (fragment == recipeFragment) {
             recipeFragment.refreshData();
+        } else if (fragment == todoFragment) {
+            todoFragment.refreshData();
         }
     }
 
@@ -205,10 +214,12 @@ public class MainActivity extends AppCompatActivity {
         transaction.add(R.id.fragment_container, headFragment, "head");
         transaction.add(R.id.fragment_container, inventoryFragment, "inventory");
         transaction.add(R.id.fragment_container, recipeFragment, "recipe");
+        transaction.add(R.id.fragment_container, todoFragment, "todo");
         transaction.add(R.id.fragment_container, myFragment, "my");
         transaction.hide(headFragment);
         transaction.hide(inventoryFragment);
         transaction.hide(recipeFragment);
+        transaction.hide(todoFragment);
         transaction.hide(myFragment);
         transaction.commitNow();
         currentFragment = null;
@@ -266,7 +277,10 @@ public class MainActivity extends AppCompatActivity {
             recipeFragment.refreshData();
         }
 
-        Log.d("MainActivity", "首页数据刷新完成");
+        if (todoFragment != null) {
+            todoFragment.refreshData();
+        }
+
     }
 
     private void refreshAllFragmentsLoginState() {
@@ -300,6 +314,8 @@ public class MainActivity extends AppCompatActivity {
             return R.id.nav_inventory;
         } else if (fragment == recipeFragment) {
             return R.id.nav_recipe;
+        } else if (fragment == todoFragment) {
+            return R.id.nav_todo;
         } else if (fragment == myFragment) {
             return R.id.nav_my;
         }
@@ -314,6 +330,7 @@ public class MainActivity extends AppCompatActivity {
             DataRefreshBus.refreshAll();
             if (inventoryFragment != null) inventoryFragment.refreshInventoryData();
             if (recipeFragment != null) recipeFragment.refreshData();
+            if (todoFragment != null) todoFragment.refreshData();
         }
     }
 

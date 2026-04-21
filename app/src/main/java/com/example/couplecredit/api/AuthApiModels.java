@@ -38,12 +38,18 @@ public class AuthApiModels {
         public double quantity;
         public String unit;
         public double threshold;
+        public String expirationMode;
+        public String expirationDate;
+        public String productionDate;
+        public Integer shelfLifeDays;
         public String createdAt;
         public String updatedAt;
         public String lastConsumedAt;
         public String note;
         public String aiImagePrompt;
         public boolean isLowStock;
+        public boolean isExpiring;
+        public boolean isExpired;
     }
 
     public static class BillsQueryData {
@@ -126,17 +132,27 @@ public class AuthApiModels {
         public final double quantity;
         public final String unit;
         public final double threshold;
+        public final String expirationMode;
+        public final String expirationDate;
+        public final String productionDate;
+        public final Integer shelfLifeDays;
         public final String imageUrl;
         public final String note;
         public final String aiImagePrompt;
 
-        public CreateInventoryRequest(int userId, String name, String category, double quantity, String unit, double threshold, String imageUrl, String note, String aiImagePrompt) {
+        public CreateInventoryRequest(int userId, String name, String category, double quantity, String unit, double threshold,
+                                      String expirationMode, String expirationDate, String productionDate, Integer shelfLifeDays,
+                                      String imageUrl, String note, String aiImagePrompt) {
             this.userId = userId;
             this.name = name;
             this.category = category;
             this.quantity = quantity;
             this.unit = unit;
             this.threshold = threshold;
+            this.expirationMode = expirationMode;
+            this.expirationDate = expirationDate;
+            this.productionDate = productionDate;
+            this.shelfLifeDays = shelfLifeDays;
             this.imageUrl = imageUrl;
             this.note = note;
             this.aiImagePrompt = aiImagePrompt;
@@ -150,17 +166,27 @@ public class AuthApiModels {
         public final Double quantity;
         public final String unit;
         public final Double threshold;
+        public final String expirationMode;
+        public final String expirationDate;
+        public final String productionDate;
+        public final Integer shelfLifeDays;
         public final String imageUrl;
         public final String note;
         public final String aiImagePrompt;
 
-        public UpdateInventoryRequest(int userId, String name, String category, Double quantity, String unit, Double threshold, String imageUrl, String note, String aiImagePrompt) {
+        public UpdateInventoryRequest(int userId, String name, String category, Double quantity, String unit, Double threshold,
+                                      String expirationMode, String expirationDate, String productionDate, Integer shelfLifeDays,
+                                      String imageUrl, String note, String aiImagePrompt) {
             this.userId = userId;
             this.name = name;
             this.category = category;
             this.quantity = quantity;
             this.unit = unit;
             this.threshold = threshold;
+            this.expirationMode = expirationMode;
+            this.expirationDate = expirationDate;
+            this.productionDate = productionDate;
+            this.shelfLifeDays = shelfLifeDays;
             this.imageUrl = imageUrl;
             this.note = note;
             this.aiImagePrompt = aiImagePrompt;
@@ -449,6 +475,71 @@ public class AuthApiModels {
             this.userId = userId;
             this.amount = amount;
             this.direction = direction;
+        }
+    }
+
+    public static class TodoItemData {
+        public int todoId;
+        public int userId;
+        public Integer relationshipId;
+        public String title;
+        public String content;
+        public String priority;
+        public String fuzzyDateText;
+        public String imageUrl;
+        public String status;
+        public String createdAt;
+        public String updatedAt;
+    }
+
+    public static class TodoListData {
+        public List<TodoItemData> items;
+        public Integer relationshipId;
+    }
+
+    public static class TodoListResponse {
+        public boolean ok;
+        public TodoListData data;
+        public ErrorBody error;
+    }
+
+    public static class CreateTodoRequest {
+        public final int userId;
+        public final String title;
+        public final String content;
+        public final String priority;
+        public final String fuzzyDateText;
+        public final String imageUrl;
+        public final String status;
+
+        public CreateTodoRequest(int userId, String title, String content, String priority, String fuzzyDateText, String imageUrl, String status) {
+            this.userId = userId;
+            this.title = title;
+            this.content = content;
+            this.priority = priority;
+            this.fuzzyDateText = fuzzyDateText;
+            this.imageUrl = imageUrl;
+            this.status = status;
+        }
+    }
+
+    public static class UpdateTodoRequest {
+        public final int userId;
+        public final String title;
+        public final String content;
+        public final String priority;
+        public final String fuzzyDateText;
+        public final String imageUrl;
+        public final String status;
+
+        public UpdateTodoRequest(int userId, String title, String content, String priority, String fuzzyDateText, String imageUrl, String status) {
+            this.userId = userId;
+            this.title = title;
+            this.content = content;
+            this.priority = priority;
+            this.fuzzyDateText = fuzzyDateText;
+            this.imageUrl = imageUrl;
+            this.status = status;
         }
     }
 }

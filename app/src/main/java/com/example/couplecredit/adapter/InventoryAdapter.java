@@ -21,7 +21,11 @@ import com.example.couplecredit.config.ApiConfigManager;
 import com.example.couplecredit.fragment.InventoryFragment;
 import com.example.couplecredit.fragment.InventoryFragment.InventoryItem;
 
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.util.Calendar;
 import java.util.List;
+import java.util.Locale;
 
 public class InventoryAdapter extends RecyclerView.Adapter<InventoryAdapter.ViewHolder> {
 
@@ -59,8 +63,9 @@ public class InventoryAdapter extends RecyclerView.Adapter<InventoryAdapter.View
         InventoryItem item = items.get(position);
         holder.tvName.setText(item.name);
         holder.tvCategory.setText(item.category);
-        holder.tvQuantity.setText(String.format("当前 %.1f %s", item.quantity, item.unit));
+        holder.tvQuantity.setText(String.format(Locale.getDefault(), "当前 %.1f %s", item.quantity, item.unit));
         holder.tvLastConsumed.setText(buildStatusText(item));
+        bindExpirationStatus(holder, item);
 
         if (item.isLowStock()) {
             holder.tvLowStockBadge.setVisibility(View.VISIBLE);
@@ -99,6 +104,70 @@ public class InventoryAdapter extends RecyclerView.Adapter<InventoryAdapter.View
         });
 
         holder.btnMore.setOnClickListener(v -> showMoreMenu(v, item));
+    }
+
+    private void bindExpirationStatus(ViewHolder holder, InventoryItem item) {
+        holder.tvExpirationStatus.setVisibility(View.GONE);
+        holder.tvExpirationStatus.setText(null);
+        holder.tvExpirationStatus.setTextColor(Color.parseColor("#F59E0B"));
+
+        String status = buildExpirationStatus(item);
+        if (status == null) {
+            return;
+        }
+        holder.tvExpirationStatus.setVisibility(View.VISIBLE);
+        holder.tvExpirationStatus.setText(status);
+        if (item.isExpired) {
+            holder.tvExpirationStatus.setTextColor(Color.parseColor("#D14343"));
+        } else {
+            holder.tvExpirationStatus.setTextColor(Color.parseColor("#F59E0B"));
+        }
+    }
+
+    private String buildExpirationStatus(InventoryItem item) {
+        Calendar expiration = parseDate(item.expirationDate);
+        if (expiration == null) {
+            return null;
+        }
+        Calendar today = Calendar.getInstance();
+        zeroTime(today);
+        zeroTime(expiration);
+
+        long diffMillis = expiration.getTimeInMillis() - today.getTimeInMillis();
+        int diffDays = (int) (diffMillis / (24L * 60L * 60L * 1000L));
+
+        if (diffDays < 0 || item.isExpired) {
+            return "已过期";
+        }
+        if (diffDays == 0) {
+            return "今天到期";
+        }
+        if (diffDays <= 3 || item.isExpiring) {
+            return diffDays + " 天后到期";
+        }
+        return null;
+    }
+
+    private Calendar parseDate(String value) {
+        if (value == null || value.trim().isEmpty()) {
+            return null;
+        }
+        try {
+            SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault());
+            format.setLenient(false);
+            Calendar calendar = Calendar.getInstance();
+            calendar.setTime(format.parse(value.trim()));
+            return calendar;
+        } catch (ParseException | NullPointerException e) {
+            return null;
+        }
+    }
+
+    private void zeroTime(Calendar calendar) {
+        calendar.set(Calendar.HOUR_OF_DAY, 0);
+        calendar.set(Calendar.MINUTE, 0);
+        calendar.set(Calendar.SECOND, 0);
+        calendar.set(Calendar.MILLISECOND, 0);
     }
 
     private String buildStatusText(InventoryItem item) {
@@ -198,6 +267,7 @@ public class InventoryAdapter extends RecyclerView.Adapter<InventoryAdapter.View
         TextView tvQuantity;
         TextView tvLowStockBadge;
         TextView tvLastConsumed;
+        TextView tvExpirationStatus;
         TextView tvNote;
         TextView btnConsume;
         TextView btnReplenish;
@@ -211,6 +281,7 @@ public class InventoryAdapter extends RecyclerView.Adapter<InventoryAdapter.View
             tvQuantity = itemView.findViewById(R.id.tv_quantity);
             tvLowStockBadge = itemView.findViewById(R.id.tv_low_stock_badge);
             tvLastConsumed = itemView.findViewById(R.id.tv_last_consumed);
+            tvExpirationStatus = itemView.findViewById(R.id.tv_expiration_status);
             tvNote = itemView.findViewById(R.id.tv_note);
             btnConsume = itemView.findViewById(R.id.btn_consume);
             btnReplenish = itemView.findViewById(R.id.btn_replenish);

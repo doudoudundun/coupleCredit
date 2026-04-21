@@ -54,10 +54,16 @@ public class TodoFragment extends Fragment implements TodoAdapter.TodoActionList
     private TextView chipAll;
     private TextView chipOpen;
     private TextView chipDone;
+    private TextView chipMissed;
+    private TextView chipPriorityAll;
+    private TextView chipPriorityHigh;
+    private TextView chipPriorityMedium;
+    private TextView chipPriorityLow;
     private View fabAddTodo;
     private TodoAdapter todoAdapter;
     private final List<AuthApiModels.TodoItemData> allTodos = new ArrayList<>();
     private String activeFilter = "all";
+    private String activePriorityFilter = "all";
     private ImageView pendingImageView;
     private String pendingImageUrl;
     private boolean imageChanged = false;
@@ -80,15 +86,25 @@ public class TodoFragment extends Fragment implements TodoAdapter.TodoActionList
         chipAll = view.findViewById(R.id.chip_filter_all);
         chipOpen = view.findViewById(R.id.chip_filter_open);
         chipDone = view.findViewById(R.id.chip_filter_done);
+        chipMissed = view.findViewById(R.id.chip_filter_missed);
+        chipPriorityAll = view.findViewById(R.id.chip_priority_all);
+        chipPriorityHigh = view.findViewById(R.id.chip_priority_high);
+        chipPriorityMedium = view.findViewById(R.id.chip_priority_medium);
+        chipPriorityLow = view.findViewById(R.id.chip_priority_low);
         fabAddTodo = view.findViewById(R.id.fab_add_todo);
 
         rvTodoList.setLayoutManager(new LinearLayoutManager(getContext()));
         todoAdapter = new TodoAdapter(this);
         rvTodoList.setAdapter(todoAdapter);
 
-        chipAll.setOnClickListener(v -> setFilter("all"));
-        chipOpen.setOnClickListener(v -> setFilter("open"));
-        chipDone.setOnClickListener(v -> setFilter("done"));
+        chipAll.setOnClickListener(v -> setStatusFilter("all"));
+        chipOpen.setOnClickListener(v -> setStatusFilter("open"));
+        chipDone.setOnClickListener(v -> setStatusFilter("done"));
+        chipMissed.setOnClickListener(v -> setStatusFilter("missed"));
+        chipPriorityAll.setOnClickListener(v -> setPriorityFilter("all"));
+        chipPriorityHigh.setOnClickListener(v -> setPriorityFilter("high"));
+        chipPriorityMedium.setOnClickListener(v -> setPriorityFilter("medium"));
+        chipPriorityLow.setOnClickListener(v -> setPriorityFilter("low"));
         btnLoginPrompt.setOnClickListener(v -> startActivity(new Intent(requireContext(), LoginActivity.class)));
         fabAddTodo.setOnClickListener(v -> {
             if (!UserInfoManager.isUserLoggedIn(requireContext())) {
@@ -98,7 +114,8 @@ public class TodoFragment extends Fragment implements TodoAdapter.TodoActionList
             showTodoDialog(null);
         });
 
-        setFilter("all");
+        setStatusFilter("all");
+        setPriorityFilter("all");
         refreshData();
     }
 
@@ -112,7 +129,7 @@ public class TodoFragment extends Fragment implements TodoAdapter.TodoActionList
         if (!isLoggedIn) {
             allTodos.clear();
             todoAdapter.submitList(new ArrayList<>());
-            updateEmptyState();
+            updateEmptyState(0);
             return;
         }
 
@@ -138,9 +155,15 @@ public class TodoFragment extends Fragment implements TodoAdapter.TodoActionList
         });
     }
 
-    private void setFilter(String filter) {
+    private void setStatusFilter(String filter) {
         activeFilter = filter;
         updateFilterState();
+        applyFilter();
+    }
+
+    private void setPriorityFilter(String filter) {
+        activePriorityFilter = filter;
+        updatePriorityFilterState();
         applyFilter();
     }
 
@@ -148,6 +171,14 @@ public class TodoFragment extends Fragment implements TodoAdapter.TodoActionList
         bindChip(chipAll, "all".equals(activeFilter));
         bindChip(chipOpen, "open".equals(activeFilter));
         bindChip(chipDone, "done".equals(activeFilter));
+        bindChip(chipMissed, "missed".equals(activeFilter));
+    }
+
+    private void updatePriorityFilterState() {
+        bindChip(chipPriorityAll, "all".equals(activePriorityFilter));
+        bindChip(chipPriorityHigh, "high".equals(activePriorityFilter));
+        bindChip(chipPriorityMedium, "medium".equals(activePriorityFilter));
+        bindChip(chipPriorityLow, "low".equals(activePriorityFilter));
     }
 
     private void bindChip(TextView chip, boolean selected) {
@@ -160,30 +191,26 @@ public class TodoFragment extends Fragment implements TodoAdapter.TodoActionList
         for (AuthApiModels.TodoItemData item : allTodos) {
             if ("open".equals(activeFilter) && !"open".equals(item.status)) continue;
             if ("done".equals(activeFilter) && !"done".equals(item.status)) continue;
+            if ("missed".equals(activeFilter) && !"missed".equals(item.status)) continue;
+            if (!"all".equals(activePriorityFilter) && !activePriorityFilter.equals(item.priority)) continue;
             filtered.add(item);
         }
         todoAdapter.submitList(filtered);
         tvTodoCount.setText(allTodos.size() + " 项");
-        updateEmptyState();
+        updateEmptyState(filtered.size());
     }
 
-    private void updateEmptyState() {
-        boolean empty = allTodos.isEmpty() || ("open".equals(activeFilter) && countByStatus("open") == 0) || ("done".equals(activeFilter) && countByStatus("done") == 0);
-        llEmptyState.setVisibility(empty ? View.VISIBLE : View.GONE);
-    }
-
-    private int countByStatus(String status) {
-        int count = 0;
-        for (AuthApiModels.TodoItemData item : allTodos) {
-            if (status.equals(item.status)) count++;
-        }
-        return count;
+    private void updateEmptyState(int filteredCount) {
+        llEmptyState.setVisibility(filteredCount == 0 ? View.VISIBLE : View.GONE);
     }
 
     @Override
     public void onToggleStatus(AuthApiModels.TodoItemData item) {
         int userId = UserInfoManager.getCurrentUserId(requireContext());
-        String nextStatus = "done".equals(item.status) ? "open" : "done";
+        String nextStatus = "open";
+        if ("open".equals(item.status)) {
+            nextStatus = "done";
+        }
         AuthApiClient.updateTodo(requireContext(), item.todoId,
                 new AuthApiModels.UpdateTodoRequest(userId, item.title, item.content, item.priority, item.fuzzyDateText, item.imageUrl, nextStatus),
                 new AuthApiClient.SimpleCallback() {
@@ -252,7 +279,7 @@ public class TodoFragment extends Fragment implements TodoAdapter.TodoActionList
         priorityAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         spinnerPriority.setAdapter(priorityAdapter);
 
-        List<String> statusOptions = Arrays.asList("未处理", "已处理");
+        List<String> statusOptions = Arrays.asList("未处理", "已处理", "已错过");
         ArrayAdapter<String> statusAdapter = new ArrayAdapter<>(requireContext(), android.R.layout.simple_spinner_item, statusOptions);
         statusAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         spinnerStatus.setAdapter(statusAdapter);
@@ -272,7 +299,7 @@ public class TodoFragment extends Fragment implements TodoAdapter.TodoActionList
                 Glide.with(this).load(resolvedUrl).placeholder(R.drawable.ic_inventory_placeholder).into(ivAddImage);
             }
             spinnerPriority.setSelection(priorityToPosition(existing.priority));
-            spinnerStatus.setSelection("done".equals(existing.status) ? 1 : 0);
+            spinnerStatus.setSelection(statusToPosition(existing.status));
         }
 
         flAddImage.setOnClickListener(v -> {
@@ -293,7 +320,7 @@ public class TodoFragment extends Fragment implements TodoAdapter.TodoActionList
             String fuzzyDate = etFuzzyDate.getText().toString().trim();
             String content = etContent.getText().toString().trim();
             String priority = positionToPriority(spinnerPriority.getSelectedItemPosition());
-            String status = spinnerStatus.getSelectedItemPosition() == 1 ? "done" : "open";
+            String status = positionToStatus(spinnerStatus.getSelectedItemPosition());
             int userId = UserInfoManager.getCurrentUserId(requireContext());
 
             Runnable saveAction = () -> saveTodo(dialog, existing, userId, title, content, priority, fuzzyDate, pendingImageUrl, status);
@@ -370,6 +397,18 @@ public class TodoFragment extends Fragment implements TodoAdapter.TodoActionList
         if (position == 0) return "high";
         if (position == 2) return "low";
         return "medium";
+    }
+
+    private int statusToPosition(String status) {
+        if ("done".equals(status)) return 1;
+        if ("missed".equals(status)) return 2;
+        return 0;
+    }
+
+    private String positionToStatus(int position) {
+        if (position == 1) return "done";
+        if (position == 2) return "missed";
+        return "open";
     }
 
     private InputStream compressImage(Uri imageUri) {

@@ -1,6 +1,7 @@
 package com.example.couplecredit.fragment;
 
 import android.app.AlertDialog;
+import android.app.DatePickerDialog;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Environment;
@@ -56,8 +57,11 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.InputStream;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Calendar;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -77,14 +81,15 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
     private LinearLayout llEmptyState;
     private LinearLayout layoutLoginPrompt;
     private LinearLayout layoutContent;
+    private LinearLayout layoutRecentActivitySection;
+    private LinearLayout layoutInventorySection;
     private TextView btnLoginPrompt;
     private TextView tvTotalCount;
     private LinearLayout cardLowStock;
     private TextView tvLowStockCount;
-    private LinearLayout cardRecent;
-    private TextView tvRecentCount;
+    private LinearLayout cardExpiration;
+    private TextView tvExpirationCount;
     private View fabAddInventory;
-    private TextView tvTitle;
 
     private InventoryAdapter inventoryAdapter;
     private RecentActivityAdapter recentActivityAdapter;
@@ -94,10 +99,20 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
     private final List<InventoryItem> filteredInventoryList = new ArrayList<>();
     private InventoryViewModel viewModel;
 
+    private enum ExpirationFilterMode {
+        ALL,
+        EXPIRING,
+        EXPIRED
+    }
+
+    private ExpirationFilterMode expirationFilterMode = ExpirationFilterMode.ALL;
+
     // 筛选状态
     private final Set<String> activeCategories = new HashSet<>();
     private boolean filterLowStock = false;
-    private boolean filterRecent = false;
+    private boolean filterExpiring = false;
+    private boolean filterExpired = false;
+    private boolean showRecentActivity = false;
 
     private boolean isLoggedIn;
 
@@ -251,9 +266,15 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
         item.createdAt = vi.createdAt;
         item.updatedAt = vi.updatedAt;
         item.lastConsumedAt = vi.lastConsumedAt;
+        item.expirationMode = vi.expirationMode;
+        item.expirationDate = vi.expirationDate;
+        item.productionDate = vi.productionDate;
+        item.shelfLifeDays = vi.shelfLifeDays;
         item.note = vi.note;
         item.aiImagePrompt = vi.aiImagePrompt;
         item.isLowStock = vi.isLowStock;
+        item.isExpiring = vi.isExpiring;
+        item.isExpired = vi.isExpired;
         item.lastActionLabel = vi.lastActionLabel;
         return item;
     }
@@ -270,14 +291,15 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
         llEmptyState = view.findViewById(R.id.ll_empty_state);
         layoutLoginPrompt = view.findViewById(R.id.layout_login_prompt);
         layoutContent = view.findViewById(R.id.layout_content);
+        layoutRecentActivitySection = view.findViewById(R.id.layout_recent_activity_section);
+        layoutInventorySection = view.findViewById(R.id.layout_inventory_section);
         btnLoginPrompt = view.findViewById(R.id.btn_login_prompt);
         tvTotalCount = view.findViewById(R.id.tv_total_count);
         cardLowStock = view.findViewById(R.id.card_low_stock);
         tvLowStockCount = view.findViewById(R.id.tv_low_stock_count);
-        cardRecent = view.findViewById(R.id.card_recent);
-        tvRecentCount = view.findViewById(R.id.tv_recent_count);
+        cardExpiration = view.findViewById(R.id.card_expiration);
+        tvExpirationCount = view.findViewById(R.id.tv_expiration_count);
         fabAddInventory = view.findViewById(R.id.fab_add_inventory);
-        tvTitle = view.findViewById(R.id.tv_title);
     }
 
     private void setupRecyclerViews() {
@@ -291,7 +313,6 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
     }
 
     private void setupFilters() {
-        // 分类标签
         buildCategoryTags();
 
         etSearch.addTextChangedListener(new SimpleTextWatcher() {
@@ -344,6 +365,46 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
             tag.setOnClickListener(v -> toggleCategoryFilter(cat));
             llCategoryTags.addView(tag);
         }
+        llCategoryTags.addView(createQuickFilterTag("告急", filterLowStock, () -> {
+            filterLowStock = !filterLowStock;
+            showRecentActivity = false;
+            buildCategoryTags();
+            updateCardHighlight();
+            applyFilters();
+        }));
+        llCategoryTags.addView(createQuickFilterTag("临期", filterExpiring, () -> {
+            boolean next = !filterExpiring;
+            filterExpiring = next;
+            showRecentActivity = false;
+            if (next) {
+                filterExpired = false;
+                expirationFilterMode = ExpirationFilterMode.EXPIRING;
+            } else if (!filterExpired) {
+                expirationFilterMode = ExpirationFilterMode.ALL;
+            }
+            buildCategoryTags();
+            updateCardHighlight();
+            applyFilters();
+        }));
+        llCategoryTags.addView(createQuickFilterTag("过期", filterExpired, () -> {
+            boolean next = !filterExpired;
+            filterExpired = next;
+            showRecentActivity = false;
+            if (next) {
+                filterExpiring = false;
+                expirationFilterMode = ExpirationFilterMode.EXPIRED;
+            } else if (!filterExpiring) {
+                expirationFilterMode = ExpirationFilterMode.ALL;
+            }
+            buildCategoryTags();
+            updateCardHighlight();
+            applyFilters();
+        }));
+        llCategoryTags.addView(createQuickFilterTag("最近动态", showRecentActivity, () -> {
+            showRecentActivity = !showRecentActivity;
+            buildCategoryTags();
+            applyFilters();
+        }));
     }
 
     private List<String> getDialogUnits(@Nullable String existingUnit) {
@@ -385,7 +446,14 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
         return tag;
     }
 
+    private TextView createQuickFilterTag(String text, boolean active, Runnable onClick) {
+        TextView tag = createCategoryTag(text, active);
+        tag.setOnClickListener(v -> onClick.run());
+        return tag;
+    }
+
     private void toggleCategoryFilter(String category) {
+        showRecentActivity = false;
         if ("全部".equals(category)) {
             activeCategories.clear();
         } else {
@@ -401,20 +469,33 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
 
     private void setupSummaryCards() {
         cardLowStock.setOnClickListener(v -> {
+            showRecentActivity = false;
             filterLowStock = !filterLowStock;
+            buildCategoryTags();
             updateCardHighlight();
             applyFilters();
         });
 
-        cardRecent.setOnClickListener(v -> {
-            filterRecent = !filterRecent;
+        cardExpiration.setOnClickListener(v -> {
+            showRecentActivity = false;
+            if (!filterExpiring && !filterExpired) {
+                filterExpiring = true;
+                expirationFilterMode = ExpirationFilterMode.EXPIRING;
+            } else if (filterExpiring) {
+                filterExpiring = false;
+                filterExpired = true;
+                expirationFilterMode = ExpirationFilterMode.EXPIRED;
+            } else {
+                filterExpired = false;
+                expirationFilterMode = ExpirationFilterMode.ALL;
+            }
+            buildCategoryTags();
             updateCardHighlight();
             applyFilters();
         });
     }
 
     private void updateCardHighlight() {
-        // 告急卡片高亮
         GradientDrawable lowBg = new GradientDrawable();
         lowBg.setCornerRadius(dp(12));
         if (filterLowStock) {
@@ -424,16 +505,16 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
         }
         cardLowStock.setBackground(lowBg);
 
-        // 最近变动卡片高亮
-        GradientDrawable recentBg = new GradientDrawable();
-        recentBg.setCornerRadius(dp(12));
-        if (filterRecent) {
-            recentBg.setColor(Color.parseColor("#E8F5E9"));
+        GradientDrawable expirationBg = new GradientDrawable();
+        expirationBg.setCornerRadius(dp(12));
+        if (expirationFilterMode != ExpirationFilterMode.ALL) {
+            expirationBg.setColor(Color.parseColor("#FFF7E8"));
         } else {
-            recentBg.setColor(Color.WHITE);
+            expirationBg.setColor(Color.WHITE);
         }
-        cardRecent.setBackground(recentBg);
+        cardExpiration.setBackground(expirationBg);
     }
+
 
     private void setupActions() {
         fabAddInventory.setOnClickListener(v -> {
@@ -446,7 +527,9 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
 
         btnLoginPrompt.setOnClickListener(v -> openLoginPage());
         tvViewAlert.setOnClickListener(v -> {
+            showRecentActivity = false;
             filterLowStock = true;
+            buildCategoryTags();
             updateCardHighlight();
             applyFilters();
         });
@@ -509,7 +592,7 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
     private void updateSummary() {
         tvTotalCount.setText(String.valueOf(inventoryList.size()));
         tvLowStockCount.setText(String.valueOf(lowStockList.size()));
-        tvRecentCount.setText(String.valueOf(recentActivityList.size()));
+        tvExpirationCount.setText(String.valueOf(getExpirationAlertCount()));
 
         if (lowStockList.isEmpty()) {
             llAlertBanner.setVisibility(View.GONE);
@@ -518,49 +601,51 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
             tvAlertMessage.setText("有 " + lowStockList.size() + " 项物资已低于提醒阈值");
         }
 
-        llEmptyState.setVisibility(inventoryList.isEmpty() && isLoggedIn ? View.VISIBLE : View.GONE);
+        llEmptyState.setVisibility(!showRecentActivity && inventoryList.isEmpty() && isLoggedIn ? View.VISIBLE : View.GONE);
+    }
+
+    private int getExpirationAlertCount() {
+        int count = 0;
+        for (InventoryItem item : inventoryList) {
+            if (item.isExpired || item.isExpiring) {
+                count++;
+            }
+        }
+        return count;
     }
 
     private void applyFilters() {
         filteredInventoryList.clear();
         String keyword = etSearch.getText() == null ? "" : etSearch.getText().toString().trim().toLowerCase(Locale.getDefault());
 
-        // 构建"最近变动"名称集合用于快速查找
-        Set<String> recentNames = new HashSet<>();
-        for (InventoryItem ri : recentActivityList) {
-            if (ri.name != null) recentNames.add(ri.name.toLowerCase(Locale.getDefault()));
-        }
-
         for (InventoryItem item : inventoryList) {
-            // 关键词
             boolean matchKeyword = TextUtils.isEmpty(keyword)
                     || (item.name != null && item.name.toLowerCase(Locale.getDefault()).contains(keyword))
                     || (item.note != null && item.note.toLowerCase(Locale.getDefault()).contains(keyword));
             if (!matchKeyword) continue;
 
-            // 分类
             boolean matchCategory = activeCategories.isEmpty()
                     || activeCategories.contains(item.category);
             if (!matchCategory) continue;
 
-            // 告急
             if (filterLowStock && !item.isLowStock()) continue;
-
-            // 最近变动
-            if (filterRecent && (item.name == null || !recentNames.contains(item.name.toLowerCase(Locale.getDefault())))) continue;
+            if (filterExpiring && !item.isExpiring) continue;
+            if (filterExpired && !item.isExpired) continue;
 
             filteredInventoryList.add(item);
         }
 
         inventoryAdapter.updateData(filteredInventoryList);
-        llEmptyState.setVisibility(filteredInventoryList.isEmpty() && isLoggedIn ? View.VISIBLE : View.GONE);
+        layoutRecentActivitySection.setVisibility(showRecentActivity ? View.VISIBLE : View.GONE);
+        layoutInventorySection.setVisibility(showRecentActivity ? View.GONE : View.VISIBLE);
+        llEmptyState.setVisibility(!showRecentActivity && filteredInventoryList.isEmpty() && isLoggedIn ? View.VISIBLE : View.GONE);
         rebuildActiveFilterTags();
     }
+
 
     private void rebuildActiveFilterTags() {
         flexActiveFilters.removeAllViews();
 
-        // 分类标签
         for (String cat : activeCategories) {
             flexActiveFilters.addView(createActiveFilterTag("分类: " + cat, () -> {
                 activeCategories.remove(cat);
@@ -569,20 +654,39 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
             }));
         }
 
-        // 告急标签
         if (filterLowStock) {
             flexActiveFilters.addView(createActiveFilterTag("告急物资", () -> {
                 filterLowStock = false;
+                buildCategoryTags();
                 updateCardHighlight();
                 applyFilters();
             }));
         }
 
-        // 最近变动标签
-        if (filterRecent) {
-            flexActiveFilters.addView(createActiveFilterTag("最近变动", () -> {
-                filterRecent = false;
+        if (filterExpiring) {
+            flexActiveFilters.addView(createActiveFilterTag("即将到期", () -> {
+                filterExpiring = false;
+                expirationFilterMode = filterExpired ? ExpirationFilterMode.EXPIRED : ExpirationFilterMode.ALL;
+                buildCategoryTags();
                 updateCardHighlight();
+                applyFilters();
+            }));
+        }
+
+        if (filterExpired) {
+            flexActiveFilters.addView(createActiveFilterTag("已过期", () -> {
+                filterExpired = false;
+                expirationFilterMode = filterExpiring ? ExpirationFilterMode.EXPIRING : ExpirationFilterMode.ALL;
+                buildCategoryTags();
+                updateCardHighlight();
+                applyFilters();
+            }));
+        }
+
+        if (showRecentActivity) {
+            flexActiveFilters.addView(createActiveFilterTag("最近动态", () -> {
+                showRecentActivity = false;
+                buildCategoryTags();
                 applyFilters();
             }));
         }
@@ -642,7 +746,28 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
         View flAddImage = dialogView.findViewById(R.id.fl_add_image);
         TextView tvSelectImage = dialogView.findViewById(R.id.tv_select_image);
         TextView tvAiGenerate = dialogView.findViewById(R.id.tv_ai_generate);
+        TextView btnPickExpirationDate = dialogView.findViewById(R.id.btn_pick_expiration_date);
+        TextView btnToggleAdvancedShelfLife = dialogView.findViewById(R.id.btn_toggle_advanced_shelf_life);
+        LinearLayout layoutAdvancedShelfLife = dialogView.findViewById(R.id.layout_advanced_shelf_life);
+        TextView btnPickProductionDate = dialogView.findViewById(R.id.btn_pick_production_date);
+        EditText etShelfLifeDays = dialogView.findViewById(R.id.et_shelf_life_days);
+        TextView tvDerivedExpirationPreview = dialogView.findViewById(R.id.tv_derived_expiration_preview);
         TextView btnSubmit = dialogView.findViewById(R.id.btn_add_inventory);
+
+        final boolean[] useAdvancedShelfLife = {existingItem != null && "calc".equals(existingItem.expirationMode)};
+        final String[] selectedExpirationDate = {normalizeDateOnly(existingItem != null ? existingItem.expirationDate : null)};
+        final String[] selectedProductionDate = {normalizeDateOnly(existingItem != null ? existingItem.productionDate : null)};
+        final String[] simpleExpirationDraft = {selectedExpirationDate[0]};
+        final String[] advancedProductionDraft = {selectedProductionDate[0]};
+        final Integer[] advancedShelfLifeDraft = {existingItem != null ? existingItem.shelfLifeDays : null};
+
+        updateDateButtonText(btnPickExpirationDate, selectedExpirationDate[0], "选择到期日期（必填）");
+        updateDateButtonText(btnPickProductionDate, selectedProductionDate[0], "选择生产日期");
+        if (advancedShelfLifeDraft[0] != null) {
+            etShelfLifeDays.setText(String.valueOf(advancedShelfLifeDraft[0]));
+        }
+        updateAdvancedShelfLifeState(btnToggleAdvancedShelfLife, layoutAdvancedShelfLife, useAdvancedShelfLife[0]);
+        updateDerivedExpirationPreview(tvDerivedExpirationPreview, selectedProductionDate[0], parseShelfLifeDays(etShelfLifeDays.getText().toString()));
 
         List<String> unitOptions = getDialogUnits(existingItem != null ? existingItem.unit : null);
         ArrayAdapter<String> unitAdapter = new ArrayAdapter<>(requireContext(), android.R.layout.simple_spinner_item, unitOptions);
@@ -742,6 +867,48 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
             Toast.makeText(getContext(), "AI 生图入口已保留，当前先记录提示词", Toast.LENGTH_SHORT).show();
         });
 
+        btnPickExpirationDate.setOnClickListener(v -> showDatePicker(selectedExpirationDate[0], date -> {
+            selectedExpirationDate[0] = date;
+            simpleExpirationDraft[0] = date;
+            updateDateButtonText(btnPickExpirationDate, date, "选择到期日期（必填）");
+        }));
+
+        btnPickProductionDate.setOnClickListener(v -> showDatePicker(selectedProductionDate[0], date -> {
+            selectedProductionDate[0] = date;
+            advancedProductionDraft[0] = date;
+            updateDateButtonText(btnPickProductionDate, date, "选择生产日期");
+            updateDerivedExpirationPreview(tvDerivedExpirationPreview, date, parseShelfLifeDays(etShelfLifeDays.getText().toString()));
+        }));
+
+        btnToggleAdvancedShelfLife.setOnClickListener(v -> {
+            useAdvancedShelfLife[0] = !useAdvancedShelfLife[0];
+            if (useAdvancedShelfLife[0]) {
+                simpleExpirationDraft[0] = selectedExpirationDate[0];
+                selectedExpirationDate[0] = null;
+                selectedProductionDate[0] = advancedProductionDraft[0];
+                Integer draftDays = advancedShelfLifeDraft[0];
+                etShelfLifeDays.setText(draftDays == null ? "" : String.valueOf(draftDays));
+            } else {
+                advancedProductionDraft[0] = selectedProductionDate[0];
+                advancedShelfLifeDraft[0] = parseShelfLifeDays(etShelfLifeDays.getText().toString());
+                selectedProductionDate[0] = null;
+                selectedExpirationDate[0] = simpleExpirationDraft[0];
+            }
+            updateAdvancedShelfLifeState(btnToggleAdvancedShelfLife, layoutAdvancedShelfLife, useAdvancedShelfLife[0]);
+            updateDateButtonText(btnPickExpirationDate, selectedExpirationDate[0], "选择到期日期（必填）");
+            updateDateButtonText(btnPickProductionDate, selectedProductionDate[0], "选择生产日期");
+            updateDerivedExpirationPreview(tvDerivedExpirationPreview, selectedProductionDate[0], parseShelfLifeDays(etShelfLifeDays.getText().toString()));
+        });
+
+        etShelfLifeDays.addTextChangedListener(new SimpleTextWatcher() {
+            @Override
+            public void afterTextChanged(Editable s) {
+                Integer parsedDays = parseShelfLifeDays(s == null ? null : s.toString());
+                advancedShelfLifeDraft[0] = parsedDays;
+                updateDerivedExpirationPreview(tvDerivedExpirationPreview, selectedProductionDate[0], parsedDays);
+            }
+        });
+
         pendingImageUrl = null;
         originalImageUrl = null;
         imageChanged = false;
@@ -780,6 +947,25 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
             String thresholdText = etThreshold.getText().toString().trim();
             String note = etNote.getText().toString().trim();
             String aiPrompt = etAiPrompt.getText().toString().trim();
+            Integer shelfLifeDays = parseShelfLifeDays(etShelfLifeDays.getText().toString());
+            String expirationMode = useAdvancedShelfLife[0] ? "calc" : "date";
+            String expirationDate = useAdvancedShelfLife[0] ? null : selectedExpirationDate[0];
+            String productionDate = useAdvancedShelfLife[0] ? selectedProductionDate[0] : null;
+
+            if (useAdvancedShelfLife[0]) {
+                if (TextUtils.isEmpty(productionDate) || shelfLifeDays == null) {
+                    Toast.makeText(getContext(), "请完善生产日期和保质期天数", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+            } else if (TextUtils.isEmpty(expirationDate)) {
+                Toast.makeText(getContext(), "请选择到期日期", Toast.LENGTH_SHORT).show();
+                return;
+            }
+
+            if (useAdvancedShelfLife[0] && calculateDerivedExpirationDate(productionDate, shelfLifeDays) == null) {
+                Toast.makeText(getContext(), "保质期设置无效，请重新选择", Toast.LENGTH_SHORT).show();
+                return;
+            }
 
             if (TextUtils.isEmpty(name)) {
                 Toast.makeText(getContext(), "请输入物资名称", Toast.LENGTH_SHORT).show();
@@ -810,10 +996,12 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
             if (imageChanged && pendingImageUrl != null) {
                 btnSubmit.setEnabled(false);
                 btnSubmit.setText("上传图片中...");
-                uploadAndSave(dialog, name, category, quantity, unit, threshold, note, aiPrompt, existingItem);
+                uploadAndSave(dialog, name, category, quantity, unit, threshold, expirationMode, expirationDate,
+                        productionDate, shelfLifeDays, note, aiPrompt, existingItem);
             } else {
                 String finalImageUrl = imageChanged ? null : pendingImageUrl;
-                saveInventoryItem(dialog, name, category, quantity, unit, threshold, finalImageUrl, note, aiPrompt, existingItem);
+                saveInventoryItem(dialog, name, category, quantity, unit, threshold, expirationMode, expirationDate,
+                        productionDate, shelfLifeDays, finalImageUrl, note, aiPrompt, existingItem);
             }
         });
 
@@ -824,7 +1012,8 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
     private static final int IMAGE_JPEG_QUALITY = 80;
 
     private void uploadAndSave(AlertDialog dialog, String name, String category, double quantity,
-                               String unit, double threshold, String note, String aiPrompt,
+                               String unit, double threshold, String expirationMode, String expirationDate,
+                               String productionDate, Integer shelfLifeDays, String note, String aiPrompt,
                                @Nullable InventoryItem existingItem) {
         try {
             Uri localUri = Uri.parse(pendingImageUrl);
@@ -841,7 +1030,8 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
                 public void onSuccess(String serverImageUrl) {
                     if (!isAdded()) return;
                     requireActivity().runOnUiThread(() ->
-                            saveInventoryItem(dialog, name, category, quantity, unit, threshold, serverImageUrl, note, aiPrompt, existingItem)
+                            saveInventoryItem(dialog, name, category, quantity, unit, threshold, expirationMode,
+                                    expirationDate, productionDate, shelfLifeDays, serverImageUrl, note, aiPrompt, existingItem)
                     );
                 }
 
@@ -917,9 +1107,10 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
     }
 
     private void saveInventoryItem(AlertDialog dialog, String name, String category, double quantity,
-                                   String unit, double threshold, String imageUrl, String note,
+                                   String unit, double threshold, String expirationMode, String expirationDate,
+                                   String productionDate, Integer shelfLifeDays, String imageUrl, String note,
                                    String aiPrompt, @Nullable InventoryItem existingItem) {
-        InventoryUtils.InventoryMutationCallback callback = new InventoryUtils.InventoryMutationCallback() {
+        AuthApiClient.InventoryMutationCallback callback = new AuthApiClient.InventoryMutationCallback() {
             @Override
             public void onSuccess() {
                 if (!isAdded()) return;
@@ -940,10 +1131,61 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
             }
         };
 
+        int userId = UserInfoManager.getCurrentUserId(requireContext());
+        if (userId < 0) {
+            Toast.makeText(getContext(), "用户未登录", Toast.LENGTH_SHORT).show();
+            restoreSubmitButton(dialog, existingItem);
+            return;
+        }
+
+        String normalizedExpirationMode = TextUtils.isEmpty(expirationMode) ? null : expirationMode;
+        String normalizedExpirationDate = emptyToNull(expirationDate);
+        String normalizedProductionDate = emptyToNull(productionDate);
+        Integer normalizedShelfLifeDays = shelfLifeDays != null && shelfLifeDays > 0 ? shelfLifeDays : null;
+        if ("date".equals(normalizedExpirationMode) && TextUtils.isEmpty(normalizedExpirationDate)) {
+            normalizedExpirationMode = null;
+        }
+        if ("calc".equals(normalizedExpirationMode)
+                && (TextUtils.isEmpty(normalizedProductionDate) || normalizedShelfLifeDays == null)) {
+            normalizedExpirationMode = null;
+            normalizedProductionDate = null;
+            normalizedShelfLifeDays = null;
+        }
+
         if (existingItem == null) {
-            InventoryUtils.createInventory(requireContext(), name, category, quantity, unit, threshold, imageUrl, note, aiPrompt, callback);
+            AuthApiModels.CreateInventoryRequest request = new AuthApiModels.CreateInventoryRequest(
+                    userId,
+                    name,
+                    category,
+                    quantity,
+                    unit,
+                    threshold,
+                    normalizedExpirationMode,
+                    normalizedExpirationDate,
+                    normalizedProductionDate,
+                    normalizedShelfLifeDays,
+                    emptyToNull(imageUrl),
+                    emptyToNull(note),
+                    emptyToNull(aiPrompt)
+            );
+            AuthApiClient.createInventory(requireContext(), request, callback);
         } else {
-            InventoryUtils.updateInventory(requireContext(), existingItem.id, name, category, quantity, unit, threshold, imageUrl, note, aiPrompt, callback);
+            AuthApiModels.UpdateInventoryRequest request = new AuthApiModels.UpdateInventoryRequest(
+                    userId,
+                    name,
+                    category,
+                    quantity,
+                    unit,
+                    threshold,
+                    normalizedExpirationMode,
+                    normalizedExpirationDate,
+                    normalizedProductionDate,
+                    normalizedShelfLifeDays,
+                    emptyToNullableString(imageUrl),
+                    emptyToNullableString(note),
+                    emptyToNullableString(aiPrompt)
+            );
+            AuthApiClient.updateInventory(requireContext(), existingItem.id, request, callback);
         }
     }
 
@@ -1174,9 +1416,15 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
         item.createdAt = normalizeDateTime(itemData.createdAt);
         item.updatedAt = normalizeDateTime(itemData.updatedAt);
         item.lastConsumedAt = normalizeDateTime(itemData.lastConsumedAt);
+        item.expirationMode = itemData.expirationMode;
+        item.expirationDate = normalizeDateOnly(itemData.expirationDate);
+        item.productionDate = normalizeDateOnly(itemData.productionDate);
+        item.shelfLifeDays = itemData.shelfLifeDays;
         item.note = itemData.note;
         item.aiImagePrompt = itemData.aiImagePrompt;
         item.isLowStock = item.quantity <= item.threshold;
+        item.isExpiring = itemData.isExpiring;
+        item.isExpired = itemData.isExpired;
         item.lastActionLabel = resolveActionLabel(item);
         return item;
     }
@@ -1192,15 +1440,134 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
     }
 
     private String normalizeDateTime(String value) {
-        if (value == null) {
+        if (value == null || value.trim().isEmpty()) {
             return null;
         }
-        String normalized = value.replace('T', ' ');
+        String normalized = value.trim().replace('T', ' ');
         int dotIndex = normalized.indexOf('.');
         if (dotIndex > 0) {
             normalized = normalized.substring(0, dotIndex);
         }
         return normalized;
+    }
+
+    private String normalizeDateOnly(String value) {
+        if (value == null || value.trim().isEmpty()) {
+            return null;
+        }
+        String normalized = value.trim().replace('T', ' ');
+        int dotIndex = normalized.indexOf('.');
+        if (dotIndex > 0) {
+            normalized = normalized.substring(0, dotIndex);
+        }
+        if (normalized.length() >= 10) {
+            return normalized.substring(0, 10);
+        }
+        return normalized;
+    }
+
+    private void updateDateButtonText(TextView view, @Nullable String date, String placeholder) {
+        boolean hasValue = !TextUtils.isEmpty(date);
+        view.setText(hasValue ? date : placeholder);
+        view.setTextColor(Color.parseColor(hasValue ? "#111827" : "#6B7280"));
+    }
+
+    private void updateAdvancedShelfLifeState(TextView toggleView, View advancedLayout, boolean expanded) {
+        advancedLayout.setVisibility(expanded ? View.VISIBLE : View.GONE);
+        toggleView.setText(expanded ? "收起高级设置" : "更多设置");
+    }
+
+    private Integer parseShelfLifeDays(@Nullable String value) {
+        if (TextUtils.isEmpty(value)) {
+            return null;
+        }
+        try {
+            int days = Integer.parseInt(value.trim());
+            return days > 0 ? days : null;
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    private void updateDerivedExpirationPreview(TextView previewView, @Nullable String productionDate, @Nullable Integer shelfLifeDays) {
+        String derivedDate = calculateDerivedExpirationDate(productionDate, shelfLifeDays);
+        if (derivedDate == null) {
+            previewView.setText("将自动计算到期日期");
+            previewView.setTextColor(Color.parseColor("#6B7280"));
+            return;
+        }
+        previewView.setText("预计到期日期：" + derivedDate);
+        previewView.setTextColor(Color.parseColor("#111827"));
+    }
+
+    @Nullable
+    private String calculateDerivedExpirationDate(@Nullable String productionDate, @Nullable Integer shelfLifeDays) {
+        if (TextUtils.isEmpty(productionDate) || shelfLifeDays == null || shelfLifeDays <= 0) {
+            return null;
+        }
+        Calendar calendar = parseDateToCalendar(productionDate);
+        if (calendar == null) {
+            return null;
+        }
+        calendar.add(Calendar.DAY_OF_YEAR, shelfLifeDays);
+        return formatDate(calendar);
+    }
+
+    private void showDatePicker(@Nullable String initialDate, DateSelectionListener listener) {
+        Calendar initial = parseDateToCalendar(initialDate);
+        if (initial == null) {
+            initial = Calendar.getInstance();
+        }
+        DatePickerDialog datePickerDialog = new DatePickerDialog(
+                requireContext(),
+                (view, year, month, dayOfMonth) -> {
+                    Calendar selected = Calendar.getInstance();
+                    selected.set(Calendar.YEAR, year);
+                    selected.set(Calendar.MONTH, month);
+                    selected.set(Calendar.DAY_OF_MONTH, dayOfMonth);
+                    listener.onDateSelected(formatDate(selected));
+                },
+                initial.get(Calendar.YEAR),
+                initial.get(Calendar.MONTH),
+                initial.get(Calendar.DAY_OF_MONTH)
+        );
+        datePickerDialog.show();
+    }
+
+    @Nullable
+    private Calendar parseDateToCalendar(@Nullable String value) {
+        String normalized = normalizeDateOnly(value);
+        if (TextUtils.isEmpty(normalized)) {
+            return null;
+        }
+        try {
+            SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault());
+            format.setLenient(false);
+            Calendar calendar = Calendar.getInstance();
+            calendar.setTime(format.parse(normalized));
+            return calendar;
+        } catch (ParseException | NullPointerException e) {
+            return null;
+        }
+    }
+
+    private String formatDate(Calendar calendar) {
+        return String.format(Locale.getDefault(), "%04d-%02d-%02d",
+                calendar.get(Calendar.YEAR),
+                calendar.get(Calendar.MONTH) + 1,
+                calendar.get(Calendar.DAY_OF_MONTH));
+    }
+
+    private String emptyToNull(@Nullable String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    private String emptyToNullableString(@Nullable String value) {
+        return value == null ? null : value.trim();
     }
 
     private String trimDecimal(double value) {
@@ -1268,6 +1635,12 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
         public String createdAt;
         public String updatedAt;
         public String lastConsumedAt;
+        public String expirationMode;
+        public String expirationDate;
+        public String productionDate;
+        public Integer shelfLifeDays;
+        public boolean isExpiring;
+        public boolean isExpired;
         public String note;
         public String aiImagePrompt;
         public boolean isLowStock;
@@ -1276,6 +1649,10 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
         public boolean isLowStock() {
             return isLowStock || quantity <= threshold;
         }
+    }
+
+    private interface DateSelectionListener {
+        void onDateSelected(String date);
     }
 
     private abstract static class SimpleTextWatcher implements TextWatcher {

@@ -114,6 +114,11 @@ public class AuthApiClient {
         void onError(String message);
     }
 
+    public interface TodoListCallback {
+        void onSuccess(AuthApiModels.TodoListResponse response);
+        void onError(String message);
+    }
+
     private interface RawCallback {
         void onSuccess(String json);
         void onError(String message);
@@ -782,6 +787,48 @@ public class AuthApiClient {
         doRequest(context, "DELETE", "/api/shared-plans/" + planId + "?userId=" + userId,
                 null,
                 sharedPlanMutationCallback("删除共同计划", callback));
+    }
+
+    public static void queryTodos(Context context, int userId, TodoListCallback callback) {
+        doRequest(context, "GET", "/api/todos?userId=" + userId,
+                null,
+                new RawCallback() {
+                    @Override
+                    public void onSuccess(String json) {
+                        if (callback == null) return;
+                        try {
+                            AuthApiModels.TodoListResponse response = GSON.fromJson(normalizeJsonPayload(json), AuthApiModels.TodoListResponse.class);
+                            if (response != null && response.ok) callback.onSuccess(response);
+                            else callback.onError(extractError(response != null ? response.error : null, json));
+                        } catch (Exception e) {
+                            Log.e(TAG, "queryTodos 响应解析失败: " + json, e);
+                            callback.onError(buildParseError("代办查询", json));
+                        }
+                    }
+
+                    @Override
+                    public void onError(String message) {
+                        if (callback != null) callback.onError(message);
+                    }
+                });
+    }
+
+    public static void createTodo(Context context, AuthApiModels.CreateTodoRequest request, SimpleCallback callback) {
+        doRequest(context, "POST", "/api/todos",
+                GSON.toJson(request),
+                fireAndForgetCallback(callback));
+    }
+
+    public static void updateTodo(Context context, int todoId, AuthApiModels.UpdateTodoRequest request, SimpleCallback callback) {
+        doRequest(context, "PUT", "/api/todos/" + todoId,
+                GSON.toJson(request),
+                fireAndForgetCallback(callback));
+    }
+
+    public static void deleteTodo(Context context, int todoId, int userId, SimpleCallback callback) {
+        doRequest(context, "DELETE", "/api/todos/" + todoId + "?userId=" + userId,
+                null,
+                fireAndForgetCallback(callback));
     }
 
     public static void updateAvatar(Context context, int userId, String avatarUrl, SimpleCallback callback) {
