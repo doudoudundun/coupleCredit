@@ -225,7 +225,7 @@
                 android:paddingStart="10dp"
                 android:paddingTop="8dp"
                 android:paddingEnd="10dp"
-                android:paddingBottom="88dp" />
+                android:paddingBottom="136dp" />
 
             <LinearLayout
                 android:id="@+id/ll_empty_state"
@@ -261,6 +261,19 @@
     </LinearLayout>
 
     <com.google.android.material.floatingactionbutton.FloatingActionButton
+        android:id="@+id/fab_refresh_todo"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|end"
+        android:layout_marginEnd="16dp"
+        android:layout_marginBottom="88dp"
+        android:contentDescription="刷新代办"
+        android:src="@drawable/ic_refresh"
+        app:backgroundTint="@android:color/white"
+        app:fabSize="mini"
+        app:tint="@color/primary_color" />
+
+    <com.google.android.material.floatingactionbutton.FloatingActionButton
         android:id="@+id/fab_add_todo"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
@@ -269,5 +282,6 @@
         android:contentDescription="添加代办"
         android:src="@drawable/ic_add"
         app:backgroundTint="@color/primary_color"
+        app:fabSize="mini"
         app:tint="@color/white" />
 </FrameLayout>

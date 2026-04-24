@@ -96,6 +96,7 @@ public class AddBillFragment extends Fragment {
         setupListeners();
         
         // 初始化默认状态
+        syncSelectedDateWithToday();
         updateDateDisplay();
         updateAmountDisplay();
         
@@ -524,6 +525,21 @@ public class AddBillFragment extends Fragment {
         tvAmountDisplay.setTextColor(color);
     }
     
+    private void syncSelectedDateWithToday() {
+        syncSelectedDateWithToday(selectedDate, new Date());
+    }
+
+    static void syncSelectedDateWithToday(Calendar selectedDate, Date now) {
+        Calendar today = Calendar.getInstance();
+        today.setTime(now);
+        if (selectedDate.get(Calendar.YEAR) != today.get(Calendar.YEAR)
+                || selectedDate.get(Calendar.DAY_OF_YEAR) != today.get(Calendar.DAY_OF_YEAR)) {
+            selectedDate.set(Calendar.YEAR, today.get(Calendar.YEAR));
+            selectedDate.set(Calendar.MONTH, today.get(Calendar.MONTH));
+            selectedDate.set(Calendar.DAY_OF_MONTH, today.get(Calendar.DAY_OF_MONTH));
+        }
+    }
+
     private void showDatePicker() {
         int year = selectedDate.get(Calendar.YEAR);
         int month = selectedDate.get(Calendar.MONTH);
@@ -547,6 +563,7 @@ public class AddBillFragment extends Fragment {
     }
     
     private void updateDateDisplay() {
+        syncSelectedDateWithToday();
         SimpleDateFormat sdf = new SimpleDateFormat("M月d日", Locale.CHINA);
         tvDate.setText(sdf.format(selectedDate.getTime()));
     }

@@ -43,12 +43,48 @@ public class AuthApiClient {
         void onError(String message);
     }
 
+
     public interface InventoryListCallback {
         void onSuccess(AuthApiModels.InventoryListResponse response);
         void onError(String message);
     }
 
+    public interface BeadInventoryListCallback {
+        void onSuccess(AuthApiModels.BeadInventoryListResponse response);
+        void onError(String message);
+    }
+
+    public interface BeadSettingsCallback {
+        void onSuccess(AuthApiModels.BeadSettingsResponse response);
+        void onError(String message);
+    }
+
+    public interface BeadBlueprintListCallback {
+        void onSuccess(AuthApiModels.BeadBlueprintListResponse response);
+        void onError(String message);
+    }
+
+    public interface BeadBlueprintDetailCallback {
+        void onSuccess(AuthApiModels.BeadBlueprintResponse response);
+        void onError(String message);
+    }
+
+    public interface BeadBlueprintCreateCallback {
+        void onSuccess(AuthApiModels.BeadBlueprintCreateResponse response);
+        void onError(String message);
+    }
+
+    public interface BuildBeadBlueprintCallback {
+        void onSuccess(AuthApiModels.BuildBeadBlueprintResponse response);
+        void onError(String message);
+    }
+
     public interface DeleteBillCallback {
+        void onSuccess();
+        void onError(String message);
+    }
+
+    public interface BeadMutationCallback {
         void onSuccess();
         void onError(String message);
     }
@@ -262,6 +298,83 @@ public class AuthApiClient {
         doRequest(context, "GET", "/api/inventory/low-stock?userId=" + userId,
                 null,
                 inventoryListCallback("告急物资查询", callback));
+    }
+
+    public static void queryBeadInventory(Context context, int userId, BeadInventoryListCallback callback) {
+        doRequest(context, "GET", "/api/beads/inventory?userId=" + userId,
+                null,
+                beadInventoryListCallback("串珠库存查询", callback));
+    }
+
+    public static void queryBeadSettings(Context context, int userId, BeadSettingsCallback callback) {
+        doRequest(context, "GET", "/api/beads/settings?userId=" + userId,
+                null,
+                beadSettingsCallback("串珠设置查询", callback));
+    }
+
+    public static void updateBeadInventory(Context context, String colorCode, AuthApiModels.UpdateBeadInventoryRequest request, BeadMutationCallback callback) {
+        doRequest(context, "PUT", "/api/beads/inventory/" + colorCode,
+                GSON.toJson(request),
+                beadMutationCallback("更新串珠库存", callback));
+    }
+
+    @Deprecated
+    public static void updateBeadInventory(Context context, String colorCode, AuthApiModels.BeadInventoryUpdateRequest request, BeadMutationCallback callback) {
+        updateBeadInventory(context, colorCode, (AuthApiModels.UpdateBeadInventoryRequest) request, callback);
+    }
+
+    public static void updateBeadSettings(Context context, AuthApiModels.BeadSettingsUpdateRequest request, BeadMutationCallback callback) {
+        doRequest(context, "PUT", "/api/beads/settings",
+                GSON.toJson(request),
+                beadMutationCallback("更新串珠设置", callback));
+    }
+
+    public static void consumeBeadInventory(Context context, String colorCode, int userId, int consumeAmount, BeadMutationCallback callback) {
+        doRequest(context, "POST", "/api/beads/inventory/" + colorCode + "/consume",
+                GSON.toJson(new AuthApiModels.BeadInventoryAmountRequest(userId, consumeAmount, null)),
+                beadMutationCallback("消耗串珠库存", callback));
+    }
+
+    public static void replenishBeadInventory(Context context, String colorCode, int userId, int addAmount, BeadMutationCallback callback) {
+        doRequest(context, "POST", "/api/beads/inventory/" + colorCode + "/replenish",
+                GSON.toJson(new AuthApiModels.BeadInventoryAmountRequest(userId, null, addAmount)),
+                beadMutationCallback("补充串珠库存", callback));
+    }
+
+    public static void queryBeadBlueprints(Context context, int userId, BeadBlueprintListCallback callback) {
+        doRequest(context, "GET", "/api/beads/blueprints?userId=" + userId,
+                null,
+                beadBlueprintListCallback("串珠图纸列表查询", callback));
+    }
+
+    public static void getBeadBlueprintDetail(Context context, int blueprintId, int userId, BeadBlueprintDetailCallback callback) {
+        doRequest(context, "GET", "/api/beads/blueprints/" + blueprintId + "?userId=" + userId,
+                null,
+                beadBlueprintDetailCallback("串珠图纸详情查询", callback));
+    }
+
+    public static void createBeadBlueprint(Context context, AuthApiModels.CreateBeadBlueprintRequest request, BeadBlueprintCreateCallback callback) {
+        doRequest(context, "POST", "/api/beads/blueprints",
+                GSON.toJson(request),
+                beadBlueprintCreateCallback("创建串珠图纸", callback));
+    }
+
+    public static void updateBeadBlueprint(Context context, int blueprintId, AuthApiModels.UpdateBeadBlueprintRequest request, BeadMutationCallback callback) {
+        doRequest(context, "PUT", "/api/beads/blueprints/" + blueprintId,
+                GSON.toJson(request),
+                beadMutationCallback("更新串珠图纸", callback));
+    }
+
+    public static void deleteBeadBlueprint(Context context, int blueprintId, int userId, BeadMutationCallback callback) {
+        doRequest(context, "DELETE", "/api/beads/blueprints/" + blueprintId + "?userId=" + userId,
+                null,
+                beadMutationCallback("删除串珠图纸", callback));
+    }
+
+    public static void buildBeadBlueprint(Context context, int blueprintId, int userId, Integer count, BuildBeadBlueprintCallback callback) {
+        doRequest(context, "POST", "/api/beads/blueprints/" + blueprintId + "/build",
+                GSON.toJson(new AuthApiModels.BuildBeadBlueprintRequest(userId, count)),
+                buildBeadBlueprintCallback("记录串珠制作", callback));
     }
 
     public static void createInventory(Context context, AuthApiModels.CreateInventoryRequest request, InventoryMutationCallback callback) {
@@ -831,6 +944,12 @@ public class AuthApiClient {
                 fireAndForgetCallback(callback));
     }
 
+    public static void duplicateTodo(Context context, int todoId, int userId, SimpleCallback callback) {
+        doRequest(context, "POST", "/api/todos/" + todoId + "/duplicate",
+                GSON.toJson(java.util.Collections.singletonMap("userId", userId)),
+                fireAndForgetCallback(callback));
+    }
+
     public static void updateAvatar(Context context, int userId, String avatarUrl, SimpleCallback callback) {
         String body = "{\"userId\":" + userId + ",\"avatarUrl\":" + GSON.toJson(avatarUrl) + "}";
         doRequest(context, "PUT", "/api/auth/avatar", body, fireAndForgetCallback(callback));
@@ -898,6 +1017,188 @@ public class AuthApiClient {
             @Override
             public void onSuccess(String json) {
                 if (callback != null) callback.onSuccess();
+            }
+
+            @Override
+            public void onError(String message) {
+                if (callback != null) callback.onError(message);
+            }
+        };
+    }
+
+    private static RawCallback beadInventoryListCallback(String operation, BeadInventoryListCallback callback) {
+        return new RawCallback() {
+            @Override
+            public void onSuccess(String json) {
+                if (callback != null) {
+                    try {
+                        AuthApiModels.BeadInventoryListResponse response = GSON.fromJson(normalizeJsonPayload(json), AuthApiModels.BeadInventoryListResponse.class);
+                        if (response != null && response.ok) {
+                            callback.onSuccess(response);
+                        } else {
+                            callback.onError(extractError(response != null ? response.error : null, json));
+                        }
+                    } catch (Exception e) {
+                        Log.e(TAG, operation + "响应解析失败: " + json, e);
+                        callback.onError(buildParseError(operation, json));
+                    }
+                }
+            }
+
+            @Override
+            public void onError(String message) {
+                if (callback != null) callback.onError(message);
+            }
+        };
+    }
+
+    private static RawCallback beadSettingsCallback(String operation, BeadSettingsCallback callback) {
+        return new RawCallback() {
+            @Override
+            public void onSuccess(String json) {
+                if (callback != null) {
+                    try {
+                        AuthApiModels.BeadSettingsResponse response = GSON.fromJson(normalizeJsonPayload(json), AuthApiModels.BeadSettingsResponse.class);
+                        if (response != null && response.ok) {
+                            callback.onSuccess(response);
+                        } else {
+                            callback.onError(extractError(response != null ? response.error : null, json));
+                        }
+                    } catch (Exception e) {
+                        Log.e(TAG, operation + "响应解析失败: " + json, e);
+                        callback.onError(buildParseError(operation, json));
+                    }
+                }
+            }
+
+            @Override
+            public void onError(String message) {
+                if (callback != null) callback.onError(message);
+            }
+        };
+    }
+
+    private static RawCallback beadBlueprintListCallback(String operation, BeadBlueprintListCallback callback) {
+        return new RawCallback() {
+            @Override
+            public void onSuccess(String json) {
+                if (callback != null) {
+                    try {
+                        AuthApiModels.BeadBlueprintListResponse response = GSON.fromJson(normalizeJsonPayload(json), AuthApiModels.BeadBlueprintListResponse.class);
+                        if (response != null && response.ok) {
+                            callback.onSuccess(response);
+                        } else {
+                            callback.onError(extractError(response != null ? response.error : null, json));
+                        }
+                    } catch (Exception e) {
+                        Log.e(TAG, operation + "响应解析失败: " + json, e);
+                        callback.onError(buildParseError(operation, json));
+                    }
+                }
+            }
+
+            @Override
+            public void onError(String message) {
+                if (callback != null) callback.onError(message);
+            }
+        };
+    }
+
+    private static RawCallback beadBlueprintDetailCallback(String operation, BeadBlueprintDetailCallback callback) {
+        return new RawCallback() {
+            @Override
+            public void onSuccess(String json) {
+                if (callback != null) {
+                    try {
+                        AuthApiModels.BeadBlueprintResponse response = GSON.fromJson(normalizeJsonPayload(json), AuthApiModels.BeadBlueprintResponse.class);
+                        if (response != null && response.ok) {
+                            callback.onSuccess(response);
+                        } else {
+                            callback.onError(extractError(response != null ? response.error : null, json));
+                        }
+                    } catch (Exception e) {
+                        Log.e(TAG, operation + "响应解析失败: " + json, e);
+                        callback.onError(buildParseError(operation, json));
+                    }
+                }
+            }
+
+            @Override
+            public void onError(String message) {
+                if (callback != null) callback.onError(message);
+            }
+        };
+    }
+
+    private static RawCallback beadBlueprintCreateCallback(String operation, BeadBlueprintCreateCallback callback) {
+        return new RawCallback() {
+            @Override
+            public void onSuccess(String json) {
+                if (callback != null) {
+                    try {
+                        AuthApiModels.BeadBlueprintCreateResponse response = GSON.fromJson(normalizeJsonPayload(json), AuthApiModels.BeadBlueprintCreateResponse.class);
+                        if (response != null && response.ok) {
+                            callback.onSuccess(response);
+                        } else {
+                            callback.onError(extractError(response != null ? response.error : null, json));
+                        }
+                    } catch (Exception e) {
+                        Log.e(TAG, operation + "响应解析失败: " + json, e);
+                        callback.onError(buildParseError(operation, json));
+                    }
+                }
+            }
+
+            @Override
+            public void onError(String message) {
+                if (callback != null) callback.onError(message);
+            }
+        };
+    }
+
+    private static RawCallback buildBeadBlueprintCallback(String operation, BuildBeadBlueprintCallback callback) {
+        return new RawCallback() {
+            @Override
+            public void onSuccess(String json) {
+                if (callback != null) {
+                    try {
+                        AuthApiModels.BuildBeadBlueprintResponse response = GSON.fromJson(normalizeJsonPayload(json), AuthApiModels.BuildBeadBlueprintResponse.class);
+                        if (response != null && response.ok) {
+                            callback.onSuccess(response);
+                        } else {
+                            callback.onError(extractError(response != null ? response.error : null, json));
+                        }
+                    } catch (Exception e) {
+                        Log.e(TAG, operation + "响应解析失败: " + json, e);
+                        callback.onError(buildParseError(operation, json));
+                    }
+                }
+            }
+
+            @Override
+            public void onError(String message) {
+                if (callback != null) callback.onError(message);
+            }
+        };
+    }
+
+    private static RawCallback beadMutationCallback(String operation, BeadMutationCallback callback) {
+        return new RawCallback() {
+            @Override
+            public void onSuccess(String json) {
+                if (callback != null) {
+                    try {
+                        AuthApiModels.SimpleResponse response = GSON.fromJson(normalizeJsonPayload(json), AuthApiModels.SimpleResponse.class);
+                        if (response != null && response.ok) {
+                            callback.onSuccess();
+                        } else {
+                            callback.onError(extractError(response != null ? response.error : null, json));
+                        }
+                    } catch (Exception e) {
+                        Log.e(TAG, operation + "响应解析失败: " + json, e);
+                        callback.onError(buildParseError(operation, json));
+                    }
+                }
             }
 
             @Override
@@ -1072,6 +1373,15 @@ public class AuthApiClient {
         return trimmed;
     }
 
+    private static String normalizeErrorMessage(String rawBody) {
+        try {
+            AuthApiModels.SimpleResponse response = GSON.fromJson(normalizeJsonPayload(rawBody), AuthApiModels.SimpleResponse.class);
+            return extractError(response != null ? response.error : null, rawBody);
+        } catch (Exception ignored) {
+            return extractError(null, rawBody);
+        }
+    }
+
     private static void doRequest(Context context, String method, String path, String bodyJson, RawCallback callback) {
         new AsyncTask<Void, Void, RequestResult>() {
             @Override
@@ -1126,7 +1436,7 @@ public class AuthApiClient {
                 if (result.success) {
                     callback.onSuccess(result.text);
                 } else {
-                    callback.onError(result.text);
+                    callback.onError(normalizeErrorMessage(result.text));
                 }
             }
         }.execute();

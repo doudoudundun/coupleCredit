@@ -49,8 +49,10 @@ import com.example.couplecredit.api.AuthApiClient;
 import com.example.couplecredit.api.AuthApiModels;
 import com.example.couplecredit.config.ApiConfigManager;
 import com.example.couplecredit.utils.InventoryUtils;
+import com.example.couplecredit.utils.DateTimeUtils;
 import com.example.couplecredit.utils.DataRefreshBus;
 import com.example.couplecredit.utils.UserInfoManager;
+import com.example.couplecredit.viewmodel.BeadInventoryViewModel;
 import com.example.couplecredit.viewmodel.InventoryViewModel;
 
 import java.io.ByteArrayInputStream;
@@ -89,7 +91,10 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
     private TextView tvLowStockCount;
     private LinearLayout cardExpiration;
     private TextView tvExpirationCount;
+    private LinearLayout cardBeadInventory;
+    private TextView tvBeadInventorySummary;
     private View fabAddInventory;
+    private View fabRefreshInventory;
 
     private InventoryAdapter inventoryAdapter;
     private RecentActivityAdapter recentActivityAdapter;
@@ -98,6 +103,7 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
     private final List<InventoryItem> recentActivityList = new ArrayList<>();
     private final List<InventoryItem> filteredInventoryList = new ArrayList<>();
     private InventoryViewModel viewModel;
+    private BeadInventoryViewModel beadViewModel;
 
     private enum ExpirationFilterMode {
         ALL,
@@ -193,6 +199,7 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
         viewModel = new ViewModelProvider(requireActivity()).get(InventoryViewModel.class);
+        beadViewModel = new ViewModelProvider(requireActivity()).get(BeadInventoryViewModel.class);
         initViews(view);
         setupRecyclerViews();
         setupFilters();
@@ -209,6 +216,14 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
             if (error != null && !error.isEmpty()) {
                 Toast.makeText(requireContext(), "加载物资失败: " + error, Toast.LENGTH_SHORT).show();
                 viewModel.clearError();
+            }
+        });
+
+        beadViewModel.getDataVersion().observe(getViewLifecycleOwner(), version -> updateBeadEntrySummary());
+
+        beadViewModel.getErrorMessage().observe(getViewLifecycleOwner(), error -> {
+            if (error != null && !error.isEmpty()) {
+                beadViewModel.clearError();
             }
         });
 
@@ -299,12 +314,15 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
         tvLowStockCount = view.findViewById(R.id.tv_low_stock_count);
         cardExpiration = view.findViewById(R.id.card_expiration);
         tvExpirationCount = view.findViewById(R.id.tv_expiration_count);
+        cardBeadInventory = view.findViewById(R.id.card_bead_inventory);
+        tvBeadInventorySummary = view.findViewById(R.id.tv_bead_inventory_summary);
         fabAddInventory = view.findViewById(R.id.fab_add_inventory);
+        fabRefreshInventory = view.findViewById(R.id.fab_refresh_inventory);
     }
 
     private void setupRecyclerViews() {
         rvInventoryList.setLayoutManager(new LinearLayoutManager(getContext()));
-        rvRecentActivity.setLayoutManager(new LinearLayoutManager(getContext(), LinearLayoutManager.HORIZONTAL, false));
+        rvRecentActivity.setLayoutManager(new androidx.recyclerview.widget.GridLayoutManager(getContext(), 2));
         inventoryAdapter = new InventoryAdapter(requireContext(), filteredInventoryList, this);
         recentActivityAdapter = new RecentActivityAdapter(requireContext(), recentActivityList);
         recentActivityAdapter.setOnItemClickListener(this::showInventoryDialog);
@@ -360,11 +378,27 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
 
     private void buildCategoryTags() {
         llCategoryTags.removeAllViews();
-        for (String cat : getFilterCategories()) {
+        List<String> filterCategories = getFilterCategories();
+        if (!filterCategories.isEmpty()) {
+            String firstCategory = filterCategories.get(0);
+            TextView firstTag = createCategoryTag(firstCategory, activeCategories.contains(firstCategory));
+            firstTag.setOnClickListener(v -> toggleCategoryFilter(firstCategory));
+            llCategoryTags.addView(firstTag);
+        }
+
+        llCategoryTags.addView(createQuickFilterTag("最近动态", showRecentActivity, () -> {
+            showRecentActivity = !showRecentActivity;
+            buildCategoryTags();
+            applyFilters();
+        }));
+
+        for (int i = 1; i < filterCategories.size(); i++) {
+            String cat = filterCategories.get(i);
             TextView tag = createCategoryTag(cat, activeCategories.contains(cat));
             tag.setOnClickListener(v -> toggleCategoryFilter(cat));
             llCategoryTags.addView(tag);
         }
+
         llCategoryTags.addView(createQuickFilterTag("告急", filterLowStock, () -> {
             filterLowStock = !filterLowStock;
             showRecentActivity = false;
@@ -398,11 +432,6 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
             }
             buildCategoryTags();
             updateCardHighlight();
-            applyFilters();
-        }));
-        llCategoryTags.addView(createQuickFilterTag("最近动态", showRecentActivity, () -> {
-            showRecentActivity = !showRecentActivity;
-            buildCategoryTags();
             applyFilters();
         }));
     }
@@ -515,6 +544,19 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
         cardExpiration.setBackground(expirationBg);
     }
 
+    private void updateBeadEntrySummary() {
+        if (tvBeadInventorySummary == null || beadViewModel == null) {
+            return;
+        }
+        BeadInventoryViewModel.BeadSummary summary = beadViewModel.getSummary();
+        if (summary.totalColors <= 0) {
+            tvBeadInventorySummary.setText("221 色库存、告急与图纸消耗统计");
+            return;
+        }
+        tvBeadInventorySummary.setText(String.format(Locale.getDefault(), "%d 色 · %d 色告急 · 理论消耗 %d 颗",
+                summary.totalColors, summary.lowStockCount, summary.totalConsumptionReference));
+    }
+
 
     private void setupActions() {
         fabAddInventory.setOnClickListener(v -> {
@@ -523,6 +565,19 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
                 return;
             }
             showInventoryDialog(null);
+        });
+        fabRefreshInventory.setOnClickListener(v -> refreshInventoryData());
+
+        cardBeadInventory.setOnClickListener(v -> {
+            if (!isLoggedIn) {
+                openLoginPage();
+                return;
+            }
+            requireActivity().getSupportFragmentManager()
+                    .beginTransaction()
+                    .replace(R.id.fragment_container, new BeadInventoryFragment())
+                    .addToBackStack("bead_inventory")
+                    .commit();
         });
 
         btnLoginPrompt.setOnClickListener(v -> openLoginPage());
@@ -952,13 +1007,8 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
             String expirationDate = useAdvancedShelfLife[0] ? null : selectedExpirationDate[0];
             String productionDate = useAdvancedShelfLife[0] ? selectedProductionDate[0] : null;
 
-            if (useAdvancedShelfLife[0]) {
-                if (TextUtils.isEmpty(productionDate) || shelfLifeDays == null) {
-                    Toast.makeText(getContext(), "请完善生产日期和保质期天数", Toast.LENGTH_SHORT).show();
-                    return;
-                }
-            } else if (TextUtils.isEmpty(expirationDate)) {
-                Toast.makeText(getContext(), "请选择到期日期", Toast.LENGTH_SHORT).show();
+            if (!isExpirationInputValid(useAdvancedShelfLife[0], expirationDate, productionDate, shelfLifeDays)) {
+                Toast.makeText(getContext(), useAdvancedShelfLife[0] ? "生产日期和保质期天数需要同时填写" : "请选择到期日期", Toast.LENGTH_SHORT).show();
                 return;
             }
 
@@ -1440,15 +1490,7 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
     }
 
     private String normalizeDateTime(String value) {
-        if (value == null || value.trim().isEmpty()) {
-            return null;
-        }
-        String normalized = value.trim().replace('T', ' ');
-        int dotIndex = normalized.indexOf('.');
-        if (dotIndex > 0) {
-            normalized = normalized.substring(0, dotIndex);
-        }
-        return normalized;
+        return DateTimeUtils.normalizeDateTimeToUtc8(value);
     }
 
     private String normalizeDateOnly(String value) {
@@ -1464,6 +1506,14 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
             return normalized.substring(0, 10);
         }
         return normalized;
+    }
+
+    static boolean isExpirationInputValid(boolean useAdvancedShelfLife, @Nullable String expirationDate,
+                                          @Nullable String productionDate, @Nullable Integer shelfLifeDays) {
+        if (useAdvancedShelfLife) {
+            return !TextUtils.isEmpty(productionDate) && shelfLifeDays != null;
+        }
+        return true;
     }
 
     private void updateDateButtonText(TextView view, @Nullable String date, String placeholder) {

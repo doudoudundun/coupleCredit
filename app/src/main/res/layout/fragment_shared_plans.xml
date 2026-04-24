@@ -45,8 +45,8 @@
                 <LinearLayout
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
-                    android:layout_marginEnd="8dp"
                     android:layout_weight="1"
+                    android:layout_marginEnd="8dp"
                     android:background="@drawable/rounded_card_background"
                     android:orientation="vertical"
                     android:padding="14dp">
@@ -177,6 +177,20 @@
     </LinearLayout>
 
     <com.google.android.material.floatingactionbutton.FloatingActionButton
+        android:id="@+id/fab_refresh_plan"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|end"
+        android:layout_marginEnd="16dp"
+        android:layout_marginBottom="88dp"
+        android:contentDescription="刷新共同计划"
+        android:src="@drawable/ic_refresh"
+        app:backgroundTint="@android:color/white"
+        app:elevation="6dp"
+        app:fabSize="mini"
+        app:tint="@color/primary_color" />
+
+    <com.google.android.material.floatingactionbutton.FloatingActionButton
         android:id="@+id/fab_add_plan"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
@@ -185,5 +199,6 @@
         android:backgroundTint="@color/primary_color"
         android:src="@drawable/ic_add"
         app:elevation="6dp"
+        app:fabSize="mini"
         app:tint="@color/white" />
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

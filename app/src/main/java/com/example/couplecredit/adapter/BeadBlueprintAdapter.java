@@ -1,0 +1,80 @@
+package com.example.couplecredit.adapter;
+
+import android.view.LayoutInflater;
+import android.view.View;
+import android.view.ViewGroup;
+import android.widget.TextView;
+
+import androidx.annotation.NonNull;
+import androidx.recyclerview.widget.RecyclerView;
+
+import com.example.couplecredit.R;
+import com.example.couplecredit.viewmodel.BeadInventoryViewModel;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
+
+public class BeadBlueprintAdapter extends RecyclerView.Adapter<BeadBlueprintAdapter.ViewHolder> {
+
+    public interface OnBlueprintClickListener {
+        void onBlueprintClick(BeadInventoryViewModel.BeadBlueprintItem item);
+    }
+
+    private final List<BeadInventoryViewModel.BeadBlueprintItem> items = new ArrayList<>();
+    private OnBlueprintClickListener listener;
+
+    public void setOnBlueprintClickListener(OnBlueprintClickListener listener) {
+        this.listener = listener;
+    }
+
+    public void submitList(List<BeadInventoryViewModel.BeadBlueprintItem> newItems) {
+        items.clear();
+        if (newItems != null) {
+            items.addAll(newItems);
+        }
+        notifyDataSetChanged();
+    }
+
+    @NonNull
+    @Override
+    public ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+        View view = LayoutInflater.from(parent.getContext()).inflate(R.layout.item_bead_blueprint, parent, false);
+        return new ViewHolder(view);
+    }
+
+    @Override
+    public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
+        BeadInventoryViewModel.BeadBlueprintItem item = items.get(position);
+        holder.tvName.setText(item.name == null || item.name.trim().isEmpty() ? "未命名图纸" : item.name);
+        holder.tvMeta.setText(String.format(Locale.getDefault(), "%d 色 · 每次 %d 颗", value(item.colorCount), value(item.totalBeadsPerBuild)));
+        holder.tvBuildCount.setText(String.format(Locale.getDefault(), "已制作 %d 次", item.buildCount));
+        holder.itemView.setOnClickListener(v -> {
+            if (listener != null) {
+                listener.onBlueprintClick(item);
+            }
+        });
+    }
+
+    @Override
+    public int getItemCount() {
+        return items.size();
+    }
+
+    private int value(Integer value) {
+        return value == null ? 0 : value;
+    }
+
+    static class ViewHolder extends RecyclerView.ViewHolder {
+        TextView tvName;
+        TextView tvMeta;
+        TextView tvBuildCount;
+
+        ViewHolder(@NonNull View itemView) {
+            super(itemView);
+            tvName = itemView.findViewById(R.id.tv_bead_blueprint_name);
+            tvMeta = itemView.findViewById(R.id.tv_bead_blueprint_meta);
+            tvBuildCount = itemView.findViewById(R.id.tv_bead_blueprint_build_count);
+        }
+    }
+}

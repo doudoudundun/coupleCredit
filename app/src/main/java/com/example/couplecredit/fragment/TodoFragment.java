@@ -21,6 +21,7 @@ import android.widget.Toast;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
+import androidx.recyclerview.widget.DefaultItemAnimator;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
@@ -38,6 +39,8 @@ import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 
 public class TodoFragment extends Fragment implements TodoAdapter.TodoActionListener {
@@ -60,6 +63,7 @@ public class TodoFragment extends Fragment implements TodoAdapter.TodoActionList
     private TextView chipPriorityMedium;
     private TextView chipPriorityLow;
     private View fabAddTodo;
+    private View fabRefreshTodo;
     private TodoAdapter todoAdapter;
     private final List<AuthApiModels.TodoItemData> allTodos = new ArrayList<>();
     private String activeFilter = "all";
@@ -92,8 +96,15 @@ public class TodoFragment extends Fragment implements TodoAdapter.TodoActionList
         chipPriorityMedium = view.findViewById(R.id.chip_priority_medium);
         chipPriorityLow = view.findViewById(R.id.chip_priority_low);
         fabAddTodo = view.findViewById(R.id.fab_add_todo);
+        fabRefreshTodo = view.findViewById(R.id.fab_refresh_todo);
 
         rvTodoList.setLayoutManager(new LinearLayoutManager(getContext()));
+        DefaultItemAnimator animator = new DefaultItemAnimator();
+        animator.setMoveDuration(260L);
+        animator.setAddDuration(220L);
+        animator.setRemoveDuration(220L);
+        animator.setChangeDuration(180L);
+        rvTodoList.setItemAnimator(animator);
         todoAdapter = new TodoAdapter(this);
         rvTodoList.setAdapter(todoAdapter);
 
@@ -113,6 +124,7 @@ public class TodoFragment extends Fragment implements TodoAdapter.TodoActionList
             }
             showTodoDialog(null);
         });
+        fabRefreshTodo.setOnClickListener(v -> refreshData());
 
         setStatusFilter("all");
         setPriorityFilter("all");
@@ -192,38 +204,119 @@ public class TodoFragment extends Fragment implements TodoAdapter.TodoActionList
             if ("open".equals(activeFilter) && !"open".equals(item.status)) continue;
             if ("done".equals(activeFilter) && !"done".equals(item.status)) continue;
             if ("missed".equals(activeFilter) && !"missed".equals(item.status)) continue;
+            if ("all".equals(activeFilter) && "done".equals(item.status)) continue;
             if (!"all".equals(activePriorityFilter) && !activePriorityFilter.equals(item.priority)) continue;
             filtered.add(item);
         }
+        Collections.sort(filtered, new Comparator<AuthApiModels.TodoItemData>() {
+            @Override
+            public int compare(AuthApiModels.TodoItemData left, AuthApiModels.TodoItemData right) {
+                int statusCompare = Integer.compare(statusRank(left.status), statusRank(right.status));
+                if (statusCompare != 0) return statusCompare;
+                int priorityCompare = Integer.compare(priorityRank(left.priority), priorityRank(right.priority));
+                if (priorityCompare != 0) return priorityCompare;
+                return Long.compare(right.todoId, left.todoId);
+            }
+        });
         todoAdapter.submitList(filtered);
-        tvTodoCount.setText(allTodos.size() + " 项");
+        tvTodoCount.setText(filtered.size() + " 项");
         updateEmptyState(filtered.size());
+    }
+
+    private int statusRank(String status) {
+        if ("open".equals(status)) return 0;
+        if ("missed".equals(status)) return 1;
+        return 2;
+    }
+
+    private int priorityRank(String priority) {
+        if ("high".equals(priority)) return 0;
+        if ("medium".equals(priority)) return 1;
+        return 2;
     }
 
     private void updateEmptyState(int filteredCount) {
         llEmptyState.setVisibility(filteredCount == 0 ? View.VISIBLE : View.GONE);
     }
 
+    static Long resolveSeriesIdForSave(int todoId, @Nullable Long existingSeriesId, boolean isRepeatable) {
+        if (!isRepeatable) {
+            return null;
+        }
+        if (existingSeriesId != null) {
+            return existingSeriesId;
+        }
+        return todoId > 0 ? Long.valueOf(todoId) : null;
+    }
+
+    static int resolveCompletedCountForToggle(String currentStatus, boolean isRepeatable, int currentCompletedCount) {
+        if ("open".equals(currentStatus) && isRepeatable) {
+            return currentCompletedCount + 1;
+        }
+        return currentCompletedCount;
+    }
+
+    static boolean shouldAutoDuplicateAfterCompletion(String currentStatus, boolean isRepeatable) {
+        return "open".equals(currentStatus) && isRepeatable;
+    }
+
     @Override
     public void onToggleStatus(AuthApiModels.TodoItemData item) {
         int userId = UserInfoManager.getCurrentUserId(requireContext());
         String nextStatus = "open";
-        if ("open".equals(item.status)) {
+        boolean isCompleting = "open".equals(item.status);
+        if (isCompleting) {
             nextStatus = "done";
         }
+        int nextCompletedCount = resolveCompletedCountForToggle(item.status, item.isRepeatable, item.completedCount);
+        boolean shouldAutoDuplicate = shouldAutoDuplicateAfterCompletion(item.status, item.isRepeatable);
+
+        final int removedPosition;
+        if (isCompleting) {
+            removedPosition = todoAdapter.removeItem(item.todoId);
+        } else {
+            removedPosition = -1;
+        }
+
         AuthApiClient.updateTodo(requireContext(), item.todoId,
-                new AuthApiModels.UpdateTodoRequest(userId, item.title, item.content, item.priority, item.fuzzyDateText, item.imageUrl, nextStatus),
+                new AuthApiModels.UpdateTodoRequest(userId, item.title, item.content, item.priority, item.fuzzyDateText, item.imageUrl, nextStatus,
+                        item.isRepeatable, item.seriesId, nextCompletedCount),
                 new AuthApiClient.SimpleCallback() {
                     @Override
                     public void onSuccess() {
                         if (!isAdded()) return;
+                        if (shouldAutoDuplicate) {
+                            AuthApiClient.duplicateTodo(requireContext(), item.todoId, userId, new AuthApiClient.SimpleCallback() {
+                                @Override
+                                public void onSuccess() {
+                                    if (!isAdded()) return;
+                                    requireActivity().runOnUiThread(TodoFragment.this::refreshData);
+                                }
+
+                                @Override
+                                public void onError(String message) {
+                                    if (!isAdded()) return;
+                                    requireActivity().runOnUiThread(() -> {
+                                        Toast.makeText(requireContext(), message, Toast.LENGTH_SHORT).show();
+                                        refreshData();
+                                    });
+                                }
+                            });
+                            return;
+                        }
                         requireActivity().runOnUiThread(TodoFragment.this::refreshData);
                     }
 
                     @Override
                     public void onError(String message) {
                         if (!isAdded()) return;
-                        requireActivity().runOnUiThread(() -> Toast.makeText(requireContext(), message, Toast.LENGTH_SHORT).show());
+                        requireActivity().runOnUiThread(() -> {
+                            if (removedPosition >= 0) {
+                                todoAdapter.addItemAt(removedPosition, item);
+                            }
+                            Toast.makeText(requireContext(), message, Toast.LENGTH_SHORT).show();
+                            refreshData();
+                        });
                     }
                 });
     }
@@ -258,6 +351,31 @@ public class TodoFragment extends Fragment implements TodoAdapter.TodoActionList
                 .show();
     }
 
+    @Override
+    public void onDuplicate(AuthApiModels.TodoItemData item) {
+        int userId = UserInfoManager.getCurrentUserId(requireContext());
+        todoAdapter.setDuplicateInFlight(item.todoId, true);
+        AuthApiClient.duplicateTodo(requireContext(), item.todoId, userId, new AuthApiClient.SimpleCallback() {
+            @Override
+            public void onSuccess() {
+                if (!isAdded()) return;
+                requireActivity().runOnUiThread(() -> {
+                    todoAdapter.setDuplicateInFlight(item.todoId, false);
+                    refreshData();
+                });
+            }
+
+            @Override
+            public void onError(String message) {
+                if (!isAdded()) return;
+                requireActivity().runOnUiThread(() -> {
+                    todoAdapter.setDuplicateInFlight(item.todoId, false);
+                    Toast.makeText(requireContext(), message, Toast.LENGTH_SHORT).show();
+                });
+            }
+        });
+    }
+
     private void showTodoDialog(@Nullable AuthApiModels.TodoItemData existing) {
         AlertDialog.Builder builder = new AlertDialog.Builder(requireContext(), R.style.CustomDialogStyle);
         View dialogView = LayoutInflater.from(requireContext()).inflate(R.layout.dialog_todo, null);
@@ -273,6 +391,7 @@ public class TodoFragment extends Fragment implements TodoAdapter.TodoActionList
         ImageView ivAddImage = dialogView.findViewById(R.id.iv_add_image);
         View flAddImage = dialogView.findViewById(R.id.fl_add_image);
         TextView btnSave = dialogView.findViewById(R.id.btn_save_todo);
+        android.widget.Switch switchRepeatable = dialogView.findViewById(R.id.switch_repeatable);
 
         List<String> priorityOptions = Arrays.asList("高优先级", "中优先级", "低优先级");
         ArrayAdapter<String> priorityAdapter = new ArrayAdapter<>(requireContext(), android.R.layout.simple_spinner_item, priorityOptions);
@@ -293,6 +412,7 @@ public class TodoFragment extends Fragment implements TodoAdapter.TodoActionList
             etTitle.setText(existing.title);
             etFuzzyDate.setText(existing.fuzzyDateText != null ? existing.fuzzyDateText : "");
             etContent.setText(existing.content != null ? existing.content : "");
+            switchRepeatable.setChecked(existing.isRepeatable);
             pendingImageUrl = existing.imageUrl;
             if (existing.imageUrl != null && !existing.imageUrl.isEmpty()) {
                 String resolvedUrl = ApiConfigManager.resolveResourceUrl(requireContext(), existing.imageUrl);
@@ -321,9 +441,12 @@ public class TodoFragment extends Fragment implements TodoAdapter.TodoActionList
             String content = etContent.getText().toString().trim();
             String priority = positionToPriority(spinnerPriority.getSelectedItemPosition());
             String status = positionToStatus(spinnerStatus.getSelectedItemPosition());
+            boolean isRepeatable = switchRepeatable.isChecked();
             int userId = UserInfoManager.getCurrentUserId(requireContext());
 
-            Runnable saveAction = () -> saveTodo(dialog, existing, userId, title, content, priority, fuzzyDate, pendingImageUrl, status);
+            Runnable saveAction = () -> saveTodo(dialog, existing, userId, title, content, priority, fuzzyDate, pendingImageUrl, status,
+                    isRepeatable, resolveSeriesIdForSave(existing != null ? existing.todoId : 0, existing != null ? existing.seriesId : null, isRepeatable),
+                    existing != null ? existing.completedCount : 0);
             if (imageChanged && pendingImageUrl != null) {
                 try {
                     Uri imageUri = Uri.parse(pendingImageUrl);
@@ -334,7 +457,9 @@ public class TodoFragment extends Fragment implements TodoAdapter.TodoActionList
                             @Override
                             public void onSuccess(String imageUrl) {
                                 if (!isAdded()) return;
-                                requireActivity().runOnUiThread(() -> saveTodo(dialog, existing, userId, title, content, priority, fuzzyDate, imageUrl, status));
+                                requireActivity().runOnUiThread(() -> saveTodo(dialog, existing, userId, title, content, priority, fuzzyDate, imageUrl, status,
+                                        isRepeatable, resolveSeriesIdForSave(existing != null ? existing.todoId : 0, existing != null ? existing.seriesId : null, isRepeatable),
+                                        existing != null ? existing.completedCount : 0));
                             }
 
                             @Override
@@ -358,7 +483,8 @@ public class TodoFragment extends Fragment implements TodoAdapter.TodoActionList
         }
     }
 
-    private void saveTodo(AlertDialog dialog, @Nullable AuthApiModels.TodoItemData existing, int userId, String title, String content, String priority, String fuzzyDate, String imageUrl, String status) {
+    private void saveTodo(AlertDialog dialog, @Nullable AuthApiModels.TodoItemData existing, int userId, String title, String content, String priority,
+                          String fuzzyDate, String imageUrl, String status, boolean isRepeatable, Long seriesId, int completedCount) {
         AuthApiClient.SimpleCallback callback = new AuthApiClient.SimpleCallback() {
             @Override
             public void onSuccess() {
@@ -377,9 +503,11 @@ public class TodoFragment extends Fragment implements TodoAdapter.TodoActionList
         };
 
         if (existing == null) {
-            AuthApiClient.createTodo(requireContext(), new AuthApiModels.CreateTodoRequest(userId, title, emptyToNull(content), priority, emptyToNull(fuzzyDate), emptyToNull(imageUrl), status), callback);
+            AuthApiClient.createTodo(requireContext(), new AuthApiModels.CreateTodoRequest(userId, title, emptyToNull(content), priority, emptyToNull(fuzzyDate), emptyToNull(imageUrl), status,
+                    isRepeatable, seriesId, completedCount), callback);
         } else {
-            AuthApiClient.updateTodo(requireContext(), existing.todoId, new AuthApiModels.UpdateTodoRequest(userId, title, emptyToNull(content), priority, emptyToNull(fuzzyDate), emptyToNull(imageUrl), status), callback);
+            AuthApiClient.updateTodo(requireContext(), existing.todoId, new AuthApiModels.UpdateTodoRequest(userId, title, emptyToNull(content), priority, emptyToNull(fuzzyDate), emptyToNull(imageUrl), status,
+                    isRepeatable, seriesId, completedCount), callback);
         }
     }
 

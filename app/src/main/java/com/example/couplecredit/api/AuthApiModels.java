@@ -1,7 +1,14 @@
 package com.example.couplecredit.api;
 
+import com.google.gson.JsonDeserializationContext;
+import com.google.gson.JsonDeserializer;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParseException;
+import com.google.gson.annotations.JsonAdapter;
 import com.google.gson.annotations.SerializedName;
 
+import java.lang.reflect.Type;
 import java.util.List;
 
 public class AuthApiModels {
@@ -65,6 +72,66 @@ public class AuthApiModels {
         public Integer count;
     }
 
+    public static class BeadInventoryItemData {
+        public String colorCode;
+        public String hexColor;
+        public int quantity;
+        public Integer thresholdOverride;
+        public int defaultThreshold;
+        public int totalConsumed;
+        public String colorGroup;
+        public boolean isTransparent;
+        public boolean isLowStock;
+    }
+
+    public static class BeadSummaryData {
+        public int totalColors;
+        public int lowStockCount;
+        public int totalConsumptionReference;
+    }
+
+    public static class BeadInventoryListData {
+        public List<BeadInventoryItemData> items;
+        public BeadSummaryData summary;
+        public Integer relationshipId;
+    }
+
+    public static class BeadSettingsData {
+        public int defaultThreshold;
+    }
+
+    public static class BeadBlueprintColorData {
+        public String colorCode;
+        public String hexColor;
+        public String colorGroup;
+        public boolean isTransparent;
+        @SerializedName(value = "quantityPerBuild", alternate = {"quantity"})
+        public int quantityPerBuild;
+        public Integer totalConsumed;
+    }
+
+    public static class BeadBlueprintItemData {
+        public int blueprintId;
+        public int userId;
+        public Integer relationshipId;
+        public String name;
+        public int buildCount;
+        public Integer colorCount;
+        public Integer totalBeadsPerBuild;
+        public Integer totalConsumed;
+        public String createdAt;
+        public String updatedAt;
+        public List<BeadBlueprintColorData> colors;
+    }
+
+    public static class BeadBlueprintListData {
+        public List<BeadBlueprintItemData> items;
+    }
+
+    public static class BeadBlueprintCreateData {
+        public int blueprintId;
+    }
+
     public static class ErrorBody {
         public String code;
         public String message;
@@ -96,6 +163,41 @@ public class AuthApiModels {
         public boolean ok;
         public String message;
         public InventoryListData data;
+        public ErrorBody error;
+    }
+
+    public static class BeadInventoryListResponse {
+        public boolean ok;
+        public String message;
+        public BeadInventoryListData data;
+        public ErrorBody error;
+    }
+
+    public static class BeadSettingsResponse {
+        public boolean ok;
+        public String message;
+        public BeadSettingsData data;
+        public ErrorBody error;
+    }
+
+    public static class BeadBlueprintListResponse {
+        public boolean ok;
+        public String message;
+        public BeadBlueprintListData data;
+        public ErrorBody error;
+    }
+
+    public static class BeadBlueprintResponse {
+        public boolean ok;
+        public String message;
+        public BeadBlueprintItemData data;
+        public ErrorBody error;
+    }
+
+    public static class BeadBlueprintCreateResponse {
+        public boolean ok;
+        public String message;
+        public BeadBlueprintCreateData data;
         public ErrorBody error;
     }
 
@@ -203,6 +305,142 @@ public class AuthApiModels {
             this.consumeAmount = consumeAmount;
             this.addAmount = addAmount;
         }
+    }
+
+    public static class UpdateBeadInventoryRequest {
+        public final int userId;
+        public final Integer quantity;
+        public final Integer thresholdOverride;
+
+        public UpdateBeadInventoryRequest(int userId, Integer quantity, Integer thresholdOverride) {
+            this.userId = userId;
+            this.quantity = quantity;
+            this.thresholdOverride = thresholdOverride;
+        }
+    }
+
+    @Deprecated
+    public static class BeadInventoryUpdateRequest extends UpdateBeadInventoryRequest {
+        public BeadInventoryUpdateRequest(int userId, Integer quantity, Integer thresholdOverride) {
+            super(userId, quantity, thresholdOverride);
+        }
+    }
+
+    public static class BeadSettingsUpdateRequest {
+        public final int userId;
+        public final int defaultThreshold;
+
+        public BeadSettingsUpdateRequest(int userId, int defaultThreshold) {
+            this.userId = userId;
+            this.defaultThreshold = defaultThreshold;
+        }
+    }
+
+    public static class BeadInventoryAmountRequest {
+        public final int userId;
+        public final Integer consumeAmount;
+        public final Integer addAmount;
+
+        public BeadInventoryAmountRequest(int userId, Integer consumeAmount, Integer addAmount) {
+            this.userId = userId;
+            this.consumeAmount = consumeAmount;
+            this.addAmount = addAmount;
+        }
+    }
+
+    public static class BeadBlueprintColorRequest {
+        public final String colorCode;
+        @SerializedName(value = "quantityPerBuild", alternate = {"quantity"})
+        public final int quantityPerBuild;
+
+        public BeadBlueprintColorRequest(String colorCode, int quantityPerBuild) {
+            this.colorCode = colorCode;
+            this.quantityPerBuild = quantityPerBuild;
+        }
+    }
+
+    public static class CreateBeadBlueprintRequest {
+        public final int userId;
+        public final String name;
+        public final List<BeadBlueprintColorRequest> colors;
+
+        public CreateBeadBlueprintRequest(int userId, String name, List<BeadBlueprintColorRequest> colors) {
+            this.userId = userId;
+            this.name = name;
+            this.colors = colors;
+        }
+    }
+
+    public static class UpdateBeadBlueprintRequest {
+        public final int userId;
+        public final String name;
+        public final List<BeadBlueprintColorRequest> colors;
+
+        public UpdateBeadBlueprintRequest(int userId, String name, List<BeadBlueprintColorRequest> colors) {
+            this.userId = userId;
+            this.name = name;
+            this.colors = colors;
+        }
+    }
+
+    public static class BuildBeadBlueprintRequest {
+        public final int userId;
+        public final Integer count;
+
+        public BuildBeadBlueprintRequest(int userId, Integer count) {
+            this.userId = userId;
+            this.count = count;
+        }
+    }
+
+    @JsonAdapter(BuildBeadBlueprintDataAdapter.class)
+    public static class BuildBeadBlueprintData {
+        public int buildCount;
+        public int previousBuildCount;
+        public int addedCount;
+        public int currentBuildCount;
+    }
+
+    public static class BuildBeadBlueprintDataAdapter implements JsonDeserializer<BuildBeadBlueprintData> {
+        @Override
+        public BuildBeadBlueprintData deserialize(JsonElement json, Type typeOfT, JsonDeserializationContext context) throws JsonParseException {
+            BuildBeadBlueprintData data = new BuildBeadBlueprintData();
+            if (json == null || !json.isJsonObject()) {
+                return data;
+            }
+
+            JsonObject object = json.getAsJsonObject();
+            boolean hasBuildCount = object.has("buildCount") && !object.get("buildCount").isJsonNull();
+            boolean hasCurrentBuildCount = object.has("currentBuildCount") && !object.get("currentBuildCount").isJsonNull();
+
+            if (hasBuildCount) {
+                data.buildCount = object.get("buildCount").getAsInt();
+            }
+            if (object.has("previousBuildCount") && !object.get("previousBuildCount").isJsonNull()) {
+                data.previousBuildCount = object.get("previousBuildCount").getAsInt();
+            }
+            if (object.has("addedCount") && !object.get("addedCount").isJsonNull()) {
+                data.addedCount = object.get("addedCount").getAsInt();
+            }
+            if (hasCurrentBuildCount) {
+                data.currentBuildCount = object.get("currentBuildCount").getAsInt();
+            }
+
+            if (!hasBuildCount) {
+                data.buildCount = data.currentBuildCount;
+            }
+            if (!hasCurrentBuildCount) {
+                data.currentBuildCount = data.buildCount;
+            }
+            return data;
+        }
+    }
+
+    public static class BuildBeadBlueprintResponse {
+        public boolean ok;
+        public String message;
+        public BuildBeadBlueprintData data;
+        public ErrorBody error;
     }
 
     public static class RegisterRequest {
@@ -488,6 +726,9 @@ public class AuthApiModels {
         public String fuzzyDateText;
         public String imageUrl;
         public String status;
+        public boolean isRepeatable;
+        public Long seriesId;
+        public int completedCount;
         public String createdAt;
         public String updatedAt;
     }
@@ -511,8 +752,12 @@ public class AuthApiModels {
         public final String fuzzyDateText;
         public final String imageUrl;
         public final String status;
+        public final boolean isRepeatable;
+        public final Long seriesId;
+        public final Integer completedCount;
 
-        public CreateTodoRequest(int userId, String title, String content, String priority, String fuzzyDateText, String imageUrl, String status) {
+        public CreateTodoRequest(int userId, String title, String content, String priority, String fuzzyDateText, String imageUrl, String status,
+                                 boolean isRepeatable, Long seriesId, Integer completedCount) {
             this.userId = userId;
             this.title = title;
             this.content = content;
@@ -520,6 +765,9 @@ public class AuthApiModels {
             this.fuzzyDateText = fuzzyDateText;
             this.imageUrl = imageUrl;
             this.status = status;
+            this.isRepeatable = isRepeatable;
+            this.seriesId = seriesId;
+            this.completedCount = completedCount;
         }
     }
 
@@ -531,8 +779,12 @@ public class AuthApiModels {
         public final String fuzzyDateText;
         public final String imageUrl;
         public final String status;
+        public final boolean isRepeatable;
+        public final Long seriesId;
+        public final Integer completedCount;
 
-        public UpdateTodoRequest(int userId, String title, String content, String priority, String fuzzyDateText, String imageUrl, String status) {
+        public UpdateTodoRequest(int userId, String title, String content, String priority, String fuzzyDateText, String imageUrl, String status,
+                                 boolean isRepeatable, Long seriesId, Integer completedCount) {
             this.userId = userId;
             this.title = title;
             this.content = content;
@@ -540,6 +792,9 @@ public class AuthApiModels {
             this.fuzzyDateText = fuzzyDateText;
             this.imageUrl = imageUrl;
             this.status = status;
+            this.isRepeatable = isRepeatable;
+            this.seriesId = seriesId;
+            this.completedCount = completedCount;
         }
     }
 }

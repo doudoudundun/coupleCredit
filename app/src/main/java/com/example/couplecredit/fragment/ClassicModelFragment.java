@@ -28,7 +28,6 @@ import com.example.couplecredit.utils.BillUtils;
 import com.example.couplecredit.utils.CategoryIconMapper;
 import com.example.couplecredit.utils.DataRefreshBus;
 import com.example.couplecredit.viewmodel.ClassicViewModel;
-import com.google.android.material.bottomnavigation.BottomNavigationView;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 
 import java.text.SimpleDateFormat;
@@ -45,10 +44,10 @@ public class ClassicModelFragment extends Fragment implements BillAdapter.OnItem
     private TextView tvMonthTitle;
     private int currentYear;
     private int currentMonth;
+    private TextView tvLoginPrompt;
+    private View fabQuickAddBill;
     private TextView tvExpenseAmount;
     private TextView tvIncomeAmount;
-    private TextView tvLoginPrompt;
-
     private AlertDialog mDialog;
     private View dialogView;
     private ClassicViewModel viewModel;
@@ -72,12 +71,16 @@ public class ClassicModelFragment extends Fragment implements BillAdapter.OnItem
         tvExpenseAmount = view.findViewById(R.id.tv_expense_amount);
         tvIncomeAmount = view.findViewById(R.id.tv_income_amount);
         tvLoginPrompt = view.findViewById(R.id.tv_login_prompt);
+        fabQuickAddBill = view.findViewById(R.id.fab_quick_add_bill);
 
         LinearLayout llExpenseCard = view.findViewById(R.id.ll_expense_card);
         LinearLayout llIncomeCard = view.findViewById(R.id.ll_income_card);
 
         llExpenseCard.setOnClickListener(v -> openReportFragment("expense"));
         llIncomeCard.setOnClickListener(v -> openReportFragment("income"));
+        if (fabQuickAddBill != null) {
+            fabQuickAddBill.setOnClickListener(v -> openAddBillTab());
+        }
 
         LinearLayoutManager layoutManager = new LinearLayoutManager(getContext());
         layoutManager.setOrientation(LinearLayoutManager.VERTICAL);
@@ -126,6 +129,17 @@ public class ClassicModelFragment extends Fragment implements BillAdapter.OnItem
     public void onDestroyView() {
         DataRefreshBus.unsubscribe(refreshListener);
         super.onDestroyView();
+    }
+
+    private void openAddBillTab() {
+        MainActivity mainActivity = (MainActivity) getActivity();
+        if (mainActivity == null) {
+            return;
+        }
+        HeadFragment headFragment = mainActivity.getHeadFragment();
+        if (headFragment != null) {
+            headFragment.switchToAddBillTab();
+        }
     }
 
     private void openReportFragment(String type) {

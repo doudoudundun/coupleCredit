@@ -22,6 +22,12 @@ import java.util.List;
 
 public class HeadFragment extends Fragment {
 
+    private static final int TAB_HOME = 0;
+    private static final int TAB_ADD_BILL = 1;
+    private static final int TAB_CHAT = 2;
+    private static final int TAB_SHARED_PLANS = 3;
+    private static final int TAB_REPORT = 4;
+
     private FragmentManager fragmentManager;
     private Fragment ClassicFragment;
     private Fragment ChatFragment;
@@ -133,16 +139,16 @@ public class HeadFragment extends Fragment {
     private void showChildFragment(int position) {
         Fragment target;
         switch (position) {
-            case 1:
+            case TAB_ADD_BILL:
                 target = AddBillFragment;
                 break;
-            case 2:
+            case TAB_CHAT:
                 target = ChatFragment;
                 break;
-            case 3:
+            case TAB_SHARED_PLANS:
                 target = SharedPlansFragment;
                 break;
-            case 4:
+            case TAB_REPORT:
                 target = ReportFragment;
                 break;
             default:
@@ -190,9 +196,9 @@ public class HeadFragment extends Fragment {
     }
 
     public void refreshCurrentFragmentData() {
-        if (currentTabPosition == 0 && ClassicFragment instanceof ClassicModelFragment) {
+        if (currentTabPosition == TAB_HOME && ClassicFragment instanceof ClassicModelFragment) {
             ((ClassicModelFragment) ClassicFragment).refreshBillData();
-        } else if (currentTabPosition == 4 && ReportFragment instanceof com.example.couplecredit.fragment.ReportFragment) {
+        } else if (currentTabPosition == TAB_REPORT && ReportFragment instanceof com.example.couplecredit.fragment.ReportFragment) {
             ((com.example.couplecredit.fragment.ReportFragment) ReportFragment).refreshChartData();
         }
     }
@@ -211,9 +217,18 @@ public class HeadFragment extends Fragment {
         return null;
     }
 
+    public void switchToAddBillTab() {
+        if (segmentedTab != null) {
+            TabLayout.Tab addBillTab = segmentedTab.getTabAt(TAB_ADD_BILL);
+            if (addBillTab != null) {
+                addBillTab.select();
+            }
+        }
+    }
+
     public void switchToReportTab() {
         if (segmentedTab != null) {
-            TabLayout.Tab reportTab = segmentedTab.getTabAt(4);
+            TabLayout.Tab reportTab = segmentedTab.getTabAt(TAB_REPORT);
             if (reportTab != null) {
                 reportTab.select();
             }

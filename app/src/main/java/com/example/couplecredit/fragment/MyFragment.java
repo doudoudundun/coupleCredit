@@ -269,7 +269,6 @@ public class MyFragment extends Fragment {
             Uri selectedImageUri = data.getData();
             if (selectedImageUri != null) {
                 uploadAvatarToServer(selectedImageUri);
-                setUserAvatar(selectedImageUri);
             }
         }
     }

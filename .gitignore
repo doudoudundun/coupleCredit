@@ -14,3 +14,9 @@
 .cxx
 local.properties
 .worktrees
+.claude/
+.superpowers/
+docs/superpowers/
+server/node_modules/
+server/.env
+server/uploads/

@@ -63,7 +63,7 @@ public class InventoryAdapter extends RecyclerView.Adapter<InventoryAdapter.View
         InventoryItem item = items.get(position);
         holder.tvName.setText(item.name);
         holder.tvCategory.setText(item.category);
-        holder.tvQuantity.setText(String.format(Locale.getDefault(), "当前 %.1f %s", item.quantity, item.unit));
+        holder.tvQuantity.setText(String.format(Locale.getDefault(), "%s %s", trimQuantity(item.quantity), item.unit));
         holder.tvLastConsumed.setText(buildStatusText(item));
         bindExpirationStatus(holder, item);
 
@@ -253,6 +253,13 @@ public class InventoryAdapter extends RecyclerView.Adapter<InventoryAdapter.View
             return normalized.substring(0, 16);
         }
         return normalized;
+    }
+
+    private String trimQuantity(double value) {
+        if (value == (long) value) {
+            return String.format(Locale.getDefault(), "%d", (long) value);
+        }
+        return String.format(Locale.getDefault(), "%.1f", value);
     }
 
     @Override

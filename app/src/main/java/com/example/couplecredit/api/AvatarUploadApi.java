@@ -52,7 +52,7 @@ public class AvatarUploadApi {
                             }
                             @Override public void onError(String e) {
                                 Log.w(TAG, "Avatar uploaded but profile update failed: " + e);
-                                if (callback != null) callback.onUploadSuccess(imageUrl);
+                                if (callback != null) callback.onUploadError("头像资料保存失败: " + e);
                             }
                         });
                     }

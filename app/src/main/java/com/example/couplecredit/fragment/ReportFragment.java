@@ -61,6 +61,7 @@ public class ReportFragment extends Fragment {
     private TextView currentTitleView;
     private RecyclerView rvCategoryList;
     private CategoryDetailAdapter categoryDetailAdapter;
+    private View fabRefreshReport;
     private int income_type = 0;
     private String currentChartFilter = "all";
     private String currentPieFilter = "all";
@@ -133,6 +134,7 @@ public class ReportFragment extends Fragment {
         tv_month_choose = view.findViewById(R.id.tv_month_choose);
         tv_remainer = view.findViewById(R.id.tv_remainer);
         rvReportContent = view.findViewById(R.id.rv_report_content);
+        fabRefreshReport = view.findViewById(R.id.fab_refresh_report);
         rvReportContent.setLayoutManager(new LinearLayoutManager(getContext()));
 
         reportAdapter = new ReportAdapter(new ReportAdapter.ChartViewHolderCallback() {
@@ -191,6 +193,9 @@ public class ReportFragment extends Fragment {
         }
         setupSegmentedTab();
         initUserInfo();
+        if (fabRefreshReport != null) {
+            fabRefreshReport.setOnClickListener(v -> refreshChartData());
+        }
 
         DataRefreshBus.subscribe(refreshListener);
     }

@@ -41,6 +41,7 @@ public class SharedPlansFragment extends Fragment implements SharedPlanAdapter.S
     private LinearLayout layoutContent;
     private TextView btnLoginPrompt;
     private View fabAddPlan;
+    private View fabRefreshPlan;
 
     private final List<AuthApiModels.SharedPlanData> plans = new ArrayList<>();
     private SharedPlanAdapter adapter;
@@ -63,6 +64,7 @@ public class SharedPlansFragment extends Fragment implements SharedPlanAdapter.S
         layoutContent = view.findViewById(R.id.layout_content);
         btnLoginPrompt = view.findViewById(R.id.btn_login_prompt);
         fabAddPlan = view.findViewById(R.id.fab_add_plan);
+        fabRefreshPlan = view.findViewById(R.id.fab_refresh_plan);
 
         rvSharedPlans.setLayoutManager(new LinearLayoutManager(requireContext()));
         adapter = new SharedPlanAdapter(plans, this);
@@ -76,6 +78,7 @@ public class SharedPlansFragment extends Fragment implements SharedPlanAdapter.S
             }
             showCreateDialog();
         });
+        fabRefreshPlan.setOnClickListener(v -> refreshData());
 
         refreshData();
         DataRefreshBus.subscribe(refreshListener);

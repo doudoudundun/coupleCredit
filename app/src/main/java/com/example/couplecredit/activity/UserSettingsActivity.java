@@ -251,7 +251,6 @@ public class UserSettingsActivity extends AppCompatActivity {
             Uri selectedImageUri = data.getData();
             if (selectedImageUri != null) {
                 uploadAvatarToServer(selectedImageUri);
-                setUserAvatar(selectedImageUri);
             }
         }
     }

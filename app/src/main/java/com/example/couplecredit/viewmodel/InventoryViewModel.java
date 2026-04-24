@@ -9,6 +9,7 @@ import androidx.lifecycle.MutableLiveData;
 
 import com.example.couplecredit.api.AuthApiModels;
 import com.example.couplecredit.utils.InventoryUtils;
+import com.example.couplecredit.utils.DateTimeUtils;
 import com.example.couplecredit.utils.UserInfoManager;
 
 import java.util.ArrayList;
@@ -144,11 +145,7 @@ public class InventoryViewModel extends AndroidViewModel {
     }
 
     private String normalizeDateTime(String value) {
-        if (value == null) return null;
-        String n = value.replace('T', ' ');
-        int dot = n.indexOf('.');
-        if (dot > 0) n = n.substring(0, dot);
-        return n;
+        return DateTimeUtils.normalizeDateTimeToUtc8(value);
     }
 
     private String resolveActionLabel(InventoryItem item) {

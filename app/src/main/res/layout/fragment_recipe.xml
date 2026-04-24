@@ -10,16 +10,15 @@
         android:layout_height="match_parent"
         android:orientation="vertical">
 
-        <!-- Header -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center_vertical"
             android:background="@android:color/white"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
             android:paddingStart="20dp"
-            android:paddingEnd="20dp"
             android:paddingTop="16dp"
+            android:paddingEnd="20dp"
             android:paddingBottom="8dp">
 
             <TextView
@@ -27,18 +26,18 @@
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:text="菜谱"
+                android:textColor="#1A1A1A"
                 android:textSize="22sp"
-                android:textStyle="bold"
-                android:textColor="#1A1A1A" />
+                android:textStyle="bold" />
 
             <TextView
                 android:id="@+id/tv_recipe_count"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:layout_marginEnd="12dp"
                 android:text="0 道菜"
-                android:textSize="13sp"
                 android:textColor="#999999"
-                android:layout_marginEnd="12dp" />
+                android:textSize="13sp" />
 
             <FrameLayout
                 android:id="@+id/btn_cart"
@@ -71,49 +70,46 @@
             </FrameLayout>
         </LinearLayout>
 
-        <!-- Login prompt -->
         <LinearLayout
             android:id="@+id/layout_login_prompt"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:orientation="vertical"
             android:gravity="center"
+            android:orientation="vertical"
             android:visibility="gone">
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:layout_marginBottom="16dp"
                 android:text="登录后查看菜谱"
-                android:textSize="16sp"
                 android:textColor="#999999"
-                android:layout_marginBottom="16dp" />
+                android:textSize="16sp" />
 
             <TextView
                 android:id="@+id/btn_login_prompt"
                 android:layout_width="wrap_content"
                 android:layout_height="36dp"
+                android:background="@drawable/button_background"
                 android:gravity="center"
                 android:paddingStart="24dp"
                 android:paddingEnd="24dp"
                 android:text="立即登录"
                 android:textColor="@android:color/white"
-                android:background="@drawable/button_background"
                 android:textSize="14sp" />
         </LinearLayout>
 
-        <!-- Two-pane content -->
         <LinearLayout
             android:id="@+id/layout_content"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:orientation="horizontal">
 
-            <!-- Left: category nav -->
             <LinearLayout
                 android:layout_width="80dp"
                 android:layout_height="match_parent"
-                android:orientation="vertical"
-                android:background="#FFFFFF">
+                android:background="#FFFFFF"
+                android:orientation="vertical">
 
                 <androidx.recyclerview.widget.RecyclerView
                     android:id="@+id/rv_category_list"
@@ -127,17 +123,15 @@
                     android:layout_height="44dp"
                     android:gravity="center"
                     android:text="+ 新种类"
-                    android:textSize="12sp"
-                    android:textColor="#07C160" />
+                    android:textColor="#07C160"
+                    android:textSize="12sp" />
             </LinearLayout>
 
-            <!-- Divider -->
             <View
                 android:layout_width="1dp"
                 android:layout_height="match_parent"
                 android:background="#EEEEEE" />
 
-            <!-- Right: recipe list -->
             <FrameLayout
                 android:layout_width="0dp"
                 android:layout_height="match_parent"
@@ -148,46 +142,60 @@
                     android:layout_width="match_parent"
                     android:layout_height="match_parent"
                     android:clipToPadding="false"
-                    android:padding="8dp"
-                    android:paddingBottom="80dp" />
+                    android:paddingStart="8dp"
+                    android:paddingTop="8dp"
+                    android:paddingEnd="8dp"
+                    android:paddingBottom="136dp" />
 
-                <!-- Empty state -->
                 <LinearLayout
                     android:id="@+id/ll_empty_state"
                     android:layout_width="match_parent"
                     android:layout_height="match_parent"
-                    android:orientation="vertical"
                     android:gravity="center"
+                    android:orientation="vertical"
                     android:visibility="gone">
 
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
+                        android:layout_marginBottom="8dp"
                         android:text="还没有菜谱"
-                        android:textSize="16sp"
                         android:textColor="#999999"
-                        android:layout_marginBottom="8dp" />
+                        android:textSize="16sp" />
 
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="点击右下角按钮添加你的第一道菜谱"
-                        android:textSize="13sp"
-                        android:textColor="#BBBBBB" />
+                        android:textColor="#BBBBBB"
+                        android:textSize="13sp" />
                 </LinearLayout>
             </FrameLayout>
         </LinearLayout>
     </LinearLayout>
 
-    <!-- FAB -->
+    <com.google.android.material.floatingactionbutton.FloatingActionButton
+        android:id="@+id/fab_refresh_recipe"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|end"
+        android:layout_marginEnd="20dp"
+        android:layout_marginBottom="92dp"
+        android:contentDescription="刷新菜谱"
+        android:src="@drawable/ic_refresh"
+        app:backgroundTint="@android:color/white"
+        app:fabSize="mini"
+        app:tint="#07C160" />
+
     <com.google.android.material.floatingactionbutton.FloatingActionButton
         android:id="@+id/fab_add_recipe"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom|end"
         android:layout_margin="20dp"
-        android:src="@drawable/ic_add"
         android:contentDescription="添加菜谱"
+        android:src="@drawable/ic_add"
         app:backgroundTint="#07C160"
+        app:fabSize="mini"
         app:tint="@android:color/white" />
 </FrameLayout>

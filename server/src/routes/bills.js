@@ -172,7 +172,7 @@ function createBillsRouter({ pool }) {
 
       if (relationshipId) {
         // 有情侣关系：查询自己和对方的账单
-        query = `SELECT bill_id as billId, user_id as userId, shared_plan_id as sharedPlanId, title, type, amount, date, time, income_type as incomeType, owner, is_help as isHelp, relationship_id as relationshipId
+        query = `SELECT bill_id as billId, user_id as userId, shared_plan_id as sharedPlanId, title, type, amount, DATE_FORMAT(date, '%Y-%m-%d') as date, time, income_type as incomeType, owner, is_help as isHelp, relationship_id as relationshipId
                  FROM bills
                  WHERE (user_id = ? OR relationship_id = ?)
                  AND date LIKE ?
@@ -180,7 +180,7 @@ function createBillsRouter({ pool }) {
         params = [userId, relationshipId, datePattern];
       } else {
         // 无情侣关系：只查询自己的账单
-        query = `SELECT bill_id as billId, user_id as userId, shared_plan_id as sharedPlanId, title, type, amount, date, time, income_type as incomeType, owner, is_help as isHelp, relationship_id as relationshipId
+        query = `SELECT bill_id as billId, user_id as userId, shared_plan_id as sharedPlanId, title, type, amount, DATE_FORMAT(date, '%Y-%m-%d') as date, time, income_type as incomeType, owner, is_help as isHelp, relationship_id as relationshipId
                  FROM bills
                  WHERE user_id = ? AND date LIKE ?
                  ORDER BY date DESC, bill_id DESC`;

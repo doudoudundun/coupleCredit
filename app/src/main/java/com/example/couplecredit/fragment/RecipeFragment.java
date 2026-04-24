@@ -58,6 +58,7 @@ public class RecipeFragment extends Fragment implements RecipeAdapter.RecipeActi
     private TextView btnLoginPrompt;
     private TextView tvRecipeCount;
     private View fabAddRecipe;
+    private View fabRefreshRecipe;
     private TextView btnAddCategory;
 
     private RecipeAdapter recipeAdapter;
@@ -95,6 +96,7 @@ public class RecipeFragment extends Fragment implements RecipeAdapter.RecipeActi
         btnLoginPrompt = view.findViewById(R.id.btn_login_prompt);
         tvRecipeCount = view.findViewById(R.id.tv_recipe_count);
         fabAddRecipe = view.findViewById(R.id.fab_add_recipe);
+        fabRefreshRecipe = view.findViewById(R.id.fab_refresh_recipe);
         btnAddCategory = view.findViewById(R.id.btn_add_category);
         btnCart = view.findViewById(R.id.btn_cart);
         tvCartBadge = view.findViewById(R.id.tv_cart_badge);
@@ -219,6 +221,7 @@ public class RecipeFragment extends Fragment implements RecipeAdapter.RecipeActi
             if (!isLoggedIn) { openLoginPage(); return; }
             showRecipeDialog(null);
         });
+        fabRefreshRecipe.setOnClickListener(v -> refreshData());
         btnLoginPrompt.setOnClickListener(v -> openLoginPage());
 
         refreshData();
