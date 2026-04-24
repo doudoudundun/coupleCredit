@@ -48,6 +48,7 @@ public class TodoAdapter extends RecyclerView.Adapter<TodoAdapter.TodoHolder> {
     private final List<AuthApiModels.TodoItemData> items = new ArrayList<>();
     private final Set<Integer> expandedTodoIds = new HashSet<>();
     private final Set<Integer> animatingDoneIds = new HashSet<>();
+    private final Set<Integer> animatingReopenIds = new HashSet<>();
     private final Set<Integer> completedTodoIds = new HashSet<>();
     private final Set<Integer> duplicatingTodoIds = new HashSet<>();
     private final TodoActionListener listener;
@@ -65,6 +66,7 @@ public class TodoAdapter extends RecyclerView.Adapter<TodoAdapter.TodoHolder> {
         }
         expandedTodoIds.retainAll(newIds);
         completedTodoIds.retainAll(newIds);
+        animatingReopenIds.retainAll(newIds);
 
         items.clear();
         items.addAll(newItems);
@@ -117,6 +119,14 @@ public class TodoAdapter extends RecyclerView.Adapter<TodoAdapter.TodoHolder> {
     public void markCompletedForRefresh(int todoId) {
         expandedTodoIds.remove(todoId);
         completedTodoIds.add(todoId);
+    }
+
+    public void animateReopenChange(AuthApiModels.TodoItemData item) {
+        if (item == null) return;
+        int position = findPositionById(item.todoId);
+        if (position < 0) return;
+        animatingReopenIds.add(item.todoId);
+        notifyItemChanged(position, PAYLOAD_STATUS_TRANSITION);
     }
 
     public void setDuplicateInFlight(int todoId, boolean inFlight) {
@@ -206,6 +216,7 @@ public class TodoAdapter extends RecyclerView.Adapter<TodoAdapter.TodoHolder> {
             expandedTodoIds.remove(item.todoId);
         }
         boolean animatingStatusTransition = animateStatus && animatingDoneIds.contains(item.todoId);
+        boolean animatingReopenTransition = animateStatus && animatingReopenIds.contains(item.todoId);
         boolean showExpandedContent = restoreExpanded && shouldShowExpandedContentDuringStatusTransition(animatingStatusTransition);
 
         holder.itemView.animate().cancel();
@@ -254,6 +265,8 @@ public class TodoAdapter extends RecyclerView.Adapter<TodoAdapter.TodoHolder> {
 
         if (animatingStatusTransition) {
             runStatusTransition(holder, item, done || missed, restoreExpanded);
+        } else if (animatingReopenTransition) {
+            runReopenTransition(holder, item);
         }
     }
 
@@ -327,6 +340,35 @@ public class TodoAdapter extends RecyclerView.Adapter<TodoAdapter.TodoHolder> {
                         .setInterpolator(new AccelerateDecelerateInterpolator())
                         .withEndAction(() -> {
                             animatingDoneIds.remove(item.todoId);
+                            int currentPosition = holder.getAdapterPosition();
+                            if (currentPosition != RecyclerView.NO_POSITION) {
+                                notifyItemChanged(currentPosition);
+                            }
+                        })
+                        .start())
+                .start();
+    }
+
+    private void runReopenTransition(TodoHolder holder, AuthApiModels.TodoItemData item) {
+        holder.layoutExpanded.setVisibility(View.GONE);
+        holder.viewTitleStrike.setPivotX(0f);
+        holder.viewTitleStrike.setScaleX(1f);
+        holder.viewTitleStrike.setAlpha(1f);
+        holder.layoutCardRoot.setAlpha(0.52f);
+        holder.layoutCardRoot.setTranslationX(holder.itemView.getWidth() * 0.22f);
+
+        holder.layoutCardRoot.animate()
+                .translationX(0f)
+                .alpha(1f)
+                .setDuration(STATUS_ANIMATION_DURATION)
+                .setInterpolator(new AccelerateDecelerateInterpolator())
+                .withEndAction(() -> holder.viewTitleStrike.animate()
+                        .alpha(0f)
+                        .scaleX(0f)
+                        .setDuration(140L)
+                        .setInterpolator(new AccelerateDecelerateInterpolator())
+                        .withEndAction(() -> {
+                            animatingReopenIds.remove(item.todoId);
                             int currentPosition = holder.getAdapterPosition();
                             if (currentPosition != RecyclerView.NO_POSITION) {
                                 notifyItemChanged(currentPosition);

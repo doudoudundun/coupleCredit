@@ -4,6 +4,7 @@ import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -14,6 +15,7 @@ import androidx.lifecycle.ViewModelProvider;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
+import com.bumptech.glide.Glide;
 import com.example.couplecredit.R;
 import com.example.couplecredit.adapter.BeadBlueprintColorAdapter;
 import com.example.couplecredit.api.AuthApiModels;
@@ -50,6 +52,7 @@ public class BeadBlueprintDetailFragment extends Fragment {
     private TextView tvTitle;
     private TextView tvTotal;
     private TextView tvBuilds;
+    private ImageView ivImage;
     private BeadInventoryViewModel.BeadBlueprintItem currentItem;
 
     public static BeadBlueprintDetailFragment newInstance(int blueprintId) {
@@ -74,6 +77,7 @@ public class BeadBlueprintDetailFragment extends Fragment {
         tvTitle = view.findViewById(R.id.tv_blueprint_detail_title);
         tvTotal = view.findViewById(R.id.tv_blueprint_detail_total);
         tvBuilds = view.findViewById(R.id.tv_blueprint_detail_builds);
+        ivImage = view.findViewById(R.id.iv_blueprint_detail_image);
 
         RecyclerView recyclerView = view.findViewById(R.id.rv_blueprint_colors);
         recyclerView.setLayoutManager(new LinearLayoutManager(requireContext()));
@@ -134,6 +138,12 @@ public class BeadBlueprintDetailFragment extends Fragment {
         int total = item.totalBeadsPerBuild != null ? item.totalBeadsPerBuild : calculateTotalBeadsPerBuild(colors);
         tvTotal.setText(String.format(Locale.getDefault(), "每次 %d 颗", total));
         tvBuilds.setText(String.format(Locale.getDefault(), "已制作 %d 次", item.buildCount));
+        if (item.imageUrl != null && !item.imageUrl.isEmpty() && ivImage != null) {
+            ivImage.setVisibility(View.VISIBLE);
+            Glide.with(requireContext()).load(item.imageUrl).centerCrop().into(ivImage);
+        } else if (ivImage != null) {
+            ivImage.setVisibility(View.GONE);
+        }
         adapter.submitList(colors);
     }
 
@@ -172,6 +182,7 @@ public class BeadBlueprintDetailFragment extends Fragment {
         item.userId = data.userId;
         item.relationshipId = data.relationshipId;
         item.name = data.name;
+        item.imageUrl = data.imageUrl;
         item.buildCount = data.buildCount;
         item.colorCount = data.colorCount;
         item.totalBeadsPerBuild = data.totalBeadsPerBuild;

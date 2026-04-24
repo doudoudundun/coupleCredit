@@ -45,6 +45,11 @@ public class BeadUtils {
         void onError(String error);
     }
 
+    public interface BeadRecognizeColorsCallback {
+        void onSuccess(AuthApiModels.BeadRecognizeColorsResponse response);
+        void onError(String error);
+    }
+
     public static void loadInventory(Context context, BeadInventoryLoadCallback callback) {
         int userId = UserInfoManager.getCurrentUserId(context);
         if (userId < 0) {
@@ -204,7 +209,7 @@ public class BeadUtils {
         });
     }
 
-    public static void createBlueprint(Context context, String name, List<AuthApiModels.BeadBlueprintColorRequest> colors,
+    public static void createBlueprint(Context context, String name, String imageUrl, List<AuthApiModels.BeadBlueprintColorRequest> colors,
                                        BeadBlueprintCreateCallback callback) {
         int userId = UserInfoManager.getCurrentUserId(context);
         if (userId < 0) {
@@ -217,6 +222,7 @@ public class BeadUtils {
         AuthApiModels.CreateBeadBlueprintRequest request = new AuthApiModels.CreateBeadBlueprintRequest(
                 userId,
                 emptyToNull(name),
+                imageUrl,
                 colors
         );
         AuthApiClient.createBeadBlueprint(context, request, new AuthApiClient.BeadBlueprintCreateCallback() {
@@ -236,7 +242,7 @@ public class BeadUtils {
         });
     }
 
-    public static void updateBlueprint(Context context, int blueprintId, String name,
+    public static void updateBlueprint(Context context, int blueprintId, String name, String imageUrl,
                                        List<AuthApiModels.BeadBlueprintColorRequest> colors,
                                        BeadMutationCallback callback) {
         int userId = UserInfoManager.getCurrentUserId(context);
@@ -250,6 +256,7 @@ public class BeadUtils {
         AuthApiModels.UpdateBeadBlueprintRequest request = new AuthApiModels.UpdateBeadBlueprintRequest(
                 userId,
                 emptyToNullableString(name),
+                imageUrl,
                 colors
         );
         AuthApiClient.updateBeadBlueprint(context, blueprintId, request, wrapMutation(callback));
@@ -279,6 +286,24 @@ public class BeadUtils {
         AuthApiClient.buildBeadBlueprint(context, blueprintId, userId, count, new AuthApiClient.BuildBeadBlueprintCallback() {
             @Override
             public void onSuccess(AuthApiModels.BuildBeadBlueprintResponse response) {
+                if (callback != null) {
+                    callback.onSuccess(response);
+                }
+            }
+
+            @Override
+            public void onError(String message) {
+                if (callback != null) {
+                    callback.onError(message);
+                }
+            }
+        });
+    }
+
+    public static void recognizeColors(Context context, String imageUrl, BeadRecognizeColorsCallback callback) {
+        AuthApiClient.recognizeBeadColors(context, imageUrl, new AuthApiClient.BeadRecognizeColorsCallback() {
+            @Override
+            public void onSuccess(AuthApiModels.BeadRecognizeColorsResponse response) {
                 if (callback != null) {
                     callback.onSuccess(response);
                 }

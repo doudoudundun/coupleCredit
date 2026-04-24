@@ -24,6 +24,55 @@
         android:paddingEnd="12dp"
         android:singleLine="true" />
 
+    <ImageView
+        android:id="@+id/iv_blueprint_preview"
+        android:layout_width="match_parent"
+        android:layout_height="160dp"
+        android:layout_marginTop="12dp"
+        android:scaleType="centerCrop"
+        android:visibility="gone" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:orientation="horizontal">
+
+        <TextView
+            android:id="@+id/btn_select_image"
+            android:layout_width="0dp"
+            android:layout_height="40dp"
+            android:layout_weight="1"
+            android:layout_marginEnd="6dp"
+            android:background="@drawable/input_background"
+            android:gravity="center"
+            android:text="选择图片"
+            android:textColor="#374151"
+            android:textSize="14sp" />
+
+        <TextView
+            android:id="@+id/btn_ai_recognize"
+            android:layout_width="0dp"
+            android:layout_height="40dp"
+            android:layout_weight="1"
+            android:layout_marginStart="6dp"
+            android:background="@drawable/button_background"
+            android:gravity="center"
+            android:text="AI识别"
+            android:textColor="@android:color/white"
+            android:textSize="14sp"
+            android:visibility="gone" />
+    </LinearLayout>
+
+    <ProgressBar
+        android:id="@+id/pb_ai_loading"
+        style="?android:attr/progressBarStyleSmall"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center_horizontal"
+        android:layout_marginTop="8dp"
+        android:visibility="gone" />
+
     <EditText
         android:id="@+id/et_blueprint_colors"
         android:layout_width="match_parent"
@@ -31,7 +80,7 @@
         android:layout_marginTop="10dp"
         android:background="@drawable/input_background"
         android:gravity="top|start"
-        android:hint="每行一个颜色，如：A1 12"
+        android:hint="每行一个颜色，如：A01 12"
         android:inputType="textMultiLine"
         android:padding="12dp" />
 

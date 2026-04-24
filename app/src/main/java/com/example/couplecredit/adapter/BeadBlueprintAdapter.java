@@ -3,11 +3,13 @@ package com.example.couplecredit.adapter;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.ImageView;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
 
+import com.bumptech.glide.Glide;
 import com.example.couplecredit.R;
 import com.example.couplecredit.viewmodel.BeadInventoryViewModel;
 
@@ -49,6 +51,16 @@ public class BeadBlueprintAdapter extends RecyclerView.Adapter<BeadBlueprintAdap
         holder.tvName.setText(item.name == null || item.name.trim().isEmpty() ? "未命名图纸" : item.name);
         holder.tvMeta.setText(String.format(Locale.getDefault(), "%d 色 · 每次 %d 颗", value(item.colorCount), value(item.totalBeadsPerBuild)));
         holder.tvBuildCount.setText(String.format(Locale.getDefault(), "已制作 %d 次", item.buildCount));
+        if (item.imageUrl != null && !item.imageUrl.isEmpty()) {
+            holder.ivThumb.setVisibility(View.VISIBLE);
+            Glide.with(holder.itemView.getContext())
+                    .load(item.imageUrl)
+                    .placeholder(R.drawable.ic_default_avatar)
+                    .centerCrop()
+                    .into(holder.ivThumb);
+        } else {
+            holder.ivThumb.setVisibility(View.GONE);
+        }
         holder.itemView.setOnClickListener(v -> {
             if (listener != null) {
                 listener.onBlueprintClick(item);
@@ -69,12 +81,14 @@ public class BeadBlueprintAdapter extends RecyclerView.Adapter<BeadBlueprintAdap
         TextView tvName;
         TextView tvMeta;
         TextView tvBuildCount;
+        ImageView ivThumb;
 
         ViewHolder(@NonNull View itemView) {
             super(itemView);
             tvName = itemView.findViewById(R.id.tv_bead_blueprint_name);
             tvMeta = itemView.findViewById(R.id.tv_bead_blueprint_meta);
             tvBuildCount = itemView.findViewById(R.id.tv_bead_blueprint_build_count);
+            ivThumb = itemView.findViewById(R.id.iv_bead_blueprint_thumb);
         }
     }
 }

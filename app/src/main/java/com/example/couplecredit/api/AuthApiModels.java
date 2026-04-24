@@ -115,6 +115,7 @@ public class AuthApiModels {
         public int userId;
         public Integer relationshipId;
         public String name;
+        public String imageUrl;
         public int buildCount;
         public Integer colorCount;
         public Integer totalBeadsPerBuild;
@@ -362,11 +363,13 @@ public class AuthApiModels {
     public static class CreateBeadBlueprintRequest {
         public final int userId;
         public final String name;
+        public final String imageUrl;
         public final List<BeadBlueprintColorRequest> colors;
 
-        public CreateBeadBlueprintRequest(int userId, String name, List<BeadBlueprintColorRequest> colors) {
+        public CreateBeadBlueprintRequest(int userId, String name, String imageUrl, List<BeadBlueprintColorRequest> colors) {
             this.userId = userId;
             this.name = name;
+            this.imageUrl = imageUrl;
             this.colors = colors;
         }
     }
@@ -374,13 +377,41 @@ public class AuthApiModels {
     public static class UpdateBeadBlueprintRequest {
         public final int userId;
         public final String name;
+        public final String imageUrl;
         public final List<BeadBlueprintColorRequest> colors;
 
-        public UpdateBeadBlueprintRequest(int userId, String name, List<BeadBlueprintColorRequest> colors) {
+        public UpdateBeadBlueprintRequest(int userId, String name, String imageUrl, List<BeadBlueprintColorRequest> colors) {
             this.userId = userId;
             this.name = name;
+            this.imageUrl = imageUrl;
             this.colors = colors;
         }
+    }
+
+    public static class BeadRecognizeColorsRequest {
+        public final String imageUrl;
+
+        public BeadRecognizeColorsRequest(String imageUrl) {
+            this.imageUrl = imageUrl;
+        }
+    }
+
+    public static class BeadRecognizedColorData {
+        public String colorCode;
+        public int quantityPerBuild;
+    }
+
+    public static class BeadRecognizeColorsData {
+        public List<BeadRecognizedColorData> colors;
+        public String rawText;
+        public boolean recognized;
+    }
+
+    public static class BeadRecognizeColorsResponse {
+        public boolean ok;
+        public String message;
+        public BeadRecognizeColorsData data;
+        public ErrorBody error;
     }
 
     public static class BuildBeadBlueprintRequest {

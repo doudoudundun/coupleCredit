@@ -74,6 +74,11 @@ public class AuthApiClient {
         void onError(String message);
     }
 
+    public interface BeadRecognizeColorsCallback {
+        void onSuccess(AuthApiModels.BeadRecognizeColorsResponse response);
+        void onError(String message);
+    }
+
     public interface BuildBeadBlueprintCallback {
         void onSuccess(AuthApiModels.BuildBeadBlueprintResponse response);
         void onError(String message);
@@ -375,6 +380,34 @@ public class AuthApiClient {
         doRequest(context, "POST", "/api/beads/blueprints/" + blueprintId + "/build",
                 GSON.toJson(new AuthApiModels.BuildBeadBlueprintRequest(userId, count)),
                 buildBeadBlueprintCallback("记录串珠制作", callback));
+    }
+
+    public static void recognizeBeadColors(Context context, String imageUrl, BeadRecognizeColorsCallback callback) {
+        doRequest(context, "POST", "/api/beads/recognize-colors",
+                GSON.toJson(new AuthApiModels.BeadRecognizeColorsRequest(imageUrl)),
+                new RawCallback() {
+                    @Override
+                    public void onSuccess(String json) {
+                        if (callback != null) {
+                            try {
+                                AuthApiModels.BeadRecognizeColorsResponse response = GSON.fromJson(normalizeJsonPayload(json), AuthApiModels.BeadRecognizeColorsResponse.class);
+                                if (response != null && response.ok) {
+                                    callback.onSuccess(response);
+                                } else {
+                                    callback.onError(extractError(response != null ? response.error : null, json));
+                                }
+                            } catch (Exception e) {
+                                Log.e(TAG, "AI识图响应解析失败: " + json, e);
+                                callback.onError(buildParseError("AI识图", json));
+                            }
+                        }
+                    }
+
+                    @Override
+                    public void onError(String message) {
+                        if (callback != null) callback.onError(message);
+                    }
+                });
     }
 
     public static void createInventory(Context context, AuthApiModels.CreateInventoryRequest request, InventoryMutationCallback callback) {

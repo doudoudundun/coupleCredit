@@ -1,4 +1,6 @@
 const express = require("express");
+const https = require("https");
+const http = require("http");
 const { BEAD_COLORS } = require("../constants/beadColors");
 const { ApiError } = require("../errors");
 const { cache, Keys, TTL } = require("../cache");
@@ -103,6 +105,7 @@ function mapBlueprintSummaryRow(row) {
     blueprintId: row.blueprint_id,
     userId: row.user_id,
     name: row.name,
+    imageUrl: row.image_url || null,
     buildCount: Number(row.build_count || 0),
     colorCount: Number(row.color_count || 0),
     totalBeadsPerBuild: Number(row.total_beads_per_build || 0),
@@ -170,7 +173,7 @@ function createBeadRouter({ pool }) {
 
   async function loadBlueprintForUser(blueprintId, userId) {
     const [rows] = await pool.execute(
-      `SELECT blueprint_id, user_id, relationship_id, name, build_count, created_at, updated_at
+      `SELECT blueprint_id, user_id, relationship_id, name, image_url, build_count, created_at, updated_at
        FROM bead_blueprints
        WHERE blueprint_id = ? AND user_id = ?
        LIMIT 1`,
@@ -416,7 +419,7 @@ function createBeadRouter({ pool }) {
       }
 
       const [rows] = await pool.execute(
-        `SELECT bb.blueprint_id, bb.user_id, bb.name, bb.build_count, bb.created_at, bb.updated_at,
+        `SELECT bb.blueprint_id, bb.user_id, bb.name, bb.image_url, bb.build_count, bb.created_at, bb.updated_at,
                 COUNT(bbc.id) AS color_count,
                 COALESCE(SUM(bbc.quantity), 0) AS total_beads_per_build
          FROM bead_blueprints bb
@@ -450,14 +453,15 @@ function createBeadRouter({ pool }) {
         throw new ApiError(400, "INVALID_REQUEST", "图纸名称不能为空");
       }
       const colors = normalizeBlueprintColors(req.body.colors);
+      const imageUrl = req.body.imageUrl || null;
 
       connection = await pool.getConnection();
       await connection.beginTransaction();
 
       const [result] = await connection.execute(
-        `INSERT INTO bead_blueprints (user_id, relationship_id, name, build_count)
-         VALUES (?, NULL, ?, 0)`,
-        [userId, name]
+        `INSERT INTO bead_blueprints (user_id, relationship_id, name, image_url, build_count)
+         VALUES (?, NULL, ?, ?, 0)`,
+        [userId, name, imageUrl]
       );
       await insertBlueprintColors(connection, result.insertId, colors);
 
@@ -515,6 +519,7 @@ function createBeadRouter({ pool }) {
           blueprintId: blueprint.blueprint_id,
           userId: blueprint.user_id,
           name: blueprint.name,
+          imageUrl: blueprint.image_url || null,
           buildCount,
           totalBeadsPerBuild,
           totalConsumed,
@@ -548,6 +553,11 @@ function createBeadRouter({ pool }) {
         }
         updates.push("name = ?");
         params.push(name);
+      }
+
+      if (req.body.imageUrl !== undefined) {
+        updates.push("image_url = ?");
+        params.push(req.body.imageUrl || null);
       }
 
       let colors;
@@ -650,7 +660,127 @@ function createBeadRouter({ pool }) {
     }
   });
 
+  router.post("/recognize-colors", async (req, res, next) => {
+    try {
+      const { imageUrl } = req.body;
+      if (!imageUrl || typeof imageUrl !== "string" || imageUrl.trim().length === 0) {
+        throw new ApiError(400, "INVALID_REQUEST", "需要提供图片地址");
+      }
+
+      const apiKey = process.env.AI_API_KEY;
+      const baseUrl = process.env.AI_BASE_URL || "https://open.bigmodel.cn/api/paas/v4";
+      const model = process.env.AI_MODEL || "glm-4v-flash";
+
+      if (!apiKey) {
+        throw new ApiError(503, "AI_NOT_CONFIGURED", "AI 服务未配置");
+      }
+
+      const resolvedUrl = imageUrl.startsWith("/") ? `${process.env.HOST === "0.0.0.0" ? "http://127.0.0.1" : ""}:${process.env.PORT || 8080}${imageUrl}` : imageUrl;
+
+      const prompt = `你是一个拼豆（fuse bead）图纸识图助手。用户会给你一张拼豆图纸的图片。请仔细观察图片底部或图中标注的每种颜色编号和对应的数量。
+
+拼豆色号格式：字母+两位数字，例如 A01、B05、C12、M01。字母组有 A、B、C、D、E、F、G、H、M。
+
+请严格按以下格式输出，每行一种颜色，不要加任何其他内容：
+色号 数量
+
+示例输出：
+A01 24
+B05 8
+C12 16
+
+如果无法识别具体色号但能识别颜色和数量，用最接近的色号。如果完全无法识别，输出：
+UNABLE_TO_RECOGNIZE`;
+
+      const aiPayload = {
+        model,
+        messages: [
+          {
+            role: "user",
+            content: [
+              { type: "text", text: prompt },
+              { type: "image_url", image_url: { url: resolvedUrl } }
+            ]
+          }
+        ],
+        temperature: 0.1,
+        max_tokens: 1024
+      };
+
+      const aiResult = await callAiApi(baseUrl, apiKey, aiPayload);
+      const rawText = (aiResult.choices && aiResult.choices[0] && aiResult.choices[0].message && aiResult.choices[0].message.content) || "";
+
+      if (rawText.includes("UNABLE_TO_RECOGNIZE")) {
+        return res.json({ ok: true, data: { colors: [], rawText, recognized: false } });
+      }
+
+      const colors = parseRecognizedColors(rawText);
+      res.json({ ok: true, data: { colors, rawText, recognized: colors.length > 0 } });
+    } catch (error) {
+      next(error);
+    }
+  });
+
   return router;
+}
+
+function parseRecognizedColors(text) {
+  const results = [];
+  const lines = text.split("\n");
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    const match = trimmed.match(/^([A-HM]\d{1,2})\s+(\d+)/i);
+    if (match) {
+      let code = match[1].toUpperCase();
+      if (code.length === 2 && /^[A-HM]\d$/.test(code)) {
+        code = code[0] + "0" + code[1];
+      }
+      if (BEAD_COLOR_CODES.has(code)) {
+        results.push({ colorCode: code, quantityPerBuild: parseInt(match[2], 10) });
+      }
+    }
+  }
+  return results;
+}
+
+function callAiApi(baseUrl, apiKey, payload) {
+  return new Promise((resolve, reject) => {
+    const url = new URL(baseUrl + "/chat/completions");
+    const isHttps = url.protocol === "https:";
+    const requester = isHttps ? https : http;
+
+    const body = JSON.stringify(payload);
+    const options = {
+      hostname: url.hostname,
+      port: url.port || (isHttps ? 443 : 80),
+      path: url.pathname + url.search,
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Length": Buffer.byteLength(body)
+      },
+      timeout: 30000
+    };
+
+    const req = requester.request(options, (res) => {
+      let data = "";
+      res.on("data", (chunk) => { data += chunk; });
+      res.on("end", () => {
+        try {
+          resolve(JSON.parse(data));
+        } catch (e) {
+          reject(new Error(`AI API response parse error: ${data.substring(0, 200)}`));
+        }
+      });
+    });
+
+    req.on("error", reject);
+    req.on("timeout", () => { req.destroy(); reject(new Error("AI API request timeout")); });
+    req.write(body);
+    req.end();
+  });
 }
 
 module.exports = {

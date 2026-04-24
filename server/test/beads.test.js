@@ -528,6 +528,7 @@ test("list blueprints returns aggregate counts per blueprint", async () => {
     blueprintId: 8,
     userId: 7,
     name: "Flower",
+    imageUrl: null,
     buildCount: 3,
     colorCount: 2,
     totalBeadsPerBuild: 7,

@@ -57,6 +57,7 @@ public class BeadInventoryViewModel extends AndroidViewModel {
         public int userId;
         public Integer relationshipId;
         public String name;
+        public String imageUrl;
         public int buildCount;
         public Integer colorCount;
         public Integer totalBeadsPerBuild;
@@ -268,6 +269,7 @@ public class BeadInventoryViewModel extends AndroidViewModel {
         item.userId = data.userId;
         item.relationshipId = data.relationshipId;
         item.name = data.name;
+        item.imageUrl = data.imageUrl;
         item.buildCount = data.buildCount;
         item.colorCount = data.colorCount;
         item.totalBeadsPerBuild = data.totalBeadsPerBuild;

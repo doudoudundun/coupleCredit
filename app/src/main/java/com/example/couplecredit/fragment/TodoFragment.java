@@ -276,6 +276,7 @@ public class TodoFragment extends Fragment implements TodoAdapter.TodoActionList
             removedPosition = todoAdapter.removeItem(item.todoId);
         } else {
             removedPosition = -1;
+            todoAdapter.animateReopenChange(item);
         }
 
         AuthApiClient.updateTodo(requireContext(), item.todoId,
