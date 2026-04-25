@@ -919,7 +919,41 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
 
         tvAiGenerate.setOnClickListener(v -> {
             etAiPrompt.setVisibility(View.VISIBLE);
-            Toast.makeText(getContext(), "AI 生图入口已保留，当前先记录提示词", Toast.LENGTH_SHORT).show();
+            String promptText = etAiPrompt.getText().toString().trim();
+            String itemName = etName.getText().toString().trim();
+            String itemCategory = spinnerCategoryDialog.getSelectedItem() != null ? spinnerCategoryDialog.getSelectedItem().toString() : "";
+
+            if (promptText.isEmpty() && itemName.isEmpty()) {
+                Toast.makeText(requireContext(), "请先输入物品名称或提示词", Toast.LENGTH_SHORT).show();
+                return;
+            }
+
+            tvAiGenerate.setEnabled(false);
+            etAiPrompt.setHint("生成中...");
+            AuthApiClient.generateInventoryImage(requireContext(), promptText, itemCategory, itemName,
+                    new AuthApiClient.GenerateImageCallback() {
+                        @Override
+                        public void onSuccess(String imageUrl) {
+                            requireActivity().runOnUiThread(() -> {
+                                tvAiGenerate.setEnabled(true);
+                                etAiPrompt.setHint("AI生图提示词（可选）");
+                                pendingImageUrl = imageUrl;
+                                imageChanged = true;
+                                if (ivAddImage != null) {
+                                    Glide.with(requireContext()).load(imageUrl).into(ivAddImage);
+                                }
+                                Toast.makeText(requireContext(), "AI 生图成功", Toast.LENGTH_SHORT).show();
+                            });
+                        }
+                        @Override
+                        public void onError(String message) {
+                            requireActivity().runOnUiThread(() -> {
+                                tvAiGenerate.setEnabled(true);
+                                etAiPrompt.setHint("AI生图提示词（可选）");
+                                Toast.makeText(requireContext(), "AI 生图失败: " + message, Toast.LENGTH_SHORT).show();
+                            });
+                        }
+                    });
         });
 
         btnPickExpirationDate.setOnClickListener(v -> showDatePicker(selectedExpirationDate[0], date -> {

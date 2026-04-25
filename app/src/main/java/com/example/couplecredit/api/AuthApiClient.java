@@ -109,6 +109,11 @@ public class AuthApiClient {
         void onError(String message);
     }
 
+    public interface GenerateImageCallback {
+        void onSuccess(String imageUrl);
+        void onError(String message);
+    }
+
     public interface CoupleInfoCallback {
         void onCoupleFound(int partnerId, String partnerName, String partnerNickname, String partnerAvatarUrl, int relationshipId);
         void onNoCoupleFound();
@@ -548,6 +553,47 @@ public class AuthApiClient {
                 }
             }
         }.execute();
+    }
+
+    public static void generateInventoryImage(Context context, String prompt, String category, String name, GenerateImageCallback callback) {
+        try {
+            com.google.gson.JsonObject body = new com.google.gson.JsonObject();
+            if (prompt != null && !prompt.isEmpty()) body.addProperty("prompt", prompt);
+            if (category != null && !category.isEmpty()) body.addProperty("category", category);
+            if (name != null && !name.isEmpty()) body.addProperty("name", name);
+            doRequest(context, "POST", "/api/inventory/generate-image",
+                    GSON.toJson(body),
+                    new RawCallback() {
+                        @Override
+                        public void onSuccess(String json) {
+                            if (callback != null) {
+                                try {
+                                    com.google.gson.JsonObject obj = GSON.fromJson(normalizeJsonPayload(json), com.google.gson.JsonObject.class);
+                                    if (obj != null && obj.has("ok") && obj.get("ok").getAsBoolean()) {
+                                        com.google.gson.JsonObject data = obj.getAsJsonObject("data");
+                                        String imageUrl = data.has("imageUrl") && !data.get("imageUrl").isJsonNull()
+                                                ? data.get("imageUrl").getAsString() : null;
+                                        if (imageUrl != null) {
+                                            callback.onSuccess(imageUrl);
+                                        } else {
+                                            callback.onError("AI 生图未返回图片");
+                                        }
+                                    } else {
+                                        callback.onError(extractError(null, json));
+                                    }
+                                } catch (Exception e) {
+                                    callback.onError(buildParseError("AI生图", json));
+                                }
+                            }
+                        }
+                        @Override
+                        public void onError(String message) {
+                            if (callback != null) callback.onError(message);
+                        }
+                    });
+        } catch (Exception e) {
+            if (callback != null) callback.onError("请求构建失败");
+        }
     }
 
     public static void queryRecipes(Context context, int userId, RecipeListCallback callback) {

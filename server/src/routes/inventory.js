@@ -1,4 +1,6 @@
 const express = require("express");
+const https = require("https");
+const http = require("http");
 const { ApiError } = require("../errors");
 const { cache, Keys, TTL } = require("../cache");
 const { loadActiveRelationship, trimValue, parseRequiredInteger, parseRequiredFloat } = require("../utils/queryHelpers");
@@ -714,15 +716,37 @@ function createInventoryRouter({ pool }) {
         throw new ApiError(400, "INVALID_REQUEST", "需要提供生成提示或物品名称");
       }
 
-      const generatedPrompt = prompt || `${category} ${name} 产品图`;
+      const apiKey = process.env.AI_IMAGE_API_KEY || process.env.AI_API_KEY;
+      const baseUrl = process.env.AI_IMAGE_BASE_URL || "";
+      const model = process.env.AI_IMAGE_MODEL || "";
+
+      if (!apiKey || !baseUrl || !model) {
+        throw new ApiError(503, "AI_NOT_CONFIGURED", "AI 生图服务未配置");
+      }
+
+      const generatedPrompt = prompt || `${category || ""} ${name} 产品图，高清实物照片风格`;
+
+      const payload = {
+        model,
+        prompt: generatedPrompt,
+        n: 1,
+        size: "1024x1024"
+      };
+
+      const aiResult = await callImageApi(baseUrl, apiKey, payload);
+      const imageUrl = aiResult.data && aiResult.data[0] && aiResult.data[0].url
+        ? aiResult.data[0].url
+        : null;
+
+      if (!imageUrl) {
+        throw new ApiError(502, "AI_ERROR", "AI 生图未返回有效图片");
+      }
 
       res.json({
         ok: true,
-        message: "AI生图接口已预留，请配置生图服务",
         data: {
           prompt: generatedPrompt,
-          imageUrl: null,
-          note: "此接口为预留接口，需要配置具体的AI生图服务后才能使用"
+          imageUrl
         }
       });
     } catch (error) {
@@ -731,6 +755,45 @@ function createInventoryRouter({ pool }) {
   });
 
   return router;
+}
+
+function callImageApi(baseUrl, apiKey, payload) {
+  return new Promise((resolve, reject) => {
+    const url = new URL(baseUrl);
+    const isHttps = url.protocol === "https:";
+    const requester = isHttps ? https : http;
+
+    const body = JSON.stringify(payload);
+    const options = {
+      hostname: url.hostname,
+      port: url.port || (isHttps ? 443 : 80),
+      path: url.pathname + url.search,
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Length": Buffer.byteLength(body)
+      },
+      timeout: 60000
+    };
+
+    const req = requester.request(options, (res) => {
+      let data = "";
+      res.on("data", (chunk) => { data += chunk; });
+      res.on("end", () => {
+        try {
+          resolve(JSON.parse(data));
+        } catch (e) {
+          reject(new Error(`AI Image API response parse error: ${data.substring(0, 200)}`));
+        }
+      });
+    });
+
+    req.on("error", reject);
+    req.on("timeout", () => { req.destroy(); reject(new Error("AI Image API request timeout")); });
+    req.write(body);
+    req.end();
+  });
 }
 
 module.exports = {
