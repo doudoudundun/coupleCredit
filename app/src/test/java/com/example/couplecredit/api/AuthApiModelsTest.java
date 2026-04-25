@@ -83,6 +83,7 @@ public class AuthApiModelsTest {
         AuthApiModels.CreateBeadBlueprintRequest request = new AuthApiModels.CreateBeadBlueprintRequest(
                 12,
                 "星星挂件",
+                null,
                 Arrays.asList(
                         new AuthApiModels.BeadBlueprintColorRequest("C001", 12),
                         new AuthApiModels.BeadBlueprintColorRequest("T099", 6)

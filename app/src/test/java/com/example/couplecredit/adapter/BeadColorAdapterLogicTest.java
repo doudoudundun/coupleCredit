@@ -82,4 +82,84 @@ public class BeadColorAdapterLogicTest {
         assertEquals(1, filtered.size());
         assertEquals("M01", filtered.get(0).colorCode);
     }
+
+    @Test
+    public void buildDisplayItemsFiltersByColorGroup() {
+        List<BeadInventoryViewModel.BeadInventoryItem> inventoryItems = new ArrayList<>();
+
+        BeadInventoryViewModel.BeadInventoryItem a1 = new BeadInventoryViewModel.BeadInventoryItem();
+        a1.colorCode = "A01";
+        a1.hexColor = "#faf5cd";
+        a1.colorGroup = "A";
+        a1.quantity = 50;
+        a1.defaultThreshold = 20;
+        inventoryItems.add(a1);
+
+        BeadInventoryViewModel.BeadInventoryItem b1 = new BeadInventoryViewModel.BeadInventoryItem();
+        b1.colorCode = "B01";
+        b1.hexColor = "#E6EE31";
+        b1.colorGroup = "B";
+        b1.quantity = 100;
+        b1.defaultThreshold = 20;
+        inventoryItems.add(b1);
+
+        List<BeadColorAdapter.BeadColorDisplayItem> filtered = BeadColorAdapter.buildDisplayItems(inventoryItems, "", false, "A");
+        assertEquals(1, filtered.size());
+        assertEquals("A01", filtered.get(0).colorCode);
+    }
+
+    @Test
+    public void buildDisplayItemsNullGroupReturnsAll() {
+        List<BeadInventoryViewModel.BeadInventoryItem> inventoryItems = new ArrayList<>();
+
+        BeadInventoryViewModel.BeadInventoryItem a1 = new BeadInventoryViewModel.BeadInventoryItem();
+        a1.colorCode = "A01";
+        a1.colorGroup = "A";
+        a1.quantity = 50;
+        a1.defaultThreshold = 20;
+        inventoryItems.add(a1);
+
+        BeadInventoryViewModel.BeadInventoryItem b1 = new BeadInventoryViewModel.BeadInventoryItem();
+        b1.colorCode = "B01";
+        b1.colorGroup = "B";
+        b1.quantity = 100;
+        b1.defaultThreshold = 20;
+        inventoryItems.add(b1);
+
+        List<BeadColorAdapter.BeadColorDisplayItem> filtered = BeadColorAdapter.buildDisplayItems(inventoryItems, "", false, null);
+        assertEquals(2, filtered.size());
+    }
+
+    @Test
+    public void buildDisplayItemsCombinesGroupWithLowStockFilter() {
+        List<BeadInventoryViewModel.BeadInventoryItem> inventoryItems = new ArrayList<>();
+
+        BeadInventoryViewModel.BeadInventoryItem a1 = new BeadInventoryViewModel.BeadInventoryItem();
+        a1.colorCode = "A01";
+        a1.colorGroup = "A";
+        a1.quantity = 5;
+        a1.defaultThreshold = 20;
+        a1.isLowStock = true;
+        inventoryItems.add(a1);
+
+        BeadInventoryViewModel.BeadInventoryItem a2 = new BeadInventoryViewModel.BeadInventoryItem();
+        a2.colorCode = "A02";
+        a2.colorGroup = "A";
+        a2.quantity = 200;
+        a2.defaultThreshold = 20;
+        a2.isLowStock = false;
+        inventoryItems.add(a2);
+
+        BeadInventoryViewModel.BeadInventoryItem b1 = new BeadInventoryViewModel.BeadInventoryItem();
+        b1.colorCode = "B01";
+        b1.colorGroup = "B";
+        b1.quantity = 3;
+        b1.defaultThreshold = 20;
+        b1.isLowStock = true;
+        inventoryItems.add(b1);
+
+        List<BeadColorAdapter.BeadColorDisplayItem> filtered = BeadColorAdapter.buildDisplayItems(inventoryItems, "", true, "A");
+        assertEquals(1, filtered.size());
+        assertEquals("A01", filtered.get(0).colorCode);
+    }
 }

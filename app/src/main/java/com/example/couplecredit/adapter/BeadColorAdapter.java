@@ -58,6 +58,13 @@ public class BeadColorAdapter extends RecyclerView.Adapter<BeadColorAdapter.View
     public static List<BeadColorDisplayItem> buildDisplayItems(List<BeadInventoryViewModel.BeadInventoryItem> inventoryItems,
                                                                 String query,
                                                                 boolean lowStockOnly) {
+        return buildDisplayItems(inventoryItems, query, lowStockOnly, null);
+    }
+
+    public static List<BeadColorDisplayItem> buildDisplayItems(List<BeadInventoryViewModel.BeadInventoryItem> inventoryItems,
+                                                                String query,
+                                                                boolean lowStockOnly,
+                                                                String colorGroup) {
         String normalizedQuery = BeadUtils.normalizeColorCode(query);
         if (normalizedQuery == null) {
             normalizedQuery = "";
@@ -69,6 +76,9 @@ public class BeadColorAdapter extends RecyclerView.Adapter<BeadColorAdapter.View
 
         for (BeadInventoryViewModel.BeadInventoryItem source : inventoryItems) {
             if (source == null || source.colorCode == null || source.colorCode.isEmpty()) {
+                continue;
+            }
+            if (colorGroup != null && !colorGroup.equals(source.colorGroup)) {
                 continue;
             }
             BeadColorDisplayItem item = new BeadColorDisplayItem();
