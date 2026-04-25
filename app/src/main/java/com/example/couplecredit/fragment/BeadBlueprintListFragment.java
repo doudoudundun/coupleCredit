@@ -14,6 +14,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.EditText;
 import android.widget.ImageView;
+import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -69,8 +70,9 @@ public class BeadBlueprintListFragment extends Fragment {
 
     private AlertDialog currentDialog;
     private ImageView ivPreview;
-    private TextView btnAiRecognize;
-    private ProgressBar pbAiLoading;
+    private View llLoading;
+    private ProgressBar pbLoading;
+    private TextView tvLoadingHint;
     private EditText etColors;
     private String pendingImageUrl;
 
@@ -153,12 +155,11 @@ public class BeadBlueprintListFragment extends Fragment {
         EditText etName = content.findViewById(R.id.et_blueprint_name);
         etColors = content.findViewById(R.id.et_blueprint_colors);
         ivPreview = content.findViewById(R.id.iv_blueprint_preview);
-        btnAiRecognize = content.findViewById(R.id.btn_ai_recognize);
-        pbAiLoading = content.findViewById(R.id.pb_ai_loading);
-        TextView btnSelectImage = content.findViewById(R.id.btn_select_image);
+        llLoading = content.findViewById(R.id.ll_loading);
+        pbLoading = content.findViewById(R.id.pb_ai_loading);
+        tvLoadingHint = content.findViewById(R.id.tv_loading_hint);
 
-        btnSelectImage.setOnClickListener(v -> openImagePicker());
-        btnAiRecognize.setOnClickListener(v -> performAiRecognition());
+        content.findViewById(R.id.btn_select_image).setOnClickListener(v -> openImagePicker());
 
         content.findViewById(R.id.btn_blueprint_dialog_cancel).setOnClickListener(v -> currentDialog.dismiss());
         content.findViewById(R.id.btn_blueprint_dialog_save).setOnClickListener(v -> {
@@ -206,21 +207,30 @@ public class BeadBlueprintListFragment extends Fragment {
         if (requestCode == REQUEST_IMAGE_PICK && resultCode == Activity.RESULT_OK && data != null) {
             Uri selectedImageUri = data.getData();
             if (selectedImageUri != null) {
-                uploadImage(selectedImageUri);
+                uploadAndRecognize(selectedImageUri);
             }
         }
     }
 
-    private void uploadImage(Uri imageUri) {
-        if (pbAiLoading != null) {
-            pbAiLoading.setVisibility(View.VISIBLE);
+    private void showLoading(String text) {
+        if (llLoading != null) llLoading.setVisibility(View.VISIBLE);
+        if (tvLoadingHint != null) {
+            tvLoadingHint.setText(text);
         }
+    }
+
+    private void hideLoading() {
+        if (llLoading != null) llLoading.setVisibility(View.GONE);
+    }
+
+    private void uploadAndRecognize(Uri imageUri) {
+        showLoading("上传图片中...");
         new Thread(() -> {
             try {
                 InputStream compressed = compressImage(imageUri);
                 if (compressed == null) {
                     requireActivity().runOnUiThread(() -> {
-                        if (pbAiLoading != null) pbAiLoading.setVisibility(View.GONE);
+                        hideLoading();
                         Toast.makeText(requireContext(), "图片压缩失败", Toast.LENGTH_SHORT).show();
                     });
                     return;
@@ -230,48 +240,35 @@ public class BeadBlueprintListFragment extends Fragment {
                     @Override public void onSuccess(String imageUrl) {
                         requireActivity().runOnUiThread(() -> {
                             pendingImageUrl = imageUrl;
-                            if (pbAiLoading != null) pbAiLoading.setVisibility(View.GONE);
                             if (ivPreview != null) {
                                 ivPreview.setVisibility(View.VISIBLE);
                                 Glide.with(requireContext()).load(imageUrl).centerCrop().into(ivPreview);
                             }
-                            if (btnAiRecognize != null) {
-                                btnAiRecognize.setVisibility(View.VISIBLE);
-                            }
+                            showLoading("AI识图中...");
+                            performAiRecognition(imageUrl);
                         });
                     }
                     @Override public void onError(String message) {
                         requireActivity().runOnUiThread(() -> {
-                            if (pbAiLoading != null) pbAiLoading.setVisibility(View.GONE);
+                            hideLoading();
                             Toast.makeText(requireContext(), "图片上传失败: " + message, Toast.LENGTH_SHORT).show();
                         });
                     }
                 });
             } catch (Exception e) {
                 requireActivity().runOnUiThread(() -> {
-                    if (pbAiLoading != null) pbAiLoading.setVisibility(View.GONE);
+                    hideLoading();
                     Toast.makeText(requireContext(), "图片处理失败", Toast.LENGTH_SHORT).show();
                 });
             }
         }).start();
     }
 
-    private void performAiRecognition() {
-        if (pendingImageUrl == null || pendingImageUrl.isEmpty()) {
-            Toast.makeText(requireContext(), "请先上传图片", Toast.LENGTH_SHORT).show();
-            return;
-        }
-        if (pbAiLoading != null) {
-            pbAiLoading.setVisibility(View.VISIBLE);
-        }
-        if (btnAiRecognize != null) {
-            btnAiRecognize.setEnabled(false);
-        }
-        BeadUtils.recognizeColors(requireContext(), pendingImageUrl, new BeadUtils.BeadRecognizeColorsCallback() {
+    private void performAiRecognition(String imageUrl) {
+        BeadUtils.recognizeColors(requireContext(), imageUrl, new BeadUtils.BeadRecognizeColorsCallback() {
             @Override public void onSuccess(AuthApiModels.BeadRecognizeColorsResponse response) {
                 requireActivity().runOnUiThread(() -> {
-                    if (pbAiLoading != null) pbAiLoading.setVisibility(View.GONE);
-                    if (btnAiRecognize != null) btnAiRecognize.setEnabled(true);
+                    hideLoading();
                     if (response != null && response.data != null && response.data.recognized && response.data.colors != null && !response.data.colors.isEmpty()) {
                         StringBuilder sb = new StringBuilder();
                         for (AuthApiModels.BeadRecognizedColorData color : response.data.colors) {
@@ -282,15 +279,14 @@ public class BeadBlueprintListFragment extends Fragment {
                         }
                         Toast.makeText(requireContext(), "识别成功，共 " + response.data.colors.size() + " 种颜色", Toast.LENGTH_SHORT).show();
                     } else {
-                        Toast.makeText(requireContext(), "未能识别出颜色信息，请手动填写", Toast.LENGTH_LONG).show();
+                        Toast.makeText(requireContext(), "未能识别颜色信息，请手动填写", Toast.LENGTH_LONG).show();
                     }
                 });
             }
             @Override public void onError(String error) {
                 requireActivity().runOnUiThread(() -> {
-                    if (pbAiLoading != null) pbAiLoading.setVisibility(View.GONE);
-                    if (btnAiRecognize != null) btnAiRecognize.setEnabled(true);
-                    Toast.makeText(requireContext(), "AI识别失败: " + error, Toast.LENGTH_SHORT).show();
+                    hideLoading();
+                    Toast.makeText(requireContext(), "AI识图失败: " + error, Toast.LENGTH_SHORT).show();
                 });
             }
         });
