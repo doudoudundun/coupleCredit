@@ -114,8 +114,7 @@ public class BeadColorAdapter extends RecyclerView.Adapter<BeadColorAdapter.View
     public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
         BeadColorDisplayItem item = items.get(position);
         holder.tvCode.setText(item.colorCode);
-        holder.tvQuantity.setText(String.format(Locale.getDefault(), "库存 %d 颗", item.quantity));
-        holder.tvThreshold.setText(String.format(Locale.getDefault(), "告急线 %d", item.getEffectiveThreshold()));
+        holder.tvQuantity.setText(String.valueOf(item.quantity));
         holder.tvLowStock.setVisibility(item.isLowStock ? View.VISIBLE : View.GONE);
 
         GradientDrawable swatch = new GradientDrawable();
