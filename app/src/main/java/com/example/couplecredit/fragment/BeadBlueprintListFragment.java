@@ -60,8 +60,8 @@ public class BeadBlueprintListFragment extends Fragment {
     }
 
     private static final int REQUEST_IMAGE_PICK = 2001;
-    private static final int MAX_IMAGE_DIMENSION = 1024;
-    private static final int JPEG_QUALITY = 80;
+    private static final int MAX_IMAGE_DIMENSION = 2048;
+    private static final int JPEG_QUALITY = 90;
 
     private BeadInventoryViewModel viewModel;
     private BeadBlueprintAdapter adapter;
