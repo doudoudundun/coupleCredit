@@ -734,9 +734,19 @@ function createInventoryRouter({ pool }) {
       };
 
       const aiResult = await callImageApi(baseUrl, apiKey, payload);
-      const imageUrl = aiResult.data && aiResult.data[0] && aiResult.data[0].url
-        ? aiResult.data[0].url
-        : null;
+      const firstItem = aiResult.data && aiResult.data[0];
+      let imageUrl = null;
+      if (firstItem) {
+        if (firstItem.url) {
+          imageUrl = firstItem.url;
+        } else if (firstItem.b64_json) {
+          const buffer = Buffer.from(firstItem.b64_json, "base64");
+          const filename = `ai_${Date.now()}.png`;
+          const savePath = require("path").join(__dirname, "../../uploads", filename);
+          require("fs").writeFileSync(savePath, buffer);
+          imageUrl = `/uploads/${filename}`;
+        }
+      }
 
       if (!imageUrl) {
         throw new ApiError(502, "AI_ERROR", "AI 生图未返回有效图片");
@@ -757,9 +767,20 @@ function createInventoryRouter({ pool }) {
   return router;
 }
 
+function resolveImageApiUrl(baseUrl) {
+  const trimmed = String(baseUrl || "").replace(/\/$/, "");
+  if (trimmed.endsWith("/images/generations")) {
+    return trimmed;
+  }
+  if (trimmed.endsWith("/v1")) {
+    return `${trimmed}/images/generations`;
+  }
+  return `${trimmed}/v1/images/generations`;
+}
+
 function callImageApi(baseUrl, apiKey, payload) {
   return new Promise((resolve, reject) => {
-    const url = new URL(baseUrl);
+    const url = new URL(resolveImageApiUrl(baseUrl));
     const isHttps = url.protocol === "https:";
     const requester = isHttps ? https : http;
 
