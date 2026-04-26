@@ -21,6 +21,31 @@
             android:paddingEnd="20dp"
             android:paddingBottom="8dp">
 
+            <LinearLayout
+                android:id="@+id/btn_eat_out"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingEnd="10dp">
+
+                <ImageView
+                    android:layout_width="18dp"
+                    android:layout_height="18dp"
+                    android:src="@drawable/ic_restaurant" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="2dp"
+                    android:text="出去吃"
+                    android:textColor="#07C160"
+                    android:textSize="14sp" />
+            </LinearLayout>
+
             <TextView
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"

@@ -42,6 +42,7 @@ const { createChatRouter } = require("./routes/chat");
 const { createSharedPlansRouter } = require("./routes/sharedPlans");
 const { createTodoRouter } = require("./routes/todos");
 const { createBeadRouter } = require("./routes/beads");
+const { createRestaurantRouter } = require("./routes/restaurants");
 const { sendError } = require("./errors");
 
 const config = readConfig();
@@ -82,6 +83,7 @@ app.use("/api/chat", createChatRouter({ pool }));
 app.use("/api/shared-plans", createSharedPlansRouter({ pool }));
 app.use("/api/todos", createTodoRouter({ pool }));
 app.use("/api/beads", createBeadRouter({ pool }));
+app.use("/api/restaurants", createRestaurantRouter({ pool }));
 app.use((error, _req, res, _next) => {
   console.error("Unhandled error:", error);
   sendError(res, error);

@@ -165,6 +165,16 @@ public class AuthApiClient {
         void onError(String message);
     }
 
+    public interface RestaurantListCallback {
+        void onSuccess(AuthApiModels.RestaurantListResponse response);
+        void onError(String message);
+    }
+
+    public interface RestaurantMutationCallback {
+        void onSuccess();
+        void onError(String message);
+    }
+
     private interface RawCallback {
         void onSuccess(String json);
         void onError(String message);
@@ -690,6 +700,32 @@ public class AuthApiClient {
 
     public static void deleteRecipeCategory(Context context, int categoryId, int userId, RecipeMutationCallback callback) {
         doRequest(context, "DELETE", "/api/recipe-categories/" + categoryId + "?userId=" + userId, null, simpleMutationCallback("删除种类", callback));
+    }
+
+    public static void queryRestaurants(Context context, int userId, RestaurantListCallback callback) {
+        doRequest(context, "GET", "/api/restaurants?userId=" + userId, null, new RawCallback() {
+            @Override public void onSuccess(String json) {
+                if (callback == null) return;
+                try {
+                    AuthApiModels.RestaurantListResponse r = GSON.fromJson(normalizeJsonPayload(json), AuthApiModels.RestaurantListResponse.class);
+                    if (r != null && r.ok) callback.onSuccess(r);
+                    else callback.onError(extractError(r != null ? r.error : null, json));
+                } catch (Exception e) { callback.onError(buildParseError("商家列表", json)); }
+            }
+            @Override public void onError(String m) { if (callback != null) callback.onError(m); }
+        });
+    }
+
+    public static void createRestaurant(Context context, AuthApiModels.RestaurantRequest req, RestaurantMutationCallback callback) {
+        doRequest(context, "POST", "/api/restaurants", GSON.toJson(req), simpleMutationCallback("添加商家", callback));
+    }
+
+    public static void updateRestaurant(Context context, int restaurantId, AuthApiModels.RestaurantRequest req, RestaurantMutationCallback callback) {
+        doRequest(context, "PUT", "/api/restaurants/" + restaurantId, GSON.toJson(req), simpleMutationCallback("更新商家", callback));
+    }
+
+    public static void deleteRestaurant(Context context, int restaurantId, int userId, RestaurantMutationCallback callback) {
+        doRequest(context, "DELETE", "/api/restaurants/" + restaurantId + "?userId=" + userId, null, simpleMutationCallback("删除商家", callback));
     }
 
     public interface ProfileCallback {
@@ -1366,6 +1402,32 @@ public class AuthApiClient {
     }
 
     private static RawCallback sharedPlanMutationCallback(String operation, SharedPlanMutationCallback callback) {
+        return new RawCallback() {
+            @Override
+            public void onSuccess(String json) {
+                if (callback != null) {
+                    try {
+                        AuthApiModels.SimpleResponse response = GSON.fromJson(normalizeJsonPayload(json), AuthApiModels.SimpleResponse.class);
+                        if (response != null && response.ok) {
+                            callback.onSuccess();
+                        } else {
+                            callback.onError(extractError(response != null ? response.error : null, json));
+                        }
+                    } catch (Exception e) {
+                        Log.e(TAG, operation + "响应解析失败: " + json, e);
+                        callback.onError(buildParseError(operation, json));
+                    }
+                }
+            }
+
+            @Override
+            public void onError(String message) {
+                if (callback != null) callback.onError(message);
+            }
+        };
+    }
+
+    private static RawCallback simpleMutationCallback(String operation, RestaurantMutationCallback callback) {
         return new RawCallback() {
             @Override
             public void onSuccess(String json) {

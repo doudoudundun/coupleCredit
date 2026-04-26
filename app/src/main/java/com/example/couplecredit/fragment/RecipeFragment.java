@@ -103,6 +103,13 @@ public class RecipeFragment extends Fragment implements RecipeAdapter.RecipeActi
 
         btnCart.setOnClickListener(v -> startActivity(new Intent(requireContext(), CartActivity.class)));
 
+        View btnEatOut = view.findViewById(R.id.btn_eat_out);
+        btnEatOut.setOnClickListener(v -> {
+            if (getActivity() instanceof com.example.couplecredit.activity.MainActivity) {
+                ((com.example.couplecredit.activity.MainActivity) getActivity()).showEatOutFragment();
+            }
+        });
+
         rvRecipeList.setLayoutManager(new LinearLayoutManager(getContext()));
         recipeAdapter = new RecipeAdapter(this);
         rvRecipeList.setAdapter(recipeAdapter);

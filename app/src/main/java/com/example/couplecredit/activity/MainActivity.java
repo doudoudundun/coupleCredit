@@ -24,6 +24,7 @@ import com.example.couplecredit.fragment.HeadFragment;
 import com.example.couplecredit.fragment.InventoryFragment;
 import com.example.couplecredit.fragment.MyFragment;
 import com.example.couplecredit.fragment.RecipeFragment;
+import com.example.couplecredit.fragment.EatOutFragment;
 import com.example.couplecredit.fragment.TodoFragment;
 import com.example.couplecredit.repository.ChatRepository;
 import com.example.couplecredit.utils.UserInfoManager;
@@ -36,10 +37,12 @@ public class MainActivity extends AppCompatActivity {
     private HeadFragment headFragment;
     private InventoryFragment inventoryFragment;
     private RecipeFragment recipeFragment;
+    private EatOutFragment eatOutFragment;
     private TodoFragment todoFragment;
     private MyFragment myFragment;
     private BottomNavigationView mBottomNav;
     private Fragment currentFragment;
+    private Fragment lastTabFragment;
     private ChatRepository chatRepository;
 
     private final BroadcastReceiver loginStateReceiver = new BroadcastReceiver() {
@@ -86,6 +89,7 @@ public class MainActivity extends AppCompatActivity {
             headFragment = new HeadFragment();
             inventoryFragment = new InventoryFragment();
             recipeFragment = new RecipeFragment();
+            eatOutFragment = new EatOutFragment();
             todoFragment = new TodoFragment();
             myFragment = new MyFragment();
 
@@ -101,6 +105,7 @@ public class MainActivity extends AppCompatActivity {
             headFragment = (HeadFragment) fragmentManager.findFragmentByTag("head");
             inventoryFragment = (InventoryFragment) fragmentManager.findFragmentByTag("inventory");
             recipeFragment = (RecipeFragment) fragmentManager.findFragmentByTag("recipe");
+            eatOutFragment = (EatOutFragment) fragmentManager.findFragmentByTag("eatOut");
             todoFragment = (TodoFragment) fragmentManager.findFragmentByTag("todo");
             myFragment = (MyFragment) fragmentManager.findFragmentByTag("my");
 
@@ -184,6 +189,8 @@ public class MainActivity extends AppCompatActivity {
             inventoryFragment.refreshInventoryData();
         } else if (fragment == recipeFragment) {
             recipeFragment.refreshData();
+        } else if (fragment == eatOutFragment) {
+            eatOutFragment.refreshData();
         } else if (fragment == todoFragment) {
             todoFragment.refreshData();
         }
@@ -205,6 +212,31 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    public void showEatOutFragment() {
+        if (eatOutFragment == null) return;
+        if (eatOutFragment == currentFragment) return;
+        lastTabFragment = currentFragment;
+
+        FragmentTransaction transaction = fragmentManager.beginTransaction().setReorderingAllowed(true);
+        for (Fragment f : fragmentManager.getFragments()) {
+            if (f != null && f.isAdded()) {
+                transaction.hide(f);
+            }
+        }
+        transaction.show(eatOutFragment);
+        transaction.commit();
+        currentFragment = eatOutFragment;
+        eatOutFragment.refreshData();
+    }
+
+    public void navigateToLastTab() {
+        if (lastTabFragment != null) {
+            showFragment(lastTabFragment);
+        } else {
+            navigateToHome();
+        }
+    }
+
     public HeadFragment getHeadFragment() {
         return headFragment;
     }
@@ -214,11 +246,13 @@ public class MainActivity extends AppCompatActivity {
         transaction.add(R.id.fragment_container, headFragment, "head");
         transaction.add(R.id.fragment_container, inventoryFragment, "inventory");
         transaction.add(R.id.fragment_container, recipeFragment, "recipe");
+        transaction.add(R.id.fragment_container, eatOutFragment, "eatOut");
         transaction.add(R.id.fragment_container, todoFragment, "todo");
         transaction.add(R.id.fragment_container, myFragment, "my");
         transaction.hide(headFragment);
         transaction.hide(inventoryFragment);
         transaction.hide(recipeFragment);
+        transaction.hide(eatOutFragment);
         transaction.hide(todoFragment);
         transaction.hide(myFragment);
         transaction.commitNow();
@@ -320,6 +354,15 @@ public class MainActivity extends AppCompatActivity {
             return R.id.nav_my;
         }
         return 0;
+    }
+
+    @Override
+    public void onBackPressed() {
+        if (currentFragment == eatOutFragment) {
+            navigateToLastTab();
+        } else {
+            super.onBackPressed();
+        }
     }
 
     @Override

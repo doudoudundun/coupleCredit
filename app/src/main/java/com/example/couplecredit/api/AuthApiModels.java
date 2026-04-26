@@ -828,4 +828,56 @@ public class AuthApiModels {
             this.completedCount = completedCount;
         }
     }
+
+    // Restaurants (Eat Out)
+    public static class RestaurantListResponse {
+        public boolean ok;
+        public RestaurantListData data;
+        public ErrorBody error;
+    }
+
+    public static class RestaurantListData {
+        public List<RestaurantItemData> items;
+        public Integer relationshipId;
+    }
+
+    public static class RestaurantItemData {
+        public int restaurantId;
+        public int userId;
+        public Integer relationshipId;
+        public String name;
+        public String category;
+        public String imageUrl;
+        public String routeImageUrl;
+        public Double avgCost;
+        public Double distance;
+        public String address;
+        public String note;
+        public String createdAt;
+        public String updatedAt;
+    }
+
+    public static class RestaurantRequest {
+        public int userId;
+        public String name;
+        public String category;
+        public String imageUrl;
+        public String routeImageUrl;
+        public Double avgCost;
+        public Double distance;
+        public String address;
+        public String note;
+
+        public RestaurantRequest(int userId, String name, String category, String imageUrl, String routeImageUrl, Double avgCost, Double distance, String address, String note) {
+            this.userId = userId;
+            this.name = name;
+            this.category = category;
+            this.imageUrl = imageUrl;
+            this.routeImageUrl = routeImageUrl;
+            this.avgCost = avgCost;
+            this.distance = distance;
+            this.address = address;
+            this.note = note;
+        }
+    }
 }
