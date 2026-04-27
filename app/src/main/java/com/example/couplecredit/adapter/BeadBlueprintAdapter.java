@@ -11,6 +11,7 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.bumptech.glide.Glide;
 import com.example.couplecredit.R;
+import com.example.couplecredit.config.ApiConfigManager;
 import com.example.couplecredit.viewmodel.BeadInventoryViewModel;
 
 import java.util.ArrayList;
@@ -54,7 +55,7 @@ public class BeadBlueprintAdapter extends RecyclerView.Adapter<BeadBlueprintAdap
         if (item.imageUrl != null && !item.imageUrl.isEmpty()) {
             holder.ivThumb.setVisibility(View.VISIBLE);
             Glide.with(holder.itemView.getContext())
-                    .load(item.imageUrl)
+                    .load(ApiConfigManager.resolveResourceUrl(holder.itemView.getContext(), item.imageUrl))
                     .placeholder(R.drawable.ic_default_avatar)
                     .centerCrop()
                     .into(holder.ivThumb);

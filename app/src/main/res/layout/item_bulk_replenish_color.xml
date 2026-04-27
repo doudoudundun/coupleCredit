@@ -4,48 +4,34 @@
     android:layout_height="wrap_content"
     android:gravity="center_vertical"
     android:orientation="horizontal"
-    android:paddingStart="4dp"
-    android:paddingTop="5dp"
-    android:paddingEnd="4dp"
-    android:paddingBottom="5dp">
+    android:paddingStart="6dp"
+    android:paddingTop="6dp"
+    android:paddingEnd="6dp"
+    android:paddingBottom="6dp">
 
     <CheckBox
         android:id="@+id/cb_bulk_color"
-        android:layout_width="24dp"
-        android:layout_height="24dp"
-        android:padding="0dp"
+        android:layout_width="22dp"
+        android:layout_height="22dp"
         android:minWidth="0dp"
         android:minHeight="0dp"
+        android:padding="0dp"
         android:textSize="0sp" />
 
     <View
         android:id="@+id/view_bulk_swatch"
-        android:layout_width="14dp"
-        android:layout_height="14dp"
-        android:layout_marginStart="3dp" />
+        android:layout_width="16dp"
+        android:layout_height="16dp"
+        android:layout_marginStart="4dp" />
 
     <TextView
         android:id="@+id/tv_bulk_color_code"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_marginStart="3dp"
+        android:layout_marginStart="4dp"
         android:layout_weight="1"
         android:ellipsize="end"
         android:maxLines="1"
         android:textColor="#111827"
-        android:textSize="11sp" />
-
-    <EditText
-        android:id="@+id/et_bulk_quantity"
-        android:layout_width="48dp"
-        android:layout_height="26dp"
-        android:layout_marginStart="2dp"
-        android:background="@drawable/input_background"
-        android:gravity="center"
-        android:hint="量"
-        android:inputType="number"
-        android:paddingStart="2dp"
-        android:paddingEnd="2dp"
-        android:textSize="11sp"
-        android:visibility="gone" />
+        android:textSize="12sp" />
 </LinearLayout>

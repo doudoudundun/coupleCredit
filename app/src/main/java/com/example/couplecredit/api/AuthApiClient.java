@@ -397,9 +397,12 @@ public class AuthApiClient {
                 buildBeadBlueprintCallback("记录串珠制作", callback));
     }
 
+    private static final int AI_REQUEST_TIMEOUT_MS = 120000;
+
     public static void recognizeBeadColors(Context context, String imageUrl, BeadRecognizeColorsCallback callback) {
         doRequest(context, "POST", "/api/beads/recognize-colors",
                 GSON.toJson(new AuthApiModels.BeadRecognizeColorsRequest(imageUrl)),
+                AI_REQUEST_TIMEOUT_MS,
                 new RawCallback() {
                     @Override
                     public void onSuccess(String json) {
@@ -507,7 +510,7 @@ public class AuthApiClient {
                     connection.setRequestProperty("Content-Type", "multipart/form-data; boundary=" + boundary);
                     connection.setRequestProperty("Connection", "keep-alive");
                     connection.setConnectTimeout(CONNECT_TIMEOUT_MS);
-                    connection.setReadTimeout(15000);
+                    connection.setReadTimeout(AI_REQUEST_TIMEOUT_MS);
 
                     try (DataOutputStream dos = new DataOutputStream(connection.getOutputStream())) {
                         dos.writeBytes("--" + boundary + "\r\n");
@@ -572,7 +575,7 @@ public class AuthApiClient {
             if (category != null && !category.isEmpty()) body.addProperty("category", category);
             if (name != null && !name.isEmpty()) body.addProperty("name", name);
             doRequest(context, "POST", "/api/inventory/generate-image",
-                    GSON.toJson(body),
+                    GSON.toJson(body), AI_REQUEST_TIMEOUT_MS,
                     new RawCallback() {
                         @Override
                         public void onSuccess(String json) {
@@ -1524,6 +1527,10 @@ public class AuthApiClient {
     }
 
     private static void doRequest(Context context, String method, String path, String bodyJson, RawCallback callback) {
+        doRequest(context, method, path, bodyJson, READ_TIMEOUT_MS, callback);
+    }
+
+    private static void doRequest(Context context, String method, String path, String bodyJson, int readTimeout, RawCallback callback) {
         new AsyncTask<Void, Void, RequestResult>() {
             @Override
             protected RequestResult doInBackground(Void... voids) {
@@ -1537,7 +1544,7 @@ public class AuthApiClient {
                     connection.setRequestProperty("Content-Type", "application/json; charset=UTF-8");
                     connection.setRequestProperty("Connection", "keep-alive");
                     connection.setConnectTimeout(CONNECT_TIMEOUT_MS);
-                    connection.setReadTimeout(READ_TIMEOUT_MS);
+                    connection.setReadTimeout(readTimeout);
 
                     if (bodyJson != null) {
                         connection.setDoOutput(true);

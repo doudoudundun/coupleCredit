@@ -23,6 +23,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ArrayAdapter;
 import android.widget.EditText;
+import android.widget.ProgressBar;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.Spinner;
@@ -48,6 +49,7 @@ import com.example.couplecredit.adapter.RecentActivityAdapter;
 import com.example.couplecredit.api.AuthApiClient;
 import com.example.couplecredit.api.AuthApiModels;
 import com.example.couplecredit.config.ApiConfigManager;
+import com.example.couplecredit.utils.DialogHelper;
 import com.example.couplecredit.utils.InventoryUtils;
 import com.example.couplecredit.utils.DateTimeUtils;
 import com.example.couplecredit.utils.DataRefreshBus;
@@ -801,6 +803,9 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
         View flAddImage = dialogView.findViewById(R.id.fl_add_image);
         TextView tvSelectImage = dialogView.findViewById(R.id.tv_select_image);
         TextView tvAiGenerate = dialogView.findViewById(R.id.tv_ai_generate);
+        View btnAiGenerate = dialogView.findViewById(R.id.btn_ai_generate);
+        ProgressBar pbAiGenerating = dialogView.findViewById(R.id.pb_ai_generating);
+        View layoutImageLoading = dialogView.findViewById(R.id.layout_image_loading);
         TextView btnPickExpirationDate = dialogView.findViewById(R.id.btn_pick_expiration_date);
         TextView btnToggleAdvancedShelfLife = dialogView.findViewById(R.id.btn_toggle_advanced_shelf_life);
         LinearLayout layoutAdvancedShelfLife = dialogView.findViewById(R.id.layout_advanced_shelf_life);
@@ -917,7 +922,7 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
         flAddImage.setOnClickListener(imageClickListener);
         tvSelectImage.setOnClickListener(imageClickListener);
 
-        tvAiGenerate.setOnClickListener(v -> {
+        btnAiGenerate.setOnClickListener(v -> {
             etAiPrompt.setVisibility(View.VISIBLE);
             String promptText = etAiPrompt.getText().toString().trim();
             String itemName = etName.getText().toString().trim();
@@ -928,28 +933,36 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
                 return;
             }
 
-            tvAiGenerate.setEnabled(false);
-            etAiPrompt.setHint("生成中...");
+            btnAiGenerate.setEnabled(false);
+            pbAiGenerating.setVisibility(View.VISIBLE);
+            tvAiGenerate.setText("生成中...");
+            tvAiGenerate.setTextColor(Color.parseColor("#999999"));
+            layoutImageLoading.setVisibility(View.VISIBLE);
+            flAddImage.setClickable(false);
+            tvSelectImage.setEnabled(false);
+
             AuthApiClient.generateInventoryImage(requireContext(), promptText, itemCategory, itemName,
                     new AuthApiClient.GenerateImageCallback() {
                         @Override
                         public void onSuccess(String imageUrl) {
+                            if (!isAdded()) return;
                             requireActivity().runOnUiThread(() -> {
-                                tvAiGenerate.setEnabled(true);
-                                etAiPrompt.setHint("AI生图提示词（可选）");
+                                if (!isAdded() || !dialog.isShowing()) return;
+                                resetAiGenerateUi(btnAiGenerate, pbAiGenerating, tvAiGenerate, layoutImageLoading, flAddImage, tvSelectImage);
                                 pendingImageUrl = imageUrl;
                                 imageChanged = true;
                                 if (ivAddImage != null) {
-                                    Glide.with(requireContext()).load(imageUrl).into(ivAddImage);
+                                    Glide.with(requireContext()).load(resolveImageUrl(imageUrl)).into(ivAddImage);
                                 }
                                 Toast.makeText(requireContext(), "AI 生图成功", Toast.LENGTH_SHORT).show();
                             });
                         }
                         @Override
                         public void onError(String message) {
+                            if (!isAdded()) return;
                             requireActivity().runOnUiThread(() -> {
-                                tvAiGenerate.setEnabled(true);
-                                etAiPrompt.setHint("AI生图提示词（可选）");
+                                if (!isAdded() || !dialog.isShowing()) return;
+                                resetAiGenerateUi(btnAiGenerate, pbAiGenerating, tvAiGenerate, layoutImageLoading, flAddImage, tvSelectImage);
                                 Toast.makeText(requireContext(), "AI 生图失败: " + message, Toast.LENGTH_SHORT).show();
                             });
                         }
@@ -1089,7 +1102,7 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
             }
         });
 
-        showDialogWide(dialog);
+        DialogHelper.showWide(dialog, requireContext());
     }
 
     private static final int IMAGE_MAX_DIMENSION = 1024;
@@ -1333,7 +1346,7 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
             }
         });
 
-        showDialogWide(dialog);
+        DialogHelper.showWide(dialog, requireContext());
     }
 
     public void showReplenishDialog(InventoryItem item) {
@@ -1370,7 +1383,7 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
             }
         });
 
-        showDialogWide(dialog);
+        DialogHelper.showWide(dialog, requireContext());
     }
 
     private void showDeleteDialog(InventoryItem item) {
@@ -1396,7 +1409,7 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
             InventoryUtils.deleteInventory(requireContext(), item.id, new ToastMutationCallback("删除成功"));
         });
 
-        showDialogWide(dialog);
+        DialogHelper.showWide(dialog, requireContext());
     }
 
     private void openLoginPage() {
@@ -1597,6 +1610,18 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
         return formatDate(calendar);
     }
 
+    private void resetAiGenerateUi(View btnAiGenerate, ProgressBar pbAiGenerating,
+                                    TextView tvAiGenerate, View layoutImageLoading, View flAddImage,
+                                    TextView tvSelectImage) {
+        btnAiGenerate.setEnabled(true);
+        pbAiGenerating.setVisibility(View.GONE);
+        tvAiGenerate.setText("✨ AI生成");
+        tvAiGenerate.setTextColor(Color.parseColor("#6B7280"));
+        layoutImageLoading.setVisibility(View.GONE);
+        flAddImage.setClickable(true);
+        tvSelectImage.setEnabled(true);
+    }
+
     private void showDatePicker(@Nullable String initialDate, DateSelectionListener listener) {
         Calendar initial = parseDateToCalendar(initialDate);
         if (initial == null) {
@@ -1675,15 +1700,6 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
 
     private int dp(int value) {
         return (int) (value * requireContext().getResources().getDisplayMetrics().density);
-    }
-
-    private void showDialogWide(AlertDialog dialog) {
-        dialog.show();
-        if (dialog.getWindow() != null) {
-            int screenWidth = requireContext().getResources().getDisplayMetrics().widthPixels;
-            int width = (int) (screenWidth * 0.85);
-            dialog.getWindow().setLayout(width, ViewGroup.LayoutParams.WRAP_CONTENT);
-        }
     }
 
     @Override

@@ -31,7 +31,9 @@ import com.example.couplecredit.R;
 import com.example.couplecredit.adapter.BeadBlueprintAdapter;
 import com.example.couplecredit.api.AuthApiClient;
 import com.example.couplecredit.api.AuthApiModels;
+import com.example.couplecredit.config.ApiConfigManager;
 import com.example.couplecredit.utils.BeadUtils;
+import com.example.couplecredit.utils.DialogHelper;
 import com.example.couplecredit.utils.UserInfoManager;
 import com.example.couplecredit.viewmodel.BeadInventoryViewModel;
 
@@ -150,7 +152,7 @@ public class BeadBlueprintListFragment extends Fragment {
     private void showCreateDialog() {
         pendingImageUrl = null;
         View content = LayoutInflater.from(requireContext()).inflate(R.layout.dialog_bead_blueprint_editor, null);
-        currentDialog = new AlertDialog.Builder(requireContext()).setView(content).create();
+        currentDialog = new AlertDialog.Builder(requireContext(), R.style.CustomDialogStyle).setView(content).create();
 
         EditText etName = content.findViewById(R.id.et_blueprint_name);
         etColors = content.findViewById(R.id.et_blueprint_colors);
@@ -192,7 +194,7 @@ public class BeadBlueprintListFragment extends Fragment {
                 }
             });
         });
-        currentDialog.show();
+        DialogHelper.showWide(currentDialog, requireContext());
     }
 
     private void openImagePicker() {
@@ -242,7 +244,8 @@ public class BeadBlueprintListFragment extends Fragment {
                             pendingImageUrl = imageUrl;
                             if (ivPreview != null) {
                                 ivPreview.setVisibility(View.VISIBLE);
-                                Glide.with(requireContext()).load(imageUrl).centerCrop().into(ivPreview);
+                                String fullUrl = ApiConfigManager.resolveResourceUrl(requireContext(), imageUrl);
+                                Glide.with(requireContext()).load(fullUrl).centerCrop().into(ivPreview);
                             }
                             showLoading("AI识图中...");
                             performAiRecognition(imageUrl);
@@ -284,9 +287,11 @@ public class BeadBlueprintListFragment extends Fragment {
                 });
             }
             @Override public void onError(String error) {
+                if (!isAdded()) return;
                 requireActivity().runOnUiThread(() -> {
                     hideLoading();
-                    Toast.makeText(requireContext(), "AI识图失败: " + error, Toast.LENGTH_SHORT).show();
+                    if (!isAdded()) return;
+                    Toast.makeText(requireContext(), "AI识图失败: " + error + "，图片已上传，可手动填写色号", Toast.LENGTH_LONG).show();
                 });
             }
         });

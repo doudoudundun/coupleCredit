@@ -2,12 +2,22 @@ const express = require("express");
 const https = require("https");
 const http = require("http");
 const { BEAD_COLORS } = require("../constants/beadColors");
+const sharp = require("sharp");
+const fs = require("fs");
+const path = require("path");
+
 const { ApiError } = require("../errors");
 const { cache, Keys, TTL } = require("../cache");
 const { trimValue, parseRequiredInteger, loadActiveRelationship } = require("../utils/queryHelpers");
 
 const BEAD_COLOR_CODES = new Set(BEAD_COLORS.map(color => color.colorCode));
 const DEFAULT_THRESHOLD = 200;
+const MAX_DOWNLOAD_BYTES = 10 * 1024 * 1024;
+
+const aiProviders = {
+  primary: buildAiProviderConfig("AI", "https://open.bigmodel.cn/api/paas/v4", "glm-4v-flash"),
+  fallback: buildAiProviderConfig("AI_FALLBACK", null, "gpt-5.5")
+};
 
 function resolveBeadThreshold(item, defaultThreshold) {
   return item.thresholdOverride === null || item.thresholdOverride === undefined
@@ -116,6 +126,7 @@ function mapBlueprintSummaryRow(row) {
 
 function createBeadRouter({ pool }) {
   const router = express.Router();
+  const initializedUsers = new Set();
 
   async function ensureBeadSettings(userId, defaultThreshold = DEFAULT_THRESHOLD) {
     await pool.execute(
@@ -133,6 +144,13 @@ function createBeadRouter({ pool }) {
        FROM bead_colors bc`,
       [userId]
     );
+    initializedUsers.add(userId);
+  }
+
+  async function ensureBeadData(userId) {
+    if (initializedUsers.has(userId)) return;
+    await ensureBeadSettings(userId);
+    await ensureBeadInventory(userId);
   }
 
   async function loadBeadScope(userId) {
@@ -143,8 +161,7 @@ function createBeadRouter({ pool }) {
   }
 
   async function loadInventoryRows(userId) {
-    await ensureBeadSettings(userId);
-    await ensureBeadInventory(userId);
+    await ensureBeadData(userId);
 
     const [rows] = await pool.execute(
       `SELECT bc.color_code, bc.hex_color, bc.color_group, bc.is_transparent,
@@ -273,8 +290,7 @@ function createBeadRouter({ pool }) {
       const updates = [];
       const params = [];
 
-      await ensureBeadSettings(userId);
-      await ensureBeadInventory(userId);
+      await ensureBeadData(userId);
 
       if (req.body.quantity !== undefined) {
         updates.push("quantity = ?");
@@ -310,8 +326,7 @@ function createBeadRouter({ pool }) {
       const colorCode = normalizeColorCode(req.params.colorCode);
       const consumeAmount = parsePositiveInteger(req.body.consumeAmount, "消耗数量");
 
-      await ensureBeadSettings(userId);
-      await ensureBeadInventory(userId);
+      await ensureBeadData(userId);
 
       const [updateResult] = await pool.execute(
         `UPDATE bead_inventory
@@ -344,8 +359,7 @@ function createBeadRouter({ pool }) {
       const colorCode = normalizeColorCode(req.params.colorCode);
       const addAmount = parsePositiveInteger(req.body.addAmount, "补货数量");
 
-      await ensureBeadSettings(userId);
-      await ensureBeadInventory(userId);
+      await ensureBeadData(userId);
 
       const [rows] = await pool.execute(
         `SELECT quantity FROM bead_inventory WHERE color_code = ? AND user_id = ? LIMIT 1`,
@@ -667,15 +681,29 @@ function createBeadRouter({ pool }) {
         throw new ApiError(400, "INVALID_REQUEST", "需要提供图片地址");
       }
 
-      const apiKey = process.env.AI_API_KEY;
-      const baseUrl = process.env.AI_BASE_URL || "https://open.bigmodel.cn/api/paas/v4";
-      const model = process.env.AI_MODEL || "glm-4v-flash";
+      const primaryProvider = aiProviders.primary;
+      const fallbackProvider = aiProviders.fallback;
 
-      if (!apiKey) {
+      if (!primaryProvider.apiKey) {
         throw new ApiError(503, "AI_NOT_CONFIGURED", "AI 服务未配置");
       }
 
-      const resolvedUrl = imageUrl.startsWith("/") ? `${process.env.HOST === "0.0.0.0" ? "http://127.0.0.1" : ""}:${process.env.PORT || 8080}${imageUrl}` : imageUrl;
+      const serverBaseUrl = process.env.PUBLIC_SERVER_URL || `${req.protocol}://${req.get("host")}`;
+      const resolvedUrl = imageUrl.startsWith("/") ? `${serverBaseUrl}${imageUrl}` : imageUrl;
+
+      let imageBase64;
+      try {
+        if (imageUrl.startsWith("/uploads/")) {
+          const localPath = path.join(__dirname, "../../uploads", path.basename(imageUrl));
+          const rawBuffer = await fs.promises.readFile(localPath);
+          imageBase64 = await compressToBase64(rawBuffer);
+        } else {
+          const rawBuffer = await downloadImageAsBuffer(resolvedUrl);
+          imageBase64 = await compressToBase64(rawBuffer);
+        }
+      } catch (readError) {
+        throw new ApiError(502, "IMAGE_READ_FAILED", `图片读取失败: ${readError.message}`);
+      }
 
       const prompt = `你是一个专业的拼豆（fuse bead / perler bead）图纸分析助手。你的任务是从用户提供的图片中提取出该图纸所需的每种颜色色号和对应的豆子数量。
 
@@ -720,21 +748,25 @@ M01 5
 UNABLE_TO_RECOGNIZE`;
 
       const aiPayload = {
-        model,
         messages: [
           {
             role: "user",
             content: [
               { type: "text", text: prompt },
-              { type: "image_url", image_url: { url: resolvedUrl } }
+              { type: "image_url", image_url: { url: imageBase64 } }
             ]
           }
         ],
         temperature: 0.1,
-        max_tokens: 1024
+        max_tokens: 4096,
+        stream: false
       };
 
-      const aiResult = await callAiApi(baseUrl, apiKey, aiPayload);
+      if (primaryProvider.model.includes("Kimi") || primaryProvider.model.includes("kimi")) {
+        aiPayload.thinking = { type: "disabled" };
+      }
+
+      const aiResult = await callAiWithFallback(aiPayload, primaryProvider, fallbackProvider);
       const rawText = (aiResult.choices && aiResult.choices[0] && aiResult.choices[0].message && aiResult.choices[0].message.content) || "";
 
       if (rawText.includes("UNABLE_TO_RECOGNIZE")) {
@@ -749,6 +781,79 @@ UNABLE_TO_RECOGNIZE`;
   });
 
   return router;
+}
+
+async function compressToBase64(buffer) {
+  const compressed = await sharp(buffer)
+    .rotate()
+    .resize(1024, 1024, { fit: "inside", withoutEnlargement: true })
+    .jpeg({ quality: 75, mozjpeg: true })
+    .toBuffer();
+  return `data:image/jpeg;base64,${compressed.toString("base64")}`;
+}
+
+function downloadImageAsBuffer(imageUrl) {
+  return new Promise((resolve, reject) => {
+    const url = new URL(imageUrl);
+    const isHttps = url.protocol === "https:";
+    const requester = isHttps ? https : http;
+    const options = {
+      hostname: url.hostname,
+      port: url.port || (isHttps ? 443 : 80),
+      path: url.pathname + url.search,
+      method: "GET",
+      timeout: 15000,
+      headers: { "User-Agent": "Mozilla/5.0 (compatible; ImageDownloader/1.0)" }
+    };
+    const req = requester.request(options, (res) => {
+      if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+        downloadImageAsBuffer(res.headers.location).then(resolve).catch(reject);
+        return;
+      }
+      if (res.statusCode >= 400) {
+        reject(new ApiError(502, "IMAGE_DOWNLOAD_ERROR", `无法下载图片，HTTP ${res.statusCode}`));
+        return;
+      }
+      const chunks = [];
+      let totalBytes = 0;
+      res.on("data", (chunk) => {
+        totalBytes += chunk.length;
+        if (totalBytes > MAX_DOWNLOAD_BYTES) {
+          req.destroy();
+          reject(new ApiError(413, "IMAGE_TOO_LARGE", "下载图片超过大小限制"));
+          return;
+        }
+        chunks.push(chunk);
+      });
+      res.on("end", () => resolve(Buffer.concat(chunks)));
+      res.on("error", reject);
+    });
+    req.on("error", (e) => reject(new ApiError(502, "IMAGE_DOWNLOAD_ERROR", `下载图片失败: ${e.message}`)));
+    req.on("timeout", () => { req.destroy(); reject(new ApiError(504, "IMAGE_DOWNLOAD_TIMEOUT", "下载图片超时")); });
+    req.end();
+  });
+}
+
+function buildAiProviderConfig(envPrefix, defaultBaseUrl, defaultModel) {
+  return {
+    apiKey: process.env[`${envPrefix}_API_KEY`],
+    baseUrl: process.env[`${envPrefix}_BASE_URL`] || defaultBaseUrl || null,
+    model: process.env[`${envPrefix}_MODEL`] || defaultModel
+  };
+}
+
+async function callAiWithFallback(payload, primaryProvider, fallbackProvider) {
+  const primaryPayload = { ...payload, model: primaryProvider.model };
+  try {
+    return await callAiApi(primaryProvider.baseUrl, primaryProvider.apiKey, primaryPayload);
+  } catch (primaryError) {
+    if (!fallbackProvider || !fallbackProvider.apiKey || !fallbackProvider.baseUrl) {
+      throw primaryError;
+    }
+    console.warn(`Primary AI recognition failed (${primaryError.message}), trying fallback provider`);
+    const fallbackPayload = { ...payload, model: fallbackProvider.model };
+    return callAiApi(fallbackProvider.baseUrl, fallbackProvider.apiKey, fallbackPayload);
+  }
 }
 
 function parseRecognizedColors(text) {
@@ -771,9 +876,16 @@ function parseRecognizedColors(text) {
   return results;
 }
 
+function resolveChatApiUrl(baseUrl) {
+  const trimmed = String(baseUrl || "").replace(/\/$/, "");
+  if (trimmed.endsWith("/chat/completions")) return trimmed;
+  if (trimmed.endsWith("/v1")) return `${trimmed}/chat/completions`;
+  return `${trimmed}/v1/chat/completions`;
+}
+
 function callAiApi(baseUrl, apiKey, payload) {
   return new Promise((resolve, reject) => {
-    const url = new URL(baseUrl + "/chat/completions");
+    const url = new URL(resolveChatApiUrl(baseUrl));
     const isHttps = url.protocol === "https:";
     const requester = isHttps ? https : http;
 
@@ -788,23 +900,34 @@ function callAiApi(baseUrl, apiKey, payload) {
         "Authorization": `Bearer ${apiKey}`,
         "Content-Length": Buffer.byteLength(body)
       },
-      timeout: 30000
+      timeout: 90000
     };
 
     const req = requester.request(options, (res) => {
       let data = "";
       res.on("data", (chunk) => { data += chunk; });
       res.on("end", () => {
+        if (res.statusCode >= 400) {
+          const preview = data.substring(0, 300).replace(/\s+/g, " ");
+          reject(new ApiError(502, "AI_API_ERROR", `AI API HTTP ${res.statusCode}: ${preview}`));
+          return;
+        }
         try {
           resolve(JSON.parse(data));
         } catch (e) {
-          reject(new Error(`AI API response parse error: ${data.substring(0, 200)}`));
+          const preview = data.substring(0, 200).replace(/\s+/g, " ");
+          reject(new ApiError(502, "AI_API_ERROR", `AI API response parse error: ${preview}`));
         }
       });
     });
 
-    req.on("error", reject);
-    req.on("timeout", () => { req.destroy(); reject(new Error("AI API request timeout")); });
+    req.on("error", (e) => {
+      reject(new ApiError(502, "AI_API_ERROR", `AI API request failed: ${e.message}`));
+    });
+    req.on("timeout", () => {
+      req.destroy();
+      reject(new ApiError(504, "AI_API_TIMEOUT", "AI API request timeout"));
+    });
     req.write(body);
     req.end();
   });

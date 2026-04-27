@@ -19,6 +19,7 @@ import com.bumptech.glide.Glide;
 import com.example.couplecredit.R;
 import com.example.couplecredit.adapter.BeadBlueprintColorAdapter;
 import com.example.couplecredit.api.AuthApiModels;
+import com.example.couplecredit.config.ApiConfigManager;
 import com.example.couplecredit.utils.BeadUtils;
 import com.example.couplecredit.viewmodel.BeadInventoryViewModel;
 
@@ -108,8 +109,11 @@ public class BeadBlueprintDetailFragment extends Fragment {
     private boolean bindFromViewModel() {
         for (BeadInventoryViewModel.BeadBlueprintItem item : viewModel.getBlueprintList()) {
             if (item.blueprintId == blueprintId) {
-                bindItem(item);
-                return true;
+                if (!item.colors.isEmpty()) {
+                    bindItem(item);
+                    return true;
+                }
+                break;
             }
         }
         return false;
@@ -140,7 +144,7 @@ public class BeadBlueprintDetailFragment extends Fragment {
         tvBuilds.setText(String.format(Locale.getDefault(), "已制作 %d 次", item.buildCount));
         if (item.imageUrl != null && !item.imageUrl.isEmpty() && ivImage != null) {
             ivImage.setVisibility(View.VISIBLE);
-            Glide.with(requireContext()).load(item.imageUrl).centerCrop().into(ivImage);
+            Glide.with(requireContext()).load(ApiConfigManager.resolveResourceUrl(requireContext(), item.imageUrl)).centerCrop().into(ivImage);
         } else if (ivImage != null) {
             ivImage.setVisibility(View.GONE);
         }

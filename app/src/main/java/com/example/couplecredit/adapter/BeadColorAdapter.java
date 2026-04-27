@@ -8,6 +8,7 @@ import android.view.ViewGroup;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
+import androidx.recyclerview.widget.DiffUtil;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.example.couplecredit.R;
@@ -17,6 +18,7 @@ import com.example.couplecredit.viewmodel.BeadInventoryViewModel;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 
 public class BeadColorAdapter extends RecyclerView.Adapter<BeadColorAdapter.ViewHolder> {
 
@@ -38,6 +40,20 @@ public class BeadColorAdapter extends RecyclerView.Adapter<BeadColorAdapter.View
         public int getEffectiveThreshold() {
             return thresholdOverride != null ? thresholdOverride : defaultThreshold;
         }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (!(o instanceof BeadColorDisplayItem)) return false;
+            BeadColorDisplayItem that = (BeadColorDisplayItem) o;
+            return quantity == that.quantity && isLowStock == that.isLowStock
+                    && Objects.equals(colorCode, that.colorCode) && Objects.equals(hexColor, that.hexColor);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(colorCode, hexColor, quantity, isLowStock);
+        }
     }
 
     private final List<BeadColorDisplayItem> items = new ArrayList<>();
@@ -48,11 +64,21 @@ public class BeadColorAdapter extends RecyclerView.Adapter<BeadColorAdapter.View
     }
 
     public void submitList(List<BeadColorDisplayItem> newItems) {
+        if (newItems == null) newItems = new ArrayList<>();
+        List<BeadColorDisplayItem> finalNewItems = newItems;
+        DiffUtil.DiffResult result = DiffUtil.calculateDiff(new DiffUtil.Callback() {
+            @Override public int getOldListSize() { return items.size(); }
+            @Override public int getNewListSize() { return finalNewItems.size(); }
+            @Override public boolean areItemsTheSame(int oldPos, int newPos) {
+                return Objects.equals(items.get(oldPos).colorCode, finalNewItems.get(newPos).colorCode);
+            }
+            @Override public boolean areContentsTheSame(int oldPos, int newPos) {
+                return items.get(oldPos).equals(finalNewItems.get(newPos));
+            }
+        });
         items.clear();
-        if (newItems != null) {
-            items.addAll(newItems);
-        }
-        notifyDataSetChanged();
+        items.addAll(newItems);
+        result.dispatchUpdatesTo(this);
     }
 
     public static List<BeadColorDisplayItem> buildDisplayItems(List<BeadInventoryViewModel.BeadInventoryItem> inventoryItems,
@@ -81,8 +107,14 @@ public class BeadColorAdapter extends RecyclerView.Adapter<BeadColorAdapter.View
             if (colorGroup != null && !colorGroup.equals(source.colorGroup)) {
                 continue;
             }
+            if (!normalizedQuery.isEmpty() && !source.colorCode.toUpperCase(Locale.ROOT).contains(normalizedQuery)) {
+                continue;
+            }
+            if (lowStockOnly && !source.isLowStock()) {
+                continue;
+            }
             BeadColorDisplayItem item = new BeadColorDisplayItem();
-            item.colorCode = source.colorCode.trim().toUpperCase(Locale.ROOT);
+            item.colorCode = source.colorCode.toUpperCase(Locale.ROOT);
             item.hexColor = source.hexColor;
             item.colorGroup = source.colorGroup;
             item.quantity = source.quantity;
@@ -91,13 +123,6 @@ public class BeadColorAdapter extends RecyclerView.Adapter<BeadColorAdapter.View
             item.totalConsumed = source.totalConsumed;
             item.isTransparent = source.isTransparent;
             item.isLowStock = source.isLowStock();
-
-            if (!normalizedQuery.isEmpty() && !item.colorCode.contains(normalizedQuery)) {
-                continue;
-            }
-            if (lowStockOnly && !item.isLowStock) {
-                continue;
-            }
             result.add(item);
         }
         return result;
@@ -117,11 +142,14 @@ public class BeadColorAdapter extends RecyclerView.Adapter<BeadColorAdapter.View
         holder.tvQuantity.setText(String.valueOf(item.quantity));
         holder.tvLowStock.setVisibility(item.isLowStock ? View.VISIBLE : View.GONE);
 
-        GradientDrawable swatch = new GradientDrawable();
-        swatch.setShape(GradientDrawable.OVAL);
+        GradientDrawable swatch = (GradientDrawable) holder.viewSwatch.getBackground();
+        if (swatch == null) {
+            swatch = new GradientDrawable();
+            swatch.setShape(GradientDrawable.OVAL);
+            swatch.setStroke(1, Color.parseColor("#D1D5DB"));
+            holder.viewSwatch.setBackground(swatch);
+        }
         swatch.setColor(BeadUtils.parseColorSafely(item.hexColor));
-        swatch.setStroke(1, Color.parseColor("#D1D5DB"));
-        holder.viewSwatch.setBackground(swatch);
 
         holder.itemView.setOnClickListener(v -> {
             if (listener != null) {
@@ -139,7 +167,6 @@ public class BeadColorAdapter extends RecyclerView.Adapter<BeadColorAdapter.View
         View viewSwatch;
         TextView tvCode;
         TextView tvQuantity;
-        TextView tvThreshold;
         TextView tvLowStock;
 
         ViewHolder(@NonNull View itemView) {
@@ -147,7 +174,6 @@ public class BeadColorAdapter extends RecyclerView.Adapter<BeadColorAdapter.View
             viewSwatch = itemView.findViewById(R.id.view_bead_swatch);
             tvCode = itemView.findViewById(R.id.tv_bead_color_code);
             tvQuantity = itemView.findViewById(R.id.tv_bead_quantity);
-            tvThreshold = itemView.findViewById(R.id.tv_bead_threshold);
             tvLowStock = itemView.findViewById(R.id.tv_bead_low_stock);
         }
     }

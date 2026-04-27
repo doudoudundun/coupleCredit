@@ -30,6 +30,7 @@ import com.example.couplecredit.R;
 import com.example.couplecredit.adapter.BeadBulkReplenishAdapter;
 import com.example.couplecredit.adapter.BeadColorAdapter;
 import com.example.couplecredit.utils.BeadUtils;
+import com.example.couplecredit.utils.DialogHelper;
 import com.example.couplecredit.utils.UserInfoManager;
 import com.example.couplecredit.viewmodel.BeadInventoryViewModel;
 
@@ -193,7 +194,7 @@ public class BeadInventoryFragment extends Fragment {
 
     private void showQuantityDialog(BeadColorAdapter.BeadColorDisplayItem item) {
         View content = LayoutInflater.from(requireContext()).inflate(R.layout.dialog_bead_quantity, null);
-        AlertDialog dialog = new AlertDialog.Builder(requireContext()).setView(content).create();
+        AlertDialog dialog = new AlertDialog.Builder(requireContext(), R.style.CustomDialogStyle).setView(content).create();
         TextView title = content.findViewById(R.id.tv_bead_dialog_title);
         EditText etQuantity = content.findViewById(R.id.et_bead_quantity);
         EditText etThreshold = content.findViewById(R.id.et_bead_threshold);
@@ -228,17 +229,18 @@ public class BeadInventoryFragment extends Fragment {
                 }
             });
         });
-        dialog.show();
+        DialogHelper.showWide(dialog, requireContext());
     }
 
     // --- Bulk Replenish ---
 
     private void showBulkReplenishDialog() {
         View content = LayoutInflater.from(requireContext()).inflate(R.layout.dialog_bead_bulk_replenish, null);
-        AlertDialog dialog = new AlertDialog.Builder(requireContext()).setView(content).create();
+        AlertDialog dialog = new AlertDialog.Builder(requireContext(), R.style.CustomDialogStyle).setView(content).create();
 
         LinearLayout chipContainer = content.findViewById(R.id.ll_bulk_group_chips);
         TextView tvSummary = content.findViewById(R.id.tv_bulk_summary);
+        EditText etQuantity = content.findViewById(R.id.et_bulk_quantity);
         TextView tvProgress = content.findViewById(R.id.tv_bulk_progress);
         RecyclerView rvColors = content.findViewById(R.id.rv_bulk_colors);
         rvColors.setLayoutManager(new GridLayoutManager(requireContext(), 3));
@@ -257,16 +259,30 @@ public class BeadInventoryFragment extends Fragment {
 
         content.findViewById(R.id.btn_bulk_cancel).setOnClickListener(v -> dialog.dismiss());
         content.findViewById(R.id.btn_bulk_replenish).setOnClickListener(v -> {
-            List<BeadBulkReplenishAdapter.ReplenishEntry> entries = bulkAdapter.getSelectedItems();
-            if (entries.isEmpty()) {
+            List<String> codeList = bulkAdapter.getSelectedCodesInDisplayOrder();
+            if (codeList.isEmpty()) {
                 Toast.makeText(requireContext(), "请至少选择一种颜色", Toast.LENGTH_SHORT).show();
                 return;
             }
+            String qtyText = etQuantity.getText().toString().trim();
+            if (TextUtils.isEmpty(qtyText)) {
+                Toast.makeText(requireContext(), "请输入补货数量", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            int amount;
+            try {
+                amount = Integer.parseInt(qtyText);
+                if (amount <= 0) throw new NumberFormatException();
+            } catch (NumberFormatException e) {
+                Toast.makeText(requireContext(), "数量必须为正整数", Toast.LENGTH_SHORT).show();
+                return;
+            }
+
             content.findViewById(R.id.btn_bulk_replenish).setEnabled(false);
-            executeBulkReplenish(entries, 0, dialog, bulkAdapter, tvProgress, content.findViewById(R.id.btn_bulk_replenish));
+            executeBulkReplenish(codeList, amount, 0, bulkAdapter, tvProgress, content.findViewById(R.id.btn_bulk_replenish));
         });
 
-        dialog.show();
+        DialogHelper.showWide(dialog, requireContext());
     }
 
     private void buildDialogGroupChips(LinearLayout container, OnGroupSelectedListener listener) {
@@ -329,12 +345,12 @@ public class BeadInventoryFragment extends Fragment {
         return filtered;
     }
 
-    private void executeBulkReplenish(List<BeadBulkReplenishAdapter.ReplenishEntry> entries, int index,
-                                      AlertDialog dialog, BeadBulkReplenishAdapter adapter,
+    private void executeBulkReplenish(List<String> codes, int amount, int index,
+                                      BeadBulkReplenishAdapter adapter,
                                       TextView tvProgress, View btnReplenish) {
-        if (index >= entries.size()) {
+        if (index >= codes.size()) {
             Toast.makeText(requireContext(),
-                    String.format(Locale.getDefault(), "补货完成，共 %d 种颜色", entries.size()),
+                    String.format(Locale.getDefault(), "补货完成，共 %d 种颜色", codes.size()),
                     Toast.LENGTH_SHORT).show();
             viewModel.loadInventory();
             adapter.clearSelections();
@@ -343,17 +359,17 @@ public class BeadInventoryFragment extends Fragment {
             return;
         }
         tvProgress.setVisibility(View.VISIBLE);
-        tvProgress.setText(String.format(Locale.getDefault(), "正在补货 %d/%d...", index + 1, entries.size()));
+        tvProgress.setText(String.format(Locale.getDefault(), "正在补货 %d/%d...", index + 1, codes.size()));
 
-        BeadBulkReplenishAdapter.ReplenishEntry entry = entries.get(index);
-        BeadUtils.replenishInventory(requireContext(), entry.colorCode, entry.amount,
+        String code = codes.get(index);
+        BeadUtils.replenishInventory(requireContext(), code, amount,
                 new BeadUtils.BeadMutationCallback() {
                     @Override public void onSuccess() {
-                        executeBulkReplenish(entries, index + 1, dialog, adapter, tvProgress, btnReplenish);
+                        executeBulkReplenish(codes, amount, index + 1, adapter, tvProgress, btnReplenish);
                     }
                     @Override public void onError(String error) {
-                        Toast.makeText(requireContext(), entry.colorCode + " 补货失败：" + error, Toast.LENGTH_SHORT).show();
-                        executeBulkReplenish(entries, index + 1, dialog, adapter, tvProgress, btnReplenish);
+                        Toast.makeText(requireContext(), code + " 补货失败：" + error, Toast.LENGTH_SHORT).show();
+                        executeBulkReplenish(codes, amount, index + 1, adapter, tvProgress, btnReplenish);
                     }
                 });
     }

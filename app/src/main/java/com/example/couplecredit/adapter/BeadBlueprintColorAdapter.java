@@ -45,11 +45,14 @@ public class BeadBlueprintColorAdapter extends RecyclerView.Adapter<BeadBlueprin
         holder.tvTotal.setText(String.format(Locale.getDefault(), "累计 %d 颗", item.totalConsumed));
         holder.tvTransparent.setVisibility(item.isTransparent ? View.VISIBLE : View.GONE);
 
-        GradientDrawable swatch = new GradientDrawable();
-        swatch.setShape(GradientDrawable.OVAL);
+        GradientDrawable swatch = (GradientDrawable) holder.viewSwatch.getBackground();
+        if (swatch == null) {
+            swatch = new GradientDrawable();
+            swatch.setShape(GradientDrawable.OVAL);
+            swatch.setStroke(1, Color.parseColor("#D1D5DB"));
+            holder.viewSwatch.setBackground(swatch);
+        }
         swatch.setColor(BeadUtils.parseColorSafely(item.hexColor));
-        swatch.setStroke(1, Color.parseColor("#D1D5DB"));
-        holder.viewSwatch.setBackground(swatch);
     }
 
     @Override

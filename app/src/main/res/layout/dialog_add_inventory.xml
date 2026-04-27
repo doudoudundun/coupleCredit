@@ -41,6 +41,30 @@
                 android:scaleType="centerCrop"
                 android:src="@drawable/ic_add_image_placeholder" />
 
+            <LinearLayout
+                android:id="@+id/layout_image_loading"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="#80000000"
+                android:gravity="center"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <ProgressBar
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:indeterminateTint="@android:color/white" />
+
+                <TextView
+                    android:id="@+id/tv_image_loading_hint"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:text="生成中..."
+                    android:textColor="@android:color/white"
+                    android:textSize="10sp" />
+            </LinearLayout>
+
             <TextView
                 android:id="@+id/tv_image_overlay"
                 android:layout_width="match_parent"
@@ -76,21 +100,36 @@
                 android:textColor="#07C160"
                 android:textSize="13sp" />
 
-            <TextView
-                android:id="@+id/tv_ai_generate"
+            <LinearLayout
+                android:id="@+id/btn_ai_generate"
                 android:layout_width="0dp"
                 android:layout_height="36dp"
                 android:layout_marginStart="6dp"
                 android:layout_weight="1"
                 android:background="@drawable/category_tag_background"
-                android:ellipsize="middle"
                 android:gravity="center"
-                android:maxLines="1"
+                android:orientation="horizontal"
                 android:paddingStart="8dp"
-                android:paddingEnd="8dp"
-                android:text="✨ AI生成"
-                android:textColor="#6B7280"
-                android:textSize="13sp" />
+                android:paddingEnd="8dp">
+
+                <ProgressBar
+                    android:id="@+id/pb_ai_generating"
+                    android:layout_width="16dp"
+                    android:layout_height="16dp"
+                    android:layout_marginEnd="4dp"
+                    android:visibility="gone" />
+
+                <TextView
+                    android:id="@+id/tv_ai_generate"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:ellipsize="middle"
+                    android:gravity="center"
+                    android:maxLines="1"
+                    android:text="✨ AI生成"
+                    android:textColor="#6B7280"
+                    android:textSize="13sp" />
+            </LinearLayout>
         </LinearLayout>
 
         <EditText
