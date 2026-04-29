@@ -101,7 +101,13 @@ public class BillAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         }
 
         if (currentRelationshipId == null) {
-            // 无情侣关系，显示"自己"
+            String text = "自己";
+            if (isHelp) text += "（帮）";
+            tvOwner.setText(text);
+            return;
+        }
+
+        if (currentUserRole != 1 && currentUserRole != 2) {
             String text = "自己";
             if (isHelp) text += "（帮）";
             tvOwner.setText(text);

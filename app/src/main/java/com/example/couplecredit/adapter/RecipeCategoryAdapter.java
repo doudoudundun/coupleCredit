@@ -24,6 +24,8 @@ public class RecipeCategoryAdapter extends RecyclerView.Adapter<RecipeCategoryAd
 
     public interface CategoryListener {
         void onCategoryClick(int categoryId);
+        void onCategoryLongClick(int position, AuthApiModels.RecipeCategoryData item);
+        void onCategoryDeleteClick(int position, AuthApiModels.RecipeCategoryData item);
         void onCategoryDragStart(RecyclerView.ViewHolder holder);
         void onCategoryOrderChanged(List<AuthApiModels.RecipeCategoryData> orderedItems);
     }
@@ -32,9 +34,20 @@ public class RecipeCategoryAdapter extends RecyclerView.Adapter<RecipeCategoryAd
     private final CategoryListener listener;
     private int selectedPosition = 0;
     private final Map<Integer, Integer> cartCountByCategory = new HashMap<>();
+    private boolean isEditMode = false;
 
     public RecipeCategoryAdapter(CategoryListener listener) {
         this.listener = listener;
+    }
+
+    public void setEditMode(boolean editMode) {
+        if (this.isEditMode == editMode) return;
+        this.isEditMode = editMode;
+        notifyDataSetChanged();
+    }
+
+    public boolean isEditMode() {
+        return isEditMode;
     }
 
     public void updateData(List<AuthApiModels.RecipeCategoryData> newItems) {
@@ -125,13 +138,40 @@ public class RecipeCategoryAdapter extends RecyclerView.Adapter<RecipeCategoryAd
             categoryId = 0;
             holder.itemView.setOnLongClickListener(null);
             holder.itemView.setOnTouchListener(null);
+            holder.btnDeleteCategory.setVisibility(View.GONE);
         } else {
-            AuthApiModels.RecipeCategoryData item = items.get(position - 1);
-            holder.tvName.setText(item.name);
-            categoryId = item.categoryId;
+            final AuthApiModels.RecipeCategoryData catItem = items.get(position - 1);
+            holder.tvName.setText(catItem.name);
+            categoryId = catItem.categoryId;
+
             holder.itemView.setOnLongClickListener(v -> {
-                if (listener != null) listener.onCategoryDragStart(holder);
+                if (listener != null) listener.onCategoryLongClick(position, catItem);
                 return true;
+            });
+
+            if (isEditMode) {
+                holder.btnDeleteCategory.setVisibility(View.VISIBLE);
+                holder.tvCartBadge.setVisibility(View.GONE);
+                holder.itemView.setOnTouchListener((v, event) -> {
+                    if (event.getActionMasked() == MotionEvent.ACTION_DOWN && listener != null) {
+                        listener.onCategoryDragStart(holder);
+                    }
+                    return false;
+                });
+            } else {
+                holder.itemView.setOnTouchListener(null);
+                holder.btnDeleteCategory.setVisibility(View.GONE);
+                int count = cartCountByCategory.getOrDefault(categoryId, 0);
+                if (count > 0) {
+                    holder.tvCartBadge.setVisibility(View.VISIBLE);
+                    holder.tvCartBadge.setText(count > 99 ? "99" : String.valueOf(count));
+                } else {
+                    holder.tvCartBadge.setVisibility(View.GONE);
+                }
+            }
+
+            holder.btnDeleteCategory.setOnClickListener(v -> {
+                if (listener != null) listener.onCategoryDeleteClick(position, catItem);
             });
         }
 
@@ -139,23 +179,20 @@ public class RecipeCategoryAdapter extends RecyclerView.Adapter<RecipeCategoryAd
         holder.tvName.setTextSize(isSelected ? 14 : 13);
         holder.vIndicator.setVisibility(isSelected ? View.VISIBLE : View.GONE);
 
-        int count;
-        if (position == 0) {
+        // "全部"标签的购物车角标
+        if (position == 0 && !isEditMode) {
             int total = 0;
             for (int c : cartCountByCategory.values()) total += c;
-            count = total;
-        } else {
-            count = cartCountByCategory.getOrDefault(categoryId, 0);
-        }
-
-        if (count > 0) {
-            holder.tvCartBadge.setVisibility(View.VISIBLE);
-            holder.tvCartBadge.setText(count > 99 ? "99" : String.valueOf(count));
-        } else {
-            holder.tvCartBadge.setVisibility(View.GONE);
+            if (total > 0) {
+                holder.tvCartBadge.setVisibility(View.VISIBLE);
+                holder.tvCartBadge.setText(total > 99 ? "99" : String.valueOf(total));
+            } else {
+                holder.tvCartBadge.setVisibility(View.GONE);
+            }
         }
 
         holder.itemView.setOnClickListener(v -> {
+            if (isEditMode) return;
             int prev = selectedPosition;
             selectedPosition = holder.getAdapterPosition();
             if (prev != selectedPosition) {
@@ -170,12 +207,14 @@ public class RecipeCategoryAdapter extends RecyclerView.Adapter<RecipeCategoryAd
         TextView tvName;
         View vIndicator;
         TextView tvCartBadge;
+        TextView btnDeleteCategory;
 
         ViewHolder(View itemView) {
             super(itemView);
             tvName = itemView.findViewById(R.id.tv_category_name);
             vIndicator = itemView.findViewById(R.id.v_indicator);
             tvCartBadge = itemView.findViewById(R.id.tv_cart_badge);
+            btnDeleteCategory = itemView.findViewById(R.id.btn_delete_category);
         }
     }
 }

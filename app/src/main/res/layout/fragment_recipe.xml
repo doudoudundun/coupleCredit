@@ -143,6 +143,18 @@
                     android:layout_weight="1" />
 
                 <TextView
+                    android:id="@+id/btn_done_edit"
+                    android:layout_width="match_parent"
+                    android:layout_height="36dp"
+                    android:background="#FFF0F0"
+                    android:gravity="center"
+                    android:text="完成"
+                    android:textColor="#FF4444"
+                    android:textSize="13sp"
+                    android:textStyle="bold"
+                    android:visibility="gone" />
+
+                <TextView
                     android:id="@+id/btn_add_category"
                     android:layout_width="match_parent"
                     android:layout_height="44dp"

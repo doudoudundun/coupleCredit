@@ -114,6 +114,7 @@ public class AuthApiModels {
         public int blueprintId;
         public int userId;
         public Integer relationshipId;
+        public boolean isPartner;
         public String name;
         public String imageUrl;
         public int buildCount;

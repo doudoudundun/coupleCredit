@@ -160,31 +160,30 @@ function createBillsRouter({ pool }) {
       const cached = cache.get(Keys.bills(userId, year, month));
       if (cached) return res.json(cached);
 
-      const datePattern = `${year}-${String(month).padStart(2, '0')}-%`;
+      const monthStr = String(month).padStart(2, '0');
+      const dateStart = `${year}-${monthStr}-01`;
+      const dateEnd = month === 12 ? `${Number(year) + 1}-01-01` : `${year}-${String(Number(month) + 1).padStart(2, '0')}-01`;
 
       // 获取情侣关系
       const relationship = await loadActiveRelationship(pool, userId);
       const relationshipId = relationship ? relationship.relationship_id : null;
 
-      // 查询账单 - 使用正确的字段名
       let query;
       let params;
 
       if (relationshipId) {
-        // 有情侣关系：查询自己和对方的账单
         query = `SELECT bill_id as billId, user_id as userId, shared_plan_id as sharedPlanId, title, type, amount, DATE_FORMAT(date, '%Y-%m-%d') as date, time, income_type as incomeType, owner, is_help as isHelp, relationship_id as relationshipId
                  FROM bills
                  WHERE (user_id = ? OR relationship_id = ?)
-                 AND date LIKE ?
+                 AND date >= ? AND date < ?
                  ORDER BY date DESC, bill_id DESC`;
-        params = [userId, relationshipId, datePattern];
+        params = [userId, relationshipId, dateStart, dateEnd];
       } else {
-        // 无情侣关系：只查询自己的账单
         query = `SELECT bill_id as billId, user_id as userId, shared_plan_id as sharedPlanId, title, type, amount, DATE_FORMAT(date, '%Y-%m-%d') as date, time, income_type as incomeType, owner, is_help as isHelp, relationship_id as relationshipId
                  FROM bills
-                 WHERE user_id = ? AND date LIKE ?
+                 WHERE user_id = ? AND date >= ? AND date < ?
                  ORDER BY date DESC, bill_id DESC`;
-        params = [userId, datePattern];
+        params = [userId, dateStart, dateEnd];
       }
 
       const [rows] = await pool.execute(query, params);

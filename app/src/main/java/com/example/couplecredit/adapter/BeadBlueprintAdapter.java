@@ -1,5 +1,9 @@
 package com.example.couplecredit.adapter;
 
+import android.text.SpannableStringBuilder;
+import android.text.Spanned;
+import android.text.style.ForegroundColorSpan;
+import android.text.style.RelativeSizeSpan;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -7,6 +11,7 @@ import android.widget.ImageView;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
+import androidx.core.content.ContextCompat;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.bumptech.glide.Glide;
@@ -49,7 +54,17 @@ public class BeadBlueprintAdapter extends RecyclerView.Adapter<BeadBlueprintAdap
     @Override
     public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
         BeadInventoryViewModel.BeadBlueprintItem item = items.get(position);
-        holder.tvName.setText(item.name == null || item.name.trim().isEmpty() ? "未命名图纸" : item.name);
+        String name = item.name == null || item.name.trim().isEmpty() ? "未命名图纸" : item.name;
+        if (item.isPartner) {
+            SpannableStringBuilder label = new SpannableStringBuilder(name).append("  来自TA");
+            int start = label.length() - 4;
+            int end = label.length();
+            label.setSpan(new ForegroundColorSpan(ContextCompat.getColor(holder.itemView.getContext(), R.color.text_secondary)), start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            label.setSpan(new RelativeSizeSpan(0.78f), start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            holder.tvName.setText(label);
+        } else {
+            holder.tvName.setText(name);
+        }
         holder.tvMeta.setText(String.format(Locale.getDefault(), "%d 色 · 每次 %d 颗", value(item.colorCount), value(item.totalBeadsPerBuild)));
         holder.tvBuildCount.setText(String.format(Locale.getDefault(), "已制作 %d 次", item.buildCount));
         if (item.imageUrl != null && !item.imageUrl.isEmpty()) {

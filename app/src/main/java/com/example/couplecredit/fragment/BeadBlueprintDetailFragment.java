@@ -1,9 +1,11 @@
 package com.example.couplecredit.fragment;
 
+import android.app.AlertDialog;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -21,6 +23,7 @@ import com.example.couplecredit.adapter.BeadBlueprintColorAdapter;
 import com.example.couplecredit.api.AuthApiModels;
 import com.example.couplecredit.config.ApiConfigManager;
 import com.example.couplecredit.utils.BeadUtils;
+import com.example.couplecredit.utils.DialogHelper;
 import com.example.couplecredit.viewmodel.BeadInventoryViewModel;
 
 import java.util.ArrayList;
@@ -87,6 +90,8 @@ public class BeadBlueprintDetailFragment extends Fragment {
 
         view.findViewById(R.id.btn_blueprint_detail_back).setOnClickListener(v -> requireActivity().getSupportFragmentManager().popBackStack());
         view.findViewById(R.id.btn_build_blueprint).setOnClickListener(v -> buildOnce());
+        view.findViewById(R.id.btn_blueprint_edit).setOnClickListener(v -> showEditDialog());
+        view.findViewById(R.id.btn_blueprint_delete).setOnClickListener(v -> showDeleteConfirmDialog());
 
         if (!bindFromViewModel()) {
             loadDetail();
@@ -164,6 +169,112 @@ public class BeadBlueprintDetailFragment extends Fragment {
                 Toast.makeText(requireContext(), error, Toast.LENGTH_SHORT).show();
             }
         });
+    }
+
+    private void showEditDialog() {
+        if (currentItem == null || !isAdded()) return;
+
+        View dialogView = LayoutInflater.from(requireContext()).inflate(R.layout.dialog_bead_blueprint_editor, null);
+        AlertDialog dialog = new AlertDialog.Builder(requireContext(), R.style.CustomDialogStyle)
+                .setView(dialogView).create();
+
+        TextView tvDialogTitle = dialogView.findViewById(R.id.tv_dialog_title);
+        if (tvDialogTitle != null) tvDialogTitle.setText("编辑图纸");
+
+        EditText etName = dialogView.findViewById(R.id.et_blueprint_name);
+        EditText etColors = dialogView.findViewById(R.id.et_blueprint_colors);
+
+        etName.setText(currentItem.name);
+        StringBuilder colorText = new StringBuilder();
+        for (BeadInventoryViewModel.BeadBlueprintColor color : currentItem.colors) {
+            colorText.append(color.colorCode).append(" ").append(color.quantityPerBuild).append("\n");
+        }
+        if (colorText.length() > 0) colorText.setLength(colorText.length() - 1);
+        etColors.setText(colorText.toString());
+
+        dialogView.findViewById(R.id.btn_select_image).setVisibility(View.GONE);
+        dialogView.findViewById(R.id.ll_loading).setVisibility(View.GONE);
+        dialogView.findViewById(R.id.iv_blueprint_preview).setVisibility(View.GONE);
+
+        dialogView.findViewById(R.id.btn_blueprint_dialog_cancel).setOnClickListener(v -> dialog.dismiss());
+        dialogView.findViewById(R.id.btn_blueprint_dialog_save).setOnClickListener(v -> {
+            String name = etName.getText().toString().trim();
+            if (name.isEmpty()) {
+                Toast.makeText(requireContext(), "请输入图纸名称", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            String rawColors = etColors.getText().toString().trim();
+            List<AuthApiModels.BeadBlueprintColorRequest> colorRequests = parseColorRequests(rawColors);
+            if (colorRequests.isEmpty()) {
+                Toast.makeText(requireContext(), "请输入至少一种颜色", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            dialog.dismiss();
+            BeadUtils.updateBlueprint(requireContext(), blueprintId, name, currentItem.imageUrl, colorRequests,
+                    new BeadUtils.BeadMutationCallback() {
+                        @Override public void onSuccess() {
+                            if (!isAdded()) return;
+                            Toast.makeText(requireContext(), "图纸已更新", Toast.LENGTH_SHORT).show();
+                            viewModel.loadBlueprints();
+                            loadDetail();
+                        }
+                        @Override public void onError(String error) {
+                            if (!isAdded()) return;
+                            Toast.makeText(requireContext(), error, Toast.LENGTH_SHORT).show();
+                        }
+                    });
+        });
+
+        DialogHelper.showWide(dialog, requireContext());
+    }
+
+    private List<AuthApiModels.BeadBlueprintColorRequest> parseColorRequests(String raw) {
+        List<AuthApiModels.BeadBlueprintColorRequest> result = new ArrayList<>();
+        if (raw == null || raw.trim().isEmpty()) return result;
+        String[] lines = raw.split("\\n");
+        for (String line : lines) {
+            String trimmed = line.trim();
+            if (trimmed.isEmpty()) continue;
+            String[] parts = trimmed.split("[\\s,，:：]+", 2);
+            if (parts.length >= 2) {
+                try {
+                    int qty = Integer.parseInt(parts[1].trim());
+                    result.add(new AuthApiModels.BeadBlueprintColorRequest(parts[0].trim().toUpperCase(), qty));
+                } catch (NumberFormatException ignored) {
+                }
+            }
+        }
+        return result;
+    }
+
+    private void showDeleteConfirmDialog() {
+        if (currentItem == null || !isAdded()) return;
+
+        View dialogView = LayoutInflater.from(requireContext()).inflate(R.layout.dialog_confirm_delete, null);
+        AlertDialog dialog = new AlertDialog.Builder(requireContext(), R.style.CustomDialogStyle)
+                .setView(dialogView).create();
+
+        TextView tvMessage = dialogView.findViewById(R.id.tv_confirm_message);
+        tvMessage.setText("确定删除\"" + currentItem.name + "\"吗？此操作不可撤销。");
+
+        dialogView.findViewById(R.id.btn_confirm_cancel).setOnClickListener(v -> dialog.dismiss());
+        dialogView.findViewById(R.id.btn_confirm_delete).setOnClickListener(v -> {
+            dialog.dismiss();
+            BeadUtils.deleteBlueprint(requireContext(), blueprintId, new BeadUtils.BeadMutationCallback() {
+                @Override public void onSuccess() {
+                    if (!isAdded()) return;
+                    Toast.makeText(requireContext(), "图纸已删除", Toast.LENGTH_SHORT).show();
+                    viewModel.loadBlueprints();
+                    requireActivity().getSupportFragmentManager().popBackStack();
+                }
+                @Override public void onError(String error) {
+                    if (!isAdded()) return;
+                    Toast.makeText(requireContext(), error, Toast.LENGTH_SHORT).show();
+                }
+            });
+        });
+
+        DialogHelper.showWide(dialog, requireContext());
     }
 
     private List<BlueprintColorDisplayItem> toDisplayColors(BeadInventoryViewModel.BeadBlueprintItem item) {

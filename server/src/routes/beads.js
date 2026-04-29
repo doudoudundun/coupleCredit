@@ -199,6 +199,32 @@ function createBeadRouter({ pool }) {
     return rows[0] || null;
   }
 
+  async function loadBlueprintForCouple(blueprintId, userId) {
+    const relationship = await loadActiveRelationship(pool, userId);
+    if (!relationship) {
+      return loadBlueprintForUser(blueprintId, userId);
+    }
+    const partnerId = relationship.user_id_1 === userId ? relationship.user_id_2 : relationship.user_id_1;
+    const [rows] = await pool.execute(
+      `SELECT blueprint_id, user_id, relationship_id, name, image_url, build_count, created_at, updated_at
+       FROM bead_blueprints
+       WHERE blueprint_id = ? AND user_id IN (?, ?)
+       LIMIT 1`,
+      [blueprintId, userId, partnerId]
+    );
+    return rows[0] || null;
+  }
+
+  async function invalidateBeadCacheForCouple(userId) {
+    invalidateBeadCache(userId);
+    const relationship = await loadActiveRelationship(pool, userId);
+    if (relationship) {
+      const partnerId = relationship.user_id_1 === userId ? relationship.user_id_2 : relationship.user_id_1;
+      cache.del(Keys.beads(partnerId));
+      cache.del(Keys.beadBlueprints(partnerId));
+    }
+  }
+
   async function insertBlueprintColors(executor, blueprintId, colors) {
     if (!colors.length) {
       return;
@@ -432,22 +458,34 @@ function createBeadRouter({ pool }) {
         return res.json(cached);
       }
 
+      // 查找情侣关系，获取对方的userId
+      const relationship = await loadActiveRelationship(pool, userId);
+      let partnerId = null;
+      if (relationship) {
+        partnerId = relationship.user_id_1 === userId ? relationship.user_id_2 : relationship.user_id_1;
+      }
+
+      // 查询自己的图纸 + 情侣的图纸
+      const queryParams = partnerId ? [userId, partnerId] : [userId];
       const [rows] = await pool.execute(
         `SELECT bb.blueprint_id, bb.user_id, bb.name, bb.image_url, bb.build_count, bb.created_at, bb.updated_at,
                 COUNT(bbc.id) AS color_count,
                 COALESCE(SUM(bbc.quantity), 0) AS total_beads_per_build
          FROM bead_blueprints bb
          LEFT JOIN bead_blueprint_colors bbc ON bbc.blueprint_id = bb.blueprint_id
-         WHERE bb.user_id = ?
+         WHERE bb.user_id IN (${queryParams.map(() => '?').join(',')})
          GROUP BY bb.blueprint_id, bb.user_id, bb.name, bb.build_count, bb.created_at, bb.updated_at
          ORDER BY bb.updated_at DESC, bb.blueprint_id DESC`,
-        [userId]
+        queryParams
       );
 
       const response = {
         ok: true,
         data: {
-          items: rows.map(mapBlueprintSummaryRow)
+          items: rows.map(row => ({
+            ...mapBlueprintSummaryRow(row),
+            isPartner: row.user_id !== userId
+          }))
         }
       };
       cache.set(cacheKey, response, TTL.BEADS);
@@ -469,18 +507,21 @@ function createBeadRouter({ pool }) {
       const colors = normalizeBlueprintColors(req.body.colors);
       const imageUrl = req.body.imageUrl || null;
 
+      const relationship = await loadActiveRelationship(pool, userId);
+      const relationshipId = relationship ? relationship.relationship_id : null;
+
       connection = await pool.getConnection();
       await connection.beginTransaction();
 
       const [result] = await connection.execute(
         `INSERT INTO bead_blueprints (user_id, relationship_id, name, image_url, build_count)
-         VALUES (?, NULL, ?, ?, 0)`,
-        [userId, name, imageUrl]
+         VALUES (?, ?, ?, ?, 0)`,
+        [userId, relationshipId, name, imageUrl]
       );
       await insertBlueprintColors(connection, result.insertId, colors);
 
       await connection.commit();
-      invalidateBeadCache(userId);
+      await invalidateBeadCacheForCouple(userId);
       res.status(201).json({ ok: true, data: { blueprintId: result.insertId } });
     } catch (error) {
       if (connection) {
@@ -501,7 +542,7 @@ function createBeadRouter({ pool }) {
     try {
       const blueprintId = parseRequiredInteger(parseInt(req.params.id, 10));
       const userId = parseRequiredInteger(parseInt(req.query.userId, 10));
-      const blueprint = await loadBlueprintForUser(blueprintId, userId);
+      const blueprint = await loadBlueprintForCouple(blueprintId, userId);
       if (!blueprint) {
         throw new ApiError(404, "NOT_FOUND", "图纸不存在或无权查看");
       }
@@ -532,6 +573,7 @@ function createBeadRouter({ pool }) {
         data: {
           blueprintId: blueprint.blueprint_id,
           userId: blueprint.user_id,
+          isPartner: blueprint.user_id !== userId,
           name: blueprint.name,
           imageUrl: blueprint.image_url || null,
           buildCount,
@@ -553,10 +595,12 @@ function createBeadRouter({ pool }) {
     try {
       const blueprintId = parseRequiredInteger(parseInt(req.params.id, 10));
       const userId = parseRequiredInteger(req.body.userId);
-      const blueprint = await loadBlueprintForUser(blueprintId, userId);
+      const blueprint = await loadBlueprintForCouple(blueprintId, userId);
       if (!blueprint) {
         throw new ApiError(404, "NOT_FOUND", "图纸不存在或无权修改");
       }
+
+      const ownerId = blueprint.user_id;
 
       const updates = [];
       const params = [];
@@ -587,15 +631,15 @@ function createBeadRouter({ pool }) {
       await connection.beginTransaction();
 
       if (updates.length > 0) {
-        params.push(blueprintId, userId);
+        params.push(blueprintId);
         await connection.execute(
-          `UPDATE bead_blueprints SET ${updates.join(", ")}, updated_at = NOW() WHERE blueprint_id = ? AND user_id = ?`,
+          `UPDATE bead_blueprints SET ${updates.join(", ")}, updated_at = NOW() WHERE blueprint_id = ?`,
           params
         );
       } else if (colors !== undefined) {
         await connection.execute(
-          `UPDATE bead_blueprints SET updated_at = NOW() WHERE blueprint_id = ? AND user_id = ?`,
-          [blueprintId, userId]
+          `UPDATE bead_blueprints SET updated_at = NOW() WHERE blueprint_id = ?`,
+          [blueprintId]
         );
       }
 
@@ -605,7 +649,7 @@ function createBeadRouter({ pool }) {
       }
 
       await connection.commit();
-      invalidateBeadCache(userId);
+      await invalidateBeadCacheForCouple(ownerId);
       res.json({ ok: true, message: "图纸更新成功" });
     } catch (error) {
       if (connection) {
@@ -626,15 +670,14 @@ function createBeadRouter({ pool }) {
     try {
       const blueprintId = parseRequiredInteger(parseInt(req.params.id, 10));
       const userId = parseRequiredInteger(parseInt(req.query.userId, 10));
-      const [result] = await pool.execute(
-        `DELETE FROM bead_blueprints WHERE blueprint_id = ? AND user_id = ?`,
-        [blueprintId, userId]
-      );
-      if (result.affectedRows === 0) {
+      const blueprint = await loadBlueprintForCouple(blueprintId, userId);
+      if (!blueprint) {
         throw new ApiError(404, "NOT_FOUND", "图纸不存在或无权删除");
       }
+      const ownerId = blueprint.user_id;
+      await pool.execute(`DELETE FROM bead_blueprints WHERE blueprint_id = ?`, [blueprintId]);
 
-      invalidateBeadCache(userId);
+      await invalidateBeadCacheForCouple(ownerId);
       res.json({ ok: true, message: "图纸删除成功" });
     } catch (error) {
       next(error);
@@ -646,19 +689,20 @@ function createBeadRouter({ pool }) {
       const blueprintId = parseRequiredInteger(parseInt(req.params.id, 10));
       const userId = parseRequiredInteger(req.body.userId);
       const count = req.body.count === undefined ? 1 : parsePositiveInteger(req.body.count, "制作次数");
-      const blueprint = await loadBlueprintForUser(blueprintId, userId);
+      const blueprint = await loadBlueprintForCouple(blueprintId, userId);
       if (!blueprint) {
         throw new ApiError(404, "NOT_FOUND", "图纸不存在或无权操作");
       }
 
+      const ownerId = blueprint.user_id;
       const previousBuildCount = Number(blueprint.build_count || 0);
       const currentBuildCount = previousBuildCount + count;
       await pool.execute(
-        `UPDATE bead_blueprints SET build_count = build_count + ?, updated_at = NOW() WHERE blueprint_id = ? AND user_id = ?`,
-        [count, blueprintId, userId]
+        `UPDATE bead_blueprints SET build_count = build_count + ?, updated_at = NOW() WHERE blueprint_id = ?`,
+        [count, blueprintId]
       );
 
-      invalidateBeadCache(userId);
+      await invalidateBeadCacheForCouple(ownerId);
       res.json({
         ok: true,
         message: "制作记录成功",
@@ -695,8 +739,16 @@ function createBeadRouter({ pool }) {
       try {
         if (imageUrl.startsWith("/uploads/")) {
           const localPath = path.join(__dirname, "../../uploads", path.basename(imageUrl));
-          const rawBuffer = await fs.promises.readFile(localPath);
-          imageBase64 = await compressToBase64(rawBuffer);
+          try {
+            const rawBuffer = await fs.promises.readFile(localPath);
+            imageBase64 = await compressToBase64(rawBuffer);
+          } catch (localReadError) {
+            if (localReadError && localReadError.code !== "ENOENT") {
+              throw localReadError;
+            }
+            const rawBuffer = await downloadImageAsBuffer(resolvedUrl);
+            imageBase64 = await compressToBase64(rawBuffer);
+          }
         } else {
           const rawBuffer = await downloadImageAsBuffer(resolvedUrl);
           imageBase64 = await compressToBase64(rawBuffer);
@@ -705,47 +757,26 @@ function createBeadRouter({ pool }) {
         throw new ApiError(502, "IMAGE_READ_FAILED", `图片读取失败: ${readError.message}`);
       }
 
-      const prompt = `你是一个专业的拼豆（fuse bead / perler bead）图纸分析助手。你的任务是从用户提供的图片中提取出该图纸所需的每种颜色色号和对应的豆子数量。
+      const prompt = `你是一个拼豆图纸色号识别专家。请识别这张拼豆图纸中每种颜色使用的 MARD 色号及所需数量。
 
-## 色号体系
-本系统使用 MARD 221 色拼豆色板，色号格式为「字母+两位数字」：
-- A组(26色): 暖黄/橙/杏色系 — A01~A26
-- B组(32色): 绿/青/黄绿色系 — B01~B32
-- C组(29色): 蓝/天蓝/水蓝色系 — C01~C29
-- D组(26色): 紫/蓝紫/粉紫色系 — D01~D26
-- E组(24色): 粉/玫红/桃红色系 — E01~E24
-- F组(25色): 红/棕/珊瑚色系 — F01~F25
-- G组(21色): 米/棕/咖/肉色系 — G01~G21
-- H组(23色): 白/灰/黑色系 — H01~H23
-- M组(15色): 莫兰迪/灰调混色系 — M01~M15
+关键说明：
+- 这是一张标准拼豆方格图纸，图纸上每个色块内或旁边会标注对应的 MARD 色号（如 A01、B05 等）
+- 图纸边缘可能有白色空白区域，请忽略这些区域，只关注有图案的部分
+- 请仔细查看图纸上的色号标注文字，优先按标注识别
 
-## 分析策略
-图片可能是以下任意一种形式，请综合运用所有策略：
+输出规则：
+1. 严格按照以下格式输出，每行一种颜色：色号+空格+数量
+2. 色号格式：A01~H23、M01~M15（字母+两位数字）
+3. 数量为该颜色所需的拼豆颗粒总数
+4. 不要输出任何解释、标题、列表符号或其他多余内容
+5. 相同颜色只输出一行，数量合并
+6. 如果完全无法识别任何色号，才输出 UNABLE_TO_RECOGNIZE
 
-1. **带标注的图纸**：图片底部或侧面有文字标注，列出"色号 × 数量"或"色号 数量"。直接读取标注即可。
-2. **带色块图例的图纸**：图片中有小色块配文字的图例区（legend）。读取每个色块旁的色号和数量。
-3. **纯网格图纸（无标注）**：图片是一个彩色方格矩阵，每个格子代表一颗豆子。请数出每种颜色出现的格子数。通过颜色外观匹配最接近的色号。
-4. **实拍拼豆作品**：一张已经拼好的拼豆实物照片。分析其使用的颜色并估算每种颜色的用量。
-
-## 颜色匹配规则
-- 优先使用图片中明确标注的色号
-- 若无标注，根据颜色的色相、明度、饱和度选择最接近的色号
-- 同一种颜色在图中可能出现不同标注（如"A1"="A01"），统一输出两位数字格式
-- 黑色→H07，白色→H01/H02，纯红→F04/F05
-
-## 输出格式
-严格按以下格式输出，每行一种颜色，不要输出任何其他内容（不要标题、不要解释、不要分隔线）：
-色号 数量
-
-示例：
+正确的输出示例：
 A01 24
 B05 8
-C12 16
 H07 2
-M01 5
-
-如果图片完全无法识别（不是拼豆图纸、图片模糊不清、或无法分辨任何颜色），输出：
-UNABLE_TO_RECOGNIZE`;
+M03 15`;
 
       const aiPayload = {
         messages: [
@@ -758,7 +789,7 @@ UNABLE_TO_RECOGNIZE`;
           }
         ],
         temperature: 0.1,
-        max_tokens: 4096,
+        max_tokens: 1200,
         stream: false
       };
 
@@ -767,14 +798,40 @@ UNABLE_TO_RECOGNIZE`;
       }
 
       const aiResult = await callAiWithFallback(aiPayload, primaryProvider, fallbackProvider);
-      const rawText = (aiResult.choices && aiResult.choices[0] && aiResult.choices[0].message && aiResult.choices[0].message.content) || "";
+      const rawText = extractAiResponseText(aiResult);
+      const preprocessedText = preprocessRecognitionText(rawText);
+      const unableToRecognizeOnly = isUnableToRecognizeOnly(preprocessedText);
 
-      if (rawText.includes("UNABLE_TO_RECOGNIZE")) {
-        return res.json({ ok: true, data: { colors: [], rawText, recognized: false } });
+      if (unableToRecognizeOnly) {
+        return res.json({
+          ok: true,
+          data: {
+            colors: [],
+            rawText,
+            recognized: false,
+            debug: {
+              unableToRecognizeOnly,
+              preprocessedText,
+              parsedCount: 0
+            }
+          }
+        });
       }
 
-      const colors = parseRecognizedColors(rawText);
-      res.json({ ok: true, data: { colors, rawText, recognized: colors.length > 0 } });
+      const colors = parseRecognizedColors(preprocessedText);
+      res.json({
+        ok: true,
+        data: {
+          colors,
+          rawText,
+          recognized: colors.length > 0,
+          debug: {
+            unableToRecognizeOnly,
+            preprocessedText,
+            parsedCount: colors.length
+          }
+        }
+      });
     } catch (error) {
       next(error);
     }
@@ -786,8 +843,8 @@ UNABLE_TO_RECOGNIZE`;
 async function compressToBase64(buffer) {
   const compressed = await sharp(buffer)
     .rotate()
-    .resize(1024, 1024, { fit: "inside", withoutEnlargement: true })
-    .jpeg({ quality: 75, mozjpeg: true })
+    .resize(1536, 1536, { fit: "inside", withoutEnlargement: true })
+    .jpeg({ quality: 85, mozjpeg: true })
     .toBuffer();
   return `data:image/jpeg;base64,${compressed.toString("base64")}`;
 }
@@ -858,22 +915,118 @@ async function callAiWithFallback(payload, primaryProvider, fallbackProvider) {
 
 function parseRecognizedColors(text) {
   const results = [];
+  const merged = new Map();
   const lines = text.split("\n");
   for (const line of lines) {
-    const trimmed = line.trim();
-    if (!trimmed) continue;
-    const match = trimmed.match(/^([A-HM]\d{1,2})\s+(\d+)/i);
-    if (match) {
-      let code = match[1].toUpperCase();
-      if (code.length === 2 && /^[A-HM]\d$/.test(code)) {
-        code = code[0] + "0" + code[1];
-      }
-      if (BEAD_COLOR_CODES.has(code)) {
-        results.push({ colorCode: code, quantityPerBuild: parseInt(match[2], 10) });
-      }
+    const normalizedLine = normalizeRecognitionLine(line);
+    if (!normalizedLine) continue;
+
+    const match = normalizedLine.match(/^([A-HM]\d{1,2})\s+(\d+)/i);
+    if (!match) continue;
+
+    let code = match[1].toUpperCase();
+    if (code.length === 2 && /^[A-HM]\d$/.test(code)) {
+      code = code[0] + "0" + code[1];
     }
+    if (!BEAD_COLOR_CODES.has(code)) continue;
+
+    const quantity = parseInt(match[2], 10);
+    if (!Number.isFinite(quantity) || quantity <= 0) continue;
+    merged.set(code, (merged.get(code) || 0) + quantity);
+  }
+
+  for (const [colorCode, quantityPerBuild] of merged.entries()) {
+    results.push({ colorCode, quantityPerBuild });
   }
   return results;
+}
+
+function extractAiResponseText(aiResult) {
+  const content = aiResult && aiResult.choices && aiResult.choices[0] && aiResult.choices[0].message
+    ? aiResult.choices[0].message.content
+    : "";
+
+  if (typeof content === "string") {
+    return content;
+  }
+
+  if (Array.isArray(content)) {
+    return content.map(extractContentPartText).filter(Boolean).join("\n");
+  }
+
+  if (content && typeof content === "object") {
+    if (typeof content.text === "string") return content.text;
+    return JSON.stringify(content);
+  }
+
+  return "";
+}
+
+function extractContentPartText(part) {
+  if (typeof part === "string") return part;
+  if (!part || typeof part !== "object") return "";
+  if (typeof part.text === "string") return part.text;
+  if (Array.isArray(part.content)) {
+    return part.content.map(extractContentPartText).filter(Boolean).join("\n");
+  }
+  return "";
+}
+
+function preprocessRecognitionText(text) {
+  let output = String(text || "");
+
+  const codeBlocks = Array.from(output.matchAll(/```(?:[a-zA-Z0-9_-]+)?\s*([\s\S]*?)```/g)).map(match => match[1]);
+  if (codeBlocks.length > 0) {
+    output = codeBlocks.join("\n");
+  }
+
+  output = output
+    .replace(/[：]/g, ":")
+    .replace(/[，]/g, ",")
+    .replace(/[×✕✖]/g, "x")
+    .replace(/\r/g, "\n")
+    .replace(/\t/g, " ")
+    .replace(/[•·]/g, "-");
+
+  output = output
+    .split("\n")
+    .map((line) => line.trim())
+    .map((line) => line.replace(/^[-*+]+\s+/, ""))
+    .map((line) => line.replace(/^\d+[.)、]\s+/, ""))
+    .join("\n");
+
+  return output;
+}
+
+function normalizeRecognitionLine(line) {
+  if (!line) return "";
+  let normalized = line.trim();
+  if (!normalized) return "";
+
+  normalized = normalized
+    .replace(/[：]/g, ":")
+    .replace(/[，]/g, ",")
+    .replace(/[×✕✖]/g, "x")
+    .replace(/^\|+/, "")
+    .replace(/\|+$/, "")
+    .replace(/\|/g, " ")
+    .replace(/^[-*+]+\s+/, "")
+    .replace(/^\d+[.)、]\s+/, "")
+    .replace(/([A-HM]\d{1,2})\s*[xX]\s*(\d+)/gi, "$1 $2")
+    .replace(/([A-HM]\d{1,2})\s*[,，]\s*(\d+)/gi, "$1 $2")
+    .replace(/\s*[:=]\s*/g, " ")
+    .replace(/\s+[xX]\s+/g, " ")
+    .replace(/\s+/g, " ");
+
+  return normalized;
+}
+
+function isUnableToRecognizeOnly(text) {
+  const normalized = String(text || "")
+    .replace(/```[\s\S]*?```/g, " ")
+    .replace(/[\s\.,，。!！?？:：;；\-_/|]+/g, "")
+    .toUpperCase();
+  return normalized === "UNABLETORECOGNIZE";
 }
 
 function resolveChatApiUrl(baseUrl) {
@@ -884,52 +1037,38 @@ function resolveChatApiUrl(baseUrl) {
 }
 
 function callAiApi(baseUrl, apiKey, payload) {
-  return new Promise((resolve, reject) => {
-    const url = new URL(resolveChatApiUrl(baseUrl));
-    const isHttps = url.protocol === "https:";
-    const requester = isHttps ? https : http;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 120000);
 
-    const body = JSON.stringify(payload);
-    const options = {
-      hostname: url.hostname,
-      port: url.port || (isHttps ? 443 : 80),
-      path: url.pathname + url.search,
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${apiKey}`,
-        "Content-Length": Buffer.byteLength(body)
-      },
-      timeout: 90000
-    };
-
-    const req = requester.request(options, (res) => {
-      let data = "";
-      res.on("data", (chunk) => { data += chunk; });
-      res.on("end", () => {
-        if (res.statusCode >= 400) {
-          const preview = data.substring(0, 300).replace(/\s+/g, " ");
-          reject(new ApiError(502, "AI_API_ERROR", `AI API HTTP ${res.statusCode}: ${preview}`));
-          return;
-        }
-        try {
-          resolve(JSON.parse(data));
-        } catch (e) {
-          const preview = data.substring(0, 200).replace(/\s+/g, " ");
-          reject(new ApiError(502, "AI_API_ERROR", `AI API response parse error: ${preview}`));
-        }
-      });
-    });
-
-    req.on("error", (e) => {
-      reject(new ApiError(502, "AI_API_ERROR", `AI API request failed: ${e.message}`));
-    });
-    req.on("timeout", () => {
-      req.destroy();
-      reject(new ApiError(504, "AI_API_TIMEOUT", "AI API request timeout"));
-    });
-    req.write(body);
-    req.end();
+  return fetch(resolveChatApiUrl(baseUrl), {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${apiKey}`
+    },
+    body: JSON.stringify(payload),
+    signal: controller.signal
+  }).then(async (res) => {
+    const data = await res.text();
+    if (!res.ok) {
+      const preview = data.substring(0, 300).replace(/\s+/g, " ");
+      throw new ApiError(502, "AI_API_ERROR", `AI API HTTP ${res.status}: ${preview}`);
+    }
+    try {
+      return JSON.parse(data);
+    } catch (_e) {
+      const preview = data.substring(0, 200).replace(/\s+/g, " ");
+      throw new ApiError(502, "AI_API_ERROR", `AI API response parse error: ${preview}`);
+    }
+  }).catch((error) => {
+    if (error && error.name === "AbortError") {
+      throw new ApiError(504, "AI_API_TIMEOUT", "AI API request timeout");
+    }
+    throw error instanceof ApiError
+      ? error
+      : new ApiError(502, "AI_API_ERROR", `AI API request failed: ${error.message}`);
+  }).finally(() => {
+    clearTimeout(timeoutId);
   });
 }
 

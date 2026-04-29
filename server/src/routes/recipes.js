@@ -13,13 +13,15 @@ function createRecipeRouter({ pool }) {
 
   async function replaceRecipeIngredients(recipeId, ingredients) {
     if (!Array.isArray(ingredients) || ingredients.length === 0) return;
+    const placeholders = ingredients.map(() => "(?, ?, ?, ?, ?)").join(", ");
+    const params = [];
     for (const ing of ingredients) {
-      await pool.execute(
-        `INSERT INTO recipe_ingredients (recipe_id, inventory_id, ingredient_name, quantity, unit)
-         VALUES (?, ?, ?, ?, ?)`,
-        [recipeId, ing.inventoryId || null, trimValue(ing.ingredientName), ing.quantity || 0, ing.unit || "个"]
-      );
+      params.push(recipeId, ing.inventoryId || null, trimValue(ing.ingredientName), ing.quantity || 0, ing.unit || "个");
     }
+    await pool.execute(
+      `INSERT INTO recipe_ingredients (recipe_id, inventory_id, ingredient_name, quantity, unit) VALUES ${placeholders}`,
+      params
+    );
   }
 
   // GET /api/recipes?userId=
@@ -204,11 +206,11 @@ function createRecipeRouter({ pool }) {
       const results = [];
       const warnings = [];
 
+      const updates = [];
       for (const ing of ingredients) {
         const needed = parseFloat(ing.quantity) || 0;
         if (needed <= 0) continue;
 
-        // Find matching inventory item by name
         const match = inventory.find(inv => inv.name === ing.ingredient_name);
         if (!match) continue;
 
@@ -216,10 +218,22 @@ function createRecipeRouter({ pool }) {
         if (stock < needed) {
           warnings.push(`${ing.ingredient_name}: 需 ${needed} ${ing.unit}，仅剩 ${stock} ${match.unit}`);
         }
-        await pool.execute(
-          `UPDATE inventory SET quantity = GREATEST(quantity - ?, 0), last_consumed_at = NOW() WHERE inventory_id = ?`,
-          [needed, match.inventory_id]);
+        updates.push([needed, match.inventory_id]);
         results.push({ name: ing.ingredient_name, consumed: needed, unit: ing.unit, hadEnough: stock >= needed });
+      }
+
+      if (updates.length > 0) {
+        const whens = [];
+        const caseParams = [];
+        for (const [needed, invId] of updates) {
+          whens.push(`WHEN inventory_id = ? THEN GREATEST(quantity - ?, 0)`);
+          caseParams.push(invId, needed);
+        }
+        const ids = updates.map(u => u[1]);
+        await pool.execute(
+          `UPDATE inventory SET quantity = CASE ${whens.join(" ")} END, last_consumed_at = NOW() WHERE inventory_id IN (${ids.map(() => "?").join(",")})`,
+          [...caseParams, ...ids]
+        );
       }
 
       invalidateRecipeCache(userId);

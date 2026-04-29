@@ -245,7 +245,7 @@ public class BeadBlueprintListFragment extends Fragment {
                             if (ivPreview != null) {
                                 ivPreview.setVisibility(View.VISIBLE);
                                 String fullUrl = ApiConfigManager.resolveResourceUrl(requireContext(), imageUrl);
-                                Glide.with(requireContext()).load(fullUrl).centerCrop().into(ivPreview);
+                                Glide.with(requireContext()).load(fullUrl).fitCenter().into(ivPreview);
                             }
                             showLoading("AI识图中...");
                             performAiRecognition(imageUrl);

@@ -56,6 +56,7 @@ public class BeadInventoryViewModel extends AndroidViewModel {
         public int blueprintId;
         public int userId;
         public Integer relationshipId;
+        public boolean isPartner;
         public String name;
         public String imageUrl;
         public int buildCount;
@@ -268,6 +269,7 @@ public class BeadInventoryViewModel extends AndroidViewModel {
         item.blueprintId = data.blueprintId;
         item.userId = data.userId;
         item.relationshipId = data.relationshipId;
+        item.isPartner = data.isPartner;
         item.name = data.name;
         item.imageUrl = data.imageUrl;
         item.buildCount = data.buildCount;

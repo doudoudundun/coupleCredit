@@ -105,6 +105,7 @@ public class AddBillFragment extends Fragment {
         
         // 默认显示支出模式（这个调用要放在initializeCategoryStyles之后）
         switchToExpense();
+        selectOwner("自己", tvSelf);
 
         DataRefreshBus.subscribe(refreshListener);
         return view;

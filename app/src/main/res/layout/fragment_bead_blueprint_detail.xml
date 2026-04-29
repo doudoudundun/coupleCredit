@@ -46,6 +46,24 @@
                     android:textColor="#111827"
                     android:textSize="22sp"
                     android:textStyle="bold" />
+
+                <ImageView
+                    android:id="@+id/btn_blueprint_edit"
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:contentDescription="编辑"
+                    android:padding="8dp"
+                    android:src="@drawable/ic_edit"
+                    android:tint="#6B7280" />
+
+                <ImageView
+                    android:id="@+id/btn_blueprint_delete"
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:contentDescription="删除"
+                    android:padding="8dp"
+                    android:src="@drawable/ic_delete"
+                    android:tint="#EF4444" />
             </LinearLayout>
 
             <ImageView

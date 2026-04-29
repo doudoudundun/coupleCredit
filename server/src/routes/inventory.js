@@ -259,6 +259,21 @@ function createInventoryRouter({ pool }) {
   router.get("/low-stock", async (req, res, next) => {
     try {
       const userId = parseRequiredInteger(parseInt(req.query.userId, 10));
+
+      const cached = cache.get(Keys.inventory(userId));
+      if (cached && cached.data && cached.data.items) {
+        const lowItems = cached.data.items.filter(item => item.isLowStock);
+        return res.json({
+          ok: true,
+          message: "查询成功",
+          data: {
+            items: lowItems,
+            count: lowItems.length,
+            relationshipId: cached.data.relationshipId
+          }
+        });
+      }
+
       const relationship = await loadActiveRelationship(pool, userId);
       const relationshipId = relationship ? relationship.relationship_id : null;
 
@@ -718,7 +733,7 @@ function createInventoryRouter({ pool }) {
 
       const apiKey = process.env.AI_IMAGE_API_KEY || process.env.AI_API_KEY;
       const baseUrl = process.env.AI_IMAGE_BASE_URL || "";
-      const model = process.env.AI_IMAGE_MODEL || "";
+      const model = process.env.AI_IMAGE_MODEL || "gpt-image-2";
 
       if (!apiKey || !baseUrl || !model) {
         throw new ApiError(503, "AI_NOT_CONFIGURED", "AI 生图服务未配置");

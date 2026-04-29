@@ -37,6 +37,7 @@ import com.example.couplecredit.api.AuthApiClient;
 import com.example.couplecredit.api.AuthApiModels;
 import com.example.couplecredit.config.ApiConfigManager;
 import com.example.couplecredit.utils.DataRefreshBus;
+import com.example.couplecredit.utils.DialogHelper;
 import com.example.couplecredit.utils.UserInfoManager;
 
 import java.io.ByteArrayInputStream;
@@ -60,6 +61,8 @@ public class RecipeFragment extends Fragment implements RecipeAdapter.RecipeActi
     private View fabAddRecipe;
     private View fabRefreshRecipe;
     private TextView btnAddCategory;
+    private TextView btnDoneEdit;
+    private boolean isCategoryEditMode = false;
 
     private RecipeAdapter recipeAdapter;
     private RecipeCategoryAdapter categoryAdapter;
@@ -98,6 +101,7 @@ public class RecipeFragment extends Fragment implements RecipeAdapter.RecipeActi
         fabAddRecipe = view.findViewById(R.id.fab_add_recipe);
         fabRefreshRecipe = view.findViewById(R.id.fab_refresh_recipe);
         btnAddCategory = view.findViewById(R.id.btn_add_category);
+        btnDoneEdit = view.findViewById(R.id.btn_done_edit);
         btnCart = view.findViewById(R.id.btn_cart);
         tvCartBadge = view.findViewById(R.id.tv_cart_badge);
 
@@ -128,6 +132,16 @@ public class RecipeFragment extends Fragment implements RecipeAdapter.RecipeActi
                     ((LinearLayoutManager) layoutManager).scrollToPositionWithOffset(pos, 0);
                 }
                 rvRecipeList.postDelayed(() -> isClickScrolling = false, 300);
+            }
+
+            @Override
+            public void onCategoryLongClick(int position, AuthApiModels.RecipeCategoryData item) {
+                enterCategoryEditMode();
+            }
+
+            @Override
+            public void onCategoryDeleteClick(int position, AuthApiModels.RecipeCategoryData item) {
+                showDeleteCategoryConfirmDialog(item);
             }
 
             @Override
@@ -173,7 +187,7 @@ public class RecipeFragment extends Fragment implements RecipeAdapter.RecipeActi
 
             @Override
             public int getMovementFlags(@NonNull RecyclerView recyclerView, @NonNull RecyclerView.ViewHolder viewHolder) {
-                if (viewHolder.getAdapterPosition() <= 0) {
+                if (viewHolder.getAdapterPosition() <= 0 || !isCategoryEditMode) {
                     return makeMovementFlags(0, 0);
                 }
                 return super.getMovementFlags(recyclerView, viewHolder);
@@ -223,6 +237,7 @@ public class RecipeFragment extends Fragment implements RecipeAdapter.RecipeActi
             }
         });
 
+        btnDoneEdit.setOnClickListener(v -> exitCategoryEditMode());
         btnAddCategory.setOnClickListener(v -> showAddCategoryDialog());
         fabAddRecipe.setOnClickListener(v -> {
             if (!isLoggedIn) { openLoginPage(); return; }
@@ -287,6 +302,7 @@ public class RecipeFragment extends Fragment implements RecipeAdapter.RecipeActi
                         categoryList.addAll(response.data.items);
                     }
                     categoryAdapter.updateData(categoryList);
+                    updateCategoryCartBadges();
                     recipeAdapter.setData(categoryList, allRecipes);
                 });
             }
@@ -303,6 +319,7 @@ public class RecipeFragment extends Fragment implements RecipeAdapter.RecipeActi
                         allRecipes.addAll(response.data.items);
                     }
                     recipeAdapter.setData(categoryList, allRecipes);
+                    updateCategoryCartBadges();
                     tvRecipeCount.setText(allRecipes.size() + " 道菜");
                     updateEmptyState();
                 });
@@ -348,6 +365,49 @@ public class RecipeFragment extends Fragment implements RecipeAdapter.RecipeActi
             int w = (int) (requireContext().getResources().getDisplayMetrics().widthPixels * 0.85f);
             dialog.getWindow().setLayout(w, ViewGroup.LayoutParams.WRAP_CONTENT);
         }
+    }
+
+    private void enterCategoryEditMode() {
+        isCategoryEditMode = true;
+        categoryAdapter.setEditMode(true);
+        btnDoneEdit.setVisibility(View.VISIBLE);
+        btnAddCategory.setVisibility(View.GONE);
+    }
+
+    private void exitCategoryEditMode() {
+        isCategoryEditMode = false;
+        categoryAdapter.setEditMode(false);
+        btnDoneEdit.setVisibility(View.GONE);
+        btnAddCategory.setVisibility(View.VISIBLE);
+        updateCategoryCartBadges();
+    }
+
+    private void showDeleteCategoryConfirmDialog(AuthApiModels.RecipeCategoryData item) {
+        View dialogView = LayoutInflater.from(requireContext()).inflate(R.layout.dialog_confirm_delete, null);
+        AlertDialog dialog = new AlertDialog.Builder(requireContext(), R.style.CustomDialogStyle).setView(dialogView).create();
+        TextView message = dialogView.findViewById(R.id.tv_confirm_message);
+        message.setText("确定要删除「" + item.name + "」吗？\n该种类下的菜谱将变为未分类。");
+        dialogView.findViewById(R.id.btn_confirm_cancel).setOnClickListener(v -> dialog.dismiss());
+        dialogView.findViewById(R.id.btn_confirm_delete).setOnClickListener(v -> {
+            int userId = UserInfoManager.getCurrentUserId(requireContext());
+            AuthApiClient.deleteRecipeCategory(requireContext(), item.categoryId, userId,
+                    new AuthApiClient.RecipeMutationCallback() {
+                        @Override public void onSuccess() {
+                            if (!isAdded()) return;
+                            requireActivity().runOnUiThread(() -> {
+                                dialog.dismiss();
+                                Toast.makeText(requireContext(), "删除成功", Toast.LENGTH_SHORT).show();
+                                refreshData();
+                            });
+                        }
+                        @Override public void onError(String e) {
+                            if (!isAdded()) return;
+                            requireActivity().runOnUiThread(() ->
+                                    Toast.makeText(requireContext(), "删除失败: " + e, Toast.LENGTH_SHORT).show());
+                        }
+                    });
+        });
+        DialogHelper.showWide(dialog, requireContext());
     }
 
     private void updateLoginUI() {
