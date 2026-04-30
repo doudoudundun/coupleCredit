@@ -3,6 +3,7 @@ const crypto = require("crypto");
 const { ApiError } = require("../errors");
 const { cache, Keys } = require("../cache");
 const { loadActiveRelationship } = require("../utils/queryHelpers");
+const { withTransaction } = require("../utils/transactions");
 
 function createCoupleRouter({ pool }) {
   const router = express.Router();
@@ -110,24 +111,31 @@ function createCoupleRouter({ pool }) {
       const { inviterId, inviteeId } = req.body;
       if (!inviterId || !inviteeId) throw new ApiError(400, "INVALID_REQUEST", "参数不完整");
 
-      const existing = await loadActiveRelationship(pool, inviterId);
-      if (existing) {
-        throw new ApiError(409, "ALREADY_BOUND", "其中一方已绑定情侣");
-      }
-      const existing2 = await loadActiveRelationship(pool, inviteeId);
-      if (existing2) {
-        throw new ApiError(409, "ALREADY_BOUND", "其中一方已绑定情侣");
-      }
+      const result = await withTransaction(pool, async (conn) => {
+        const [existing1] = await conn.execute(
+          "SELECT relationship_id FROM couple_relationships WHERE status = 'active' AND (user_id_1 = ? OR user_id_2 = ?) LIMIT 1 FOR UPDATE",
+          [inviterId, inviterId]
+        );
+        if (existing1.length > 0) throw new ApiError(409, "ALREADY_BOUND", "其中一方已绑定情侣");
 
-      const [result] = await pool.execute(
-        "INSERT INTO couple_relationships (user_id_1, user_id_2, status) VALUES (?, ?, 'active')",
-        [inviterId, inviteeId]
-      );
+        const [existing2] = await conn.execute(
+          "SELECT relationship_id FROM couple_relationships WHERE status = 'active' AND (user_id_1 = ? OR user_id_2 = ?) LIMIT 1 FOR UPDATE",
+          [inviteeId, inviteeId]
+        );
+        if (existing2.length > 0) throw new ApiError(409, "ALREADY_BOUND", "其中一方已绑定情侣");
 
-      await pool.execute(
-        "UPDATE users SET couple_status = 'coupled', invite_code = NULL WHERE id IN (?, ?)",
-        [inviterId, inviteeId]
-      );
+        const [insertResult] = await conn.execute(
+          "INSERT INTO couple_relationships (user_id_1, user_id_2, status) VALUES (?, ?, 'active')",
+          [inviterId, inviteeId]
+        );
+
+        await conn.execute(
+          "UPDATE users SET couple_status = 'coupled', invite_code = NULL WHERE id IN (?, ?)",
+          [inviterId, inviteeId]
+        );
+
+        return insertResult;
+      });
 
       cache.del(Keys.relationship(inviterId));
       cache.del(Keys.relationship(inviteeId));
@@ -140,6 +148,9 @@ function createCoupleRouter({ pool }) {
         data: { relationshipId: result.insertId }
       });
     } catch (error) {
+      if (error.code === "ER_DUP_ENTRY" || error.sqlState === "23000") {
+        return next(new ApiError(409, "ALREADY_BOUND", "其中一方已绑定情侣"));
+      }
       next(error);
     }
   });

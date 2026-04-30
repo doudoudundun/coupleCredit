@@ -1,7 +1,7 @@
 const mysql = require("mysql2/promise");
 
 function createPool(config) {
-  return mysql.createPool({
+  const pool = mysql.createPool({
     host: config.dbHost,
     port: config.dbPort,
     database: config.dbName,
@@ -12,11 +12,24 @@ function createPool(config) {
     queueLimit: 0,
     enableKeepAlive: true,
     keepAliveInitialDelay: 30000,
-    idleTimeout: 60000,
+    idleTimeout: 300000,
     maxIdle: 10,
     charset: "utf8mb4",
     timezone: "+08:00"
   });
+
+  warmPool(pool, 3);
+  return pool;
+}
+
+async function warmPool(pool, count) {
+  for (let i = 0; i < count; i++) {
+    try {
+      const conn = await pool.getConnection();
+      await conn.execute("SELECT 1");
+      conn.release();
+    } catch (_) {}
+  }
 }
 
 module.exports = { createPool };

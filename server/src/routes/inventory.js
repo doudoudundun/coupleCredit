@@ -1,9 +1,12 @@
 const express = require("express");
 const https = require("https");
 const http = require("http");
+const path = require("path");
+const fsPromises = require("fs").promises;
 const { ApiError } = require("../errors");
 const { cache, Keys, TTL } = require("../cache");
 const { loadActiveRelationship, trimValue, parseRequiredInteger, parseRequiredFloat } = require("../utils/queryHelpers");
+const { withTransaction } = require("../utils/transactions");
 
 const EXPIRING_WINDOW_DAYS = 3;
 const INVENTORY_SELECT_FIELDS = `inventory_id as inventoryId, user_id as userId, relationship_id as relationshipId,
@@ -334,85 +337,106 @@ function createInventoryRouter({ pool }) {
       let findQuery;
       let findParams;
       if (relationshipId) {
-        findQuery = "SELECT inventory_id, category, quantity, unit, threshold, image_url, note, ai_image_prompt, expiration_mode, DATE_FORMAT(expiration_date, '%Y-%m-%d') as expiration_date, DATE_FORMAT(production_date, '%Y-%m-%d') as production_date, shelf_life_days FROM inventory WHERE name = ? AND (relationship_id = ? OR (user_id = ? AND relationship_id IS NULL)) LIMIT 1";
+        findQuery = "SELECT inventory_id, category, quantity, unit, threshold, image_url, note, ai_image_prompt, expiration_mode, DATE_FORMAT(expiration_date, '%Y-%m-%d') as expiration_date, DATE_FORMAT(production_date, '%Y-%m-%d') as production_date, shelf_life_days FROM inventory WHERE name = ? AND (relationship_id = ? OR (user_id = ? AND relationship_id IS NULL)) LIMIT 1 FOR UPDATE";
         findParams = [name, relationshipId, userId];
       } else {
-        findQuery = "SELECT inventory_id, category, quantity, unit, threshold, image_url, note, ai_image_prompt, expiration_mode, DATE_FORMAT(expiration_date, '%Y-%m-%d') as expiration_date, DATE_FORMAT(production_date, '%Y-%m-%d') as production_date, shelf_life_days FROM inventory WHERE name = ? AND user_id = ? AND relationship_id IS NULL LIMIT 1";
+        findQuery = "SELECT inventory_id, category, quantity, unit, threshold, image_url, note, ai_image_prompt, expiration_mode, DATE_FORMAT(expiration_date, '%Y-%m-%d') as expiration_date, DATE_FORMAT(production_date, '%Y-%m-%d') as production_date, shelf_life_days FROM inventory WHERE name = ? AND user_id = ? AND relationship_id IS NULL LIMIT 1 FOR UPDATE";
         findParams = [name, userId];
       }
-      const [existing] = await pool.execute(findQuery, findParams);
 
-      if (existing.length > 0) {
-        const existingItem = existing[0];
-        const newQuantity = Number(existingItem.quantity) + quantity;
-        const updates = ["quantity = ?", "updated_at = NOW()"];
-        const params = [newQuantity];
+      await withTransaction(pool, async (conn) => {
+        const [existing] = await conn.execute(findQuery, findParams);
 
-        if (imageUrl) {
-          updates.push("image_url = ?");
-          params.push(imageUrl);
-        }
-        if (note) {
-          updates.push("note = ?");
-          params.push(note);
-        }
+        if (existing.length > 0) {
+          const existingItem = existing[0];
+          const newQuantity = Number(existingItem.quantity) + quantity;
+          const updates = ["quantity = ?", "updated_at = NOW()"];
+          const params = [newQuantity];
 
-        if (includesShelfLifeFields) {
-          updates.push("expiration_mode = ?");
-          params.push(shelfLife.expirationMode);
-          updates.push("expiration_date = ?");
-          params.push(shelfLife.expirationDate);
-          updates.push("production_date = ?");
-          params.push(shelfLife.productionDate);
-          updates.push("shelf_life_days = ?");
-          params.push(shelfLife.shelfLifeDays);
-        }
+          if (imageUrl) {
+            updates.push("image_url = ?");
+            params.push(imageUrl);
+          }
+          if (note) {
+            updates.push("note = ?");
+            params.push(note);
+          }
 
-        params.push(existingItem.inventory_id);
-        await pool.execute(
-          `UPDATE inventory SET ${updates.join(", ")} WHERE inventory_id = ?`,
-          params
-        );
+          if (includesShelfLifeFields) {
+            updates.push("expiration_mode = ?");
+            params.push(shelfLife.expirationMode);
+            updates.push("expiration_date = ?");
+            params.push(shelfLife.expirationDate);
+            updates.push("production_date = ?");
+            params.push(shelfLife.productionDate);
+            updates.push("shelf_life_days = ?");
+            params.push(shelfLife.shelfLifeDays);
+          }
 
-        const mergedShelfLife = includesShelfLifeFields
-          ? shelfLife
-          : {
-              expirationMode: existingItem.expiration_mode,
-              expirationDate: existingItem.expiration_date,
-              productionDate: existingItem.production_date,
-              shelfLifeDays: existingItem.shelf_life_days
-            };
+          params.push(existingItem.inventory_id);
+          await conn.execute(
+            `UPDATE inventory SET ${updates.join(", ")} WHERE inventory_id = ?`,
+            params
+          );
 
-        const mergedItem = addExpirationFlags({
-          inventoryId: existingItem.inventory_id,
-          userId,
-          relationshipId,
-          name,
-          category: existingItem.category,
-          imageUrl: imageUrl || existingItem.image_url,
-          quantity: newQuantity,
-          unit: existingItem.unit,
-          threshold: Number(existingItem.threshold),
-          note: note !== null ? note : existingItem.note,
-          aiImagePrompt: existingItem.ai_image_prompt,
-          expirationMode: mergedShelfLife.expirationMode,
-          expirationDate: mergedShelfLife.expirationDate,
-          productionDate: mergedShelfLife.productionDate,
-          shelfLifeDays: mergedShelfLife.shelfLifeDays,
-          isLowStock: newQuantity <= Number(existingItem.threshold)
-        });
+          const mergedShelfLife = includesShelfLifeFields
+            ? shelfLife
+            : {
+                expirationMode: existingItem.expiration_mode,
+                expirationDate: existingItem.expiration_date,
+                productionDate: existingItem.production_date,
+                shelfLifeDays: existingItem.shelf_life_days
+              };
 
-        invalidateInventoryCache(userId, relationship);
-        res.json({
-          ok: true,
-          message: "已合并到同名物资",
-          data: mergedItem
-        });
-      } else {
-        const [result] = await pool.execute(
-          `INSERT INTO inventory (user_id, relationship_id, name, category, image_url, quantity, unit, threshold, note, ai_image_prompt, expiration_mode, expiration_date, production_date, shelf_life_days, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
-          [
+          const mergedItem = addExpirationFlags({
+            inventoryId: existingItem.inventory_id,
+            userId,
+            relationshipId,
+            name,
+            category: existingItem.category,
+            imageUrl: imageUrl || existingItem.image_url,
+            quantity: newQuantity,
+            unit: existingItem.unit,
+            threshold: Number(existingItem.threshold),
+            note: note !== null ? note : existingItem.note,
+            aiImagePrompt: existingItem.ai_image_prompt,
+            expirationMode: mergedShelfLife.expirationMode,
+            expirationDate: mergedShelfLife.expirationDate,
+            productionDate: mergedShelfLife.productionDate,
+            shelfLifeDays: mergedShelfLife.shelfLifeDays,
+            isLowStock: newQuantity <= Number(existingItem.threshold)
+          });
+
+          invalidateInventoryCache(userId, relationship);
+          res.json({
+            ok: true,
+            message: "已合并到同名物资",
+            data: mergedItem
+          });
+        } else {
+          const [result] = await conn.execute(
+            `INSERT INTO inventory (user_id, relationship_id, name, category, image_url, quantity, unit, threshold, note, ai_image_prompt, expiration_mode, expiration_date, production_date, shelf_life_days, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+            [
+              userId,
+              relationshipId,
+              name,
+              category,
+              imageUrl,
+              quantity,
+              unit,
+              threshold,
+              note,
+              aiImagePrompt,
+              shelfLife.expirationMode,
+              shelfLife.expirationDate,
+              shelfLife.productionDate,
+              shelfLife.shelfLifeDays
+            ]
+          );
+
+          const createdItem = addExpirationFlags({
+            inventoryId: result.insertId,
             userId,
             relationshipId,
             name,
@@ -423,39 +447,21 @@ function createInventoryRouter({ pool }) {
             threshold,
             note,
             aiImagePrompt,
-            shelfLife.expirationMode,
-            shelfLife.expirationDate,
-            shelfLife.productionDate,
-            shelfLife.shelfLifeDays
-          ]
-        );
+            expirationMode: shelfLife.expirationMode,
+            expirationDate: shelfLife.expirationDate,
+            productionDate: shelfLife.productionDate,
+            shelfLifeDays: shelfLife.shelfLifeDays,
+            isLowStock: quantity <= threshold
+          });
 
-        const createdItem = addExpirationFlags({
-          inventoryId: result.insertId,
-          userId,
-          relationshipId,
-          name,
-          category,
-          imageUrl,
-          quantity,
-          unit,
-          threshold,
-          note,
-          aiImagePrompt,
-          expirationMode: shelfLife.expirationMode,
-          expirationDate: shelfLife.expirationDate,
-          productionDate: shelfLife.productionDate,
-          shelfLifeDays: shelfLife.shelfLifeDays,
-          isLowStock: quantity <= threshold
-        });
-
-        invalidateInventoryCache(userId, relationship);
-        res.status(201).json({
-          ok: true,
-          message: "存货添加成功",
-          data: createdItem
-        });
-      }
+          invalidateInventoryCache(userId, relationship);
+          res.status(201).json({
+            ok: true,
+            message: "存货添加成功",
+            data: createdItem
+          });
+        }
+      });
     } catch (error) {
       next(error);
     }
@@ -616,24 +622,27 @@ function createInventoryRouter({ pool }) {
         throw new ApiError(404, "NOT_FOUND", "存货不存在或无权操作");
       }
 
-      const currentQuantity = Number(existing[0].quantity);
-      if (currentQuantity < consumeAmount) {
-        throw new ApiError(400, "INSUFFICIENT_STOCK", `存量不足，当前存量: ${currentQuantity}`);
+      const [updateResult] = await pool.execute(
+        "UPDATE inventory SET quantity = quantity - ?, last_consumed_at = NOW(), updated_at = NOW() WHERE inventory_id = ? AND quantity >= ?",
+        [consumeAmount, inventoryId, consumeAmount]
+      );
+      if (updateResult.affectedRows === 0) {
+        throw new ApiError(400, "INSUFFICIENT_STOCK", "存量不足");
       }
 
-      await pool.execute(
-        "UPDATE inventory SET quantity = quantity - ?, last_consumed_at = NOW(), updated_at = NOW() WHERE inventory_id = ?",
-        [consumeAmount, inventoryId]
+      const [afterRows] = await pool.execute(
+        "SELECT quantity FROM inventory WHERE inventory_id = ?",
+        [inventoryId]
       );
+      const remainingQuantity = afterRows.length > 0 ? Number(afterRows[0].quantity) : 0;
 
       invalidateInventoryCache(userId, relationship);
       res.json({
         ok: true,
         message: "消耗记录成功",
         data: {
-          previousQuantity: currentQuantity,
           consumed: consumeAmount,
-          remainingQuantity: currentQuantity - consumeAmount
+          remainingQuantity
         }
       });
     } catch (error) {
@@ -757,8 +766,8 @@ function createInventoryRouter({ pool }) {
         } else if (firstItem.b64_json) {
           const buffer = Buffer.from(firstItem.b64_json, "base64");
           const filename = `ai_${Date.now()}.png`;
-          const savePath = require("path").join(__dirname, "../../uploads", filename);
-          require("fs").writeFileSync(savePath, buffer);
+          const savePath = path.join(__dirname, "../../uploads", filename);
+          await fsPromises.writeFile(savePath, buffer);
           imageUrl = `/uploads/${filename}`;
         }
       }

@@ -2,6 +2,7 @@ const express = require("express");
 const { ApiError } = require("../errors");
 const { cache, Keys, TTL } = require("../cache");
 const { loadActiveRelationship, trimValue, parseOptionalInteger, parseRequiredInteger, parseRequiredAmount } = require("../utils/queryHelpers");
+const { withTransaction } = require("../utils/transactions");
 
 async function resolveBillOwnership(pool, reqBody) {
   if (reqBody.billOwner === undefined) {
@@ -90,29 +91,36 @@ function createBillsRouter({ pool }) {
         throw new ApiError(400, "INVALID_REQUEST", "请求参数不完整或格式不正确");
       }
 
-      // Pre-check shared plan before inserting bill
+      let insertId;
       if (sharedPlanId) {
-        const [plans] = await pool.execute(
-          "SELECT plan_id, current_balance FROM shared_plans WHERE plan_id = ? AND (created_by = ? OR (relationship_id = ? AND visibility = 'both')) LIMIT 1",
-          [sharedPlanId, userId, relationshipId]
-        );
-        if (plans.length === 0) throw new ApiError(404, "NOT_FOUND", "共同计划不存在或无权使用");
-        if (incomeType === 0 && parseFloat(plans[0].current_balance) < amount) {
-          throw new ApiError(400, "INSUFFICIENT_BALANCE", "小钱包余额不足");
-        }
-      }
+        await withTransaction(pool, async (conn) => {
+          const [plans] = await conn.execute(
+            "SELECT plan_id, current_balance FROM shared_plans WHERE plan_id = ? AND (created_by = ? OR (relationship_id = ? AND visibility = 'both')) LIMIT 1 FOR UPDATE",
+            [sharedPlanId, userId, relationshipId]
+          );
+          if (plans.length === 0) throw new ApiError(404, "NOT_FOUND", "共同计划不存在或无权使用");
+          if (incomeType === 0 && parseFloat(plans[0].current_balance) < amount) {
+            throw new ApiError(400, "INSUFFICIENT_BALANCE", "小钱包余额不足");
+          }
 
-      const [result] = await pool.execute(
-        "INSERT INTO bills (relationship_id, shared_plan_id, owner, user_id, title, type, amount, date, time, income_type, is_help) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        [relationshipId, sharedPlanId, owner, userId, title, type, amount, date, time, incomeType, isHelp]
-      );
+          const [result] = await conn.execute(
+            "INSERT INTO bills (relationship_id, shared_plan_id, owner, user_id, title, type, amount, date, time, income_type, is_help) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            [relationshipId, sharedPlanId, owner, userId, title, type, amount, date, time, incomeType, isHelp]
+          );
+          insertId = result.insertId;
 
-      if (sharedPlanId) {
-        if (incomeType === 0) {
-          await pool.execute("UPDATE shared_plans SET current_balance = current_balance - ? WHERE plan_id = ?", [amount, sharedPlanId]);
-        } else {
-          await pool.execute("UPDATE shared_plans SET current_balance = current_balance + ? WHERE plan_id = ?", [amount, sharedPlanId]);
-        }
+          if (incomeType === 0) {
+            const [updateResult] = await conn.execute(
+              "UPDATE shared_plans SET current_balance = current_balance - ? WHERE plan_id = ? AND current_balance >= ?",
+              [amount, sharedPlanId, amount]
+            );
+            if (updateResult.affectedRows === 0) {
+              throw new ApiError(400, "INSUFFICIENT_BALANCE", "小钱包余额不足");
+            }
+          } else {
+            await conn.execute("UPDATE shared_plans SET current_balance = current_balance + ? WHERE plan_id = ?", [amount, sharedPlanId]);
+          }
+        });
         const relationship = await loadActiveRelationship(pool, userId);
         if (relationship) {
           cache.del(Keys.sharedPlans(relationship.user_id_1));
@@ -120,13 +128,19 @@ function createBillsRouter({ pool }) {
         } else {
           cache.del(Keys.sharedPlans(userId));
         }
+      } else {
+        const [result] = await pool.execute(
+          "INSERT INTO bills (relationship_id, shared_plan_id, owner, user_id, title, type, amount, date, time, income_type, is_help) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+          [relationshipId, sharedPlanId, owner, userId, title, type, amount, date, time, incomeType, isHelp]
+        );
+        insertId = result.insertId;
       }
 
       res.status(201).json({
         ok: true,
         message: "账单创建成功",
         data: {
-          billId: result.insertId,
+          billId: insertId,
           relationshipId,
           sharedPlanId,
           owner,

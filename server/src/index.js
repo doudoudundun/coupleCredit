@@ -43,7 +43,10 @@ const { createSharedPlansRouter } = require("./routes/sharedPlans");
 const { createTodoRouter } = require("./routes/todos");
 const { createBeadRouter } = require("./routes/beads");
 const { createRestaurantRouter } = require("./routes/restaurants");
+const { createImageGenRouter } = require("./routes/imageGen");
 const { sendError } = require("./errors");
+const { optionalAuth } = require("./middleware/auth");
+const { standardLimiter, authLimiter } = require("./middleware/rateLimit");
 
 const config = readConfig();
 const pool = createPool(config);
@@ -52,7 +55,10 @@ const app = express();
 app.use(cors());
 app.use(compression({ level: 6, threshold: 512 }));
 app.use(express.json({ limit: "10mb" }));
+app.use(standardLimiter);
+app.use(optionalAuth);
 app.use("/uploads", express.static(path.resolve(__dirname, "../uploads")));
+app.use(express.static(path.resolve(__dirname, "../public")));
 
 // Request timing + health check
 app.get("/api/health", (_req, res) => {
@@ -72,7 +78,7 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use("/api/auth", createAuthRouter({ pool, config }));
+app.use("/api/auth", authLimiter, createAuthRouter({ pool, config }));
 app.use("/api/bills", createBillsRouter({ pool }));
 app.use("/api/inventory", createInventoryRouter({ pool }));
 app.use("/api/upload", createUploadRouter());
@@ -84,13 +90,30 @@ app.use("/api/shared-plans", createSharedPlansRouter({ pool }));
 app.use("/api/todos", createTodoRouter({ pool }));
 app.use("/api/beads", createBeadRouter({ pool }));
 app.use("/api/restaurants", createRestaurantRouter({ pool }));
+app.use("/api", createImageGenRouter());
 app.use((error, _req, res, _next) => {
   console.error("Unhandled error:", error);
   sendError(res, error);
 });
 
-app.listen(config.port, config.host, () => {
+const server = app.listen(config.port, config.host, () => {
   console.log(`Server listening on http://${config.host}:${config.port}`);
-  // Warm up DB pool
-  pool.query("SELECT 1").then(() => console.log("DB pool warmed up")).catch(e => console.error("DB pool warm-up failed:", e.message));
 });
+
+function gracefulShutdown() {
+  console.log("Shutting down gracefully...");
+  server.close(() => {
+    console.log("HTTP server closed.");
+    pool.end().then(() => {
+      console.log("DB pool closed.");
+      process.exit(0);
+    });
+  });
+  setTimeout(() => {
+    console.error("Force shutdown after timeout.");
+    process.exit(1);
+  }, 10000);
+}
+
+process.on("SIGTERM", gracefulShutdown);
+process.on("SIGINT", gracefulShutdown);

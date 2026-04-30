@@ -2,6 +2,7 @@ const express = require("express");
 const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
+const crypto = require("crypto");
 const { ApiError } = require("../errors");
 
 const UPLOADS_DIR = path.resolve(__dirname, "../../uploads");
@@ -14,7 +15,7 @@ const storage = multer.diskStorage({
   destination: (_req, _file, cb) => cb(null, UPLOADS_DIR),
   filename: (_req, file, cb) => {
     const ext = path.extname(file.originalname) || ".jpg";
-    const uniqueName = Date.now() + "-" + Math.round(Math.random() * 1e6) + ext;
+    const uniqueName = crypto.randomBytes(16).toString("hex") + ext;
     cb(null, uniqueName);
   }
 });

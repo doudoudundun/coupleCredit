@@ -2,7 +2,8 @@ const express = require("express");
 const bcrypt = require("bcrypt");
 const { ApiError } = require("../errors");
 const { loadActiveRelationship, trimValue } = require("../utils/queryHelpers");
-const { cache, Keys } = require("../cache");
+const { cache, Keys, TTL } = require("../cache");
+const { signToken, signRefreshToken } = require("../utils/jwt");
 
 function createAuthRouter({ pool, config }) {
   const router = express.Router();
@@ -88,15 +89,22 @@ function createAuthRouter({ pool, config }) {
         throw new ApiError(401, "INVALID_CREDENTIALS", "用户名或密码错误");
       }
 
+      const accessToken = signToken({ userId: user.id });
+      const refreshToken = signRefreshToken({ userId: user.id });
+
       res.json({
         ok: true,
         message: "登录成功",
         data: {
           userId: user.id,
           username: user.username,
-          email: user.email
+          email: user.email,
+          accessToken,
+          refreshToken
         }
       });
+
+      setImmediate(() => preloadUserCache(user.id));
     } catch (error) {
       next(error);
     }
@@ -257,6 +265,49 @@ function createAuthRouter({ pool, config }) {
       next(error);
     }
   });
+
+  async function preloadUserCache(userId) {
+    try {
+      const INVENTORY_SELECT_FIELDS = "inventory_id, user_id, name, category, quantity, unit, expiry_date, purchase_date, last_consumed_at, threshold, image_url, created_at, updated_at, relationship_id";
+      const relationship = await loadActiveRelationship(pool, userId);
+      const relationshipId = relationship ? relationship.relationship_id : null;
+
+      let query, params;
+      if (relationshipId) {
+        query = `SELECT ${INVENTORY_SELECT_FIELDS} FROM inventory WHERE relationship_id = ? OR (user_id = ? AND relationship_id IS NULL) ORDER BY updated_at DESC`;
+        params = [relationshipId, userId];
+      } else {
+        query = `SELECT ${INVENTORY_SELECT_FIELDS} FROM inventory WHERE user_id = ? AND relationship_id IS NULL ORDER BY updated_at DESC`;
+        params = [userId];
+      }
+      const [rows] = await pool.execute(query, params);
+      const items = rows.map(row => ({
+        ...row,
+        isLowStock: Number(row.quantity) <= Number(row.threshold)
+      }));
+      cache.set(Keys.inventory(userId), { ok: true, message: "查询成功", data: { items, relationshipId } }, TTL.INVENTORY);
+
+      const [beadRows] = await pool.execute(
+        `SELECT bi.color_code, bi.quantity, bi.threshold_override, bi.updated_at, bs.default_threshold
+         FROM bead_inventory bi LEFT JOIN bead_settings bs ON bs.user_id = bi.user_id
+         WHERE bi.user_id = ? ORDER BY bi.color_code`, [userId]
+      );
+      if (beadRows.length > 0) {
+        const defaultThreshold = beadRows[0].default_threshold || 200;
+        const beadItems = beadRows.map(row => ({
+          colorCode: row.color_code,
+          quantity: Number(row.quantity || 0),
+          thresholdOverride: row.threshold_override,
+          effectiveThreshold: row.threshold_override != null ? row.threshold_override : defaultThreshold
+        }));
+        cache.set(Keys.beads(userId), { ok: true, data: { items: beadItems } }, TTL.BEADS);
+      }
+
+      console.log(`Preloaded cache for user ${userId}`);
+    } catch (e) {
+      console.error(`Cache preload failed for user ${userId}:`, e.message);
+    }
+  }
 
   return router;
 }

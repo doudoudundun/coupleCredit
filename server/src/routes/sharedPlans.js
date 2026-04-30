@@ -100,11 +100,20 @@ function createSharedPlansRouter({ pool }) {
       const { plan, relationship } = await loadAccessiblePlan(pool, planId, userId);
       if (!plan) throw new ApiError(404, "NOT_FOUND", "计划不存在或无权操作");
 
-      const delta = direction === "out" ? -amount : amount;
-      await pool.execute(
-        "UPDATE shared_plans SET current_balance = current_balance + ? WHERE plan_id = ?",
-        [delta, planId]
-      );
+      if (direction === "out") {
+        const [updateResult] = await pool.execute(
+          "UPDATE shared_plans SET current_balance = current_balance - ? WHERE plan_id = ? AND current_balance >= ?",
+          [amount, planId, amount]
+        );
+        if (updateResult.affectedRows === 0) {
+          throw new ApiError(400, "INSUFFICIENT_BALANCE", "计划余额不足");
+        }
+      } else {
+        await pool.execute(
+          "UPDATE shared_plans SET current_balance = current_balance + ? WHERE plan_id = ?",
+          [amount, planId]
+        );
+      }
       invalidateSharedPlans(userId, relationship);
       res.json({ ok: true, message: "计划余额已更新" });
     } catch (error) {
