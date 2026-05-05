@@ -20,6 +20,7 @@ import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
 import com.example.couplecredit.R;
 import com.example.couplecredit.utils.DataRefreshBus;
+import com.example.couplecredit.utils.PollingManager;
 import com.example.couplecredit.fragment.HeadFragment;
 import com.example.couplecredit.fragment.InventoryFragment;
 import com.example.couplecredit.fragment.MyFragment;
@@ -45,7 +46,10 @@ public class MainActivity extends AppCompatActivity {
     private Fragment lastTabFragment;
     private ChatRepository chatRepository;
 
-    private final BroadcastReceiver loginStateReceiver = new BroadcastReceiver() {
+    private static final String KEY_CURRENT_FRAGMENT_TAG = "currentFragmentTag";
+    private static final String KEY_LAST_TAB_FRAGMENT_TAG = "lastTabFragmentTag";
+
+    private BroadcastReceiver loginStateReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
             Log.d("MainActivity", "收到登录状态变化广播: " + intent.getAction());
@@ -109,11 +113,19 @@ public class MainActivity extends AppCompatActivity {
             todoFragment = (TodoFragment) fragmentManager.findFragmentByTag("todo");
             myFragment = (MyFragment) fragmentManager.findFragmentByTag("my");
 
-            for (Fragment fragment : fragmentManager.getFragments()) {
-                if (fragment != null && fragment.isVisible()) {
-                    currentFragment = fragment;
-                    break;
-                }
+            // Restore current fragment from saved state
+            String currentTag = savedInstanceState.getString(KEY_CURRENT_FRAGMENT_TAG, "head");
+            currentFragment = fragmentManager.findFragmentByTag(currentTag);
+
+            // If currentFragment is still null, default to headFragment
+            if (currentFragment == null) {
+                currentFragment = headFragment;
+            }
+
+            // Restore lastTabFragment
+            String lastTabTag = savedInstanceState.getString(KEY_LAST_TAB_FRAGMENT_TAG, null);
+            if (lastTabTag != null) {
+                lastTabFragment = fragmentManager.findFragmentByTag(lastTabTag);
             }
         }
 
@@ -141,7 +153,13 @@ public class MainActivity extends AppCompatActivity {
         if (savedInstanceState == null) {
             navigateToHome();
         } else {
-            syncBottomNavigationSelection(currentFragment);
+            // 确保恢复的 Fragment 被正确显示
+            if (currentFragment == null) {
+                currentFragment = headFragment;
+            }
+            Fragment target = currentFragment;
+            currentFragment = null; // 重置，强制 showFragment 执行完整的 show/hide 逻辑
+            showFragment(target);
         }
 
         LocalBroadcastManager.getInstance(this).registerReceiver(
@@ -158,6 +176,21 @@ public class MainActivity extends AppCompatActivity {
             v.setPadding(v.getPaddingLeft(), v.getPaddingTop(), v.getPaddingRight(), systemBars.bottom);
             return insets;
         });
+
+        // Listen for back stack changes to sync fragment visibility
+        fragmentManager.addOnBackStackChangedListener(() -> {
+            Fragment top = fragmentManager.findFragmentById(R.id.fragment_container);
+            if (top != null && top != currentFragment && isOneOfTopFragments(top)) {
+                currentFragment = top;
+                syncBottomNavigationSelection(top);
+            }
+        });
+    }
+
+    private boolean isOneOfTopFragments(Fragment fragment) {
+        return fragment == headFragment || fragment == inventoryFragment
+                || fragment == recipeFragment || fragment == eatOutFragment
+                || fragment == todoFragment || fragment == myFragment;
     }
 
     public void showFragment(Fragment fragment) {
@@ -187,12 +220,18 @@ public class MainActivity extends AppCompatActivity {
 
         if (fragment == inventoryFragment) {
             inventoryFragment.refreshInventoryData();
+            PollingManager.getInstance().setRefreshAction(inventoryFragment::refreshInventoryData);
         } else if (fragment == recipeFragment) {
             recipeFragment.refreshData();
+            PollingManager.getInstance().setRefreshAction(recipeFragment::refreshData);
         } else if (fragment == eatOutFragment) {
             eatOutFragment.refreshData();
+            PollingManager.getInstance().setRefreshAction(eatOutFragment::refreshData);
         } else if (fragment == todoFragment) {
             todoFragment.refreshData();
+            PollingManager.getInstance().setRefreshAction(todoFragment::refreshData);
+        } else {
+            PollingManager.getInstance().setRefreshAction(null);
         }
     }
 
@@ -375,6 +414,47 @@ public class MainActivity extends AppCompatActivity {
             if (recipeFragment != null) recipeFragment.refreshData();
             if (todoFragment != null) todoFragment.refreshData();
         }
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        PollingManager.getInstance().start();
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        PollingManager.getInstance().stop();
+    }
+
+    @Override
+    protected void onSaveInstanceState(Bundle outState) {
+        super.onSaveInstanceState(outState);
+        // Save current fragment tag
+        if (currentFragment != null) {
+            String tag = getFragmentTag(currentFragment);
+            if (tag != null) {
+                outState.putString(KEY_CURRENT_FRAGMENT_TAG, tag);
+            }
+        }
+        // Save last tab fragment tag
+        if (lastTabFragment != null) {
+            String tag = getFragmentTag(lastTabFragment);
+            if (tag != null) {
+                outState.putString(KEY_LAST_TAB_FRAGMENT_TAG, tag);
+            }
+        }
+    }
+
+    private String getFragmentTag(Fragment fragment) {
+        if (fragment == headFragment) return "head";
+        if (fragment == inventoryFragment) return "inventory";
+        if (fragment == recipeFragment) return "recipe";
+        if (fragment == eatOutFragment) return "eatOut";
+        if (fragment == todoFragment) return "todo";
+        if (fragment == myFragment) return "my";
+        return null;
     }
 
     @Override

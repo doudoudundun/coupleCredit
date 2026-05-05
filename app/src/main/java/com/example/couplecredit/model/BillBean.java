@@ -26,6 +26,7 @@ public final class BillBean {
     private String time; // 时间 HH:mm:ss
     private String title; // 备注
     private int isHelp; // 0=正常记录，1=帮助记录
+    private String sharedPlanName; // 关联的小钱包名称
 
     public BillBean(long billId, double fare, int year, int month, int day, int userId, String categoryName,
                     String categoryDesc, int iconResId, int incomeType, String time, String title) {
@@ -190,5 +191,13 @@ public final class BillBean {
 
     public void setIsHelp(int isHelp) {
         this.isHelp = isHelp;
+    }
+
+    public String getSharedPlanName() {
+        return sharedPlanName;
+    }
+
+    public void setSharedPlanName(String sharedPlanName) {
+        this.sharedPlanName = sharedPlanName;
     }
 }

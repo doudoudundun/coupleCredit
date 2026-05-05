@@ -32,7 +32,9 @@ import com.example.couplecredit.adapter.TodoAdapter;
 import com.example.couplecredit.api.AuthApiClient;
 import com.example.couplecredit.api.AuthApiModels;
 import com.example.couplecredit.config.ApiConfigManager;
+import com.example.couplecredit.utils.DataLocalCache;
 import com.example.couplecredit.utils.UserInfoManager;
+import com.google.gson.Gson;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -66,6 +68,7 @@ public class TodoFragment extends Fragment implements TodoAdapter.TodoActionList
     private View fabRefreshTodo;
     private TodoAdapter todoAdapter;
     private final List<AuthApiModels.TodoItemData> allTodos = new ArrayList<>();
+    private final Gson gson = new Gson();
     private String activeFilter = "all";
     private String activePriorityFilter = "all";
     private ImageView pendingImageView;
@@ -146,6 +149,21 @@ public class TodoFragment extends Fragment implements TodoAdapter.TodoActionList
         }
 
         int userId = UserInfoManager.getCurrentUserId(requireContext());
+
+        if (allTodos.isEmpty()) {
+            String cached = DataLocalCache.get(requireContext(), "todos_" + userId);
+            if (cached != null) {
+                try {
+                    AuthApiModels.TodoListResponse r = gson.fromJson(cached, AuthApiModels.TodoListResponse.class);
+                    if (r != null && r.data != null && r.data.items != null) {
+                        allTodos.clear();
+                        allTodos.addAll(r.data.items);
+                        applyFilter();
+                    }
+                } catch (Exception ignored) {}
+            }
+        }
+
         AuthApiClient.queryTodos(requireContext(), userId, new AuthApiClient.TodoListCallback() {
             @Override
             public void onSuccess(AuthApiModels.TodoListResponse response) {
@@ -156,6 +174,7 @@ public class TodoFragment extends Fragment implements TodoAdapter.TodoActionList
                         allTodos.addAll(response.data.items);
                     }
                     applyFilter();
+                    DataLocalCache.put(requireContext(), "todos_" + userId, gson.toJson(response));
                 });
             }
 

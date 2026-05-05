@@ -18,6 +18,7 @@ import com.example.couplecredit.adapter.CategoryDetailAdapter;
 import com.example.couplecredit.adapter.ReportAdapter;
 import com.example.couplecredit.api.AuthApiClient;
 import com.example.couplecredit.api.AuthApiModels;
+import com.example.couplecredit.utils.DataLocalCache;
 import com.example.couplecredit.utils.DataRefreshBus;
 import com.example.couplecredit.utils.UserInfoManager;
 import com.example.couplecredit.utils.BillUtils;
@@ -34,6 +35,7 @@ import com.github.mikephil.charting.data.PieEntry;
 import com.github.mikephil.charting.formatter.PercentFormatter;
 import com.github.mikephil.charting.formatter.ValueFormatter;
 import com.google.android.material.tabs.TabLayout;
+import com.google.gson.Gson;
 
 import java.util.ArrayList;
 import java.util.Calendar;
@@ -66,6 +68,7 @@ public class ReportFragment extends Fragment {
     private String currentChartFilter = "all";
     private String currentPieFilter = "all";
     private final List<Map<String, Object>> monthlyBills = new ArrayList<>();
+    private final Gson gson = new Gson();
 
     private interface MonthlyDataCallback {
         void onDataLoaded();
@@ -747,6 +750,24 @@ public class ReportFragment extends Fragment {
     }
 
     private void loadMonthlyBillsData(int userId, Integer relationshipId, MonthlyDataCallback callback) {
+        String cacheKey = "report_bills_" + userId + "_" + currentYear + "_" + currentMonth + "_" + income_type;
+
+        if (monthlyBills.isEmpty()) {
+            String cached = DataLocalCache.get(requireContext(), cacheKey);
+            if (cached != null) {
+                try {
+                    AuthApiModels.BillsQueryResponse r = gson.fromJson(cached, AuthApiModels.BillsQueryResponse.class);
+                    if (r != null && r.data != null && r.data.bills != null) {
+                        for (AuthApiModels.BillData bill : r.data.bills) {
+                            if (bill == null || bill.incomeType != income_type) continue;
+                            monthlyBills.add(toBillMap(bill));
+                        }
+                        if (callback != null) callback.onDataLoaded();
+                    }
+                } catch (Exception ignored) {}
+            }
+        }
+
         AuthApiClient.queryBills(requireContext(), userId, currentYear, currentMonth, new AuthApiClient.BillsQueryCallback() {
             @Override
             public void onSuccess(AuthApiModels.BillsQueryResponse response) {
@@ -759,6 +780,7 @@ public class ReportFragment extends Fragment {
                         monthlyBills.add(toBillMap(bill));
                     }
                 }
+                DataLocalCache.put(requireContext(), cacheKey, gson.toJson(response));
                 if (callback != null) {
                     callback.onDataLoaded();
                 }

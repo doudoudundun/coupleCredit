@@ -41,6 +41,7 @@ public class HeadFragment extends Fragment {
     private SharedPreferences sharedPreferences;
     private static final String PREFS_NAME = "HeadFragmentPrefs";
     private static final String KEY_TAB_POSITION = "tabPosition";
+    private static final String KEY_CURRENT_CHILD_TAG = "currentChildFragmentTag";
     private final TabLayout.OnTabSelectedListener onTabSelectedListener = new TabLayout.OnTabSelectedListener() {
         @Override
         public void onTabSelected(TabLayout.Tab tab) {
@@ -89,28 +90,35 @@ public class HeadFragment extends Fragment {
     }
 
     private void restoreOrCreateChildFragments() {
-        ClassicFragment = fragmentManager.findFragmentByTag("classic");
-        ChatFragment = fragmentManager.findFragmentByTag("chat");
-        SharedPlansFragment = fragmentManager.findFragmentByTag("sharedPlans");
-        ReportFragment = fragmentManager.findFragmentByTag("report");
-        AddBillFragment = fragmentManager.findFragmentByTag("addBill");
+        // Try to restore existing fragments from FragmentManager
+        Fragment existingClassic = fragmentManager.findFragmentByTag("classic");
+        Fragment existingChat = fragmentManager.findFragmentByTag("chat");
+        Fragment existingSharedPlans = fragmentManager.findFragmentByTag("sharedPlans");
+        Fragment existingReport = fragmentManager.findFragmentByTag("report");
+        Fragment existingAddBill = fragmentManager.findFragmentByTag("addBill");
 
-        if (ClassicFragment == null) {
-            ClassicFragment = new ClassicModelFragment();
-        }
-        if (ChatFragment == null) {
-            ChatFragment = new ChatModelFragment();
-        }
-        if (SharedPlansFragment == null) {
-            SharedPlansFragment = new com.example.couplecredit.fragment.SharedPlansFragment();
-        }
-        if (ReportFragment == null) {
-            ReportFragment = new com.example.couplecredit.fragment.ReportFragment();
-        }
-        if (AddBillFragment == null) {
-            AddBillFragment = new com.example.couplecredit.fragment.AddBillFragment();
+        // Use existing fragments if found, otherwise create new ones
+        ClassicFragment = existingClassic != null ? existingClassic : new ClassicModelFragment();
+        ChatFragment = existingChat != null ? existingChat : new ChatModelFragment();
+        SharedPlansFragment = existingSharedPlans != null ? existingSharedPlans : new com.example.couplecredit.fragment.SharedPlansFragment();
+        ReportFragment = existingReport != null ? existingReport : new com.example.couplecredit.fragment.ReportFragment();
+        AddBillFragment = existingAddBill != null ? existingAddBill : new com.example.couplecredit.fragment.AddBillFragment();
+
+        // Restore current child fragment from saved state
+        String currentChildTag = sharedPreferences.getString(KEY_CURRENT_CHILD_TAG, "classic");
+        if ("chat".equals(currentChildTag)) {
+            currentChildFragment = ChatFragment;
+        } else if ("sharedPlans".equals(currentChildTag)) {
+            currentChildFragment = SharedPlansFragment;
+        } else if ("report".equals(currentChildTag)) {
+            currentChildFragment = ReportFragment;
+        } else if ("addBill".equals(currentChildTag)) {
+            currentChildFragment = AddBillFragment;
+        } else {
+            currentChildFragment = ClassicFragment;
         }
 
+        // Add fragments to container if not already added
         FragmentTransaction transaction = fragmentManager.beginTransaction().setReorderingAllowed(true);
         if (!ClassicFragment.isAdded()) {
             transaction.add(R.id.fg_change, ClassicFragment, "classic");
@@ -127,13 +135,20 @@ public class HeadFragment extends Fragment {
         if (!AddBillFragment.isAdded()) {
             transaction.add(R.id.fg_change, AddBillFragment, "addBill");
         }
+
+        // Hide all except current
         transaction.hide(ClassicFragment);
         transaction.hide(ChatFragment);
         transaction.hide(SharedPlansFragment);
         transaction.hide(ReportFragment);
         transaction.hide(AddBillFragment);
+
+        // Show the current one
+        if (currentChildFragment != null) {
+            transaction.show(currentChildFragment);
+        }
+
         transaction.commitNow();
-        currentChildFragment = null;
     }
 
     private void showChildFragment(int position) {
@@ -188,6 +203,27 @@ public class HeadFragment extends Fragment {
     private void saveTabPosition(int position) {
         SharedPreferences.Editor editor = sharedPreferences.edit();
         editor.putInt(KEY_TAB_POSITION, position);
+
+        // Save current child fragment tag
+        String childTag;
+        switch (position) {
+            case TAB_ADD_BILL:
+                childTag = "addBill";
+                break;
+            case TAB_CHAT:
+                childTag = "chat";
+                break;
+            case TAB_SHARED_PLANS:
+                childTag = "sharedPlans";
+                break;
+            case TAB_REPORT:
+                childTag = "report";
+                break;
+            default:
+                childTag = "classic";
+                break;
+        }
+        editor.putString(KEY_CURRENT_CHILD_TAG, childTag);
         editor.apply();
     }
 

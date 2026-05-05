@@ -318,6 +318,25 @@ public class BeadUtils {
         });
     }
 
+    public interface BeadConvertCallback {
+        void onSuccess(AuthApiModels.BeadConvertResponse response);
+        void onError(String error);
+    }
+
+    public static void convertToBeadImage(Context context, String imageUrl, BeadConvertCallback callback) {
+        AuthApiClient.convertToBeadImage(context, imageUrl, 48, new AuthApiClient.BeadConvertCallback() {
+            @Override
+            public void onSuccess(AuthApiModels.BeadConvertResponse response) {
+                if (callback != null) callback.onSuccess(response);
+            }
+
+            @Override
+            public void onError(String error) {
+                if (callback != null) callback.onError(error);
+            }
+        });
+    }
+
     private static AuthApiClient.BeadMutationCallback wrapMutation(BeadMutationCallback callback) {
         return new AuthApiClient.BeadMutationCallback() {
             @Override

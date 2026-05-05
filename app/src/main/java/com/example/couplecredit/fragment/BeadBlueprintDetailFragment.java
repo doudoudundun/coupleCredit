@@ -130,11 +130,13 @@ public class BeadBlueprintDetailFragment extends Fragment {
         }
         BeadUtils.getBlueprintDetail(requireContext(), blueprintId, new BeadUtils.BeadBlueprintDetailLoadCallback() {
             @Override public void onSuccess(AuthApiModels.BeadBlueprintResponse response) {
+                if (!isAdded()) return;
                 if (response != null && response.data != null) {
                     bindItem(fromApi(response.data));
                 }
             }
             @Override public void onError(String error) {
+                if (!isAdded()) return;
                 Toast.makeText(requireContext(), error, Toast.LENGTH_SHORT).show();
             }
         });
@@ -162,10 +164,12 @@ public class BeadBlueprintDetailFragment extends Fragment {
         }
         BeadUtils.buildBlueprint(requireContext(), currentItem.blueprintId, 1, new BeadUtils.BuildBeadBlueprintCallback() {
             @Override public void onSuccess(AuthApiModels.BuildBeadBlueprintResponse response) {
+                if (!isAdded()) return;
                 viewModel.loadBlueprints();
                 loadDetail();
             }
             @Override public void onError(String error) {
+                if (!isAdded()) return;
                 Toast.makeText(requireContext(), error, Toast.LENGTH_SHORT).show();
             }
         });
@@ -288,6 +292,7 @@ public class BeadBlueprintDetailFragment extends Fragment {
                     color.isTransparent
             ));
         }
+        colors.sort((a, b) -> Integer.compare(b.quantityPerBuild, a.quantityPerBuild));
         return colors;
     }
 

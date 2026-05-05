@@ -12,7 +12,9 @@ import com.example.couplecredit.model.BillBean;
 import com.example.couplecredit.api.AuthApiClient;
 import com.example.couplecredit.api.AuthApiModels;
 import com.example.couplecredit.utils.CategoryIconMapper;
+import com.example.couplecredit.utils.DataLocalCache;
 import com.example.couplecredit.utils.UserInfoManager;
+import com.google.gson.Gson;
 
 import java.util.ArrayList;
 import java.util.Calendar;
@@ -29,6 +31,7 @@ import java.util.Map;
  */
 public class ClassicViewModel extends AndroidViewModel {
 
+    private final Gson gson = new Gson();
     private final List<Object> displayItems = new ArrayList<>();
     private final List<BillBean> billItems = new ArrayList<>();
 
@@ -132,64 +135,24 @@ public class ClassicViewModel extends AndroidViewModel {
             return;
         }
 
+        String cacheKey = "bills_" + userId + "_" + year + "_" + month;
+        if (billItems.isEmpty()) {
+            String cached = DataLocalCache.get(getApplication(), cacheKey);
+            if (cached != null) {
+                try {
+                    AuthApiModels.BillsQueryResponse r = gson.fromJson(cached, AuthApiModels.BillsQueryResponse.class);
+                    if (r != null) applyBillsResponse(r);
+                } catch (Exception ignored) {}
+            }
+        }
+
         Log.d("ClassicViewModel", "使用 HTTP API 查询账单: userId=" + userId + ", year=" + year + ", month=" + month);
 
         AuthApiClient.queryBills(getApplication(), userId, year, month, new AuthApiClient.BillsQueryCallback() {
             @Override
             public void onSuccess(AuthApiModels.BillsQueryResponse response) {
-                // 缓存关系状态到本地
-                if (response.data != null && response.data.relationshipId != null) {
-                    UserInfoManager.saveRelationshipId(getApplication(), response.data.relationshipId);
-                }
-
-                if (response.data == null || response.data.bills == null) {
-                    Log.w("ClassicViewModel", "API 返回无账单数据");
-                    billItems.clear();
-                    displayItems.clear();
-                    totalIncome.postValue(0.0);
-                    totalExpense.postValue(0.0);
-                    bumpVersion();
-                    return;
-                }
-
-                billItems.clear();
-                for (AuthApiModels.BillData bill : response.data.bills) {
-                    try {
-                        // 解析日期 (格式: "2026-04-12T16:00:00.000Z" 或 "2026-04-12")
-                        String dateStr = bill.date;
-                        int y, m, d;
-                        if (dateStr.contains("T")) {
-                            dateStr = dateStr.substring(0, 10);
-                        }
-                        String[] dateParts = dateStr.split("-");
-                        y = Integer.parseInt(dateParts[0]);
-                        m = Integer.parseInt(dateParts[1]);
-                        d = Integer.parseInt(dateParts[2]);
-
-                        int iconResId = CategoryIconMapper.getIconForCategory(bill.type);
-                        billItems.add(new BillBean(
-                            bill.billId,
-                            bill.amount,
-                            y, m, d,
-                            bill.owner,
-                            bill.userId,
-                            bill.type,
-                            bill.title,
-                            iconResId,
-                            bill.incomeType,
-                            bill.time,
-                            bill.title,
-                            bill.isHelp
-                        ));
-                    } catch (Exception e) {
-                        Log.e("ClassicViewModel", "解析账单失败: " + e.getMessage(), e);
-                    }
-                }
-
-                processAndDisplayData();
-                sumAmounts();
-                bumpVersion();
-
+                applyBillsResponse(response);
+                DataLocalCache.put(getApplication(), cacheKey, gson.toJson(response));
                 Log.d("ClassicViewModel", "HTTP API 查询完成，账单数: " + billItems.size());
             }
 
@@ -202,6 +165,48 @@ public class ClassicViewModel extends AndroidViewModel {
                 bumpVersion();
             }
         });
+    }
+
+    private void applyBillsResponse(AuthApiModels.BillsQueryResponse response) {
+        if (response.data != null && response.data.relationshipId != null) {
+            UserInfoManager.saveRelationshipId(getApplication(), response.data.relationshipId);
+        }
+
+        if (response.data == null || response.data.bills == null) {
+            billItems.clear();
+            displayItems.clear();
+            totalIncome.postValue(0.0);
+            totalExpense.postValue(0.0);
+            bumpVersion();
+            return;
+        }
+
+        billItems.clear();
+        for (AuthApiModels.BillData bill : response.data.bills) {
+            try {
+                String dateStr = bill.date;
+                int y, m, d;
+                if (dateStr.contains("T")) dateStr = dateStr.substring(0, 10);
+                String[] dateParts = dateStr.split("-");
+                y = Integer.parseInt(dateParts[0]);
+                m = Integer.parseInt(dateParts[1]);
+                d = Integer.parseInt(dateParts[2]);
+
+                int iconResId = CategoryIconMapper.getIconForCategory(bill.type);
+                BillBean bean = new BillBean(
+                    bill.billId, bill.amount, y, m, d, bill.owner, bill.userId,
+                    bill.type, bill.title, iconResId, bill.incomeType, bill.time, bill.title, bill.isHelp
+                );
+                bean.setSharedPlanName(bill.sharedPlanName);
+                billItems.add(bean);
+            } catch (Exception e) {
+                Log.e("ClassicViewModel", "解析账单失败: " + e.getMessage(), e);
+            }
+        }
+
+        processAndDisplayData();
+        sumAmounts();
+        bumpVersion();
     }
 
     // 与原Fragment一致的分组与展示结构，生成 List<Map<String, List<BillBean>>> 供BillAdapter使用

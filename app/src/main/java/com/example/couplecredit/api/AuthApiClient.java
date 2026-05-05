@@ -428,6 +428,40 @@ public class AuthApiClient {
                 });
     }
 
+    public interface BeadConvertCallback {
+        void onSuccess(AuthApiModels.BeadConvertResponse response);
+        void onError(String error);
+    }
+
+    public static void convertToBeadImage(Context context, String imageUrl, Integer cols, BeadConvertCallback callback) {
+        doRequest(context, "POST", "/api/beads/convert-to-bead",
+                GSON.toJson(new AuthApiModels.BeadConvertRequest(imageUrl, cols, null, null)),
+                AI_REQUEST_TIMEOUT_MS,
+                new RawCallback() {
+                    @Override
+                    public void onSuccess(String json) {
+                        if (callback != null) {
+                            try {
+                                AuthApiModels.BeadConvertResponse response = GSON.fromJson(normalizeJsonPayload(json), AuthApiModels.BeadConvertResponse.class);
+                                if (response != null && response.ok) {
+                                    callback.onSuccess(response);
+                                } else {
+                                    callback.onError(extractError(response != null ? response.error : null, json));
+                                }
+                            } catch (Exception e) {
+                                Log.e(TAG, "转拼豆响应解析失败: " + json, e);
+                                callback.onError(buildParseError("转拼豆", json));
+                            }
+                        }
+                    }
+
+                    @Override
+                    public void onError(String message) {
+                        if (callback != null) callback.onError(message);
+                    }
+                });
+    }
+
     public static void createInventory(Context context, AuthApiModels.CreateInventoryRequest request, InventoryMutationCallback callback) {
         doRequest(context, "POST", "/api/inventory",
                 GSON.toJson(request),

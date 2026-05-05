@@ -5,11 +5,13 @@ import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
+import android.widget.Spinner;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
@@ -195,11 +197,23 @@ public class ClassicModelFragment extends Fragment implements BillAdapter.OnItem
         TextView tvNoteContent = dialogView.findViewById(R.id.tv_note_content);
         EditText etFare = dialogView.findViewById(R.id.et_fare);
         EditText etNoteContent = dialogView.findViewById(R.id.et_note_content);
+        Spinner spinnerCategory = dialogView.findViewById(R.id.spinner_bill_category);
         Button btnDelete = dialogView.findViewById(R.id.btn_delete);
         Button btnEdit = dialogView.findViewById(R.id.btn_edit);
         ImageButton btnConfirm = dialogView.findViewById(R.id.btn_confirm);
         ImageButton btnCancel = dialogView.findViewById(R.id.btn_cancel);
         LinearLayout llNoteCard = dialogView.findViewById(R.id.ll_note_card);
+
+        // 初始化种类 Spinner
+        boolean isExpense = bill.getIncomeType() != 1;
+        List<String> categories = CategoryIconMapper.getCategoriesByType(isExpense);
+        ArrayAdapter<String> categoryAdapter = new ArrayAdapter<>(requireContext(), android.R.layout.simple_spinner_item, categories);
+        categoryAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        if (spinnerCategory != null) {
+            spinnerCategory.setAdapter(categoryAdapter);
+            int idx = categories.indexOf(categoryName);
+            spinnerCategory.setSelection(idx >= 0 ? idx : 0);
+        }
 
         if (ivCategoryIcon != null) {
             int iconResId = CategoryIconMapper.getIconForCategory(categoryName);
@@ -239,7 +253,7 @@ public class ClassicModelFragment extends Fragment implements BillAdapter.OnItem
         }
         if (btnEdit != null) {
             btnEdit.setOnClickListener(v -> BillUtils.enterEditMode(getContext(), mDialog, tvDate, tvFare, tvNoteContent,
-                    etFare, etNoteContent, btnEdit, btnDelete, btnConfirm, btnCancel));
+                    etFare, etNoteContent, btnEdit, btnDelete, btnConfirm, btnCancel, tvCategoryName, spinnerCategory));
         }
         if (btnConfirm != null) {
             btnConfirm.setOnClickListener(v -> {
@@ -248,8 +262,10 @@ public class ClassicModelFragment extends Fragment implements BillAdapter.OnItem
                 double currentFare = fareText.startsWith("￥") ? Double.parseDouble(fareText.substring(1)) : Double.parseDouble(fareText);
                 String currentNoteContent = etNoteContent.getText().toString();
                 String currentTime = new SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(new Date());
+                String selectedCategory = (spinnerCategory != null && spinnerCategory.getSelectedItem() != null)
+                        ? spinnerCategory.getSelectedItem().toString() : null;
 
-                BillUtils.updateBill(getContext(), bill, currentDate, currentFare, currentNoteContent, currentTime, new BillUtils.UpdateBillCallback() {
+                BillUtils.updateBill(getContext(), bill, currentDate, currentFare, currentNoteContent, currentTime, selectedCategory, null, new BillUtils.UpdateBillCallback() {
                     @Override
                     public void onUpdateSuccess(int rowsAffected) {
                         if (getActivity() != null) {
@@ -275,7 +291,7 @@ public class ClassicModelFragment extends Fragment implements BillAdapter.OnItem
                     }
                 });
                 BillUtils.exitEditMode(mDialog, tvDate, tvFare, tvNoteContent,
-                        etFare, etNoteContent, btnEdit, btnDelete, btnConfirm, btnCancel);
+                        etFare, etNoteContent, btnEdit, btnDelete, btnConfirm, btnCancel, tvCategoryName, spinnerCategory, incomeType);
             });
         }
         if (btnCancel != null) {
@@ -292,8 +308,12 @@ public class ClassicModelFragment extends Fragment implements BillAdapter.OnItem
                 if (tvNoteContent != null) {
                     tvNoteContent.setText(noteTitle != null ? noteTitle : "");
                 }
+                if (spinnerCategory != null) {
+                    int idx = categories.indexOf(categoryName);
+                    spinnerCategory.setSelection(idx >= 0 ? idx : 0);
+                }
                 BillUtils.exitEditMode(mDialog, tvDate, tvFare, tvNoteContent,
-                        etFare, etNoteContent, btnEdit, btnDelete, btnConfirm, btnCancel);
+                        etFare, etNoteContent, btnEdit, btnDelete, btnConfirm, btnCancel, tvCategoryName, spinnerCategory, incomeType);
             });
         }
     }

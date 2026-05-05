@@ -95,6 +95,12 @@
                 android:text="支出-交通"
                 android:textSize="16sp"
                 android:textColor="#333333" />
+
+            <Spinner
+                android:id="@+id/spinner_bill_category"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:visibility="gone" />
         </LinearLayout>
     </LinearLayout>
 

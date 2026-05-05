@@ -24,6 +24,7 @@ public class AuthApiModels {
         public long billId;
         public Integer relationshipId;
         public Integer sharedPlanId;
+        public String sharedPlanName;
         public int owner;
         public int userId;
         public String title;
@@ -412,6 +413,37 @@ public class AuthApiModels {
         public boolean ok;
         public String message;
         public BeadRecognizeColorsData data;
+        public ErrorBody error;
+    }
+
+    public static class BeadConvertRequest {
+        public final String imageUrl;
+        public final Integer cols;
+        public final Integer rows;
+        public final Integer cellSize;
+
+        public BeadConvertRequest(String imageUrl, Integer cols, Integer rows, Integer cellSize) {
+            this.imageUrl = imageUrl;
+            this.cols = cols;
+            this.rows = rows;
+            this.cellSize = cellSize;
+        }
+    }
+
+    public static class BeadConvertColorData {
+        public String colorCode;
+        public int quantity;
+    }
+
+    public static class BeadConvertData {
+        public String imageDataUrl;
+        public List<BeadConvertColorData> colors;
+        public String colorSummaryText;
+    }
+
+    public static class BeadConvertResponse {
+        public boolean ok;
+        public BeadConvertData data;
         public ErrorBody error;
     }
 

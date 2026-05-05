@@ -8,6 +8,8 @@ import androidx.lifecycle.LiveData;
 import androidx.lifecycle.MutableLiveData;
 
 import com.example.couplecredit.api.AuthApiModels;
+import com.example.couplecredit.utils.DataLocalCache;
+import com.google.gson.Gson;
 import com.example.couplecredit.utils.BeadUtils;
 import com.example.couplecredit.utils.DateTimeUtils;
 import com.example.couplecredit.utils.UserInfoManager;
@@ -79,6 +81,9 @@ public class BeadInventoryViewModel extends AndroidViewModel {
     private final MutableLiveData<Integer> dataVersion = new MutableLiveData<>(0);
     private final MutableLiveData<String> errorMessage = new MutableLiveData<>();
     private final MutableLiveData<Boolean> loading = new MutableLiveData<>(false);
+    private static final String CACHE_INVENTORY = "bead_inventory_";
+    private static final String CACHE_BLUEPRINTS = "bead_blueprints_";
+    private final Gson gson = new Gson();
 
     public BeadInventoryViewModel(@NonNull Application application) {
         super(application);
@@ -130,28 +135,24 @@ public class BeadInventoryViewModel extends AndroidViewModel {
             return;
         }
 
+        int userId = UserInfoManager.getCurrentUserId(getApplication());
+
+        if (!inventoryLoaded) {
+            String cached = DataLocalCache.get(getApplication(), CACHE_INVENTORY + userId);
+            if (cached != null) {
+                try {
+                    AuthApiModels.BeadInventoryListResponse r = gson.fromJson(cached, AuthApiModels.BeadInventoryListResponse.class);
+                    if (r != null) applyInventoryResponse(r);
+                } catch (Exception ignored) {}
+            }
+        }
+
         beginLoading();
         BeadUtils.loadInventory(getApplication(), new BeadUtils.BeadInventoryLoadCallback() {
             @Override
             public void onSuccess(AuthApiModels.BeadInventoryListResponse response) {
-                inventoryList.clear();
-                resetSummary();
-
-                if (response != null && response.data != null) {
-                    cachedRelationshipId = response.data.relationshipId;
-                    UserInfoManager.saveRelationshipId(getApplication(), cachedRelationshipId);
-                    if (response.data.items != null) {
-                        for (AuthApiModels.BeadInventoryItemData itemData : response.data.items) {
-                            inventoryList.add(fromInventoryApi(itemData));
-                        }
-                    }
-                    if (response.data.summary != null) {
-                        applySummary(response.data.summary);
-                    } else {
-                        deriveSummaryFromInventory();
-                    }
-                }
-
+                applyInventoryResponse(response);
+                DataLocalCache.put(getApplication(), CACHE_INVENTORY + userId, gson.toJson(response));
                 inventoryLoaded = true;
                 endLoading();
                 bumpVersion();
@@ -171,18 +172,24 @@ public class BeadInventoryViewModel extends AndroidViewModel {
             return;
         }
 
+        int userId = UserInfoManager.getCurrentUserId(getApplication());
+
+        if (!blueprintsLoaded) {
+            String cached = DataLocalCache.get(getApplication(), CACHE_BLUEPRINTS + userId);
+            if (cached != null) {
+                try {
+                    AuthApiModels.BeadBlueprintListResponse r = gson.fromJson(cached, AuthApiModels.BeadBlueprintListResponse.class);
+                    if (r != null) applyBlueprintResponse(r);
+                } catch (Exception ignored) {}
+            }
+        }
+
         beginLoading();
         BeadUtils.loadBlueprints(getApplication(), new BeadUtils.BeadBlueprintListLoadCallback() {
             @Override
             public void onSuccess(AuthApiModels.BeadBlueprintListResponse response) {
-                blueprintList.clear();
-
-                if (response != null && response.data != null && response.data.items != null) {
-                    for (AuthApiModels.BeadBlueprintItemData itemData : response.data.items) {
-                        blueprintList.add(fromBlueprintApi(itemData));
-                    }
-                }
-
+                applyBlueprintResponse(response);
+                DataLocalCache.put(getApplication(), CACHE_BLUEPRINTS + userId, gson.toJson(response));
                 blueprintsLoaded = true;
                 endLoading();
                 bumpVersion();
@@ -194,6 +201,34 @@ public class BeadInventoryViewModel extends AndroidViewModel {
                 errorMessage.postValue(error);
             }
         });
+    }
+
+    private void applyInventoryResponse(AuthApiModels.BeadInventoryListResponse response) {
+        inventoryList.clear();
+        resetSummary();
+        if (response != null && response.data != null) {
+            cachedRelationshipId = response.data.relationshipId;
+            UserInfoManager.saveRelationshipId(getApplication(), cachedRelationshipId);
+            if (response.data.items != null) {
+                for (AuthApiModels.BeadInventoryItemData itemData : response.data.items) {
+                    inventoryList.add(fromInventoryApi(itemData));
+                }
+            }
+            if (response.data.summary != null) {
+                applySummary(response.data.summary);
+            } else {
+                deriveSummaryFromInventory();
+            }
+        }
+    }
+
+    private void applyBlueprintResponse(AuthApiModels.BeadBlueprintListResponse response) {
+        blueprintList.clear();
+        if (response != null && response.data != null && response.data.items != null) {
+            for (AuthApiModels.BeadBlueprintItemData itemData : response.data.items) {
+                blueprintList.add(fromBlueprintApi(itemData));
+            }
+        }
     }
 
     private synchronized void beginLoading() {

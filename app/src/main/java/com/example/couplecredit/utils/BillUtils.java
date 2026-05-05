@@ -5,15 +5,18 @@ import android.content.Context;
 import android.util.Log;
 import android.view.View;
 import android.view.Window;
+import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageButton;
 import android.widget.NumberPicker;
+import android.widget.Spinner;
 import android.widget.TextView;
 
 import com.example.couplecredit.model.BillBean;
 import com.example.couplecredit.api.AuthApiClient;
 import com.example.couplecredit.R;
+import com.example.couplecredit.utils.CategoryIconMapper;
 
 import androidx.appcompat.app.AlertDialog;
 
@@ -137,11 +140,16 @@ public final class BillUtils {
 
 
     public static void updateBill(Context context, BillBean bill, String newDate, double newFare, String newNoteContent, String newTime, UpdateBillCallback callback) {
-        updateBill(context, bill, newDate, newFare, newNoteContent, newTime, null, callback);
+        updateBill(context, bill, newDate, newFare, newNoteContent, newTime, null, null, callback);
     }
 
     public static void updateBill(Context context, BillBean bill, String newDate, double newFare, String newNoteContent, String newTime, Integer isHelp, UpdateBillCallback callback) {
+        updateBill(context, bill, newDate, newFare, newNoteContent, newTime, null, isHelp, callback);
+    }
+
+    public static void updateBill(Context context, BillBean bill, String newDate, double newFare, String newNoteContent, String newTime, String newCategory, Integer isHelp, UpdateBillCallback callback) {
         String titleToUpdate = (newNoteContent == null || newNoteContent.trim().isEmpty()) ? bill.getCategoryName() : newNoteContent;
+        String categoryToUpdate = (newCategory == null || newCategory.trim().isEmpty()) ? bill.getCategoryName() : newCategory;
         int userId = UserInfoManager.getCurrentUserId(context);
         if (userId < 0) {
             if (callback != null) {
@@ -151,7 +159,7 @@ public final class BillUtils {
         }
 
         Integer incomeType = bill.getIncomeType();
-        AuthApiClient.updateBill(context, (int) bill.getBillId(), userId, titleToUpdate, bill.getCategoryName(), newFare, newDate, newTime, incomeType, new AuthApiClient.UpdateBillCallback() {
+        AuthApiClient.updateBill(context, (int) bill.getBillId(), userId, titleToUpdate, categoryToUpdate, newFare, newDate, newTime, incomeType, new AuthApiClient.UpdateBillCallback() {
             @Override
             public void onSuccess() {
                 if (callback != null) {
@@ -256,15 +264,30 @@ public final class BillUtils {
     public static void enterEditMode(Context context, AlertDialog mDialog, TextView tvDate, TextView tvFare, TextView tvNoteContent,
                                      EditText etFare, EditText etNoteContent,
                                      Button btnEdit, Button btnDelete, ImageButton btnConfirm, ImageButton btnCancel){
-        if (tvDate != null) tvDate.setOnClickListener(v-> {
+        enterEditMode(context, mDialog, tvDate, tvFare, tvNoteContent, etFare, etNoteContent, btnEdit, btnDelete, btnConfirm, btnCancel, null, null);
+    }
+
+    public static void enterEditMode(Context context, AlertDialog mDialog, TextView tvDate, TextView tvFare, TextView tvNoteContent,
+                                     EditText etFare, EditText etNoteContent,
+                                     Button btnEdit, Button btnDelete, ImageButton btnConfirm, ImageButton btnCancel,
+                                     TextView tvCategoryName, Spinner spinnerCategory) {
+        if (tvDate != null) tvDate.setOnClickListener(v -> {
             BillUtils.showDatePicker(context, tvDate.getText().toString(),
                     formattedDate -> tvDate.setText(formattedDate));
         });
         if (tvFare != null) tvFare.setVisibility(View.GONE);
         if (tvNoteContent != null) tvNoteContent.setVisibility(View.GONE);
+        if (tvCategoryName != null) tvCategoryName.setVisibility(View.GONE);
 
         if (etFare != null) etFare.setVisibility(View.VISIBLE);
-        if (etNoteContent != null) etNoteContent.setVisibility(View.VISIBLE);
+        // 让备注卡片父容器可见，然后显示编辑框
+        if (etNoteContent != null) {
+            if (etNoteContent.getParent() instanceof View) {
+                ((View) etNoteContent.getParent()).setVisibility(View.VISIBLE);
+            }
+            etNoteContent.setVisibility(View.VISIBLE);
+        }
+        if (spinnerCategory != null) spinnerCategory.setVisibility(View.VISIBLE);
 
         if (btnEdit != null) btnEdit.setVisibility(View.GONE);
         if (btnDelete != null) btnDelete.setVisibility(View.GONE);
@@ -276,6 +299,13 @@ public final class BillUtils {
     public static void exitEditMode(AlertDialog mDialog, TextView tvDate, TextView tvFare, TextView tvNoteContent,
                               EditText etFare, EditText etNoteContent,
                               Button btnEdit, Button btnDelete, ImageButton btnConfirm, ImageButton btnCancel) {
+        exitEditMode(mDialog, tvDate, tvFare, tvNoteContent, etFare, etNoteContent, btnEdit, btnDelete, btnConfirm, btnCancel, null, null, null);
+    }
+
+    public static void exitEditMode(AlertDialog mDialog, TextView tvDate, TextView tvFare, TextView tvNoteContent,
+                              EditText etFare, EditText etNoteContent,
+                              Button btnEdit, Button btnDelete, ImageButton btnConfirm, ImageButton btnCancel,
+                              TextView tvCategoryName, Spinner spinnerCategory, String incomeTypeLabel) {
         if (tvFare != null && etFare != null) {
             String fareText = etFare.getText().toString();
             if (!fareText.startsWith("￥")) {
@@ -285,15 +315,28 @@ public final class BillUtils {
             }
         }
         if (tvNoteContent != null && etNoteContent != null) {
-            tvNoteContent.setText(etNoteContent.getText().toString());
+            String noteText = etNoteContent.getText().toString().trim();
+            tvNoteContent.setText(noteText);
+            // 备注为空时隐藏备注卡片父容器
+            if (etNoteContent.getParent() instanceof View) {
+                ((View) etNoteContent.getParent()).setVisibility(
+                        noteText.isEmpty() ? View.GONE : View.VISIBLE);
+            }
+        }
+        if (tvCategoryName != null && spinnerCategory != null && spinnerCategory.getSelectedItem() != null) {
+            String selectedCategory = spinnerCategory.getSelectedItem().toString();
+            String label = (incomeTypeLabel != null ? incomeTypeLabel : "") + "-" + selectedCategory;
+            tvCategoryName.setText(label);
         }
 
         if (tvDate != null) tvDate.setVisibility(View.VISIBLE);
         if (tvFare != null) tvFare.setVisibility(View.VISIBLE);
         if (tvNoteContent != null) tvNoteContent.setVisibility(View.VISIBLE);
+        if (tvCategoryName != null) tvCategoryName.setVisibility(View.VISIBLE);
 
         if (etFare != null) etFare.setVisibility(View.GONE);
         if (etNoteContent != null) etNoteContent.setVisibility(View.GONE);
+        if (spinnerCategory != null) spinnerCategory.setVisibility(View.GONE);
 
         if (btnEdit != null) btnEdit.setVisibility(View.VISIBLE);
         if (btnDelete != null) btnDelete.setVisibility(View.VISIBLE);

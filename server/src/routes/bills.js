@@ -186,17 +186,19 @@ function createBillsRouter({ pool }) {
       let params;
 
       if (relationshipId) {
-        query = `SELECT bill_id as billId, user_id as userId, shared_plan_id as sharedPlanId, title, type, amount, DATE_FORMAT(date, '%Y-%m-%d') as date, time, income_type as incomeType, owner, is_help as isHelp, relationship_id as relationshipId
-                 FROM bills
-                 WHERE (user_id = ? OR relationship_id = ?)
-                 AND date >= ? AND date < ?
-                 ORDER BY date DESC, bill_id DESC`;
+        query = `SELECT b.bill_id as billId, b.user_id as userId, b.shared_plan_id as sharedPlanId, sp.name as sharedPlanName, b.title, b.type, b.amount, DATE_FORMAT(b.date, '%Y-%m-%d') as date, b.time, b.income_type as incomeType, b.owner, b.is_help as isHelp, b.relationship_id as relationshipId
+                 FROM bills b
+                 LEFT JOIN shared_plans sp ON sp.plan_id = b.shared_plan_id
+                 WHERE (b.user_id = ? OR b.relationship_id = ?)
+                 AND b.date >= ? AND b.date < ?
+                 ORDER BY b.date DESC, b.bill_id DESC`;
         params = [userId, relationshipId, dateStart, dateEnd];
       } else {
-        query = `SELECT bill_id as billId, user_id as userId, shared_plan_id as sharedPlanId, title, type, amount, DATE_FORMAT(date, '%Y-%m-%d') as date, time, income_type as incomeType, owner, is_help as isHelp, relationship_id as relationshipId
-                 FROM bills
-                 WHERE user_id = ? AND date >= ? AND date < ?
-                 ORDER BY date DESC, bill_id DESC`;
+        query = `SELECT b.bill_id as billId, b.user_id as userId, b.shared_plan_id as sharedPlanId, sp.name as sharedPlanName, b.title, b.type, b.amount, DATE_FORMAT(b.date, '%Y-%m-%d') as date, b.time, b.income_type as incomeType, b.owner, b.is_help as isHelp, b.relationship_id as relationshipId
+                 FROM bills b
+                 LEFT JOIN shared_plans sp ON sp.plan_id = b.shared_plan_id
+                 WHERE b.user_id = ? AND b.date >= ? AND b.date < ?
+                 ORDER BY b.date DESC, b.bill_id DESC`;
         params = [userId, dateStart, dateEnd];
       }
 
@@ -231,14 +233,13 @@ function createBillsRouter({ pool }) {
       if (rows.length === 0) throw new ApiError(404, "NOT_FOUND", "账单不存在或无权删除");
 
       const bill = rows[0];
-      await pool.execute("DELETE FROM bills WHERE bill_id = ? AND user_id = ?", [billId, userId]);
 
       if (bill.shared_plan_id) {
         const delta = bill.income_type === 0 ? bill.amount : -bill.amount;
-        await pool.execute(
-          "UPDATE shared_plans SET current_balance = current_balance + ? WHERE plan_id = ?",
-          [delta, bill.shared_plan_id]
-        );
+        await withTransaction(pool, async (conn) => {
+          await conn.execute("DELETE FROM bills WHERE bill_id = ? AND user_id = ?", [billId, userId]);
+          await conn.execute("UPDATE shared_plans SET current_balance = current_balance + ? WHERE plan_id = ?", [delta, bill.shared_plan_id]);
+        });
         const relationship = await loadActiveRelationship(pool, userId);
         if (relationship) {
           cache.del(Keys.sharedPlans(relationship.user_id_1));
@@ -246,6 +247,8 @@ function createBillsRouter({ pool }) {
         } else {
           cache.del(Keys.sharedPlans(userId));
         }
+      } else {
+        await pool.execute("DELETE FROM bills WHERE bill_id = ? AND user_id = ?", [billId, userId]);
       }
 
       cache.delPrefix(`bills:${userId}:`);

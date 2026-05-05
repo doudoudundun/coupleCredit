@@ -36,9 +36,11 @@ import com.example.couplecredit.adapter.RecipeCategoryAdapter;
 import com.example.couplecredit.api.AuthApiClient;
 import com.example.couplecredit.api.AuthApiModels;
 import com.example.couplecredit.config.ApiConfigManager;
+import com.example.couplecredit.utils.DataLocalCache;
 import com.example.couplecredit.utils.DataRefreshBus;
 import com.example.couplecredit.utils.DialogHelper;
 import com.example.couplecredit.utils.UserInfoManager;
+import com.google.gson.Gson;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -80,6 +82,7 @@ public class RecipeFragment extends Fragment implements RecipeAdapter.RecipeActi
 
     private static final int IMAGE_MAX_DIMENSION = 1024;
     private static final int IMAGE_JPEG_QUALITY = 80;
+    private final Gson gson = new Gson();
 
     @Nullable
     @Override
@@ -292,6 +295,36 @@ public class RecipeFragment extends Fragment implements RecipeAdapter.RecipeActi
 
         int userId = UserInfoManager.getCurrentUserId(requireContext());
 
+        if (categoryList.isEmpty()) {
+            String cachedCats = DataLocalCache.get(requireContext(), "recipe_cats_" + userId);
+            if (cachedCats != null) {
+                try {
+                    AuthApiModels.RecipeCategoryListResponse r = gson.fromJson(cachedCats, AuthApiModels.RecipeCategoryListResponse.class);
+                    if (r != null && r.data != null && r.data.items != null) {
+                        categoryList.clear();
+                        categoryList.addAll(r.data.items);
+                        categoryAdapter.updateData(categoryList);
+                    }
+                } catch (Exception ignored) {}
+            }
+        }
+        if (allRecipes.isEmpty()) {
+            String cachedRecipes = DataLocalCache.get(requireContext(), "recipes_" + userId);
+            if (cachedRecipes != null) {
+                try {
+                    AuthApiModels.RecipeListResponse r = gson.fromJson(cachedRecipes, AuthApiModels.RecipeListResponse.class);
+                    if (r != null && r.data != null && r.data.items != null) {
+                        allRecipes.clear();
+                        allRecipes.addAll(r.data.items);
+                        recipeAdapter.setData(categoryList, allRecipes);
+                        updateCategoryCartBadges();
+                        tvRecipeCount.setText(allRecipes.size() + " 道菜");
+                        updateEmptyState();
+                    }
+                } catch (Exception ignored) {}
+            }
+        }
+
         AuthApiClient.queryRecipeCategories(requireContext(), userId, new AuthApiClient.RecipeCategoryListCallback() {
             @Override
             public void onSuccess(AuthApiModels.RecipeCategoryListResponse response) {
@@ -304,6 +337,7 @@ public class RecipeFragment extends Fragment implements RecipeAdapter.RecipeActi
                     categoryAdapter.updateData(categoryList);
                     updateCategoryCartBadges();
                     recipeAdapter.setData(categoryList, allRecipes);
+                    DataLocalCache.put(requireContext(), "recipe_cats_" + userId, gson.toJson(response));
                 });
             }
             @Override public void onError(String e) { }
@@ -322,6 +356,7 @@ public class RecipeFragment extends Fragment implements RecipeAdapter.RecipeActi
                     updateCategoryCartBadges();
                     tvRecipeCount.setText(allRecipes.size() + " 道菜");
                     updateEmptyState();
+                    DataLocalCache.put(requireContext(), "recipes_" + userId, gson.toJson(response));
                 });
             }
 

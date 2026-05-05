@@ -41,7 +41,7 @@
         android:id="@+id/btn_select_image"
         android:layout_width="match_parent"
         android:layout_height="44dp"
-        android:layout_marginBottom="10dp"
+        android:layout_marginBottom="6dp"
         android:background="@drawable/button_background"
         android:clickable="true"
         android:focusable="true"
@@ -50,6 +50,21 @@
         android:textColor="@android:color/white"
         android:textSize="15sp"
         android:textStyle="bold" />
+
+    <TextView
+        android:id="@+id/btn_convert_to_bead"
+        android:layout_width="match_parent"
+        android:layout_height="44dp"
+        android:layout_marginBottom="10dp"
+        android:background="@drawable/btn_cancel_background"
+        android:clickable="true"
+        android:focusable="true"
+        android:gravity="center"
+        android:text="图片转拼豆图"
+        android:textColor="#374151"
+        android:textSize="15sp"
+        android:textStyle="bold"
+        android:visibility="gone" />
 
     <LinearLayout
         android:id="@+id/ll_loading"

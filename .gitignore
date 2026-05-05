@@ -20,3 +20,7 @@ docs/superpowers/
 server/node_modules/
 server/.env
 server/uploads/
+db_backup_*
+server/eng.traineddata
+server/test*.cjs
+server/public/

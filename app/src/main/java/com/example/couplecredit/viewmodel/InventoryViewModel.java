@@ -8,9 +8,11 @@ import androidx.lifecycle.LiveData;
 import androidx.lifecycle.MutableLiveData;
 
 import com.example.couplecredit.api.AuthApiModels;
+import com.example.couplecredit.utils.DataLocalCache;
 import com.example.couplecredit.utils.InventoryUtils;
 import com.example.couplecredit.utils.DateTimeUtils;
 import com.example.couplecredit.utils.UserInfoManager;
+import com.google.gson.Gson;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -72,6 +74,9 @@ public class InventoryViewModel extends AndroidViewModel {
 
     public void clearError() { errorMessage.setValue(null); }
 
+    private static final String CACHE_KEY_PREFIX = "inventory_";
+    private final Gson gson = new Gson();
+
     public void loadData() {
         if (!UserInfoManager.isUserLoggedIn(getApplication())) {
             inventoryList.clear();
@@ -81,30 +86,24 @@ public class InventoryViewModel extends AndroidViewModel {
             return;
         }
 
+        int userId = UserInfoManager.getCurrentUserId(getApplication());
+
+        if (inventoryList.isEmpty()) {
+            String cached = DataLocalCache.get(getApplication(), CACHE_KEY_PREFIX + userId);
+            if (cached != null) {
+                try {
+                    AuthApiModels.InventoryListResponse cachedResp = gson.fromJson(cached, AuthApiModels.InventoryListResponse.class);
+                    if (cachedResp != null) applyResponse(cachedResp);
+                } catch (Exception ignored) {}
+            }
+        }
+
         loading.postValue(true);
         InventoryUtils.loadInventory(getApplication(), new InventoryUtils.InventoryLoadCallback() {
             @Override
             public void onSuccess(AuthApiModels.InventoryListResponse response) {
-                inventoryList.clear();
-                lowStockList.clear();
-                recentActivityList.clear();
-
-                if (response != null && response.data != null) {
-                    cachedRelationshipId = response.data.relationshipId;
-                    if (response.data.items != null) {
-                        for (AuthApiModels.InventoryItemData d : response.data.items) {
-                            InventoryItem item = fromApi(d);
-                            inventoryList.add(item);
-                            if (item.isLowStock()) lowStockList.add(item);
-                            recentActivityList.add(item);
-                        }
-                    }
-                }
-
-                if (recentActivityList.size() > 8) {
-                    recentActivityList.subList(8, recentActivityList.size()).clear();
-                }
-
+                applyResponse(response);
+                DataLocalCache.put(getApplication(), CACHE_KEY_PREFIX + userId, gson.toJson(response));
                 loading.postValue(false);
                 dataVersion.postValue(dataVersion.getValue() + 1);
             }
@@ -115,6 +114,28 @@ public class InventoryViewModel extends AndroidViewModel {
                 errorMessage.postValue(error);
             }
         });
+    }
+
+    private void applyResponse(AuthApiModels.InventoryListResponse response) {
+        inventoryList.clear();
+        lowStockList.clear();
+        recentActivityList.clear();
+
+        if (response != null && response.data != null) {
+            cachedRelationshipId = response.data.relationshipId;
+            if (response.data.items != null) {
+                for (AuthApiModels.InventoryItemData d : response.data.items) {
+                    InventoryItem item = fromApi(d);
+                    inventoryList.add(item);
+                    if (item.isLowStock()) lowStockList.add(item);
+                    recentActivityList.add(item);
+                }
+            }
+        }
+
+        if (recentActivityList.size() > 8) {
+            recentActivityList.subList(8, recentActivityList.size()).clear();
+        }
     }
 
     private InventoryItem fromApi(AuthApiModels.InventoryItemData d) {

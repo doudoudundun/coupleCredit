@@ -91,60 +91,42 @@ public class BillAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
     private void setOwnerText(TextView tvOwner, BillBean bill) {
         int ownerValue = bill.getOwner();
         boolean isHelp = bill.getIsHelp() == 1;
+        String ownerText;
 
-        // owner=3 永远显示"共同"，不受关系状态影响
         if (ownerValue == 3) {
-            String commonText = "共同";
-            if (isHelp) commonText += "（帮）";
-            tvOwner.setText(commonText);
-            return;
+            ownerText = "共同";
+        } else if (currentRelationshipId == null) {
+            ownerText = "自己";
+        } else if (currentUserRole != 1 && currentUserRole != 2) {
+            ownerText = "自己";
+        } else {
+            switch (ownerValue) {
+                case 1:
+                    ownerText = (currentUserRole == 1)
+                            ? ((nicknamesCached && currentUserNickname != null) ? currentUserNickname : "自己")
+                            : ((nicknamesCached && partnerNickname != null) ? partnerNickname : "对方");
+                    break;
+                case 2:
+                    ownerText = (currentUserRole == 2)
+                            ? ((nicknamesCached && currentUserNickname != null) ? currentUserNickname : "自己")
+                            : ((nicknamesCached && partnerNickname != null) ? partnerNickname : "对方");
+                    break;
+                default:
+                    ownerText = "未知";
+                    break;
+            }
         }
 
-        if (currentRelationshipId == null) {
-            String text = "自己";
-            if (isHelp) text += "（帮）";
-            tvOwner.setText(text);
-            return;
+        if (isHelp) ownerText += "（帮）";
+
+        String planName = bill.getSharedPlanName();
+        if (planName != null && !planName.trim().isEmpty()) {
+            ownerText += " · " + planName;
         }
 
-        if (currentUserRole != 1 && currentUserRole != 2) {
-            String text = "自己";
-            if (isHelp) text += "（帮）";
-            tvOwner.setText(text);
-            return;
-        }
-
-        switch (ownerValue) {
-            case 1: // 邀请者
-                if (currentUserRole == 1) {
-                    String text = (nicknamesCached && currentUserNickname != null) ? currentUserNickname : "自己";
-                    if (isHelp) text += "（帮）";
-                    tvOwner.setText(text);
-                } else {
-                    String text = (nicknamesCached && partnerNickname != null) ? partnerNickname : "对方";
-                    if (isHelp) text += "（帮）";
-                    tvOwner.setText(text);
-                }
-                break;
-            case 2: // 被邀请者
-                if (currentUserRole == 2) {
-                    String text = (nicknamesCached && currentUserNickname != null) ? currentUserNickname : "自己";
-                    if (isHelp) text += "（帮）";
-                    tvOwner.setText(text);
-                } else {
-                    String text = (nicknamesCached && partnerNickname != null) ? partnerNickname : "对方";
-                    if (isHelp) text += "（帮）";
-                    tvOwner.setText(text);
-                }
-                break;
-            default:
-                String unknownText = "未知";
-                if (isHelp) unknownText += "（帮）";
-                tvOwner.setText(unknownText);
-                break;
-        }
+        tvOwner.setText(ownerText);
     }
-    
+
     // 预加载昵称缓存，避免每次显示账单时都查询数据库
     private void preloadNicknames() {
         if (currentUserId == -1) {

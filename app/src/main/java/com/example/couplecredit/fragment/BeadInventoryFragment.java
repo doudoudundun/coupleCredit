@@ -205,7 +205,7 @@ public class BeadInventoryFragment extends Fragment {
         }
         content.findViewById(R.id.btn_bead_dialog_cancel).setOnClickListener(v -> dialog.dismiss());
         content.findViewById(R.id.btn_bead_dialog_save).setOnClickListener(v -> {
-            Integer quantity = parseNonNegativeInt(etQuantity.getText().toString());
+            Integer quantity = parseIntAllowNegative(etQuantity.getText().toString());
             if (quantity == null) {
                 Toast.makeText(requireContext(), "请输入有效库存数量", Toast.LENGTH_SHORT).show();
                 return;
@@ -381,6 +381,17 @@ public class BeadInventoryFragment extends Fragment {
         try {
             int parsed = Integer.parseInt(value.trim());
             return parsed < 0 ? null : parsed;
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    private Integer parseIntAllowNegative(String value) {
+        if (value == null || value.trim().isEmpty()) {
+            return null;
+        }
+        try {
+            return Integer.parseInt(value.trim());
         } catch (NumberFormatException e) {
             return null;
         }

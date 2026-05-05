@@ -33,11 +33,13 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.HashMap;
 
+import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
+import android.widget.Spinner;
 import android.widget.TextView;
 import android.util.Log;
 
@@ -106,12 +108,15 @@ public class CategoriesBillViewActivity extends AppCompatActivity {
         if (dateStr != null && dateStr.contains("T")) {
             dateStr = dateStr.substring(0, 10);
         }
+        if (dateStr == null || dateStr.isEmpty()) {
+            dateStr = new java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(new java.util.Date());
+        }
         String[] dateParts = dateStr.split("-");
         int year = Integer.parseInt(dateParts[0]);
         int month = Integer.parseInt(dateParts[1]);
         int day = Integer.parseInt(dateParts[2]);
         String billCategoryName = bill.type;
-        return new BillBean(
+        BillBean bean = new BillBean(
                 bill.billId,
                 bill.amount,
                 year,
@@ -127,6 +132,8 @@ public class CategoriesBillViewActivity extends AppCompatActivity {
                 bill.title,
                 bill.isHelp
         );
+        bean.setSharedPlanName(bill.sharedPlanName);
+        return bean;
     }
 
     private void getCategoryBill() {
@@ -202,7 +209,7 @@ public class CategoriesBillViewActivity extends AppCompatActivity {
 
         for (String date : sortedDates) {
             List<BillBean> billsForDate = dateGroups.get(date);
-            billsForDate.sort((b1, b2) -> b2.getTime().compareTo(b1.getTime()));
+            billsForDate.sort((b1, b2) -> Long.compare(b2.getBillId(), b1.getBillId()));
             Map<String, List<BillBean>> dateGroup = new HashMap<>();
             dateGroup.put(date, billsForDate);
             displayItems.add(dateGroup);
@@ -235,11 +242,23 @@ public class CategoriesBillViewActivity extends AppCompatActivity {
         TextView tvNoteContent = dialogView.findViewById(R.id.tv_note_content);
         EditText etFare = dialogView.findViewById(R.id.et_fare);
         EditText etNoteContent = dialogView.findViewById(R.id.et_note_content);
+        Spinner spinnerCategory = dialogView.findViewById(R.id.spinner_bill_category);
         Button btnDelete = dialogView.findViewById(R.id.btn_delete);
         Button btnEdit = dialogView.findViewById(R.id.btn_edit);
         ImageButton btnConfirm = dialogView.findViewById(R.id.btn_confirm);
         ImageButton btnCancel = dialogView.findViewById(R.id.btn_cancel);
         LinearLayout llNoteCard = dialogView.findViewById(R.id.ll_note_card);
+
+        // 初始化种类 Spinner
+        boolean isExpense = bill.getIncomeType() != 1;
+        List<String> categories = CategoryIconMapper.getCategoriesByType(isExpense);
+        ArrayAdapter<String> categoryAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, categories);
+        categoryAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        if (spinnerCategory != null) {
+            spinnerCategory.setAdapter(categoryAdapter);
+            int idx = categories.indexOf(categoryName);
+            spinnerCategory.setSelection(idx >= 0 ? idx : 0);
+        }
 
         if (ivCategoryIcon != null) {
             int iconResId = getIconForCategory(categoryName);
@@ -279,7 +298,7 @@ public class CategoriesBillViewActivity extends AppCompatActivity {
         }
         if (btnEdit != null) {
             btnEdit.setOnClickListener(v -> BillUtils.enterEditMode(this, mDialog, tvDate, tvFare, tvNoteContent,
-                    etFare, etNoteContent, btnEdit, btnDelete, btnConfirm, btnCancel));
+                    etFare, etNoteContent, btnEdit, btnDelete, btnConfirm, btnCancel, tvCategoryName, spinnerCategory));
         }
         if (btnConfirm != null) {
             btnConfirm.setOnClickListener(v -> {
@@ -289,8 +308,10 @@ public class CategoriesBillViewActivity extends AppCompatActivity {
                 String currentNoteContent = etNoteContent.getText().toString();
                 SimpleDateFormat timeFormat = new SimpleDateFormat("HH:mm:ss", Locale.getDefault());
                 String currentTime = timeFormat.format(new Date());
+                String selectedCategory = (spinnerCategory != null && spinnerCategory.getSelectedItem() != null)
+                        ? spinnerCategory.getSelectedItem().toString() : null;
 
-                BillUtils.updateBill(this, bill, currentDate, currentFare, currentNoteContent, currentTime, new BillUtils.UpdateBillCallback() {
+                BillUtils.updateBill(this, bill, currentDate, currentFare, currentNoteContent, currentTime, selectedCategory, null, new BillUtils.UpdateBillCallback() {
                     @Override
                     public void onUpdateSuccess(int rowsAffected) {
                         runOnUiThread(() -> {
@@ -308,7 +329,7 @@ public class CategoriesBillViewActivity extends AppCompatActivity {
                     }
                 });
                 BillUtils.exitEditMode(mDialog, tvDate, tvFare, tvNoteContent,
-                        etFare, etNoteContent, btnEdit, btnDelete, btnConfirm, btnCancel);
+                        etFare, etNoteContent, btnEdit, btnDelete, btnConfirm, btnCancel, tvCategoryName, spinnerCategory, incomeType);
             });
         }
         if (btnCancel != null) {
@@ -325,8 +346,12 @@ public class CategoriesBillViewActivity extends AppCompatActivity {
                 if (tvNoteContent != null) {
                     tvNoteContent.setText(noteTitle != null ? noteTitle : "");
                 }
+                if (spinnerCategory != null) {
+                    int idx = categories.indexOf(categoryName);
+                    spinnerCategory.setSelection(idx >= 0 ? idx : 0);
+                }
                 BillUtils.exitEditMode(mDialog, tvDate, tvFare, tvNoteContent,
-                        etFare, etNoteContent, btnEdit, btnDelete, btnConfirm, btnCancel);
+                        etFare, etNoteContent, btnEdit, btnDelete, btnConfirm, btnCancel, tvCategoryName, spinnerCategory, incomeType);
             });
         }
     }

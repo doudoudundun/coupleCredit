@@ -77,6 +77,7 @@ public class BeadBlueprintListFragment extends Fragment {
     private TextView tvLoadingHint;
     private EditText etColors;
     private String pendingImageUrl;
+    private View btnConvertToBead;
 
     @Nullable
     @Override
@@ -163,6 +164,38 @@ public class BeadBlueprintListFragment extends Fragment {
 
         content.findViewById(R.id.btn_select_image).setOnClickListener(v -> openImagePicker());
 
+        btnConvertToBead = content.findViewById(R.id.btn_convert_to_bead);
+        btnConvertToBead.setOnClickListener(v -> {
+            if (pendingImageUrl == null) {
+                Toast.makeText(requireContext(), "请先选择并上传图片", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            showLoading("转换拼豆图中...");
+            BeadUtils.convertToBeadImage(requireContext(), pendingImageUrl, new BeadUtils.BeadConvertCallback() {
+                @Override public void onSuccess(AuthApiModels.BeadConvertResponse response) {
+                    if (!isAdded()) return;
+                    requireActivity().runOnUiThread(() -> {
+                        if (!isAdded()) return;
+                        hideLoading();
+                        if (response != null && response.data != null) {
+                            if (response.data.colorSummaryText != null && !response.data.colorSummaryText.isEmpty()) {
+                                etColors.setText(response.data.colorSummaryText);
+                            }
+                            Toast.makeText(requireContext(), "转换完成，共 " + (response.data.colors != null ? response.data.colors.size() : 0) + " 种颜色", Toast.LENGTH_SHORT).show();
+                        }
+                    });
+                }
+                @Override public void onError(String error) {
+                    if (!isAdded()) return;
+                    requireActivity().runOnUiThread(() -> {
+                        if (!isAdded()) return;
+                        hideLoading();
+                        Toast.makeText(requireContext(), "转换失败: " + error, Toast.LENGTH_SHORT).show();
+                    });
+                }
+            });
+        });
+
         content.findViewById(R.id.btn_blueprint_dialog_cancel).setOnClickListener(v -> currentDialog.dismiss());
         content.findViewById(R.id.btn_blueprint_dialog_save).setOnClickListener(v -> {
             String name = etName.getText().toString().trim();
@@ -231,7 +264,9 @@ public class BeadBlueprintListFragment extends Fragment {
             try {
                 InputStream compressed = compressImage(imageUri);
                 if (compressed == null) {
+                    if (!isAdded()) return;
                     requireActivity().runOnUiThread(() -> {
+                        if (!isAdded()) return;
                         hideLoading();
                         Toast.makeText(requireContext(), "图片压缩失败", Toast.LENGTH_SHORT).show();
                     });
@@ -240,26 +275,33 @@ public class BeadBlueprintListFragment extends Fragment {
                 String fileName = "blueprint_" + System.currentTimeMillis() + ".jpg";
                 AuthApiClient.uploadImage(requireContext(), compressed, fileName, new AuthApiClient.ImageUploadCallback() {
                     @Override public void onSuccess(String imageUrl) {
+                        if (!isAdded()) return;
                         requireActivity().runOnUiThread(() -> {
+                            if (!isAdded()) return;
                             pendingImageUrl = imageUrl;
                             if (ivPreview != null) {
                                 ivPreview.setVisibility(View.VISIBLE);
                                 String fullUrl = ApiConfigManager.resolveResourceUrl(requireContext(), imageUrl);
                                 Glide.with(requireContext()).load(fullUrl).fitCenter().into(ivPreview);
                             }
+                            if (btnConvertToBead != null) btnConvertToBead.setVisibility(View.VISIBLE);
                             showLoading("AI识图中...");
                             performAiRecognition(imageUrl);
                         });
                     }
                     @Override public void onError(String message) {
+                        if (!isAdded()) return;
                         requireActivity().runOnUiThread(() -> {
+                            if (!isAdded()) return;
                             hideLoading();
                             Toast.makeText(requireContext(), "图片上传失败: " + message, Toast.LENGTH_SHORT).show();
                         });
                     }
                 });
             } catch (Exception e) {
+                if (!isAdded()) return;
                 requireActivity().runOnUiThread(() -> {
+                    if (!isAdded()) return;
                     hideLoading();
                     Toast.makeText(requireContext(), "图片处理失败", Toast.LENGTH_SHORT).show();
                 });
@@ -270,7 +312,9 @@ public class BeadBlueprintListFragment extends Fragment {
     private void performAiRecognition(String imageUrl) {
         BeadUtils.recognizeColors(requireContext(), imageUrl, new BeadUtils.BeadRecognizeColorsCallback() {
             @Override public void onSuccess(AuthApiModels.BeadRecognizeColorsResponse response) {
+                if (!isAdded()) return;
                 requireActivity().runOnUiThread(() -> {
+                    if (!isAdded()) return;
                     hideLoading();
                     if (response != null && response.data != null && response.data.recognized && response.data.colors != null && !response.data.colors.isEmpty()) {
                         StringBuilder sb = new StringBuilder();
