@@ -202,6 +202,12 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
 
+        // Pop all back stack entries (sub-pages like BeadBlueprintListFragment, etc.)
+        // before switching tabs, otherwise the sub-page overlay causes white screen.
+        if (fragmentManager.getBackStackEntryCount() > 0) {
+            fragmentManager.popBackStackImmediate(null, FragmentManager.POP_BACK_STACK_INCLUSIVE);
+        }
+
         FragmentTransaction transaction = fragmentManager.beginTransaction().setReorderingAllowed(true);
 
         for (Fragment existingFragment : fragmentManager.getFragments()) {
@@ -254,6 +260,12 @@ public class MainActivity extends AppCompatActivity {
     public void showEatOutFragment() {
         if (eatOutFragment == null) return;
         if (eatOutFragment == currentFragment) return;
+
+        // Pop back stack to clear any sub-page overlays
+        if (fragmentManager.getBackStackEntryCount() > 0) {
+            fragmentManager.popBackStackImmediate(null, FragmentManager.POP_BACK_STACK_INCLUSIVE);
+        }
+
         lastTabFragment = currentFragment;
 
         FragmentTransaction transaction = fragmentManager.beginTransaction().setReorderingAllowed(true);

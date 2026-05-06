@@ -1,7 +1,7 @@
 const express = require("express");
 const https = require("https");
 const http = require("http");
-const { BEAD_COLORS } = require("../constants/beadColors");
+const { BEAD_COLORS, CODE_TO_HEX } = require("../constants/beadColors");
 const sharp = require("sharp");
 const fs = require("fs");
 const path = require("path");
@@ -916,20 +916,22 @@ M03 15`;
       }
 
       console.log(`[convert-to-bead] cols=${cols} rows=${rows||"auto"} cellSize=${cellSize}`);
-      const result = await convertToBeadImage(imageBuffer, { cols, rows, cellSize, showGrid, showLegend });
+      const renderImage = req.body.renderImage !== false && req.body.renderImage !== "false";
+      const result = await convertToBeadImage(imageBuffer, { cols, rows, cellSize, showGrid, showLegend, renderImage });
 
-      // 返回 base64 图片 + 颜色说明（兼容 AI 识图格式）
-      const base64 = result.imageBuffer.toString("base64");
-      const dataUrl = `data:image/png;base64,${base64}`;
+      const dataUrl = result.imageBuffer ? `data:image/png;base64,${result.imageBuffer.toString("base64")}` : null;
 
       res.json({
         ok: true,
         data: {
           imageDataUrl: dataUrl,
-          colors: result.colors,
-          // 颜色说明文本，兼容 AI 识图 prompt 的格式（"A01 24\nB05 8\n..."）
+          colors: result.colors.map(c => ({
+            colorCode: c.colorCode, quantity: c.quantity,
+            hexColor: CODE_TO_HEX.get(c.colorCode) || "#DDDDDD"
+          })),
           colorSummaryText: result.colors.map(c => `${c.colorCode} ${c.quantity}`).join("\n"),
-          gridSize: { cols, rows: result.colors.length > 0 ? Math.round(result.colors.reduce((s, c) => s + c.quantity, 0) / cols) : cols }
+          gridSize: result.gridSize,
+          gridData: result.gridData
         }
       });
     } catch (error) {

@@ -222,4 +222,6 @@ const BEAD_COLORS = [
   { colorCode: "M15", hexColor: "#757D78", colorGroup: "M", isTransparent: false }
 ];
 
-module.exports = { BEAD_COLORS };
+const CODE_TO_HEX = new Map(BEAD_COLORS.map(c => [c.colorCode, c.hexColor]));
+
+module.exports = { BEAD_COLORS, CODE_TO_HEX };

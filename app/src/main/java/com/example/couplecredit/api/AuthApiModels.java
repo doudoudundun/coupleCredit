@@ -421,24 +421,28 @@ public class AuthApiModels {
         public final Integer cols;
         public final Integer rows;
         public final Integer cellSize;
+        public final Boolean renderImage;
 
-        public BeadConvertRequest(String imageUrl, Integer cols, Integer rows, Integer cellSize) {
+        public BeadConvertRequest(String imageUrl, Integer cols, Integer rows, Integer cellSize, Boolean renderImage) {
             this.imageUrl = imageUrl;
             this.cols = cols;
             this.rows = rows;
             this.cellSize = cellSize;
+            this.renderImage = renderImage;
         }
     }
 
     public static class BeadConvertColorData {
         public String colorCode;
         public int quantity;
+        public String hexColor;
     }
 
     public static class BeadConvertData {
         public String imageDataUrl;
         public List<BeadConvertColorData> colors;
         public String colorSummaryText;
+        public List<List<String>> gridData;
     }
 
     public static class BeadConvertResponse {

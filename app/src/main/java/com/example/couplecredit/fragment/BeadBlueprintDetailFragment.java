@@ -6,7 +6,6 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.EditText;
-import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -17,22 +16,24 @@ import androidx.lifecycle.ViewModelProvider;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
-import com.bumptech.glide.Glide;
 import com.example.couplecredit.R;
 import com.example.couplecredit.adapter.BeadBlueprintColorAdapter;
 import com.example.couplecredit.api.AuthApiModels;
-import com.example.couplecredit.config.ApiConfigManager;
 import com.example.couplecredit.utils.BeadUtils;
 import com.example.couplecredit.utils.DialogHelper;
+import com.example.couplecredit.view.BeadGridView;
 import com.example.couplecredit.viewmodel.BeadInventoryViewModel;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 public class BeadBlueprintDetailFragment extends Fragment {
 
     private static final String ARG_BLUEPRINT_ID = "blueprint_id";
+    private static final int DEFAULT_GRID_COLS = 48;
 
     public static class BlueprintColorDisplayItem {
         public final String colorCode;
@@ -56,7 +57,7 @@ public class BeadBlueprintDetailFragment extends Fragment {
     private TextView tvTitle;
     private TextView tvTotal;
     private TextView tvBuilds;
-    private ImageView ivImage;
+    private BeadGridView beadGridView;
     private BeadInventoryViewModel.BeadBlueprintItem currentItem;
 
     public static BeadBlueprintDetailFragment newInstance(int blueprintId) {
@@ -81,11 +82,12 @@ public class BeadBlueprintDetailFragment extends Fragment {
         tvTitle = view.findViewById(R.id.tv_blueprint_detail_title);
         tvTotal = view.findViewById(R.id.tv_blueprint_detail_total);
         tvBuilds = view.findViewById(R.id.tv_blueprint_detail_builds);
-        ivImage = view.findViewById(R.id.iv_blueprint_detail_image);
+        beadGridView = view.findViewById(R.id.bead_grid_view);
 
         RecyclerView recyclerView = view.findViewById(R.id.rv_blueprint_colors);
         recyclerView.setLayoutManager(new LinearLayoutManager(requireContext()));
         adapter = new BeadBlueprintColorAdapter();
+        adapter.setOnColorClickListener(this::onColorClick);
         recyclerView.setAdapter(adapter);
 
         view.findViewById(R.id.btn_blueprint_detail_back).setOnClickListener(v -> requireActivity().getSupportFragmentManager().popBackStack());
@@ -95,6 +97,12 @@ public class BeadBlueprintDetailFragment extends Fragment {
 
         if (!bindFromViewModel()) {
             loadDetail();
+        }
+    }
+
+    private void onColorClick(String colorCode) {
+        if (beadGridView != null) {
+            beadGridView.setHighlightColor(colorCode);
         }
     }
 
@@ -149,13 +157,102 @@ public class BeadBlueprintDetailFragment extends Fragment {
         int total = item.totalBeadsPerBuild != null ? item.totalBeadsPerBuild : calculateTotalBeadsPerBuild(colors);
         tvTotal.setText(String.format(Locale.getDefault(), "每次 %d 颗", total));
         tvBuilds.setText(String.format(Locale.getDefault(), "已制作 %d 次", item.buildCount));
-        if (item.imageUrl != null && !item.imageUrl.isEmpty() && ivImage != null) {
-            ivImage.setVisibility(View.VISIBLE);
-            Glide.with(requireContext()).load(ApiConfigManager.resolveResourceUrl(requireContext(), item.imageUrl)).centerCrop().into(ivImage);
-        } else if (ivImage != null) {
-            ivImage.setVisibility(View.GONE);
+
+        if (item.imageUrl != null && !item.imageUrl.isEmpty()) {
+            BeadInventoryViewModel.GridCacheEntry cached = viewModel.getGridCache(blueprintId);
+            if (cached != null && beadGridView != null) {
+                beadGridView.setVisibility(View.VISIBLE);
+                beadGridView.setGridData(cached.gridData, cached.colorMap);
+            } else {
+                loadBeadGridFromImage(item.imageUrl, colors);
+            }
+        } else if (!colors.isEmpty()) {
+            loadBeadGridFromColors(colors);
+        } else if (beadGridView != null) {
+            beadGridView.setVisibility(View.GONE);
         }
+
         adapter.submitList(colors);
+    }
+
+    private void loadBeadGridFromImage(String imageUrl, List<BlueprintColorDisplayItem> colors) {
+        if (beadGridView == null) return;
+        beadGridView.setVisibility(View.VISIBLE);
+        BeadUtils.convertToBeadImage(requireContext(), imageUrl, DEFAULT_GRID_COLS, new BeadUtils.BeadConvertCallback() {
+            @Override public void onSuccess(AuthApiModels.BeadConvertResponse response) {
+                if (!isAdded()) return;
+                requireActivity().runOnUiThread(() -> {
+                    if (!isAdded() || beadGridView == null) return;
+                    if (response != null && response.data != null && response.data.gridData != null) {
+                        Map<String, String> colorMap = buildColorCodeToHex(colors);
+                        viewModel.putGridCache(blueprintId, response.data.gridData, colorMap);
+                        beadGridView.setGridData(response.data.gridData, colorMap);
+                    } else {
+                        loadBeadGridFromColors(colors);
+                    }
+                });
+            }
+            @Override public void onError(String error) {
+                if (!isAdded()) return;
+                requireActivity().runOnUiThread(() -> {
+                    if (!isAdded() || beadGridView == null) return;
+                    loadBeadGridFromColors(colors);
+                });
+            }
+        });
+    }
+
+    private void loadBeadGridFromColors(List<BlueprintColorDisplayItem> colors) {
+        if (beadGridView == null || colors.isEmpty()) {
+            if (beadGridView != null) beadGridView.setVisibility(View.GONE);
+            return;
+        }
+        beadGridView.setVisibility(View.VISIBLE);
+
+        int totalBeads = 0;
+        for (BlueprintColorDisplayItem c : colors) {
+            totalBeads += c.quantityPerBuild;
+        }
+        int cols = (int) Math.ceil(Math.sqrt(totalBeads));
+        if (cols < 1) cols = 1;
+        int rows = (int) Math.ceil((double) totalBeads / cols);
+
+        List<List<String>> gridData = new ArrayList<>();
+        int idx = 0;
+        for (int r = 0; r < rows; r++) {
+            List<String> row = new ArrayList<>();
+            for (int c = 0; c < cols; c++) {
+                if (idx < totalBeads) {
+                    int cumQty = 0;
+                    String code = "???";
+                    for (BlueprintColorDisplayItem color : colors) {
+                        cumQty += color.quantityPerBuild;
+                        if (idx < cumQty) {
+                            code = color.colorCode;
+                            break;
+                        }
+                    }
+                    row.add(code);
+                } else {
+                    row.add("???");
+                }
+                idx++;
+            }
+            gridData.add(row);
+        }
+
+        Map<String, String> colorCodeToHex = buildColorCodeToHex(colors);
+        beadGridView.setGridData(gridData, colorCodeToHex);
+    }
+
+    private Map<String, String> buildColorCodeToHex(List<BlueprintColorDisplayItem> colors) {
+        Map<String, String> map = new HashMap<>();
+        if (colors != null) {
+            for (BlueprintColorDisplayItem c : colors) {
+                map.put(c.colorCode, c.hexColor);
+            }
+        }
+        return map;
     }
 
     private void buildOnce() {
@@ -199,6 +296,9 @@ public class BeadBlueprintDetailFragment extends Fragment {
         dialogView.findViewById(R.id.btn_select_image).setVisibility(View.GONE);
         dialogView.findViewById(R.id.ll_loading).setVisibility(View.GONE);
         dialogView.findViewById(R.id.iv_blueprint_preview).setVisibility(View.GONE);
+        dialogView.findViewById(R.id.ll_grid_size).setVisibility(View.GONE);
+        dialogView.findViewById(R.id.ll_ai_actions).setVisibility(View.GONE);
+        dialogView.findViewById(R.id.bead_grid_preview).setVisibility(View.GONE);
 
         dialogView.findViewById(R.id.btn_blueprint_dialog_cancel).setOnClickListener(v -> dialog.dismiss());
         dialogView.findViewById(R.id.btn_blueprint_dialog_save).setOnClickListener(v -> {

@@ -20,7 +20,16 @@ import java.util.Locale;
 
 public class BeadBlueprintColorAdapter extends RecyclerView.Adapter<BeadBlueprintColorAdapter.ViewHolder> {
 
+    public interface OnColorClickListener {
+        void onColorClick(String colorCode);
+    }
+
     private final List<BeadBlueprintDetailFragment.BlueprintColorDisplayItem> items = new ArrayList<>();
+    private OnColorClickListener colorClickListener;
+
+    public void setOnColorClickListener(OnColorClickListener listener) {
+        this.colorClickListener = listener;
+    }
 
     public void submitList(List<BeadBlueprintDetailFragment.BlueprintColorDisplayItem> newItems) {
         items.clear();
@@ -53,6 +62,12 @@ public class BeadBlueprintColorAdapter extends RecyclerView.Adapter<BeadBlueprin
             holder.viewSwatch.setBackground(swatch);
         }
         swatch.setColor(BeadUtils.parseColorSafely(item.hexColor));
+
+        holder.itemView.setOnClickListener(v -> {
+            if (colorClickListener != null) {
+                colorClickListener.onColorClick(item.colorCode);
+            }
+        });
     }
 
     @Override

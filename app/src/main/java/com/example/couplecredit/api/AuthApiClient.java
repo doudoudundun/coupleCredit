@@ -435,7 +435,7 @@ public class AuthApiClient {
 
     public static void convertToBeadImage(Context context, String imageUrl, Integer cols, BeadConvertCallback callback) {
         doRequest(context, "POST", "/api/beads/convert-to-bead",
-                GSON.toJson(new AuthApiModels.BeadConvertRequest(imageUrl, cols, null, null)),
+                GSON.toJson(new AuthApiModels.BeadConvertRequest(imageUrl, cols, null, null, false)),
                 AI_REQUEST_TIMEOUT_MS,
                 new RawCallback() {
                     @Override

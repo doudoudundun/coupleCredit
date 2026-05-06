@@ -4,7 +4,7 @@
  */
 
 const sharp = require("sharp");
-const { BEAD_COLORS } = require("../constants/beadColors");
+const { BEAD_COLORS, CODE_TO_HEX } = require("../constants/beadColors");
 
 const UNMATCHED = { colorCode: "???", hexColor: "#DDDDDD", r: 221, g: 221, b: 221, lab: [85, 0, 0] };
 const MAX_MATCH_DELTA_E_SQ = 2500; // Delta-E > 50 视为无匹配
@@ -205,6 +205,7 @@ async function convertToBeadImage(imageBuffer, options = {}) {
   const cellSize = options.cellSize || 16;
   const showGrid = options.showGrid !== false;
   const showLegend = options.showLegend !== false;
+  const renderImage = options.renderImage !== false;
 
   // Step 1: rotate first, then read metadata to get correct dimensions
   const rotated = sharp(imageBuffer).rotate();
@@ -257,14 +258,28 @@ async function convertToBeadImage(imageBuffer, options = {}) {
     .map(([colorCode, quantity]) => ({ colorCode, quantity }))
     .sort((a, b) => b.quantity - a.quantity);
 
+  // 生成 gridData (colorCode 二维数组)
+  const gridData = [];
+  for (let row = 0; row < actualRows; row++) {
+    const rowData = [];
+    for (let col = 0; col < actualCols; col++) {
+      rowData.push(grid[row][col].colorCode);
+    }
+    gridData.push(rowData);
+  }
+
   // ==================== 渲染 SVG ====================
+  if (!renderImage) {
+    return { imageBuffer: null, colors, gridSize: { cols: actualCols, rows: actualRows }, gridData };
+  }
+
   const gridWidth = actualCols * cellSize;
   const gridHeight = actualRows * cellSize;
 
   let svgCells = "";
   for (let row = 0; row < actualRows; row++) {
     for (let col = 0; col < actualCols; col++) {
-      const { hexColor, colorCode } = grid[row][col];
+      const { hexColor, colorCode, r: cr, g: cg, b: cb } = grid[row][col];
       const x = col * cellSize;
       const y = row * cellSize;
       svgCells += `<rect x="${x}" y="${y}" width="${cellSize}" height="${cellSize}" fill="${hexColor}"/>`;
@@ -273,11 +288,7 @@ async function convertToBeadImage(imageBuffer, options = {}) {
         const fontSize = Math.max(4, Math.floor(cellSize * 0.32));
         const cx = x + cellSize / 2;
         const cy = y + cellSize / 2 + fontSize * 0.35;
-        const hex = hexColor.replace("#", "");
-        const rr = parseInt(hex.slice(0, 2), 16);
-        const gg = parseInt(hex.slice(2, 4), 16);
-        const bb = parseInt(hex.slice(4, 6), 16);
-        const luminance = 0.299 * rr + 0.587 * gg + 0.114 * bb;
+        const luminance = 0.299 * cr + 0.587 * cg + 0.114 * cb;
         const textColor = luminance < 140 ? "#ffffff" : "#000000";
         svgCells += `<text x="${cx}" y="${cy}" text-anchor="middle" font-size="${fontSize}" fill="${textColor}" font-family="monospace" font-weight="bold">${colorCode}</text>`;
       }
@@ -318,8 +329,7 @@ async function convertToBeadImage(imageBuffer, options = {}) {
       const itemW = gridWidth / legendCols;
       const ix = colIdx * itemW + legendPadding;
       const iy = gridHeight + headerH + rowIdx * legendItemH + legendPadding;
-      const colorInfo = BEAD_COLORS.find(bc => bc.colorCode === c.colorCode);
-      const hex = colorInfo ? colorInfo.hexColor : "#cccccc";
+      const hex = CODE_TO_HEX.get(c.colorCode) || "#cccccc";
       legendSvg += `<rect x="${ix}" y="${iy}" width="${legendCellSize}" height="${legendCellSize}" fill="${hex}" rx="2"/>`;
       legendSvg += `<rect x="${ix}" y="${iy}" width="${legendCellSize}" height="${legendCellSize}" fill="none" stroke="#aaaaaa" stroke-width="0.5" rx="2"/>`;
       legendSvg += `<text x="${ix + legendCellSize + 5}" y="${iy + legendCellSize - 4}" font-size="${legendFontSize}" font-family="monospace" fill="#222222">${c.colorCode} ${c.quantity}</text>`;
@@ -337,7 +347,7 @@ async function convertToBeadImage(imageBuffer, options = {}) {
     .png({ compressionLevel: 6 })
     .toBuffer();
 
-  return { imageBuffer: outputBuffer, colors, gridSize: { cols: actualCols, rows: actualRows } };
+  return { imageBuffer: outputBuffer, colors, gridSize: { cols: actualCols, rows: actualRows }, gridData };
 }
 
 module.exports = { convertToBeadImage };

@@ -35,14 +35,17 @@ import com.example.couplecredit.config.ApiConfigManager;
 import com.example.couplecredit.utils.BeadUtils;
 import com.example.couplecredit.utils.DialogHelper;
 import com.example.couplecredit.utils.UserInfoManager;
+import com.example.couplecredit.view.BeadGridView;
 import com.example.couplecredit.viewmodel.BeadInventoryViewModel;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 public class BeadBlueprintListFragment extends Fragment {
 
@@ -72,12 +75,15 @@ public class BeadBlueprintListFragment extends Fragment {
 
     private AlertDialog currentDialog;
     private ImageView ivPreview;
+    private BeadGridView beadGridPreview;
     private View llLoading;
     private ProgressBar pbLoading;
     private TextView tvLoadingHint;
     private EditText etColors;
     private String pendingImageUrl;
-    private View btnConvertToBead;
+    private View llGridSize;
+    private View llAiActions;
+    private int selectedCols = 36;
 
     @Nullable
     @Override
@@ -152,26 +158,59 @@ public class BeadBlueprintListFragment extends Fragment {
 
     private void showCreateDialog() {
         pendingImageUrl = null;
+        selectedCols = 36;
         View content = LayoutInflater.from(requireContext()).inflate(R.layout.dialog_bead_blueprint_editor, null);
         currentDialog = new AlertDialog.Builder(requireContext(), R.style.CustomDialogStyle).setView(content).create();
 
         EditText etName = content.findViewById(R.id.et_blueprint_name);
         etColors = content.findViewById(R.id.et_blueprint_colors);
         ivPreview = content.findViewById(R.id.iv_blueprint_preview);
+        beadGridPreview = content.findViewById(R.id.bead_grid_preview);
         llLoading = content.findViewById(R.id.ll_loading);
         pbLoading = content.findViewById(R.id.pb_ai_loading);
         tvLoadingHint = content.findViewById(R.id.tv_loading_hint);
+        llGridSize = content.findViewById(R.id.ll_grid_size);
+        llAiActions = content.findViewById(R.id.ll_ai_actions);
 
         content.findViewById(R.id.btn_select_image).setOnClickListener(v -> openImagePicker());
 
-        btnConvertToBead = content.findViewById(R.id.btn_convert_to_bead);
-        btnConvertToBead.setOnClickListener(v -> {
+        TextView btnGridSmall = content.findViewById(R.id.btn_grid_small);
+        TextView btnGridMedium = content.findViewById(R.id.btn_grid_medium);
+        TextView btnGridLarge = content.findViewById(R.id.btn_grid_large);
+        TextView btnGridXLarge = content.findViewById(R.id.btn_grid_xlarge);
+        View[] gridBtns = {btnGridSmall, btnGridMedium, btnGridLarge, btnGridXLarge};
+        View.OnClickListener gridClickListener = v -> {
+            if (v.getId() == R.id.btn_grid_small) selectedCols = 29;
+            else if (v.getId() == R.id.btn_grid_large) selectedCols = 52;
+            else if (v.getId() == R.id.btn_grid_xlarge) selectedCols = 104;
+            else selectedCols = 36;
+            for (View btn : gridBtns) {
+                boolean active = btn == v;
+                btn.setBackground(getResources().getDrawable(active ? R.drawable.button_background : R.drawable.btn_cancel_background));
+                ((TextView) btn).setTextColor(active ? 0xFFFFFFFF : 0xFF6B7280);
+            }
+        };
+        btnGridSmall.setOnClickListener(gridClickListener);
+        btnGridMedium.setOnClickListener(gridClickListener);
+        btnGridLarge.setOnClickListener(gridClickListener);
+        btnGridXLarge.setOnClickListener(gridClickListener);
+
+        content.findViewById(R.id.btn_ai_recognize).setOnClickListener(v -> {
             if (pendingImageUrl == null) {
-                Toast.makeText(requireContext(), "请先选择并上传图片", Toast.LENGTH_SHORT).show();
+                Toast.makeText(requireContext(), "请先选择图片", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            showLoading("AI识图中...");
+            performAiRecognition(pendingImageUrl);
+        });
+
+        content.findViewById(R.id.btn_convert_to_bead).setOnClickListener(v -> {
+            if (pendingImageUrl == null) {
+                Toast.makeText(requireContext(), "请先选择图片", Toast.LENGTH_SHORT).show();
                 return;
             }
             showLoading("转换拼豆图中...");
-            BeadUtils.convertToBeadImage(requireContext(), pendingImageUrl, new BeadUtils.BeadConvertCallback() {
+            BeadUtils.convertToBeadImage(requireContext(), pendingImageUrl, selectedCols, new BeadUtils.BeadConvertCallback() {
                 @Override public void onSuccess(AuthApiModels.BeadConvertResponse response) {
                     if (!isAdded()) return;
                     requireActivity().runOnUiThread(() -> {
@@ -180,6 +219,15 @@ public class BeadBlueprintListFragment extends Fragment {
                         if (response != null && response.data != null) {
                             if (response.data.colorSummaryText != null && !response.data.colorSummaryText.isEmpty()) {
                                 etColors.setText(response.data.colorSummaryText);
+                            }
+                            if (response.data.gridData != null && beadGridPreview != null) {
+                                Map<String, String> colorMap = buildConvertColorMap(response.data.colors);
+                                beadGridPreview.setVisibility(View.VISIBLE);
+                                beadGridPreview.setGridData(response.data.gridData, colorMap);
+                                if (ivPreview != null) {
+                                    Glide.with(requireContext()).clear(ivPreview);
+                                    ivPreview.setVisibility(View.GONE);
+                                }
                             }
                             Toast.makeText(requireContext(), "转换完成，共 " + (response.data.colors != null ? response.data.colors.size() : 0) + " 种颜色", Toast.LENGTH_SHORT).show();
                         }
@@ -230,6 +278,17 @@ public class BeadBlueprintListFragment extends Fragment {
         DialogHelper.showWide(currentDialog, requireContext());
     }
 
+    private Map<String, String> buildConvertColorMap(List<AuthApiModels.BeadConvertColorData> colors) {
+        Map<String, String> map = new HashMap<>();
+        if (colors == null) return map;
+        for (AuthApiModels.BeadConvertColorData c : colors) {
+            if (c.colorCode != null && !map.containsKey(c.colorCode)) {
+                map.put(c.colorCode, c.hexColor != null ? c.hexColor : "#DDDDDD");
+            }
+        }
+        return map;
+    }
+
     private void openImagePicker() {
         Intent intent = new Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
         intent.setType("image/*");
@@ -242,7 +301,7 @@ public class BeadBlueprintListFragment extends Fragment {
         if (requestCode == REQUEST_IMAGE_PICK && resultCode == Activity.RESULT_OK && data != null) {
             Uri selectedImageUri = data.getData();
             if (selectedImageUri != null) {
-                uploadAndRecognize(selectedImageUri);
+                uploadImage(selectedImageUri);
             }
         }
     }
@@ -258,7 +317,7 @@ public class BeadBlueprintListFragment extends Fragment {
         if (llLoading != null) llLoading.setVisibility(View.GONE);
     }
 
-    private void uploadAndRecognize(Uri imageUri) {
+    private void uploadImage(Uri imageUri) {
         showLoading("上传图片中...");
         new Thread(() -> {
             try {
@@ -279,14 +338,15 @@ public class BeadBlueprintListFragment extends Fragment {
                         requireActivity().runOnUiThread(() -> {
                             if (!isAdded()) return;
                             pendingImageUrl = imageUrl;
+                            hideLoading();
                             if (ivPreview != null) {
                                 ivPreview.setVisibility(View.VISIBLE);
                                 String fullUrl = ApiConfigManager.resolveResourceUrl(requireContext(), imageUrl);
                                 Glide.with(requireContext()).load(fullUrl).fitCenter().into(ivPreview);
                             }
-                            if (btnConvertToBead != null) btnConvertToBead.setVisibility(View.VISIBLE);
-                            showLoading("AI识图中...");
-                            performAiRecognition(imageUrl);
+                            if (beadGridPreview != null) beadGridPreview.setVisibility(View.GONE);
+                            if (llAiActions != null) llAiActions.setVisibility(View.VISIBLE);
+                            if (llGridSize != null) llGridSize.setVisibility(View.VISIBLE);
                         });
                     }
                     @Override public void onError(String message) {

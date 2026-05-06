@@ -15,7 +15,9 @@ import com.example.couplecredit.utils.DateTimeUtils;
 import com.example.couplecredit.utils.UserInfoManager;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class BeadInventoryViewModel extends AndroidViewModel {
 
@@ -77,6 +79,7 @@ public class BeadInventoryViewModel extends AndroidViewModel {
     private boolean inventoryLoaded = false;
     private boolean blueprintsLoaded = false;
     private int activeRequests = 0;
+    private final Map<Integer, GridCacheEntry> gridCache = new HashMap<>();
 
     private final MutableLiveData<Integer> dataVersion = new MutableLiveData<>(0);
     private final MutableLiveData<String> errorMessage = new MutableLiveData<>();
@@ -84,6 +87,24 @@ public class BeadInventoryViewModel extends AndroidViewModel {
     private static final String CACHE_INVENTORY = "bead_inventory_";
     private static final String CACHE_BLUEPRINTS = "bead_blueprints_";
     private final Gson gson = new Gson();
+
+    public static class GridCacheEntry {
+        public final List<List<String>> gridData;
+        public final Map<String, String> colorMap;
+
+        public GridCacheEntry(List<List<String>> gridData, Map<String, String> colorMap) {
+            this.gridData = gridData;
+            this.colorMap = colorMap;
+        }
+    }
+
+    public GridCacheEntry getGridCache(int blueprintId) {
+        return gridCache.get(blueprintId);
+    }
+
+    public void putGridCache(int blueprintId, List<List<String>> gridData, Map<String, String> colorMap) {
+        gridCache.put(blueprintId, new GridCacheEntry(gridData, colorMap));
+    }
 
     public BeadInventoryViewModel(@NonNull Application application) {
         super(application);

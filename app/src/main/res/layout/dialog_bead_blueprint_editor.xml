@@ -29,41 +29,144 @@
         android:singleLine="true"
         android:textSize="14sp" />
 
-    <ImageView
-        android:id="@+id/iv_blueprint_preview"
-        android:layout_width="match_parent"
-        android:layout_height="160dp"
-        android:layout_marginBottom="10dp"
-        android:scaleType="centerCrop"
-        android:visibility="gone" />
-
     <TextView
         android:id="@+id/btn_select_image"
         android:layout_width="match_parent"
         android:layout_height="44dp"
-        android:layout_marginBottom="6dp"
+        android:layout_marginBottom="10dp"
         android:background="@drawable/button_background"
         android:clickable="true"
         android:focusable="true"
         android:gravity="center"
-        android:text="选择图片并AI识图"
+        android:text="选择图片"
         android:textColor="@android:color/white"
         android:textSize="15sp"
         android:textStyle="bold" />
 
-    <TextView
-        android:id="@+id/btn_convert_to_bead"
+    <ImageView
+        android:id="@+id/iv_blueprint_preview"
         android:layout_width="match_parent"
-        android:layout_height="44dp"
+        android:layout_height="140dp"
+        android:layout_marginBottom="6dp"
+        android:scaleType="fitCenter"
+        android:visibility="gone" />
+
+    <LinearLayout
+        android:id="@+id/ll_ai_actions"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
         android:layout_marginBottom="10dp"
-        android:background="@drawable/btn_cancel_background"
-        android:clickable="true"
-        android:focusable="true"
-        android:gravity="center"
-        android:text="图片转拼豆图"
-        android:textColor="#374151"
-        android:textSize="15sp"
-        android:textStyle="bold"
+        android:orientation="horizontal"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/btn_ai_recognize"
+            android:layout_width="0dp"
+            android:layout_height="40dp"
+            android:layout_marginEnd="4dp"
+            android:layout_weight="1"
+            android:background="@drawable/button_background"
+            android:clickable="true"
+            android:focusable="true"
+            android:gravity="center"
+            android:text="AI识图"
+            android:textColor="@android:color/white"
+            android:textSize="14sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/btn_convert_to_bead"
+            android:layout_width="0dp"
+            android:layout_height="40dp"
+            android:layout_marginStart="4dp"
+            android:layout_weight="1"
+            android:background="@drawable/btn_cancel_background"
+            android:clickable="true"
+            android:focusable="true"
+            android:gravity="center"
+            android:text="图片转拼豆图"
+            android:textColor="#374151"
+            android:textSize="14sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/ll_grid_size"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="10dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:visibility="gone">
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="网格大小"
+            android:textColor="#374151"
+            android:textSize="14sp" />
+
+        <TextView
+            android:id="@+id/btn_grid_small"
+            android:layout_width="50dp"
+            android:layout_height="32dp"
+            android:layout_marginStart="4dp"
+            android:background="@drawable/btn_cancel_background"
+            android:clickable="true"
+            android:focusable="true"
+            android:gravity="center"
+            android:text="小29"
+            android:textColor="#6B7280"
+            android:textSize="13sp" />
+
+        <TextView
+            android:id="@+id/btn_grid_medium"
+            android:layout_width="50dp"
+            android:layout_height="32dp"
+            android:layout_marginStart="4dp"
+            android:background="@drawable/button_background"
+            android:clickable="true"
+            android:focusable="true"
+            android:gravity="center"
+            android:text="中36"
+            android:textColor="@android:color/white"
+            android:textSize="13sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/btn_grid_large"
+            android:layout_width="50dp"
+            android:layout_height="32dp"
+            android:layout_marginStart="4dp"
+            android:background="@drawable/btn_cancel_background"
+            android:clickable="true"
+            android:focusable="true"
+            android:gravity="center"
+            android:text="大52"
+            android:textColor="#6B7280"
+            android:textSize="13sp" />
+
+        <TextView
+            android:id="@+id/btn_grid_xlarge"
+            android:layout_width="50dp"
+            android:layout_height="32dp"
+            android:layout_marginStart="4dp"
+            android:background="@drawable/btn_cancel_background"
+            android:clickable="true"
+            android:focusable="true"
+            android:gravity="center"
+            android:text="超大104"
+            android:textColor="#6B7280"
+            android:textSize="12sp" />
+    </LinearLayout>
+
+    <com.example.couplecredit.view.BeadGridView
+        android:id="@+id/bead_grid_preview"
+        android:layout_width="match_parent"
+        android:layout_height="200dp"
+        android:layout_marginBottom="10dp"
+        android:background="#FAFAFA"
         android:visibility="gone" />
 
     <LinearLayout
@@ -86,7 +189,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginStart="8dp"
-            android:text="上传图片中..."
+            android:text="处理中..."
             android:textColor="#6B7280"
             android:textSize="13sp" />
     </LinearLayout>
@@ -98,7 +201,7 @@
         android:layout_marginBottom="8dp"
         android:background="@drawable/input_background"
         android:gravity="top|start"
-        android:hint="每行一个颜色，如：A01 12\n选图后自动识别填入"
+        android:hint="每行一个颜色，如：A01 12\n选图后AI识图或转拼豆图自动填入"
         android:inputType="textMultiLine"
         android:padding="12dp"
         android:textSize="14sp" />

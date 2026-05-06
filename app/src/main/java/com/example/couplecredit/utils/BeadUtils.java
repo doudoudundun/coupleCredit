@@ -323,8 +323,8 @@ public class BeadUtils {
         void onError(String error);
     }
 
-    public static void convertToBeadImage(Context context, String imageUrl, BeadConvertCallback callback) {
-        AuthApiClient.convertToBeadImage(context, imageUrl, 48, new AuthApiClient.BeadConvertCallback() {
+    public static void convertToBeadImage(Context context, String imageUrl, int cols, BeadConvertCallback callback) {
+        AuthApiClient.convertToBeadImage(context, imageUrl, cols, new AuthApiClient.BeadConvertCallback() {
             @Override
             public void onSuccess(AuthApiModels.BeadConvertResponse response) {
                 if (callback != null) callback.onSuccess(response);

@@ -66,12 +66,12 @@
                     android:tint="#EF4444" />
             </LinearLayout>
 
-            <ImageView
-                android:id="@+id/iv_blueprint_detail_image"
+            <com.example.couplecredit.view.BeadGridView
+                android:id="@+id/bead_grid_view"
                 android:layout_width="match_parent"
-                android:layout_height="200dp"
+                android:layout_height="240dp"
                 android:layout_marginTop="12dp"
-                android:scaleType="centerCrop"
+                android:background="#FAFAFA"
                 android:visibility="gone" />
 
             <LinearLayout
