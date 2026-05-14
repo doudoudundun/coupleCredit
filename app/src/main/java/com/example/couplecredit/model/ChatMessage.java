@@ -27,6 +27,13 @@ public class ChatMessage {
     private Long cloudMessageId; // 云端消息ID - 用于云端数据同步
     private long relationshipId; // 关系ID
     private String messageType; // 消息类型
+
+    // AI 提取相关
+    private boolean isAiExtraction = false;
+    private int extractionId;
+    private String extractionType; // bill/inventory/todo
+    private String extractionSummary;
+    private java.util.Map<String, Object> extractionData;
     
     // ==================== 构造函数 ====================
     
@@ -322,4 +329,15 @@ public class ChatMessage {
         result = 31 * result + (isSentByMe ? 1 : 0);
         return result;
     }
+
+    public boolean isAiExtraction() { return isAiExtraction; }
+    public void setAiExtraction(boolean aiExtraction) { isAiExtraction = aiExtraction; }
+    public int getExtractionId() { return extractionId; }
+    public void setExtractionId(int extractionId) { this.extractionId = extractionId; }
+    public String getExtractionType() { return extractionType; }
+    public void setExtractionType(String extractionType) { this.extractionType = extractionType; }
+    public String getExtractionSummary() { return extractionSummary; }
+    public void setExtractionSummary(String extractionSummary) { this.extractionSummary = extractionSummary; }
+    public java.util.Map<String, Object> getExtractionData() { return extractionData; }
+    public void setExtractionData(java.util.Map<String, Object> extractionData) { this.extractionData = extractionData; }
 }

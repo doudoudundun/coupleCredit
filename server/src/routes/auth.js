@@ -5,14 +5,14 @@ const { loadActiveRelationship, trimValue } = require("../utils/queryHelpers");
 const { cache, Keys, TTL } = require("../cache");
 const { signToken, signRefreshToken } = require("../utils/jwt");
 
-function createAuthRouter({ pool, config }) {
+function createAuthRouter({ pool, config, authLimiter, strictLimiter }) {
   const router = express.Router();
 
   router.get("/healthz", (_req, res) => {
     res.json({ ok: true, message: "service alive" });
   });
 
-  router.post("/register", async (req, res, next) => {
+  router.post("/register", authLimiter, async (req, res, next) => {
     try {
       const username = trimValue(req.body.username);
       const email = trimValue(req.body.email);
@@ -61,7 +61,7 @@ function createAuthRouter({ pool, config }) {
     }
   });
 
-  router.post("/login", async (req, res, next) => {
+  router.post("/login", authLimiter, async (req, res, next) => {
     try {
       const username = trimValue(req.body.username);
       const password = typeof req.body.password === "string" ? req.body.password : "";
@@ -223,7 +223,7 @@ function createAuthRouter({ pool, config }) {
     }
   });
 
-  router.put("/password", async (req, res, next) => {
+  router.put("/password", strictLimiter, async (req, res, next) => {
     try {
       const { userId, currentPassword, newPassword } = req.body;
       if (!userId || !currentPassword || !newPassword) {
@@ -247,7 +247,7 @@ function createAuthRouter({ pool, config }) {
     }
   });
 
-  router.delete("/account", async (req, res, next) => {
+  router.delete("/account", strictLimiter, async (req, res, next) => {
     try {
       const userId = parseInt(req.query.userId, 10);
       if (!userId || userId <= 0) throw new ApiError(400, "INVALID_REQUEST", "userId 参数无效");

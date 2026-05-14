@@ -422,13 +422,21 @@ public class AuthApiModels {
         public final Integer rows;
         public final Integer cellSize;
         public final Boolean renderImage;
+        public final Integer matchThreshold;
+        public final Integer smoothExtra;
 
         public BeadConvertRequest(String imageUrl, Integer cols, Integer rows, Integer cellSize, Boolean renderImage) {
+            this(imageUrl, cols, rows, cellSize, renderImage, null, null);
+        }
+
+        public BeadConvertRequest(String imageUrl, Integer cols, Integer rows, Integer cellSize, Boolean renderImage, Integer matchThreshold, Integer smoothExtra) {
             this.imageUrl = imageUrl;
             this.cols = cols;
             this.rows = rows;
             this.cellSize = cellSize;
             this.renderImage = renderImage;
+            this.matchThreshold = matchThreshold;
+            this.smoothExtra = smoothExtra;
         }
     }
 
@@ -467,6 +475,13 @@ public class AuthApiModels {
         public int previousBuildCount;
         public int addedCount;
         public int currentBuildCount;
+        public List<ConsumedColorData> consumedColors;
+    }
+
+    public static class ConsumedColorData {
+        public String colorCode;
+        public String hexColor;
+        public int quantity;
     }
 
     public static class BuildBeadBlueprintDataAdapter implements JsonDeserializer<BuildBeadBlueprintData> {
@@ -500,6 +515,17 @@ public class AuthApiModels {
             if (!hasCurrentBuildCount) {
                 data.currentBuildCount = data.buildCount;
             }
+            if (object.has("consumedColors") && object.get("consumedColors").isJsonArray()) {
+                data.consumedColors = new java.util.ArrayList<>();
+                for (JsonElement elem : object.getAsJsonArray("consumedColors")) {
+                    JsonObject obj = elem.getAsJsonObject();
+                    ConsumedColorData c = new ConsumedColorData();
+                    c.colorCode = obj.has("colorCode") ? obj.get("colorCode").getAsString() : "";
+                    c.hexColor = obj.has("hexColor") ? obj.get("hexColor").getAsString() : "#DDDDDD";
+                    c.quantity = obj.has("quantity") ? obj.get("quantity").getAsInt() : 0;
+                    data.consumedColors.add(c);
+                }
+            }
             return data;
         }
     }
@@ -508,6 +534,31 @@ public class AuthApiModels {
         public boolean ok;
         public String message;
         public BuildBeadBlueprintData data;
+        public ErrorBody error;
+    }
+
+    public static class BatchDeductRequest {
+        public final int userId;
+        public final java.util.List<BatchDeductItem> items;
+
+        public BatchDeductRequest(int userId, java.util.List<BatchDeductItem> items) {
+            this.userId = userId;
+            this.items = items;
+        }
+    }
+
+    public static class BatchDeductItem {
+        public final String colorCode;
+        public final int quantity;
+        public BatchDeductItem(String colorCode, int quantity) {
+            this.colorCode = colorCode;
+            this.quantity = quantity;
+        }
+    }
+
+    public static class BatchDeductResponse {
+        public boolean ok;
+        public String message;
         public ErrorBody error;
     }
 
@@ -866,6 +917,27 @@ public class AuthApiModels {
         }
     }
 
+    // Notifications
+    public static class NotificationItem {
+        public int notificationId;
+        public String type;
+        public String title;
+        public String body;
+        public Integer relatedId;
+        public boolean isRead;
+        public String createdAt;
+    }
+
+    public static class NotificationListData {
+        public List<NotificationItem> items;
+    }
+
+    public static class NotificationListResponse {
+        public boolean ok;
+        public NotificationListData data;
+        public ErrorBody error;
+    }
+
     // Restaurants (Eat Out)
     public static class RestaurantListResponse {
         public boolean ok;
@@ -916,5 +988,63 @@ public class AuthApiModels {
             this.address = address;
             this.note = note;
         }
+    }
+
+    public static class AiAnalyzeRequest {
+        public final int userId;
+        public final java.util.List<AiChatMessage> messages;
+        public AiAnalyzeRequest(int userId, java.util.List<AiChatMessage> messages) {
+            this.userId = userId;
+            this.messages = messages;
+        }
+    }
+
+    public static class AiChatMessage {
+        public final long id;
+        public final String username;
+        public final String content;
+        public AiChatMessage(long id, String username, String content) {
+            this.id = id;
+            this.username = username;
+            this.content = content;
+        }
+    }
+
+    public static class AiAnalyzeResponse {
+        public boolean ok;
+        public AiAnalyzeData data;
+        public ErrorBody error;
+    }
+
+    public static class AiAnalyzeData {
+        public java.util.List<AiExtractionItem> extractions;
+    }
+
+    public static class AiExtractionItem {
+        public int id;
+        public String type;
+        public java.util.Map<String, Object> data;
+        public String status;
+    }
+
+    public static class AiExtractionActionRequest {
+        public final int userId;
+        public final java.util.Map<String, Object> overrides;
+        public AiExtractionActionRequest(int userId) { this(userId, null); }
+        public AiExtractionActionRequest(int userId, java.util.Map<String, Object> overrides) {
+            this.userId = userId;
+            this.overrides = overrides;
+        }
+    }
+
+    public static class AiExtractionActionResponse {
+        public boolean ok;
+        public AiExtractionConfirmData data;
+        public ErrorBody error;
+    }
+
+    public static class AiExtractionConfirmData {
+        public int targetId;
+        public String type;
     }
 }

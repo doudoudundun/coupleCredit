@@ -209,6 +209,20 @@
                     android:visibility="gone" />
 
                 <TextView
+                    android:id="@+id/btn_remind_partner"
+                    android:layout_width="wrap_content"
+                    android:layout_height="38dp"
+                    android:layout_marginStart="8dp"
+                    android:background="@drawable/button_background"
+                    android:gravity="center"
+                    android:paddingStart="16dp"
+                    android:paddingEnd="16dp"
+                    android:text="提醒TA"
+                    android:textColor="@android:color/white"
+                    android:textSize="13sp"
+                    android:visibility="gone" />
+
+                <TextView
                     android:id="@+id/btn_edit_todo"
                     android:layout_width="wrap_content"
                     android:layout_height="38dp"

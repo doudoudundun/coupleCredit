@@ -20,6 +20,7 @@ import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
 import com.example.couplecredit.R;
 import com.example.couplecredit.utils.DataRefreshBus;
+import com.example.couplecredit.utils.NotificationHelper;
 import com.example.couplecredit.utils.PollingManager;
 import com.example.couplecredit.fragment.HeadFragment;
 import com.example.couplecredit.fragment.InventoryFragment;
@@ -73,6 +74,8 @@ public class MainActivity extends AppCompatActivity {
             return insets;
         });
 
+        PollingManager.getInstance().setAppContext(this);
+
         fragmentManager = getSupportFragmentManager();
 
         Intent intent = getIntent();
@@ -105,6 +108,10 @@ public class MainActivity extends AppCompatActivity {
             }
 
             initAllFragments();
+
+            if ("todo".equals(intent.getStringExtra("navigate_to"))) {
+                mBottomNav.post(() -> mBottomNav.setSelectedItemId(R.id.nav_todo));
+            }
         } else {
             headFragment = (HeadFragment) fragmentManager.findFragmentByTag("head");
             inventoryFragment = (InventoryFragment) fragmentManager.findFragmentByTag("inventory");
@@ -420,6 +427,9 @@ public class MainActivity extends AppCompatActivity {
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         setIntent(intent);
+        if (intent != null && "todo".equals(intent.getStringExtra("navigate_to"))) {
+            mBottomNav.post(() -> mBottomNav.setSelectedItemId(R.id.nav_todo));
+        }
         if (intent != null && intent.getStringExtra("username") != null) {
             DataRefreshBus.refreshAll();
             if (inventoryFragment != null) inventoryFragment.refreshInventoryData();

@@ -72,6 +72,20 @@
                 android:singleLine="true"
                 android:textSize="14sp" />
 
+            <HorizontalScrollView
+                android:id="@+id/hsv_bead_features"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:scrollbars="none">
+
+                <LinearLayout
+                    android:id="@+id/ll_bead_features"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal" />
+            </HorizontalScrollView>
+
             <TextView
                 android:id="@+id/tv_bead_error"
                 android:layout_width="match_parent"
@@ -130,21 +144,6 @@
                     android:text="只看告急"
                     android:textColor="#6B7280"
                     android:textSize="13sp" />
-
-                <TextView
-                    android:id="@+id/btn_bead_blueprints"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="8dp"
-                    android:background="@drawable/button_background"
-                    android:paddingStart="14dp"
-                    android:paddingTop="7dp"
-                    android:paddingEnd="14dp"
-                    android:paddingBottom="7dp"
-                    android:text="图纸"
-                    android:textColor="@android:color/white"
-                    android:textSize="13sp"
-                    android:textStyle="bold" />
 
                 <View
                     android:layout_width="0dp"

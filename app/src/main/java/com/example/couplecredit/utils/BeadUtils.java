@@ -324,7 +324,11 @@ public class BeadUtils {
     }
 
     public static void convertToBeadImage(Context context, String imageUrl, int cols, BeadConvertCallback callback) {
-        AuthApiClient.convertToBeadImage(context, imageUrl, cols, new AuthApiClient.BeadConvertCallback() {
+        convertToBeadImage(context, imageUrl, cols, null, null, null, callback);
+    }
+
+    public static void convertToBeadImage(Context context, String imageUrl, int cols, Integer rows, Integer matchThreshold, Integer smoothExtra, BeadConvertCallback callback) {
+        AuthApiClient.convertToBeadImage(context, imageUrl, cols, rows, matchThreshold, smoothExtra, new AuthApiClient.BeadConvertCallback() {
             @Override
             public void onSuccess(AuthApiModels.BeadConvertResponse response) {
                 if (callback != null) callback.onSuccess(response);

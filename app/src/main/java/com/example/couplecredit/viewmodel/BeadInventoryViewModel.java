@@ -91,10 +91,12 @@ public class BeadInventoryViewModel extends AndroidViewModel {
     public static class GridCacheEntry {
         public final List<List<String>> gridData;
         public final Map<String, String> colorMap;
+        public final List<com.example.couplecredit.fragment.BeadBlueprintDetailFragment.BlueprintColorDisplayItem> convertColors;
 
-        public GridCacheEntry(List<List<String>> gridData, Map<String, String> colorMap) {
+        public GridCacheEntry(List<List<String>> gridData, Map<String, String> colorMap, List<com.example.couplecredit.fragment.BeadBlueprintDetailFragment.BlueprintColorDisplayItem> convertColors) {
             this.gridData = gridData;
             this.colorMap = colorMap;
+            this.convertColors = convertColors;
         }
     }
 
@@ -103,7 +105,11 @@ public class BeadInventoryViewModel extends AndroidViewModel {
     }
 
     public void putGridCache(int blueprintId, List<List<String>> gridData, Map<String, String> colorMap) {
-        gridCache.put(blueprintId, new GridCacheEntry(gridData, colorMap));
+        gridCache.put(blueprintId, new GridCacheEntry(gridData, colorMap, null));
+    }
+
+    public void putGridCache(int blueprintId, List<List<String>> gridData, Map<String, String> colorMap, List<com.example.couplecredit.fragment.BeadBlueprintDetailFragment.BlueprintColorDisplayItem> convertColors) {
+        gridCache.put(blueprintId, new GridCacheEntry(gridData, colorMap, convertColors));
     }
 
     public BeadInventoryViewModel(@NonNull Application application) {
@@ -111,6 +117,13 @@ public class BeadInventoryViewModel extends AndroidViewModel {
     }
 
     public List<BeadInventoryItem> getInventoryList() { return inventoryList; }
+    public Integer getInventoryQuantity(String colorCode) {
+        if (colorCode == null) return null;
+        for (BeadInventoryItem item : inventoryList) {
+            if (colorCode.equals(item.colorCode)) return item.quantity;
+        }
+        return null;
+    }
     public List<BeadBlueprintItem> getBlueprintList() { return blueprintList; }
     public BeadSummary getSummary() { return summary; }
     public Integer getCachedRelationshipId() { return cachedRelationshipId; }

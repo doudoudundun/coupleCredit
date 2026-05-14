@@ -1,102 +1,64 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 单条聊天消息布局 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
-    android:padding="8dp">
+    android:paddingStart="12dp"
+    android:paddingEnd="12dp"
+    android:paddingTop="2dp"
+    android:paddingBottom="2dp">
 
-    <!-- 消息主容器 -->
+    <!-- 时间戳 -->
+    <TextView
+        android:id="@+id/tv_timestamp"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center_horizontal"
+        android:layout_marginTop="8dp"
+        android:layout_marginBottom="2dp"
+        android:text="12:30"
+        android:textSize="11sp"
+        android:textColor="#B0B0B0"
+        android:visibility="gone" />
+
+    <!-- 消息行 -->
     <LinearLayout
-        android:id="@+id/message_container"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:gravity="center_vertical|start">
+        android:gravity="top">
 
-        <!-- 用户头像 -->
+        <!-- 头像 -->
         <ImageView
             android:id="@+id/iv_avatar"
-            android:layout_width="60dp"
-            android:layout_height="60dp"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
             android:src="@drawable/ic_default_avatar"
-            android:padding="8dp"
-            android:layout_marginEnd="12dp" />
+            android:layout_marginEnd="8dp" />
 
-        <!-- 消息内容区域 -->
-        <LinearLayout
-            android:layout_width="0dp"
+        <!-- 气泡 -->
+        <TextView
+            android:id="@+id/tv_message_content"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:gravity="start"
-            android:orientation="vertical">
-
-            <!-- 用户名和时间戳 -->
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:gravity="center_vertical">
-
-                <!-- 用户名 -->
-                <TextView
-                    android:id="@+id/tv_username"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="伴侣"
-                    android:textSize="14sp"
-                    android:textStyle="bold"
-                    android:textColor="#333333" />
-
-                <!-- 消息时间戳 -->
-                <TextView
-                    android:id="@+id/tv_timestamp"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="2025-06-27 20:30"
-                    android:textSize="12sp"
-                    android:textColor="#999999"
-                    android:layout_marginStart="8dp" />
-
-            </LinearLayout>
-
-            <!-- 消息文本和点赞按钮容器 -->
-            <LinearLayout
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
-                android:gravity="center_vertical|start"
-                android:orientation="horizontal">
-
-                <!-- 消息内容文本 -->
-                <TextView
-                    android:id="@+id/tv_message_content"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="小迷糊，要记得记账呀"
-                    android:textSize="16sp"
-                    android:textColor="#333333"
-                    android:background="@drawable/chat_bubble_background"
-                    android:gravity="start"
-                    android:padding="12dp"
-                    android:maxWidth="260dp"
-                    android:layout_marginEnd="8dp"/>
-
-                <!-- 点赞按钮 - 点赞功能已移除 -->
-                <!-- <com.example.couplecredit.function.LikeButton
-                    android:id="@+id/likeButton"
-                    android:layout_width="24dp"
-                    android:layout_height="24dp"
-                    android:layout_marginStart="8dp"/> -->
-
-            </LinearLayout>
-
-
-
-        </LinearLayout>
-
-
+            android:background="@drawable/chat_bubble_background"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:paddingTop="9dp"
+            android:paddingBottom="9dp"
+            android:maxWidth="260dp"
+            android:text="消息内容"
+            android:textSize="15sp"
+            android:textColor="#333333"
+            android:lineSpacingExtra="2dp" />
 
     </LinearLayout>
+
+    <!-- 用户名（隐藏但保留给adapter绑定） -->
+    <TextView
+        android:id="@+id/tv_username"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:visibility="gone" />
 
 </LinearLayout>

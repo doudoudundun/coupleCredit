@@ -37,6 +37,7 @@ import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 import com.example.couplecredit.R;
 import com.example.couplecredit.activity.UserSettingsActivity;
 import com.example.couplecredit.adapter.ChatMessageAdapter;
+import com.example.couplecredit.api.AuthApiModels;
 import com.example.couplecredit.dialog.ChatBillingDialog;
 import com.example.couplecredit.utils.CustomToast;
 import com.example.couplecredit.utils.UserInfoManager;
@@ -50,8 +51,10 @@ import com.example.couplecredit.viewmodel.ChatViewModel;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 /**
  * 聊天界面Fragment - 重构版本
@@ -80,8 +83,14 @@ public class ChatModelFragment extends Fragment {
     private SwipeRefreshLayout swipeRefreshLayout; // 下拉刷新布局
     private EditText etMessageInput;         // 消息输入框
     private EditText etSearch;               // 搜索输入框
-    private Button btnSend;                  // 发送按钮
-    private Button btnSearch;                // 搜索按钮
+    private View btnSend;                    // 发送按钮
+    private View btnSearchIcon;              // 搜索图标按钮
+    private View btnCancelSearch;            // 取消搜索按钮
+    private View searchBar;                  // 搜索栏容器
+    private View btnPlus;                    // +展开按钮
+    private View actionPanel;                // 功能面板
+    private View actionCamera;               // 拍照
+    private View actionAlbum;                // 相册
     private View loadingNewerIndicator;      // 加载新消息指示器
     private View loadingOlderIndicator;      // 加载历史消息指示器
     
@@ -321,14 +330,20 @@ public class ChatModelFragment extends Fragment {
         etMessageInput = view.findViewById(R.id.et_message_input);
         etSearch = view.findViewById(R.id.et_search);
         btnSend = view.findViewById(R.id.btn_send);
-        btnSearch = view.findViewById(R.id.btn_search);
+        btnSearchIcon = view.findViewById(R.id.btn_search_icon);
+        btnCancelSearch = view.findViewById(R.id.btn_search_cancel);
+        searchBar = view.findViewById(R.id.search_bar);
+        btnPlus = view.findViewById(R.id.btn_plus);
+        actionPanel = view.findViewById(R.id.action_panel);
+        actionCamera = view.findViewById(R.id.action_camera);
+        actionAlbum = view.findViewById(R.id.action_album);
         inputSection = view.findViewById(R.id.input_section);
         loadingNewerIndicator = view.findViewById(R.id.loading_newer_indicator);
         loadingOlderIndicator = view.findViewById(R.id.loading_older_indicator);
-        
+
         // 设置下拉刷新的颜色和样式
         setupSwipeRefresh();
-        
+
         // 获取底部导航栏高度
         if (getActivity() != null) {
             View bottomNav = getActivity().findViewById(R.id.bottom_nav);
@@ -532,46 +547,93 @@ public class ChatModelFragment extends Fragment {
      * 设置事件监听器
      */
     private void setupListeners() {
-        // 发送按钮点击事件
         btnSend.setOnClickListener(v -> sendMessage());
-        
-        // 搜索按钮点击事件
-        btnSearch.setOnClickListener(v -> performSearch());
-        
-        // 搜索输入框文本变化监听 - 实现实时搜索
+
+        btnSearchIcon.setOnClickListener(v -> {
+            searchBar.setVisibility(View.VISIBLE);
+            btnSearchIcon.setVisibility(View.GONE);
+            etSearch.requestFocus();
+            showKeyboard(etSearch);
+        });
+
+        btnCancelSearch.setOnClickListener(v -> exitSearchMode());
+
         etSearch.addTextChangedListener(new TextWatcher() {
             @Override
-            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
-                // 文本变化前的处理（通常不需要实现）
-            }
-            
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+
             @Override
             public void onTextChanged(CharSequence s, int start, int before, int count) {
-                // 取消之前的搜索任务
                 if (searchRunnable != null) {
                     searchHandler.removeCallbacks(searchRunnable);
                 }
-                
-                // 创建新的搜索任务
                 searchRunnable = () -> {
                     String searchText = s.toString().trim();
                     if (!TextUtils.isEmpty(searchText)) {
-                        // 执行搜索
                         viewModel.searchMessages(searchText);
                     } else {
-                        // 如果搜索框为空，退出搜索模式
                         viewModel.exitSearchMode();
                     }
                 };
-                
-                // 延迟300毫秒执行搜索，避免频繁搜索
                 searchHandler.postDelayed(searchRunnable, 300);
             }
-            
+
             @Override
-            public void afterTextChanged(Editable s) {
-                // 文本变化后的处理（通常不需要实现）
+            public void afterTextChanged(Editable s) {}
+        });
+
+        etSearch.setOnEditorActionListener((v, actionId, event) -> {
+            if (actionId == android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH) {
+                performSearch();
+                return true;
             }
+            return false;
+        });
+
+        etMessageInput.addTextChangedListener(new TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+                boolean hasText = s.toString().trim().length() > 0;
+                btnSend.setVisibility(hasText ? View.VISIBLE : View.GONE);
+                btnPlus.setVisibility(hasText ? View.GONE : View.VISIBLE);
+                if (hasText) {
+                    actionPanel.setVisibility(View.GONE);
+                }
+            }
+
+            @Override
+            public void afterTextChanged(Editable s) {}
+        });
+
+        btnPlus.setOnClickListener(v -> {
+            if (actionPanel.getVisibility() == View.VISIBLE) {
+                actionPanel.setVisibility(View.GONE);
+            } else {
+                hideKeyboard();
+                etMessageInput.clearFocus();
+                actionPanel.setVisibility(View.VISIBLE);
+            }
+        });
+
+        etMessageInput.setOnEditorActionListener((v, actionId, event) -> {
+            if (actionId == android.view.inputmethod.EditorInfo.IME_ACTION_SEND) {
+                sendMessage();
+                return true;
+            }
+            return false;
+        });
+
+        actionCamera.setOnClickListener(v -> {
+            actionPanel.setVisibility(View.GONE);
+            openCamera();
+        });
+
+        actionAlbum.setOnClickListener(v -> {
+            actionPanel.setVisibility(View.GONE);
+            openAlbum();
         });
         
         // 输入框焦点监听
@@ -590,27 +652,23 @@ public class ChatModelFragment extends Fragment {
         if (rootView != null) {
             rootView.setOnTouchListener((v, event) -> {
                 if (event.getAction() == MotionEvent.ACTION_DOWN) {
-                    // 获取触摸点坐标
                     float x = event.getX();
                     float y = event.getY();
-                    
-                    // 检查是否点击在输入框或按钮上
-                    if (!isTouchInsideView(etMessageInput, x, y) && 
+
+                    if (!isTouchInsideView(etMessageInput, x, y) &&
                         !isTouchInsideView(etSearch, x, y) &&
                         !isTouchInsideView(btnSend, x, y) &&
-                        !isTouchInsideView(btnSearch, x, y)) {
-                        
-                        // 清除输入框焦点
+                        !isTouchInsideView(btnPlus, x, y) &&
+                        !isTouchInsideView(actionPanel, x, y)) {
+
                         etMessageInput.clearFocus();
                         etSearch.clearFocus();
-                        
-                        // 隐藏键盘
+                        actionPanel.setVisibility(View.GONE);
                         hideKeyboard();
-                        
-                        return true; // 消费触摸事件
+                        return true;
                     }
                 }
-                return false; // 不消费触摸事件，让其他组件正常处理
+                return false;
             });
         }
         
@@ -834,27 +892,148 @@ public class ChatModelFragment extends Fragment {
                 //Toast.makeText(getContext(), "同步错误: " + errorMsg, Toast.LENGTH_LONG).show();
             }
         });
+
+        messageAdapter.setOnAiExtractionListener(new ChatMessageAdapter.OnAiExtractionListener() {
+            @Override public void onConfirm(int extractionId) {
+                removeExtractionCard(extractionId);
+                viewModel.confirmExtraction(extractionId);
+            }
+            @Override public void onDismiss(int extractionId) {
+                removeExtractionCard(extractionId);
+                viewModel.dismissExtraction(extractionId);
+            }
+            @Override public void onEdit(int extractionId, String type, java.util.Map<String, Object> data) {
+                showExtractionEditDialog(extractionId, type, data);
+            }
+        });
+
+        viewModel.getAiExtractions().observe(getViewLifecycleOwner(), extractions -> {
+            if (extractions == null || extractions.isEmpty()) return;
+            Set<Integer> existingIds = new java.util.HashSet<>();
+            for (int i = 0; i < messageAdapter.getItemCount(); i++) {
+                ChatMessage m = messageAdapter.getMessageAt(i);
+                if (m != null && m.isAiExtraction()) existingIds.add(m.getExtractionId());
+            }
+            for (AuthApiModels.AiExtractionItem item : extractions) {
+                if (existingIds.contains(item.id)) continue;
+                ChatMessage card = new ChatMessage("AI助手", 0, "", "", 0, "", false);
+                card.setAiExtraction(true);
+                card.setExtractionId(item.id);
+                card.setExtractionType(item.type);
+                card.setExtractionSummary(buildExtractionSummary(item.type, item.data));
+                card.setExtractionData(item.data);
+                messageAdapter.addMessage(card);
+                rvChatMessages.scrollToPosition(messageAdapter.getItemCount() - 1);
+            }
+        });
     }
     
     // ======================== 用户交互方法 ========================
-    
+
+    private void removeExtractionCard(int extractionId) {
+        for (int i = messageAdapter.getItemCount() - 1; i >= 0; i--) {
+            ChatMessage m = messageAdapter.getMessageAt(i);
+            if (m != null && m.isAiExtraction() && m.getExtractionId() == extractionId) {
+                messageAdapter.removeMessage(i);
+                break;
+            }
+        }
+    }
+
+    private String buildExtractionSummary(String type, java.util.Map<String, Object> data) {
+        if (data == null) return "";
+        if ("bill".equals(type)) {
+            Object title = data.get("title");
+            Object amount = data.get("amount");
+            Object typeVal = data.get("type");
+            return (title != null ? title : "") + " ¥" + (amount != null ? amount : "0") + (typeVal != null ? " · " + typeVal : "");
+        } else if ("inventory".equals(type)) {
+            Object name = data.get("name");
+            Object qty = data.get("quantity");
+            Object unit = data.get("unit");
+            return (name != null ? name : "") + " " + (qty != null ? qty : "") + (unit != null ? unit : "");
+        } else {
+            Object title = data.get("title");
+            Object date = data.get("fuzzyDateText");
+            return (title != null ? title : "新待办") + (date != null ? " · " + date : "");
+        }
+    }
+
+    private void showExtractionEditDialog(int extractionId, String type, java.util.Map<String, Object> data) {
+        View dialogView = LayoutInflater.from(requireContext()).inflate(R.layout.dialog_ai_extraction_edit, null);
+        android.app.AlertDialog dialog = new android.app.AlertDialog.Builder(requireContext(), R.style.CustomDialogStyle).setView(dialogView).create();
+
+        android.widget.LinearLayout llBill = dialogView.findViewById(R.id.ll_bill_fields);
+        android.widget.LinearLayout llInv = dialogView.findViewById(R.id.ll_inventory_fields);
+        android.widget.LinearLayout llTodo = dialogView.findViewById(R.id.ll_todo_fields);
+        android.widget.TextView tvTitle = dialogView.findViewById(R.id.tv_dialog_title);
+
+        if ("bill".equals(type)) {
+            tvTitle.setText("编辑账单");
+            llBill.setVisibility(View.VISIBLE);
+            ((android.widget.EditText) dialogView.findViewById(R.id.et_bill_title)).setText(data != null ? String.valueOf(data.getOrDefault("title", "")) : "");
+            ((android.widget.EditText) dialogView.findViewById(R.id.et_bill_amount)).setText(data != null ? String.valueOf(data.getOrDefault("amount", "")) : "");
+            ((android.widget.EditText) dialogView.findViewById(R.id.et_bill_type)).setText(data != null ? String.valueOf(data.getOrDefault("type", "")) : "");
+            ((android.widget.EditText) dialogView.findViewById(R.id.et_bill_date)).setText(data != null ? String.valueOf(data.getOrDefault("date", "")) : "");
+        } else if ("inventory".equals(type)) {
+            tvTitle.setText("编辑物资");
+            llInv.setVisibility(View.VISIBLE);
+            ((android.widget.EditText) dialogView.findViewById(R.id.et_inv_name)).setText(data != null ? String.valueOf(data.getOrDefault("name", "")) : "");
+            ((android.widget.EditText) dialogView.findViewById(R.id.et_inv_quantity)).setText(data != null ? String.valueOf(data.getOrDefault("quantity", "")) : "");
+            ((android.widget.EditText) dialogView.findViewById(R.id.et_inv_unit)).setText(data != null ? String.valueOf(data.getOrDefault("unit", "")) : "");
+            ((android.widget.EditText) dialogView.findViewById(R.id.et_inv_category)).setText(data != null ? String.valueOf(data.getOrDefault("category", "")) : "");
+        } else {
+            tvTitle.setText("编辑待办");
+            llTodo.setVisibility(View.VISIBLE);
+            ((android.widget.EditText) dialogView.findViewById(R.id.et_todo_title)).setText(data != null ? String.valueOf(data.getOrDefault("title", "")) : "");
+            ((android.widget.EditText) dialogView.findViewById(R.id.et_todo_date)).setText(data != null ? String.valueOf(data.getOrDefault("fuzzyDateText", "")) : "");
+        }
+
+        dialogView.findViewById(R.id.btn_cancel).setOnClickListener(v -> dialog.dismiss());
+        dialogView.findViewById(R.id.btn_save).setOnClickListener(v -> {
+            java.util.Map<String, Object> overrides = new java.util.HashMap<>();
+            if ("bill".equals(type)) {
+                overrides.put("title", ((android.widget.EditText) dialogView.findViewById(R.id.et_bill_title)).getText().toString().trim());
+                String amountStr = ((android.widget.EditText) dialogView.findViewById(R.id.et_bill_amount)).getText().toString().trim();
+                try { overrides.put("amount", Double.parseDouble(amountStr)); } catch (NumberFormatException e) { overrides.put("amount", 0); }
+                overrides.put("type", ((android.widget.EditText) dialogView.findViewById(R.id.et_bill_type)).getText().toString().trim());
+                overrides.put("date", ((android.widget.EditText) dialogView.findViewById(R.id.et_bill_date)).getText().toString().trim());
+                overrides.put("incomeType", data != null && data.containsKey("incomeType") ? data.get("incomeType") : 0);
+                overrides.put("owner", data != null && data.containsKey("owner") ? data.get("owner") : "自己");
+            } else if ("inventory".equals(type)) {
+                overrides.put("name", ((android.widget.EditText) dialogView.findViewById(R.id.et_inv_name)).getText().toString().trim());
+                String qtyStr = ((android.widget.EditText) dialogView.findViewById(R.id.et_inv_quantity)).getText().toString().trim();
+                try { overrides.put("quantity", Double.parseDouble(qtyStr)); } catch (NumberFormatException e) { overrides.put("quantity", 1); }
+                overrides.put("unit", ((android.widget.EditText) dialogView.findViewById(R.id.et_inv_unit)).getText().toString().trim());
+                overrides.put("category", ((android.widget.EditText) dialogView.findViewById(R.id.et_inv_category)).getText().toString().trim());
+            } else {
+                overrides.put("title", ((android.widget.EditText) dialogView.findViewById(R.id.et_todo_title)).getText().toString().trim());
+                overrides.put("fuzzyDateText", ((android.widget.EditText) dialogView.findViewById(R.id.et_todo_date)).getText().toString().trim());
+                overrides.put("priority", data != null && data.containsKey("priority") ? data.get("priority") : "medium");
+            }
+            dialog.dismiss();
+            viewModel.confirmExtractionWithOverrides(extractionId, overrides);
+        });
+
+        com.example.couplecredit.utils.DialogHelper.showWide(dialog, requireContext());
+    }
+
     /**
      * 发送消息
      */
     private void sendMessage() {
         String messageText = etMessageInput.getText().toString().trim();
-        
-        // 输入验证
+
         if (TextUtils.isEmpty(messageText)) {
             CustomToast.show(getContext(), "请输入消息内容", Toast.LENGTH_SHORT);
             return;
         }
-        
-        // 委托给ViewModel处理发送逻辑，只传递消息内容字符串
-        viewModel.sendMessage(messageText); // 修改：直接传递字符串而不是ChatMessage对象
-        
-        // 清空输入框
+
+        viewModel.sendMessage(messageText);
+
         etMessageInput.setText("");
+        btnSend.setVisibility(View.GONE);
+        btnPlus.setVisibility(View.VISIBLE);
     }
     
     /**
@@ -862,17 +1041,53 @@ public class ChatModelFragment extends Fragment {
      */
     private void performSearch() {
         String searchText = etSearch.getText().toString().trim();
-        
+
         if (TextUtils.isEmpty(searchText)) {
             CustomToast.show(getContext(), "请输入搜索关键词", Toast.LENGTH_SHORT);
             return;
         }
-        
-        // 隐藏软键盘
+
         hideKeyboard();
-        
-        // 委托给ViewModel处理搜索逻辑
         viewModel.searchMessages(searchText);
+    }
+
+    private void exitSearchMode() {
+        searchBar.setVisibility(View.GONE);
+        btnSearchIcon.setVisibility(View.VISIBLE);
+        etSearch.setText("");
+        isSearchMode = false;
+        viewModel.exitSearchMode();
+        hideKeyboard();
+    }
+
+    private void showKeyboard(View view) {
+        if (getActivity() != null) {
+            InputMethodManager imm = (InputMethodManager) getActivity().getSystemService(Context.INPUT_METHOD_SERVICE);
+            imm.showSoftInput(view, InputMethodManager.SHOW_IMPLICIT);
+        }
+    }
+
+    private void openCamera() {
+        try {
+            Intent intent = new Intent(android.provider.MediaStore.ACTION_IMAGE_CAPTURE);
+            if (intent.resolveActivity(requireActivity().getPackageManager()) != null) {
+                startActivityForResult(intent, 1001);
+            } else {
+                CustomToast.show(getContext(), "没有可用的相机应用", Toast.LENGTH_SHORT);
+            }
+        } catch (Exception e) {
+            CustomToast.show(getContext(), "无法打开相机", Toast.LENGTH_SHORT);
+        }
+    }
+
+    private void openAlbum() {
+        try {
+            Intent intent = new Intent(Intent.ACTION_PICK);
+            intent.setType("image/*");
+            startActivityForResult(intent, 1002);
+        } catch (Exception e) {
+            CustomToast.show(getContext(), "无法打开相册", Toast.LENGTH_SHORT);
+        }
     }
     
     /**
@@ -897,11 +1112,10 @@ public class ChatModelFragment extends Fragment {
             @Override
             public void handleOnBackPressed() {
                 if (isSearchMode) {
-                    // 如果处于搜索模式，退出搜索模式
-                    viewModel.exitSearchMode();
-                    etSearch.setText(""); // 清空搜索框
+                    exitSearchMode();
+                } else if (actionPanel != null && actionPanel.getVisibility() == View.VISIBLE) {
+                    actionPanel.setVisibility(View.GONE);
                 } else {
-                    // 否则执行默认返回操作
                     setEnabled(false);
                     requireActivity().onBackPressed();
                 }

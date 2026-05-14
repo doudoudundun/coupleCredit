@@ -239,7 +239,8 @@ public class CloudChatRepository {
         if (data == null) return result;
         for (AuthApiModels.ChatMessageData d : data) {
             String timestamp = d.displayTime != null ? d.displayTime : String.valueOf(d.createdAt);
-            ChatMessage msg = new ChatMessage("", d.userId, d.content, timestamp, 0, null, false);
+            boolean sentByMe = currentUserId > 0 && d.userId == currentUserId;
+            ChatMessage msg = new ChatMessage("", d.userId, d.content, timestamp, 0, null, sentByMe);
             msg.setId((int) d.id);
             msg.setLiked(d.isLiked);
             msg.setMessageType(d.messageType != null ? d.messageType : "text");

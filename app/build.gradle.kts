@@ -34,7 +34,7 @@ android {
         buildConfigField("String", "PRIVATE_DB_NAME", "\"${localConfig("PRIVATE_DB_NAME", "couple_credit_private")}\"")
         buildConfigField("String", "PRIVATE_DB_USER", "\"${localConfig("PRIVATE_DB_USER", "couple_app")}\"")
         buildConfigField("String", "PRIVATE_DB_PASSWORD", "\"${localConfig("PRIVATE_DB_PASSWORD")}\"")
-        buildConfigField("String", "PRIVATE_API_BASE_URL", "\"${localConfig("PRIVATE_API_BASE_URL", "https://api.datafun.online")}\"")
+        buildConfigField("String", "PRIVATE_API_BASE_URL", "\"${localConfig("PRIVATE_API_BASE_URL", "https://74bc04858f3e63.lhr.life")}\"")
         buildConfigField("String", "PRIVATE_API_INVITE_CODE", "\"${localConfig("PRIVATE_API_INVITE_CODE", "COUPLE-PRIVATE-2026")}\"")
     }
 
@@ -107,4 +107,11 @@ dependencies {
     
     // SwipeRefreshLayout支持
     implementation("androidx.swiperefreshlayout:swiperefreshlayout:1.1.0")
+
+    // Firebase Cloud Messaging
+    implementation("com.google.firebase:firebase-messaging:24.1.1")
+}
+
+if (file("google-services.json").exists()) {
+    apply(plugin = "com.google.gms.google-services")
 }

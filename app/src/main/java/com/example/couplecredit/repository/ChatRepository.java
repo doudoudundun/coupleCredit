@@ -561,20 +561,29 @@ public class ChatRepository {
         List<ChatMessage> messages = new ArrayList<>();
         for (ChatMessageEntity entity : entities) {
             ChatMessage message = new ChatMessage(
-                    entity.getUsername(), entity.getContent(), entity.getTimestamp(),
-                    entity.getAvatarResId(), entity.isSentByMe());
+                    entity.getUsername(), entity.getUserId(), entity.getContent(), entity.getTimestamp(),
+                    entity.getAvatarResId(), entity.getAvatarUri(), entity.isSentByMe());
             message.setId(entity.getId());
             message.setCloudMessageId(entity.getCloudMessageId());
             message.setLiked(entity.isLiked());
+            message.setRelationshipId(entity.getRelationshipId());
+            message.setMessageType(entity.getMessageType());
             messages.add(message);
         }
         return messages;
     }
 
     private ChatMessageEntity convertMessageToEntity(ChatMessage message) {
-        ChatMessageEntity entity = new ChatMessageEntity(
-                message.getUsername(), message.getContent(), message.getTimestamp(),
-                message.getAvatarResId(), message.isSentByMe());
+        ChatMessageEntity entity = new ChatMessageEntity();
+        entity.setUsername(message.getUsername());
+        entity.setUserId(message.getUserId());
+        entity.setContent(message.getContent());
+        entity.setTimestamp(message.getTimestamp());
+        entity.setAvatarResId(message.getAvatarResId());
+        entity.setAvatarUri(message.getAvatarUri());
+        entity.setSentByMe(message.isSentByMe());
+        entity.setMessageType(message.getMessageType());
+        entity.setRelationshipId(message.getRelationshipId());
         if (message.getId() > 0) entity.setId(message.getId());
         if (message.getCloudMessageId() != null && message.getCloudMessageId() > 0) {
             entity.setCloudMessageId(message.getCloudMessageId());

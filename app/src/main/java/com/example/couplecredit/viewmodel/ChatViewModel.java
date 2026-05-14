@@ -1,6 +1,7 @@
 package com.example.couplecredit.viewmodel;
 
 import android.app.Application;
+import com.example.couplecredit.R;
 import androidx.annotation.NonNull;
 import androidx.lifecycle.AndroidViewModel;
 import androidx.lifecycle.LiveData;
@@ -9,6 +10,8 @@ import androidx.lifecycle.ViewModel;
 import androidx.lifecycle.ViewModelProvider;
 
 import com.example.couplecredit.model.ChatMessage;
+import com.example.couplecredit.api.AuthApiClient;
+import com.example.couplecredit.api.AuthApiModels;
 import com.example.couplecredit.repository.ChatRepository;
 import com.example.couplecredit.service.ChatSyncService;
 import com.example.couplecredit.utils.NetworkStateManager;
@@ -17,6 +20,7 @@ import com.example.couplecredit.service.OfflineService;
 import com.example.couplecredit.utils.UserInfoManager;
 
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
@@ -58,7 +62,13 @@ public class ChatViewModel extends AndroidViewModel {
     
     // 用户信息
     private int currentUserId = -1; // 从UserInfoManager获取
+    private String currentUsername = null;
     private long currentRelationshipId = -1; // 从UserInfoManager获取
+
+    // AI提取相关
+    private final MutableLiveData<List<AuthApiModels.AiExtractionItem>> aiExtractions = new MutableLiveData<>();
+    private final java.util.concurrent.ExecutorService aiAnalysisPool = java.util.concurrent.Executors.newFixedThreadPool(2);
+    private final java.util.concurrent.ConcurrentLinkedQueue<AuthApiModels.AiChatMessage> aiAnalysisQueue = new java.util.concurrent.ConcurrentLinkedQueue<>();
     
     // 时间格式化器
     private final SimpleDateFormat timeFormatter = new SimpleDateFormat("HH:mm", Locale.getDefault());
@@ -336,16 +346,18 @@ public class ChatViewModel extends AndroidViewModel {
         
         try {
             // 创建消息对象
+            String username = currentUsername != null ? currentUsername : "我";
             ChatMessage message = new ChatMessage(
-                "用户", // 实际应从用户会话获取
+                username,
+                currentUserId,
                 content.trim(),
                 getCurrentTimestamp(),
-                android.R.drawable.ic_menu_gallery, // 默认头像
-                true // isSentByMe
+                R.drawable.ic_default_avatar,
+                null,
+                true
             );
-            
+
             // 设置云端相关信息
-            message.setUserId(currentUserId);
             message.setRelationshipId(currentRelationshipId);
             message.setMessageType("text");
             
@@ -382,6 +394,7 @@ public class ChatViewModel extends AndroidViewModel {
             
             // 清空输入框
                 messageInput.postValue("");
+                onMessageSentForAnalysis(System.currentTimeMillis(), currentUsername != null ? currentUsername : "我", content.trim());
             } catch (Exception e) {
                 errorMessage.postValue("发送消息失败: " + e.getMessage());
             } finally {
@@ -614,8 +627,9 @@ public class ChatViewModel extends AndroidViewModel {
                 UserInfoManager.getCurrentUserInfo(application, new UserInfoManager.UserInfoCallback() {
                     @Override
                     public void onUserInfoLoaded(int userId, String username, Integer relationshipId) {
+                        currentUsername = username;
                         currentRelationshipId = relationshipId != null ? relationshipId : 1;
-                        android.util.Log.d("ChatViewModel", "从UserInfoManager获取用户信息: userId=" + userId + ", relationshipId=" + currentRelationshipId);
+                        android.util.Log.d("ChatViewModel", "从UserInfoManager获取用户信息: userId=" + userId + ", username=" + username + ", relationshipId=" + currentRelationshipId);
                         
                         // 更新syncService和chatRepository的用户信息
                         if (syncService != null) {
@@ -887,6 +901,7 @@ public class ChatViewModel extends AndroidViewModel {
     @Override
     protected void onCleared() {
         super.onCleared();
+        aiAnalysisPool.shutdownNow();
         cleanup();
     }
     
@@ -1144,5 +1159,79 @@ public class ChatViewModel extends AndroidViewModel {
     public boolean hasFailedMessages() {
         Integer count = failedMessagesCount.getValue();
         return count != null && count > 0;
+    }
+
+    public LiveData<List<AuthApiModels.AiExtractionItem>> getAiExtractions() { return aiExtractions; }
+
+    public void onMessageSentForAnalysis(long messageId, String username, String content) {
+        aiAnalysisQueue.offer(new AuthApiModels.AiChatMessage(messageId, username, content));
+        drainAiAnalysisQueue();
+    }
+
+    private void drainAiAnalysisQueue() {
+        aiAnalysisPool.execute(() -> {
+            List<AuthApiModels.AiChatMessage> batch = new ArrayList<>();
+            AuthApiModels.AiChatMessage msg;
+            while ((msg = aiAnalysisQueue.poll()) != null) {
+                batch.add(msg);
+            }
+            if (batch.isEmpty()) return;
+
+            android.util.Log.d("ChatViewModel", "AI分析: 处理 " + batch.size() + " 条消息");
+            AuthApiClient.analyzeAiChat(getApplication(), currentUserId, batch, new AuthApiClient.AiAnalyzeCallback() {
+                @Override public void onSuccess(AuthApiModels.AiAnalyzeResponse response) {
+                    if (response != null && response.data != null && response.data.extractions != null && !response.data.extractions.isEmpty()) {
+                        List<AuthApiModels.AiExtractionItem> current = aiExtractions.getValue();
+                        List<AuthApiModels.AiExtractionItem> updated = new ArrayList<>(current != null ? current : java.util.Collections.emptyList());
+                        updated.addAll(response.data.extractions);
+                        aiExtractions.postValue(updated);
+                        android.util.Log.d("ChatViewModel", "AI分析: 发现 " + response.data.extractions.size() + " 个提取");
+                    }
+                    if (!aiAnalysisQueue.isEmpty()) {
+                        drainAiAnalysisQueue();
+                    }
+                }
+                @Override public void onError(String error) {
+                    android.util.Log.w("ChatViewModel", "AI分析失败: " + error);
+                    if (!aiAnalysisQueue.isEmpty()) {
+                        drainAiAnalysisQueue();
+                    }
+                }
+            });
+        });
+    }
+
+    private void removeExtractionFromLiveData(int extractionId) {
+        List<AuthApiModels.AiExtractionItem> current = aiExtractions.getValue();
+        if (current != null && !current.isEmpty()) {
+            List<AuthApiModels.AiExtractionItem> updated = new ArrayList<>(current);
+            updated.removeIf(item -> item.id == extractionId);
+            aiExtractions.postValue(updated);
+        }
+    }
+
+    public void confirmExtraction(int extractionId) {
+        confirmExtractionWithOverrides(extractionId, null);
+    }
+
+    public void confirmExtractionWithOverrides(int extractionId, java.util.Map<String, Object> overrides) {
+        AuthApiClient.confirmAiExtraction(getApplication(), extractionId, currentUserId, overrides, new AuthApiClient.ConfirmCallback() {
+            @Override public void onSuccess(AuthApiModels.AiExtractionActionResponse response) {
+                removeExtractionFromLiveData(extractionId);
+                successMessage.postValue("已记录");
+            }
+            @Override public void onError(String error) {
+                errorMessage.postValue("确认失败: " + error);
+            }
+        });
+    }
+
+    public void dismissExtraction(int extractionId) {
+        AuthApiClient.dismissAiExtraction(getApplication(), extractionId, currentUserId, new AuthApiClient.ConfirmCallback() {
+            @Override public void onSuccess(AuthApiModels.AiExtractionActionResponse response) {
+                removeExtractionFromLiveData(extractionId);
+            }
+            @Override public void onError(String error) {}
+        });
     }
 }

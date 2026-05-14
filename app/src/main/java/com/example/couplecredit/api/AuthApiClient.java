@@ -20,6 +20,7 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 public class AuthApiClient {
     private static final String TAG = "AuthApiClient";
@@ -397,6 +398,67 @@ public class AuthApiClient {
                 buildBeadBlueprintCallback("记录串珠制作", callback));
     }
 
+    public static void batchDeductInventory(Context context, int userId, List<AuthApiModels.BatchDeductItem> items, BeadMutationCallback callback) {
+        doRequest(context, "POST", "/api/beads/inventory/batch-deduct",
+                GSON.toJson(new AuthApiModels.BatchDeductRequest(userId, items)),
+                beadMutationCallback("批量扣减库存", callback));
+    }
+
+    public interface AiAnalyzeCallback {
+        void onSuccess(AuthApiModels.AiAnalyzeResponse response);
+        void onError(String error);
+    }
+
+    public static void analyzeAiChat(Context context, int userId, List<AuthApiModels.AiChatMessage> messages, AiAnalyzeCallback callback) {
+        doRequest(context, "POST", "/api/ai-chat/analyze",
+                GSON.toJson(new AuthApiModels.AiAnalyzeRequest(userId, messages)),
+                30000, new RawCallback() {
+            @Override public void onSuccess(String json) {
+                if (callback != null) {
+                    try {
+                        AuthApiModels.AiAnalyzeResponse response = GSON.fromJson(normalizeJsonPayload(json), AuthApiModels.AiAnalyzeResponse.class);
+                        if (response != null && response.ok) callback.onSuccess(response);
+                        else callback.onError(extractError(response != null ? response.error : null, json));
+                    } catch (Exception e) {
+                        callback.onError("解析失败");
+                    }
+                }
+            }
+            @Override public void onError(String message) { if (callback != null) callback.onError(message); }
+        });
+    }
+
+    public static void confirmAiExtraction(Context context, int extractionId, int userId, Map<String, Object> overrides, ConfirmCallback callback) {
+        String path = "/api/ai-chat/extractions/" + extractionId + "/confirm";
+        doRequest(context, "POST", path, GSON.toJson(new AuthApiModels.AiExtractionActionRequest(userId, overrides)),
+                new RawCallback() {
+            @Override public void onSuccess(String json) {
+                if (callback != null) {
+                    try {
+                        AuthApiModels.AiExtractionActionResponse resp = GSON.fromJson(normalizeJsonPayload(json), AuthApiModels.AiExtractionActionResponse.class);
+                        if (resp != null && resp.ok) callback.onSuccess(resp);
+                        else callback.onError(resp != null && resp.error != null ? resp.error.message : "确认失败");
+                    } catch (Exception e) { callback.onError("解析失败"); }
+                }
+            }
+            @Override public void onError(String message) { if (callback != null) callback.onError(message); }
+        });
+    }
+
+    public static void dismissAiExtraction(Context context, int extractionId, int userId, ConfirmCallback callback) {
+        doRequest(context, "POST", "/api/ai-chat/extractions/" + extractionId + "/dismiss",
+                GSON.toJson(new AuthApiModels.AiExtractionActionRequest(userId)),
+                new RawCallback() {
+            @Override public void onSuccess(String json) { if (callback != null) callback.onSuccess(null); }
+            @Override public void onError(String message) { if (callback != null) callback.onError(message); }
+        });
+    }
+
+    public interface ConfirmCallback {
+        void onSuccess(AuthApiModels.AiExtractionActionResponse response);
+        void onError(String error);
+    }
+
     private static final int AI_REQUEST_TIMEOUT_MS = 120000;
 
     public static void recognizeBeadColors(Context context, String imageUrl, BeadRecognizeColorsCallback callback) {
@@ -434,8 +496,12 @@ public class AuthApiClient {
     }
 
     public static void convertToBeadImage(Context context, String imageUrl, Integer cols, BeadConvertCallback callback) {
+        convertToBeadImage(context, imageUrl, cols, null, null, null, callback);
+    }
+
+    public static void convertToBeadImage(Context context, String imageUrl, Integer cols, Integer rows, Integer matchThreshold, Integer smoothExtra, BeadConvertCallback callback) {
         doRequest(context, "POST", "/api/beads/convert-to-bead",
-                GSON.toJson(new AuthApiModels.BeadConvertRequest(imageUrl, cols, null, null, false)),
+                GSON.toJson(new AuthApiModels.BeadConvertRequest(imageUrl, cols, rows, null, false, matchThreshold, smoothExtra)),
                 AI_REQUEST_TIMEOUT_MS,
                 new RawCallback() {
                     @Override
@@ -1098,6 +1164,12 @@ public class AuthApiClient {
 
     public static void duplicateTodo(Context context, int todoId, int userId, SimpleCallback callback) {
         doRequest(context, "POST", "/api/todos/" + todoId + "/duplicate",
+                GSON.toJson(java.util.Collections.singletonMap("userId", userId)),
+                fireAndForgetCallback(callback));
+    }
+
+    public static void remindPartner(Context context, int todoId, int userId, SimpleCallback callback) {
+        doRequest(context, "POST", "/api/todos/" + todoId + "/remind",
                 GSON.toJson(java.util.Collections.singletonMap("userId", userId)),
                 fireAndForgetCallback(callback));
     }

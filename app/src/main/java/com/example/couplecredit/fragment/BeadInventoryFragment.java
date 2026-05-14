@@ -4,6 +4,7 @@ import android.app.AlertDialog;
 import android.graphics.Color;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
+import android.content.Intent;
 import android.text.Editable;
 import android.text.TextUtils;
 import android.text.TextWatcher;
@@ -52,6 +53,8 @@ public class BeadInventoryFragment extends Fragment {
     private boolean lowStockOnly = false;
     private String selectedGroup = null;
     private LinearLayout groupChipContainer;
+    private BeadConvertDialog convertDialog;
+    private BeadRecognizeDialog recognizeDialog;
 
     @Nullable
     @Override
@@ -78,7 +81,6 @@ public class BeadInventoryFragment extends Fragment {
         recyclerView.setAdapter(adapter);
 
         view.findViewById(R.id.btn_bead_back).setOnClickListener(v -> requireActivity().getSupportFragmentManager().popBackStack());
-        view.findViewById(R.id.btn_bead_blueprints).setOnClickListener(v -> openBlueprintList());
         view.findViewById(R.id.btn_bead_bulk_replenish).setOnClickListener(v -> showBulkReplenishDialog());
         btnAll.setOnClickListener(v -> setLowStockOnly(false));
         btnLowStock.setOnClickListener(v -> setLowStockOnly(true));
@@ -89,6 +91,7 @@ public class BeadInventoryFragment extends Fragment {
         });
 
         buildGroupChips();
+        buildFeatureCards(view);
 
         viewModel.getDataVersion().observe(getViewLifecycleOwner(), version -> bindData());
         viewModel.getLoading().observe(getViewLifecycleOwner(), loading -> progressBar.setVisibility(Boolean.TRUE.equals(loading) ? View.VISIBLE : View.GONE));
@@ -110,6 +113,13 @@ public class BeadInventoryFragment extends Fragment {
         } else {
             bindData();
         }
+    }
+
+    @Override
+    public void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (convertDialog != null && convertDialog.handleActivityResult(requestCode, resultCode, data)) return;
+        if (recognizeDialog != null && recognizeDialog.handleActivityResult(requestCode, resultCode, data)) return;
     }
 
     private void buildGroupChips() {
@@ -151,6 +161,45 @@ public class BeadInventoryFragment extends Fragment {
                 ((TextView) child).setTextColor(ContextCompat.getColor(requireContext(),
                         isSelected ? R.color.primary_color : R.color.text_secondary));
             }
+        }
+    }
+
+    private void buildFeatureCards(View rootView) {
+        LinearLayout container = rootView.findViewById(R.id.ll_bead_features);
+        container.removeAllViews();
+        String[][] features = {
+                {"🖼", "图片转拼豆", "convert"},
+                {"🔍", "图纸识图", "recognize"},
+                {"📋", "我的图纸", "blueprints"}
+        };
+        int[] bgColors = {0xFFE8F5E9, 0xFFE3F2FD, 0xFFF3E5F5};
+        for (int i = 0; i < features.length; i++) {
+            View card = LayoutInflater.from(requireContext()).inflate(R.layout.item_bead_feature_card, container, false);
+            TextView tvIcon = card.findViewById(R.id.tv_feature_icon);
+            TextView tvLabel = card.findViewById(R.id.tv_feature_label);
+            tvIcon.setText(features[i][0]);
+            tvLabel.setText(features[i][1]);
+            View root = card.findViewById(R.id.ll_feature_card_root);
+            root.setBackgroundColor((int) bgColors[i]);
+            String action = features[i][2];
+            card.setOnClickListener(v -> onFeatureCardClick(action));
+            container.addView(card);
+        }
+    }
+
+    private void onFeatureCardClick(String action) {
+        switch (action) {
+            case "convert":
+                convertDialog = new BeadConvertDialog(this, viewModel);
+                convertDialog.show();
+                break;
+            case "recognize":
+                recognizeDialog = new BeadRecognizeDialog(this, viewModel);
+                recognizeDialog.show();
+                break;
+            case "blueprints":
+                openBlueprintList();
+                break;
         }
     }
 

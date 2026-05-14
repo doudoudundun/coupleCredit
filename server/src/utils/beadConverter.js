@@ -94,7 +94,7 @@ function findClosestGroup(r, g, b) {
   return COLOR_GROUPS[bestId];
 }
 
-function findBestInGroup(group, r, g, b) {
+function findBestInGroup(group, r, g, b, threshold) {
   const lab = rgbToLab(r, g, b);
   let best = group.colors[0];
   let bestDist = Infinity;
@@ -105,11 +105,11 @@ function findBestInGroup(group, r, g, b) {
       best = c;
     }
   }
-  if (bestDist > MAX_MATCH_DELTA_E_SQ) return null;
+  if (bestDist > (threshold || MAX_MATCH_DELTA_E_SQ)) return null;
   return best;
 }
 
-function matchPixel(r, g, b, a) {
+function matchPixel(r, g, b, a, threshold) {
   if (a < 50) return UNMATCHED;
   if (a < 200) {
     const alpha = a / 255;
@@ -118,7 +118,7 @@ function matchPixel(r, g, b, a) {
     b = Math.round(b * alpha + 255 * (1 - alpha));
   }
   const group = findClosestGroup(r, g, b);
-  return findBestInGroup(group, r, g, b) || UNMATCHED;
+  return findBestInGroup(group, r, g, b, threshold) || UNMATCHED;
 }
 
 // ==================== 邻域平滑 ====================
@@ -225,6 +225,7 @@ async function convertToBeadImage(imageBuffer, options = {}) {
   const actualRows = resized.info.height;
 
   // Step 2: 分组匹配 + 拒绝阈值 + 透明色支持
+  const matchThreshold = options.matchThreshold || MAX_MATCH_DELTA_E_SQ;
   const grid = [];
   for (let row = 0; row < actualRows; row++) {
     grid[row] = [];
@@ -232,17 +233,17 @@ async function convertToBeadImage(imageBuffer, options = {}) {
       const idx = (row * actualCols + col) * channels;
       const r = pixelData[idx], g = pixelData[idx + 1], b = pixelData[idx + 2];
       const a = channels === 4 ? pixelData[idx + 3] : 255;
-      grid[row][col] = matchPixel(r, g, b, a);
+      grid[row][col] = matchPixel(r, g, b, a, matchThreshold);
     }
   }
 
   // Step 3: 邻域平滑 — 动态轮数
   const pixels = actualCols * actualRows;
-  const smoothPasses = Math.min(3, Math.max(1, Math.floor(Math.sqrt(pixels) / 30)));
+  const smoothPasses = Math.min(3, Math.max(1, Math.floor(Math.sqrt(pixels) / 30))) + (options.smoothExtra || 0);
   smoothByNeighbors(grid, actualRows, actualCols, smoothPasses);
 
   // Step 4: 方向一致性 — 动态轮数
-  const dirPasses = pixels > 2500 ? 2 : 1;
+  const dirPasses = (pixels > 2500 ? 2 : 1) + (options.smoothExtra || 0);
   directionalSmooth(grid, actualRows, actualCols, dirPasses);
 
   // Step 5: 统计颜色

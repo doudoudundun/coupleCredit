@@ -34,6 +34,12 @@
         <string>COUPLE-PRIVATE-2026</string>
         <key>BCRYPT_ROUNDS</key>
         <string>10</string>
+        <key>HTTP_PROXY</key>
+        <string>http://127.0.0.1:7890</string>
+        <key>HTTPS_PROXY</key>
+        <string>http://127.0.0.1:7890</string>
+        <key>FIREBASE_HTTP2_ADAPTER_DISABLED</key>
+        <string>true</string>
     </dict>
     <key>WorkingDirectory</key>
     <string>/Users/chengzi/Code/GitHub/coupleCredit/server</string>

@@ -564,7 +564,6 @@ public class AddBillFragment extends Fragment {
     }
     
     private void updateDateDisplay() {
-        syncSelectedDateWithToday();
         SimpleDateFormat sdf = new SimpleDateFormat("M月d日", Locale.CHINA);
         tvDate.setText(sdf.format(selectedDate.getTime()));
     }

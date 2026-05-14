@@ -39,9 +39,13 @@ import com.example.couplecredit.utils.NicknameCache;
  */
 public class ChatMessageAdapter extends RecyclerView.Adapter<ChatMessageAdapter.MessageViewHolder> {
     
-    // 视图类型常量
-    private static final int VIEW_TYPE_LEFT = 0;  // 对方消息（左侧）
-    private static final int VIEW_TYPE_RIGHT = 1; // 本人消息（右侧）
+    private static final int VIEW_TYPE_LEFT = 0;
+    private static final int VIEW_TYPE_RIGHT = 1;
+    private static final int VIEW_TYPE_AI_EXTRACTION = 2;
+
+    private static final String TYPE_BILL = "bill";
+    private static final String TYPE_INVENTORY = "inventory";
+    private static final String TYPE_TODO = "todo";
     
     // 数据和上下文
     private List<ChatMessage> messages;  // 消息列表
@@ -49,6 +53,7 @@ public class ChatMessageAdapter extends RecyclerView.Adapter<ChatMessageAdapter.
     
     // 回调接口
     private OnMessageInteractionListener listener;
+    private OnAiExtractionListener aiExtractionListener;
     
     /**
      * 消息交互监听器接口
@@ -91,6 +96,16 @@ public class ChatMessageAdapter extends RecyclerView.Adapter<ChatMessageAdapter.
     public void setOnMessageInteractionListener(OnMessageInteractionListener listener) {
         this.listener = listener;
     }
+
+    public interface OnAiExtractionListener {
+        void onConfirm(int extractionId);
+        void onEdit(int extractionId, String type, java.util.Map<String, Object> data);
+        void onDismiss(int extractionId);
+    }
+
+    public void setOnAiExtractionListener(OnAiExtractionListener listener) {
+        this.aiExtractionListener = listener;
+    }
     
     /**
      * 获取指定位置消息的视图类型
@@ -100,6 +115,7 @@ public class ChatMessageAdapter extends RecyclerView.Adapter<ChatMessageAdapter.
     @Override
     public int getItemViewType(int position) {
         ChatMessage message = messages.get(position);
+        if (message.isAiExtraction()) return VIEW_TYPE_AI_EXTRACTION;
         return message.isSentByMe() ? VIEW_TYPE_RIGHT : VIEW_TYPE_LEFT;
     }
     
@@ -111,12 +127,13 @@ public class ChatMessageAdapter extends RecyclerView.Adapter<ChatMessageAdapter.
     @Override
     public MessageViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
         View view;
-        if (viewType == VIEW_TYPE_RIGHT) {
-            // 本人消息使用右侧布局
+        if (viewType == VIEW_TYPE_AI_EXTRACTION) {
+            view = LayoutInflater.from(parent.getContext())
+                    .inflate(R.layout.item_chat_ai_extraction, parent, false);
+        } else if (viewType == VIEW_TYPE_RIGHT) {
             view = LayoutInflater.from(parent.getContext())
                     .inflate(R.layout.item_chat_message_right, parent, false);
         } else {
-            // 对方消息使用左侧布局
             view = LayoutInflater.from(parent.getContext())
                     .inflate(R.layout.item_chat_message, parent, false);
         }
@@ -137,18 +154,7 @@ public class ChatMessageAdapter extends RecyclerView.Adapter<ChatMessageAdapter.
     @Override
     public void onBindViewHolder(@NonNull MessageViewHolder holder, int position, @NonNull List<Object> payloads) {
         if (payloads.isEmpty()) {
-            // 没有部分更新，执行完整绑定
             super.onBindViewHolder(holder, position, payloads);
-        } else {
-            // 处理部分更新
-            ChatMessage message = messages.get(position);
-            for (Object payload : payloads) {
-                // 点赞功能已移除
-                // if ("like_status".equals(payload)) {
-                //     // 只更新点赞状态，不重新绑定整个ViewHolder
-                //     holder.updateLikeButton(message.isLiked());
-                // }
-            }
         }
     }
     
@@ -167,23 +173,15 @@ public class ChatMessageAdapter extends RecyclerView.Adapter<ChatMessageAdapter.
      */
     public void updateMessages(List<ChatMessage> newMessages) {
         this.messages = newMessages;
-        // 使用notifyDataSetChanged()会导致所有ViewHolder重新绑定
-        // 这可能引起LikeButton状态混乱，但为了数据一致性暂时保留
-        // 后续可以考虑使用DiffUtil来优化
         notifyDataSetChanged();
     }
-    
-    /**
-     * 更新特定位置消息的点赞状态 - 点赞功能已移除
-     * @param position 消息位置
-     * @param isLiked 新的点赞状态
-     */
-    // public void updateLikeStatus(int position, boolean isLiked) {
-    //     if (messages != null && position >= 0 && position < messages.size()) {
-    //         messages.get(position).setLiked(isLiked);
-    //         notifyItemChanged(position, "like_status");
-    //     }
-    // }
+
+    public ChatMessage getMessageAt(int position) {
+        if (messages != null && position >= 0 && position < messages.size()) {
+            return messages.get(position);
+        }
+        return null;
+    }
     
     /**
      * 添加单条消息
@@ -212,28 +210,24 @@ public class ChatMessageAdapter extends RecyclerView.Adapter<ChatMessageAdapter.
      * 负责单个消息项的视图管理和事件处理
      */
     public class MessageViewHolder extends RecyclerView.ViewHolder {
-        
+
         private TextView tvUsername, tvMessageContent, tvTimestamp;
         private ImageView ivAvatar;
-        // private LikeButton likeButton; 点赞功能已移除
-        
+
         public MessageViewHolder(@NonNull View itemView) {
             super(itemView);
-            
-            // 初始化UI组件
+
             tvUsername = itemView.findViewById(R.id.tv_username);
             tvMessageContent = itemView.findViewById(R.id.tv_message_content);
             tvTimestamp = itemView.findViewById(R.id.tv_timestamp);
             ivAvatar = itemView.findViewById(R.id.iv_avatar);
-            // likeButton = itemView.findViewById(R.id.likeButton); 点赞功能已移除
         }
         
-        /**
-         * 绑定消息数据到视图
-         * @param message 消息对象
-         * @param position 消息位置
-         */
         public void bind(ChatMessage message, int position) {
+            if (message.isAiExtraction()) {
+                bindAiExtraction(message);
+                return;
+            }
             // 点赞功能已移除 - 不再初始化LikeButton
             // 首先重置LikeButton状态，防止ViewHolder复用时的状态混乱
             // if (likeButton != null) {
@@ -272,46 +266,52 @@ public class ChatMessageAdapter extends RecyclerView.Adapter<ChatMessageAdapter.
                     listener.onAvatarClick(message, position);
                 }
             });
-            
-            // 点赞功能已移除 - 不再设置点赞按钮
-            // 设置点赞状态
-            // updateLikeButton(message.isLiked());
-            
-            // 清除之前的监听器并设置新的点赞按钮点击事件
-            // if (likeButton != null) {
-            //     先清除之前的监听器
-            //     likeButton.setOnLikeClickListener(null);
-            //     设置新的监听器
-            //     likeButton.setOnLikeClickListener(isLiked -> {
-            //         切换点赞状态
-            //         message.setLiked(isLiked);
-            //         
-            //         通知监听器
-            //         if (listener != null) {
-            //             listener.onLikeStatusChanged(message, position, isLiked);
-            //         }
-            //     });
-            // }
-            
-            // 设置长按监听器，显示弹出菜单
+
             itemView.setOnLongClickListener(v -> {
                 if (listener != null) {
                     listener.onMessageLongClick(v, message, position);
                 }
-                return true; // 返回true表示消费了长按事件
+                return true;
             });
         }
-        
-        /**
-     * 更新点赞按钮的显示状态 - 点赞功能已移除
-     * @param isLiked 是否已点赞
-     */
-    // public void updateLikeButton(boolean isLiked) {
-    //     if (likeButton != null) {
-    //         likeButton.setLiked(isLiked);
-    //     }
-    // }
-        
+
+        private void bindAiExtraction(ChatMessage message) {
+            View typeIndicator = itemView.findViewById(R.id.view_type_indicator);
+            TextView tvTypeLabel = itemView.findViewById(R.id.tv_type_label);
+            TextView tvSummary = itemView.findViewById(R.id.tv_extraction_summary);
+            View btnConfirm = itemView.findViewById(R.id.btn_confirm);
+            View btnEdit = itemView.findViewById(R.id.btn_edit);
+            View btnDismiss = itemView.findViewById(R.id.btn_dismiss);
+
+            String type = message.getExtractionType();
+            int color;
+            String label;
+            if (TYPE_BILL.equals(type)) {
+                color = 0xFF3B82F6;
+                label = "AI 识别到一笔账单";
+            } else if (TYPE_INVENTORY.equals(type)) {
+                color = 0xFF10B981;
+                label = "AI 识别到物资记录";
+            } else {
+                color = 0xFFF59E0B;
+                label = "AI 识别到一条待办";
+            }
+            if (typeIndicator != null) typeIndicator.setBackgroundColor(color);
+            if (tvTypeLabel != null) tvTypeLabel.setText(label);
+            if (tvSummary != null) tvSummary.setText(message.getExtractionSummary());
+
+            int extractionId = message.getExtractionId();
+            if (btnConfirm != null) btnConfirm.setOnClickListener(v -> {
+                if (aiExtractionListener != null) aiExtractionListener.onConfirm(extractionId);
+            });
+            if (btnDismiss != null) btnDismiss.setOnClickListener(v -> {
+                if (aiExtractionListener != null) aiExtractionListener.onDismiss(extractionId);
+            });
+            if (btnEdit != null) btnEdit.setOnClickListener(v -> {
+                if (aiExtractionListener != null) aiExtractionListener.onEdit(extractionId, message.getExtractionType(), message.getExtractionData());
+            });
+        }
+
         /**
          * 加载并显示用户昵称
          * @param message 聊天消息对象

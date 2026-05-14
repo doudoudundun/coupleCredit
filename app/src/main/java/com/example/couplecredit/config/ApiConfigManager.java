@@ -83,7 +83,7 @@ public class ApiConfigManager {
      */
     public static String getDefaultUrl() {
         String buildConfigUrl = BuildConfig.PRIVATE_API_BASE_URL;
-        if (buildConfigUrl != null && !buildConfigUrl.trim().isEmpty() && !buildConfigUrl.contains(".lhr.life")) {
+        if (buildConfigUrl != null && !buildConfigUrl.trim().isEmpty()) {
             return buildConfigUrl.trim();
         }
         return STABLE_BASE_URL;
@@ -93,7 +93,7 @@ public class ApiConfigManager {
         if (customUrl == null || customUrl.trim().isEmpty()) {
             return false;
         }
-        return !customUrl.trim().contains(".lhr.life");
+        return true;
     }
 
     public static String resolveResourceUrl(Context context, String resourceUrl) {

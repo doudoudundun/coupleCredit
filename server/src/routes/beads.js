@@ -424,6 +424,38 @@ function createBeadRouter({ pool }) {
     }
   });
 
+  router.post("/inventory/batch-deduct", async (req, res, next) => {
+    try {
+      const userId = parseRequiredInteger(req.body.userId);
+      const items = req.body.items;
+      if (!Array.isArray(items) || items.length === 0) {
+        throw new ApiError(400, "INVALID_REQUEST", "需要提供消耗列表");
+      }
+
+      await ensureBeadData(userId);
+      const updated = [];
+
+      for (const item of items) {
+        const colorCode = normalizeColorCode(item.colorCode);
+        const quantity = parsePositiveInteger(item.quantity, "消耗数量");
+        await pool.execute(
+          `UPDATE bead_inventory SET quantity = GREATEST(0, quantity - ?), updated_at = NOW() WHERE color_code = ? AND user_id = ?`,
+          [quantity, colorCode, userId]
+        );
+        const [rows] = await pool.execute(
+          `SELECT quantity FROM bead_inventory WHERE color_code = ? AND user_id = ? LIMIT 1`,
+          [colorCode, userId]
+        );
+        updated.push({ colorCode, newQuantity: rows.length > 0 ? Number(rows[0].quantity) : 0 });
+      }
+
+      invalidateBeadCache(userId);
+      res.json({ ok: true, message: "批量扣减成功", data: { updated } });
+    } catch (error) {
+      next(error);
+    }
+  });
+
   router.get("/settings", async (req, res, next) => {
     try {
       const userId = parseRequiredInteger(parseInt(req.query.userId, 10));
@@ -713,6 +745,19 @@ function createBeadRouter({ pool }) {
         [count, blueprintId]
       );
 
+      const [colorRows] = await pool.execute(
+        `SELECT bbc.color_code, bc.hex_color, bbc.quantity
+         FROM bead_blueprint_colors bbc
+         INNER JOIN bead_colors bc ON bc.color_code = bbc.color_code
+         WHERE bbc.blueprint_id = ?`,
+        [blueprintId]
+      );
+      const consumedColors = colorRows.map(row => ({
+        colorCode: row.color_code,
+        hexColor: row.hex_color,
+        quantity: Number(row.quantity || 0) * count
+      }));
+
       await invalidateBeadCacheForCouple(ownerId);
       res.json({
         ok: true,
@@ -721,7 +766,8 @@ function createBeadRouter({ pool }) {
           buildCount: currentBuildCount,
           previousBuildCount,
           addedCount: count,
-          currentBuildCount
+          currentBuildCount,
+          consumedColors
         }
       });
     } catch (error) {
@@ -893,6 +939,8 @@ M03 15`;
       const cellSize = req.body.cellSize ? Math.min(Math.max(parseInt(req.body.cellSize, 10) || 16, 8), 32) : 16;
       const showGrid = req.body.showGrid !== false && req.body.showGrid !== "false";
       const showLegend = req.body.showLegend !== false && req.body.showLegend !== "false";
+      const matchThreshold = req.body.matchThreshold ? Math.min(Math.max(parseInt(req.body.matchThreshold, 10) || 2500, 1000), 5000) : undefined;
+      const smoothExtra = req.body.smoothExtra ? Math.min(Math.max(parseInt(req.body.smoothExtra, 10) || 0, 0), 3) : undefined;
 
       const serverBaseUrl = process.env.PUBLIC_SERVER_URL || `${req.protocol}://${req.get("host")}`;
       const resolvedUrl = imageUrl.startsWith("/") ? `${serverBaseUrl}${imageUrl}` : imageUrl;
@@ -915,9 +963,9 @@ M03 15`;
         throw new ApiError(502, "IMAGE_READ_FAILED", `图片读取失败: ${readError.message}`);
       }
 
-      console.log(`[convert-to-bead] cols=${cols} rows=${rows||"auto"} cellSize=${cellSize}`);
+      console.log(`[convert-to-bead] cols=${cols} rows=${rows||"auto"} cellSize=${cellSize} matchThreshold=${matchThreshold||"default"} smoothExtra=${smoothExtra||0}`);
       const renderImage = req.body.renderImage !== false && req.body.renderImage !== "false";
-      const result = await convertToBeadImage(imageBuffer, { cols, rows, cellSize, showGrid, showLegend, renderImage });
+      const result = await convertToBeadImage(imageBuffer, { cols, rows, cellSize, showGrid, showLegend, renderImage, matchThreshold, smoothExtra });
 
       const dataUrl = result.imageBuffer ? `data:image/png;base64,${result.imageBuffer.toString("base64")}` : null;
 

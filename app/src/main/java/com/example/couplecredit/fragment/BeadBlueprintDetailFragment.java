@@ -160,22 +160,25 @@ public class BeadBlueprintDetailFragment extends Fragment {
 
         if (item.imageUrl != null && !item.imageUrl.isEmpty()) {
             BeadInventoryViewModel.GridCacheEntry cached = viewModel.getGridCache(blueprintId);
-            if (cached != null && beadGridView != null) {
+            if (cached != null && cached.convertColors != null && beadGridView != null) {
                 beadGridView.setVisibility(View.VISIBLE);
                 beadGridView.setGridData(cached.gridData, cached.colorMap);
+                adapter.submitList(cached.convertColors);
+                tvTotal.setText(String.format(Locale.getDefault(), "每次 %d 颗", calculateTotalBeadsPerBuild(cached.convertColors)));
             } else {
-                loadBeadGridFromImage(item.imageUrl, colors);
+                adapter.submitList(colors);
+                loadBeadGridFromImage(item.imageUrl);
             }
         } else if (!colors.isEmpty()) {
+            adapter.submitList(colors);
             loadBeadGridFromColors(colors);
-        } else if (beadGridView != null) {
-            beadGridView.setVisibility(View.GONE);
+        } else {
+            adapter.submitList(colors);
+            if (beadGridView != null) beadGridView.setVisibility(View.GONE);
         }
-
-        adapter.submitList(colors);
     }
 
-    private void loadBeadGridFromImage(String imageUrl, List<BlueprintColorDisplayItem> colors) {
+    private void loadBeadGridFromImage(String imageUrl) {
         if (beadGridView == null) return;
         beadGridView.setVisibility(View.VISIBLE);
         BeadUtils.convertToBeadImage(requireContext(), imageUrl, DEFAULT_GRID_COLS, new BeadUtils.BeadConvertCallback() {
@@ -183,12 +186,20 @@ public class BeadBlueprintDetailFragment extends Fragment {
                 if (!isAdded()) return;
                 requireActivity().runOnUiThread(() -> {
                     if (!isAdded() || beadGridView == null) return;
-                    if (response != null && response.data != null && response.data.gridData != null) {
-                        Map<String, String> colorMap = buildColorCodeToHex(colors);
-                        viewModel.putGridCache(blueprintId, response.data.gridData, colorMap);
+                    if (response != null && response.data != null && response.data.gridData != null && response.data.colors != null) {
+                        List<BlueprintColorDisplayItem> convertColors = buildDisplayItemsFromConvertColors(response.data.colors);
+                        Map<String, String> colorMap = new HashMap<>();
+                        for (AuthApiModels.BeadConvertColorData c : response.data.colors) {
+                            if (c.colorCode != null && c.hexColor != null) {
+                                colorMap.put(c.colorCode, c.hexColor);
+                            }
+                        }
+                        viewModel.putGridCache(blueprintId, response.data.gridData, colorMap, convertColors);
                         beadGridView.setGridData(response.data.gridData, colorMap);
+                        adapter.submitList(convertColors);
+                        tvTotal.setText(String.format(Locale.getDefault(), "每次 %d 颗", calculateTotalBeadsPerBuild(convertColors)));
                     } else {
-                        loadBeadGridFromColors(colors);
+                        fallbackToSavedColors();
                     }
                 });
             }
@@ -196,10 +207,37 @@ public class BeadBlueprintDetailFragment extends Fragment {
                 if (!isAdded()) return;
                 requireActivity().runOnUiThread(() -> {
                     if (!isAdded() || beadGridView == null) return;
-                    loadBeadGridFromColors(colors);
+                    fallbackToSavedColors();
                 });
             }
         });
+    }
+
+    private void fallbackToSavedColors() {
+        if (currentItem == null) return;
+        List<BlueprintColorDisplayItem> savedColors = toDisplayColors(currentItem);
+        adapter.submitList(savedColors);
+        loadBeadGridFromColors(savedColors);
+        int total = currentItem.totalBeadsPerBuild != null ? currentItem.totalBeadsPerBuild : calculateTotalBeadsPerBuild(savedColors);
+        tvTotal.setText(String.format(Locale.getDefault(), "每次 %d 颗", total));
+    }
+
+    private List<BlueprintColorDisplayItem> buildDisplayItemsFromConvertColors(List<AuthApiModels.BeadConvertColorData> convertColors) {
+        List<BlueprintColorDisplayItem> result = new ArrayList<>();
+        if (convertColors == null) return result;
+        int buildCount = currentItem != null ? currentItem.buildCount : 0;
+        for (AuthApiModels.BeadConvertColorData c : convertColors) {
+            if (c.colorCode == null) continue;
+            result.add(new BlueprintColorDisplayItem(
+                    c.colorCode,
+                    c.hexColor != null ? c.hexColor : "#DDDDDD",
+                    c.quantity,
+                    buildCount * c.quantity,
+                    false
+            ));
+        }
+        result.sort((a, b) -> Integer.compare(b.quantityPerBuild, a.quantityPerBuild));
+        return result;
     }
 
     private void loadBeadGridFromColors(List<BlueprintColorDisplayItem> colors) {
@@ -256,18 +294,95 @@ public class BeadBlueprintDetailFragment extends Fragment {
     }
 
     private void buildOnce() {
-        if (currentItem == null) {
+        if (currentItem == null) return;
+        List<BlueprintColorDisplayItem> colors = toDisplayColors(currentItem);
+        if (colors.isEmpty()) {
+            Toast.makeText(requireContext(), "图纸没有颜色数据", Toast.LENGTH_SHORT).show();
             return;
         }
+        showBuildConfirmDialog(colors);
+    }
+
+    private void showBuildConfirmDialog(List<BlueprintColorDisplayItem> colors) {
+        View dialogView = LayoutInflater.from(requireContext()).inflate(R.layout.dialog_build_confirm, null);
+        AlertDialog confirmDialog = new AlertDialog.Builder(requireContext(), R.style.CustomDialogStyle).setView(dialogView).create();
+
+        RecyclerView rvConsumeColors = dialogView.findViewById(R.id.rv_consume_colors);
+        rvConsumeColors.setLayoutManager(new LinearLayoutManager(requireContext()));
+        rvConsumeColors.setAdapter(new ConsumeColorAdapter(colors, viewModel));
+
+        boolean hasInsufficient = false;
+        for (BlueprintColorDisplayItem c : colors) {
+            Integer stock = viewModel.getInventoryQuantity(c.colorCode);
+            if (stock != null && stock < c.quantityPerBuild) {
+                hasInsufficient = true;
+                break;
+            }
+        }
+        dialogView.findViewById(R.id.tv_warning).setVisibility(hasInsufficient ? View.VISIBLE : View.GONE);
+
+        dialogView.findViewById(R.id.btn_cancel).setOnClickListener(v -> confirmDialog.dismiss());
+        dialogView.findViewById(R.id.btn_confirm).setOnClickListener(v -> {
+            confirmDialog.dismiss();
+            performBuild();
+        });
+
+        DialogHelper.showWide(confirmDialog, requireContext());
+    }
+
+    private void performBuild() {
         BeadUtils.buildBlueprint(requireContext(), currentItem.blueprintId, 1, new BeadUtils.BuildBeadBlueprintCallback() {
             @Override public void onSuccess(AuthApiModels.BuildBeadBlueprintResponse response) {
                 if (!isAdded()) return;
-                viewModel.loadBlueprints();
-                loadDetail();
+                if (response != null && response.data != null && response.data.consumedColors != null && !response.data.consumedColors.isEmpty()) {
+                    showDeductConfirmDialog(response.data.consumedColors);
+                } else {
+                    viewModel.loadBlueprints();
+                    loadDetail();
+                    Toast.makeText(requireContext(), "制作记录成功", Toast.LENGTH_SHORT).show();
+                }
             }
             @Override public void onError(String error) {
                 if (!isAdded()) return;
                 Toast.makeText(requireContext(), error, Toast.LENGTH_SHORT).show();
+            }
+        });
+    }
+
+    private void showDeductConfirmDialog(List<AuthApiModels.ConsumedColorData> consumedColors) {
+        new AlertDialog.Builder(requireContext(), R.style.CustomDialogStyle)
+                .setTitle("扣减库存")
+                .setMessage("是否同步扣减库存中的拼豆数量？")
+                .setPositiveButton("扣减", (d, w) -> batchDeduct(consumedColors))
+                .setNegativeButton("跳过", (d, w) -> {
+                    viewModel.loadBlueprints();
+                    loadDetail();
+                    Toast.makeText(requireContext(), "制作记录成功（未扣库存）", Toast.LENGTH_SHORT).show();
+                })
+                .show();
+    }
+
+    private void batchDeduct(List<AuthApiModels.ConsumedColorData> consumedColors) {
+        List<AuthApiModels.BatchDeductItem> items = new ArrayList<>();
+        for (AuthApiModels.ConsumedColorData c : consumedColors) {
+            if (c.quantity > 0) {
+                items.add(new AuthApiModels.BatchDeductItem(c.colorCode, c.quantity));
+            }
+        }
+        int userId = com.example.couplecredit.utils.UserInfoManager.getCurrentUserId(requireContext());
+        com.example.couplecredit.api.AuthApiClient.batchDeductInventory(requireContext(), userId, items, new com.example.couplecredit.api.AuthApiClient.BeadMutationCallback() {
+            @Override public void onSuccess() {
+                if (!isAdded()) return;
+                viewModel.loadInventory();
+                viewModel.loadBlueprints();
+                loadDetail();
+                Toast.makeText(requireContext(), "制作成功，库存已扣减", Toast.LENGTH_SHORT).show();
+            }
+            @Override public void onError(String error) {
+                if (!isAdded()) return;
+                viewModel.loadBlueprints();
+                loadDetail();
+                Toast.makeText(requireContext(), "制作成功，库存扣减失败: " + error, Toast.LENGTH_SHORT).show();
             }
         });
     }
@@ -422,5 +537,55 @@ public class BeadBlueprintDetailFragment extends Fragment {
             }
         }
         return item;
+    }
+
+    static class ConsumeColorAdapter extends RecyclerView.Adapter<ConsumeColorAdapter.ViewHolder> {
+        private final List<BlueprintColorDisplayItem> colors;
+        private final BeadInventoryViewModel viewModel;
+
+        ConsumeColorAdapter(List<BlueprintColorDisplayItem> colors, BeadInventoryViewModel viewModel) {
+            this.colors = colors;
+            this.viewModel = viewModel;
+        }
+
+        @NonNull @Override
+        public ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+            View v = LayoutInflater.from(parent.getContext()).inflate(R.layout.item_consume_color, parent, false);
+            return new ViewHolder(v);
+        }
+
+        @Override public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
+            BlueprintColorDisplayItem item = colors.get(position);
+            try {
+                holder.swatch.setBackgroundColor(android.graphics.Color.parseColor(item.hexColor));
+            } catch (Exception e) {
+                holder.swatch.setBackgroundColor(android.graphics.Color.parseColor("#DDDDDD"));
+            }
+            holder.tvCode.setText(item.colorCode);
+            holder.tvQty.setText("-" + item.quantityPerBuild + " 颗");
+            Integer stock = viewModel != null ? viewModel.getInventoryQuantity(item.colorCode) : null;
+            if (stock != null && stock < item.quantityPerBuild) {
+                holder.tvStatus.setVisibility(View.VISIBLE);
+                holder.tvStatus.setText("库存不足 (剩" + stock + ")");
+            } else {
+                holder.tvStatus.setVisibility(View.GONE);
+            }
+        }
+
+        @Override public int getItemCount() { return colors.size(); }
+
+        static class ViewHolder extends RecyclerView.ViewHolder {
+            View swatch;
+            TextView tvCode;
+            TextView tvQty;
+            TextView tvStatus;
+            ViewHolder(View v) {
+                super(v);
+                swatch = v.findViewById(R.id.view_color_swatch);
+                tvCode = v.findViewById(R.id.tv_color_code);
+                tvQty = v.findViewById(R.id.tv_consume_qty);
+                tvStatus = v.findViewById(R.id.tv_stock_status);
+            }
+        }
     }
 }
