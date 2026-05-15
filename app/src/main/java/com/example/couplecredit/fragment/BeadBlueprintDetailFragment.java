@@ -54,11 +54,19 @@ public class BeadBlueprintDetailFragment extends Fragment {
     private int blueprintId;
     private BeadInventoryViewModel viewModel;
     private BeadBlueprintColorAdapter adapter;
+    private BeadBlueprintColorAdapter beadModeColorAdapter;
     private TextView tvTitle;
     private TextView tvTotal;
     private TextView tvBuilds;
     private BeadGridView beadGridView;
+    private BeadGridView beadGridViewFullscreen;
     private BeadInventoryViewModel.BeadBlueprintItem currentItem;
+    private boolean isBeadMode = false;
+    private View previewModeLayout;
+    private View beadModeLayout;
+    private View beadModeColorPanel;
+    private java.util.List<java.util.List<String>> lastGridData;
+    private java.util.Map<String, String> lastColorMap;
 
     public static BeadBlueprintDetailFragment newInstance(int blueprintId) {
         BeadBlueprintDetailFragment fragment = new BeadBlueprintDetailFragment();
@@ -83,6 +91,10 @@ public class BeadBlueprintDetailFragment extends Fragment {
         tvTotal = view.findViewById(R.id.tv_blueprint_detail_total);
         tvBuilds = view.findViewById(R.id.tv_blueprint_detail_builds);
         beadGridView = view.findViewById(R.id.bead_grid_view);
+        beadGridViewFullscreen = view.findViewById(R.id.bead_grid_view_fullscreen);
+        previewModeLayout = view.findViewById(R.id.preview_mode_layout);
+        beadModeLayout = view.findViewById(R.id.bead_mode_layout);
+        beadModeColorPanel = view.findViewById(R.id.bead_mode_color_panel);
 
         RecyclerView recyclerView = view.findViewById(R.id.rv_blueprint_colors);
         recyclerView.setLayoutManager(new LinearLayoutManager(requireContext()));
@@ -90,10 +102,20 @@ public class BeadBlueprintDetailFragment extends Fragment {
         adapter.setOnColorClickListener(this::onColorClick);
         recyclerView.setAdapter(adapter);
 
+        RecyclerView beadModeColors = view.findViewById(R.id.rv_bead_mode_colors);
+        beadModeColors.setLayoutManager(new LinearLayoutManager(requireContext()));
+        beadModeColorAdapter = new BeadBlueprintColorAdapter();
+        beadModeColorAdapter.setOnColorClickListener(this::onBeadModeColorClick);
+        beadModeColors.setAdapter(beadModeColorAdapter);
+
         view.findViewById(R.id.btn_blueprint_detail_back).setOnClickListener(v -> requireActivity().getSupportFragmentManager().popBackStack());
         view.findViewById(R.id.btn_build_blueprint).setOnClickListener(v -> buildOnce());
         view.findViewById(R.id.btn_blueprint_edit).setOnClickListener(v -> showEditDialog());
         view.findViewById(R.id.btn_blueprint_delete).setOnClickListener(v -> showDeleteConfirmDialog());
+        view.findViewById(R.id.btn_toggle_mode).setOnClickListener(v -> toggleBeadMode());
+        view.findViewById(R.id.btn_bead_mode_back).setOnClickListener(v -> toggleBeadMode());
+        view.findViewById(R.id.btn_bead_mode_colors).setOnClickListener(v -> toggleBeadModeColorPanel());
+        view.findViewById(R.id.btn_close_color_panel).setOnClickListener(v -> beadModeColorPanel.setVisibility(View.GONE));
 
         if (!bindFromViewModel()) {
             loadDetail();
@@ -103,6 +125,41 @@ public class BeadBlueprintDetailFragment extends Fragment {
     private void onColorClick(String colorCode) {
         if (beadGridView != null) {
             beadGridView.setHighlightColor(colorCode);
+        }
+    }
+
+    private void onBeadModeColorClick(String colorCode) {
+        if (beadGridViewFullscreen != null) {
+            beadGridViewFullscreen.setHighlightColor(colorCode);
+        }
+    }
+
+    private void toggleBeadMode() {
+        isBeadMode = !isBeadMode;
+        if (isBeadMode) {
+            previewModeLayout.setVisibility(View.GONE);
+            beadModeLayout.setVisibility(View.VISIBLE);
+            beadModeColorPanel.setVisibility(View.GONE);
+            // Copy grid data to fullscreen view
+            if (beadGridViewFullscreen != null) {
+                beadGridViewFullscreen.setGridData(lastGridData, lastColorMap);
+            }
+            // Copy color list
+            if (adapter != null && beadModeColorAdapter != null) {
+                beadModeColorAdapter.updateItems(adapter.getCurrentItems());
+            }
+        } else {
+            beadModeLayout.setVisibility(View.GONE);
+            previewModeLayout.setVisibility(View.VISIBLE);
+            beadModeColorPanel.setVisibility(View.GONE);
+        }
+    }
+
+    private void toggleBeadModeColorPanel() {
+        if (beadModeColorPanel.getVisibility() == View.VISIBLE) {
+            beadModeColorPanel.setVisibility(View.GONE);
+        } else {
+            beadModeColorPanel.setVisibility(View.VISIBLE);
         }
     }
 
@@ -162,6 +219,8 @@ public class BeadBlueprintDetailFragment extends Fragment {
             BeadInventoryViewModel.GridCacheEntry cached = viewModel.getGridCache(blueprintId);
             if (cached != null && cached.convertColors != null && beadGridView != null) {
                 beadGridView.setVisibility(View.VISIBLE);
+                lastGridData = cached.gridData;
+                lastColorMap = cached.colorMap;
                 beadGridView.setGridData(cached.gridData, cached.colorMap);
                 adapter.submitList(cached.convertColors);
                 tvTotal.setText(String.format(Locale.getDefault(), "每次 %d 颗", calculateTotalBeadsPerBuild(cached.convertColors)));
@@ -195,6 +254,8 @@ public class BeadBlueprintDetailFragment extends Fragment {
                             }
                         }
                         viewModel.putGridCache(blueprintId, response.data.gridData, colorMap, convertColors);
+                        lastGridData = response.data.gridData;
+                        lastColorMap = colorMap;
                         beadGridView.setGridData(response.data.gridData, colorMap);
                         adapter.submitList(convertColors);
                         tvTotal.setText(String.format(Locale.getDefault(), "每次 %d 颗", calculateTotalBeadsPerBuild(convertColors)));
@@ -280,6 +341,8 @@ public class BeadBlueprintDetailFragment extends Fragment {
         }
 
         Map<String, String> colorCodeToHex = buildColorCodeToHex(colors);
+        lastGridData = gridData;
+        lastColorMap = colorCodeToHex;
         beadGridView.setGridData(gridData, colorCodeToHex);
     }
 

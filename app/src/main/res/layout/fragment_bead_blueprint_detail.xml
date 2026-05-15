@@ -6,107 +6,119 @@
     android:background="#F6F7FB">
 
     <LinearLayout
+        android:id="@+id/preview_mode_layout"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:orientation="vertical">
+        android:orientation="vertical"
+        android:visibility="visible">
 
+        <!-- Header -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:background="@color/white"
-            android:orientation="vertical"
-            android:paddingStart="16dp"
-            android:paddingTop="16dp"
-            android:paddingEnd="16dp"
-            android:paddingBottom="12dp">
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingStart="8dp"
+            android:paddingTop="8dp"
+            android:paddingEnd="8dp">
 
-            <LinearLayout
-                android:layout_width="match_parent"
+            <ImageView
+                android:id="@+id/btn_blueprint_detail_back"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:contentDescription="返回"
+                android:padding="8dp"
+                android:src="@drawable/ic_arrow_back"
+                android:tint="#111827" />
+
+            <TextView
+                android:id="@+id/tv_blueprint_detail_title"
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:gravity="center_vertical"
-                android:orientation="horizontal">
+                android:layout_weight="1"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:text="图纸详情"
+                android:textColor="#111827"
+                android:textSize="18sp"
+                android:textStyle="bold" />
 
-                <ImageView
-                    android:id="@+id/btn_blueprint_detail_back"
-                    android:layout_width="44dp"
-                    android:layout_height="44dp"
-                    android:contentDescription="返回"
-                    android:padding="10dp"
-                    android:src="@drawable/ic_arrow_back"
-                    android:tint="#111827" />
+            <ImageView
+                android:id="@+id/btn_toggle_mode"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:contentDescription="拼豆模式"
+                android:padding="6dp"
+                android:src="@drawable/ic_grid_view"
+                android:tint="#07C160" />
 
-                <TextView
-                    android:id="@+id/tv_blueprint_detail_title"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:ellipsize="end"
-                    android:maxLines="1"
-                    android:text="图纸详情"
-                    android:textColor="#111827"
-                    android:textSize="22sp"
-                    android:textStyle="bold" />
+            <ImageView
+                android:id="@+id/btn_blueprint_edit"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:contentDescription="编辑"
+                android:padding="6dp"
+                android:src="@drawable/ic_edit"
+                android:tint="#6B7280" />
 
-                <ImageView
-                    android:id="@+id/btn_blueprint_edit"
-                    android:layout_width="40dp"
-                    android:layout_height="40dp"
-                    android:contentDescription="编辑"
-                    android:padding="8dp"
-                    android:src="@drawable/ic_edit"
-                    android:tint="#6B7280" />
-
-                <ImageView
-                    android:id="@+id/btn_blueprint_delete"
-                    android:layout_width="40dp"
-                    android:layout_height="40dp"
-                    android:contentDescription="删除"
-                    android:padding="8dp"
-                    android:src="@drawable/ic_delete"
-                    android:tint="#EF4444" />
-            </LinearLayout>
-
-            <com.example.couplecredit.view.BeadGridView
-                android:id="@+id/bead_grid_view"
-                android:layout_width="match_parent"
-                android:layout_height="240dp"
-                android:layout_marginTop="12dp"
-                android:background="#FAFAFA"
-                android:visibility="gone" />
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
-                android:orientation="horizontal">
-
-                <TextView
-                    android:id="@+id/tv_blueprint_detail_total"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:background="@drawable/rounded_card_background"
-                    android:padding="12dp"
-                    android:text="每次 0 颗"
-                    android:textColor="#111827"
-                    android:textSize="14sp"
-                    android:textStyle="bold" />
-
-                <TextView
-                    android:id="@+id/tv_blueprint_detail_builds"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="8dp"
-                    android:layout_weight="1"
-                    android:background="@drawable/rounded_card_background"
-                    android:padding="12dp"
-                    android:text="已制作 0 次"
-                    android:textColor="#111827"
-                    android:textSize="14sp"
-                    android:textStyle="bold" />
-            </LinearLayout>
+            <ImageView
+                android:id="@+id/btn_blueprint_delete"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:contentDescription="删除"
+                android:padding="6dp"
+                android:src="@drawable/ic_delete"
+                android:tint="#EF4444" />
         </LinearLayout>
 
+        <!-- Grid (preview mode: small; bead mode: full screen) -->
+        <com.example.couplecredit.view.BeadGridView
+            android:id="@+id/bead_grid_view"
+            android:layout_width="match_parent"
+            android:layout_height="240dp"
+            android:layout_marginStart="8dp"
+            android:layout_marginEnd="8dp"
+            android:background="#FAFAFA"
+            android:visibility="gone" />
+
+        <!-- Stats row -->
+        <LinearLayout
+            android:id="@+id/stats_row"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="16dp"
+            android:layout_marginTop="8dp"
+            android:layout_marginEnd="16dp"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/tv_blueprint_detail_total"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:background="@drawable/rounded_card_background"
+                android:padding="10dp"
+                android:text="每次 0 颗"
+                android:textColor="#111827"
+                android:textSize="13sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/tv_blueprint_detail_builds"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:layout_weight="1"
+                android:background="@drawable/rounded_card_background"
+                android:padding="10dp"
+                android:text="已制作 0 次"
+                android:textColor="#111827"
+                android:textSize="13sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <!-- Color list (preview mode: visible; bead mode: hidden behind bottom sheet) -->
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/rv_blueprint_colors"
             android:layout_width="match_parent"
@@ -115,16 +127,140 @@
             android:clipToPadding="false"
             android:padding="8dp" />
 
+        <!-- Build button -->
         <TextView
             android:id="@+id/btn_build_blueprint"
             android:layout_width="match_parent"
-            android:layout_height="52dp"
-            android:layout_margin="16dp"
+            android:layout_height="48dp"
+            android:layout_marginStart="16dp"
+            android:layout_marginEnd="16dp"
+            android:layout_marginBottom="12dp"
             android:background="@drawable/button_background"
             android:gravity="center"
             android:text="记录制作 1 次"
             android:textColor="@android:color/white"
-            android:textSize="16sp"
+            android:textSize="15sp"
             android:textStyle="bold" />
     </LinearLayout>
+
+    <!-- Bead Mode overlay (hidden by default) -->
+    <LinearLayout
+        android:id="@+id/bead_mode_layout"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:visibility="gone"
+        android:background="#111111">
+
+        <!-- Bead mode top bar -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="#222222"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingStart="8dp"
+            android:paddingTop="4dp"
+            android:paddingEnd="8dp"
+            android:paddingBottom="4dp">
+
+            <ImageView
+                android:id="@+id/btn_bead_mode_back"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:contentDescription="返回"
+                android:padding="6dp"
+                android:src="@drawable/ic_arrow_back"
+                android:tint="#FFFFFF" />
+
+            <TextView
+                android:id="@+id/tv_bead_mode_title"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:text="拼豆模式"
+                android:textColor="#FFFFFF"
+                android:textSize="16sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/btn_bead_mode_colors"
+                android:layout_width="wrap_content"
+                android:layout_height="32dp"
+                android:background="@drawable/bg_chat_action_panel"
+                android:gravity="center"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:text="颜色"
+                android:textColor="#FFFFFF"
+                android:textSize="13sp" />
+        </LinearLayout>
+
+        <!-- Full-screen grid -->
+        <com.example.couplecredit.view.BeadGridView
+            android:id="@+id/bead_grid_view_fullscreen"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:background="#1A1A1A" />
+    </LinearLayout>
+
+    <!-- Color bottom sheet for bead mode -->
+    <LinearLayout
+        android:id="@+id/bead_mode_color_panel"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:background="@drawable/bg_chat_action_panel"
+        android:maxHeight="300dp"
+        android:visibility="gone"
+        app:layout_behavior="com.google.android.material.bottomsheet.BottomSheetBehavior">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingStart="16dp"
+            android:paddingTop="12dp"
+            android:paddingEnd="16dp">
+
+            <View
+                android:layout_width="40dp"
+                android:layout_height="4dp"
+                android:background="#DDDDDD"
+                android:layout_marginEnd="12dp" />
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="颜色选择"
+                android:textColor="#333333"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+
+            <ImageView
+                android:id="@+id/btn_close_color_panel"
+                android:layout_width="28dp"
+                android:layout_height="28dp"
+                android:contentDescription="关闭"
+                android:padding="4dp"
+                android:src="@drawable/ic_close"
+                android:tint="#666666" />
+        </LinearLayout>
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/rv_bead_mode_colors"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:maxHeight="240dp"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
+            android:paddingBottom="12dp"
+            android:clipToPadding="false" />
+    </LinearLayout>
+
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

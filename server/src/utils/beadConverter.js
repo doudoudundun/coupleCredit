@@ -7,7 +7,9 @@ const sharp = require("sharp");
 const { BEAD_COLORS, CODE_TO_HEX } = require("../constants/beadColors");
 
 const UNMATCHED = { colorCode: "???", hexColor: "#DDDDDD", r: 221, g: 221, b: 221, lab: [85, 0, 0] };
-const MAX_MATCH_DELTA_E_SQ = 2500; // Delta-E > 50 视为无匹配
+const MAX_MATCH_DELTA_E_SQ = 2500;
+const BG_DETECT_L_THRESHOLD = 90; // Lab L value above which a color is considered "light"
+const BG_DETECT_CHROMA_THRESHOLD = 10; // max |a| + |b| for background (near-achromatic)
 
 // ==================== 工具函数 ====================
 
@@ -109,7 +111,7 @@ function findBestInGroup(group, r, g, b, threshold) {
   return best;
 }
 
-function matchPixel(r, g, b, a, threshold) {
+function matchPixel(r, g, b, a, threshold, bgColor) {
   if (a < 50) return UNMATCHED;
   if (a < 200) {
     const alpha = a / 255;
@@ -117,8 +119,65 @@ function matchPixel(r, g, b, a, threshold) {
     g = Math.round(g * alpha + 255 * (1 - alpha));
     b = Math.round(b * alpha + 255 * (1 - alpha));
   }
+  // Background suppression: skip pixels that match the detected background color
+  if (bgColor) {
+    const lab = rgbToLab(r, g, b);
+    const dist = labDist(lab, bgColor.lab);
+    if (dist < 400) return UNMATCHED; // within Delta-E ~20 of background
+  }
   const group = findClosestGroup(r, g, b);
   return findBestInGroup(group, r, g, b, threshold) || UNMATCHED;
+}
+
+function detectBackgroundColor(pixelData, channels, cols, rows) {
+  // Sample border pixels (top/bottom rows, left/right cols) to find the dominant background
+  const samples = [];
+  const sampleRows = Math.max(1, Math.floor(rows * 0.05));
+  const sampleCols = Math.max(1, Math.floor(cols * 0.05));
+  for (let r = 0; r < sampleRows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const idx = (r * cols + c) * channels;
+      samples.push([pixelData[idx], pixelData[idx + 1], pixelData[idx + 2], channels === 4 ? pixelData[idx + 3] : 255]);
+    }
+  }
+  for (let r = rows - sampleRows; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const idx = (r * cols + c) * channels;
+      samples.push([pixelData[idx], pixelData[idx + 1], pixelData[idx + 2], channels === 4 ? pixelData[idx + 3] : 255]);
+    }
+  }
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < sampleCols; c++) {
+      const idx = (r * cols + c) * channels;
+      samples.push([pixelData[idx], pixelData[idx + 1], pixelData[idx + 2], channels === 4 ? pixelData[idx + 3] : 255]);
+    }
+  }
+  for (let r = 0; r < rows; r++) {
+    for (let c = cols - sampleCols; c < cols; c++) {
+      const idx = (r * cols + c) * channels;
+      samples.push([pixelData[idx], pixelData[idx + 1], pixelData[idx + 2], channels === 4 ? pixelData[idx + 3] : 255]);
+    }
+  }
+  // Find the most common light, achromatic color among border samples
+  const candidates = new Map();
+  for (const [r, g, b, a] of samples) {
+    if (a < 128) continue;
+    const lab = rgbToLab(r, g, b);
+    if (lab[0] < BG_DETECT_L_THRESHOLD) continue;
+    if (Math.abs(lab[1]) + Math.abs(lab[2]) > BG_DETECT_CHROMA_THRESHOLD) continue;
+    // Quantize to bucket
+    const bucket = `${Math.round(lab[0] / 5) * 5}`;
+    candidates.set(bucket, (candidates.get(bucket) || 0) + 1);
+  }
+  if (candidates.size === 0) return null;
+  let bestBucket = "", bestCount = 0;
+  for (const [bucket, count] of candidates) {
+    if (count > bestCount) { bestCount = count; bestBucket = bucket; }
+  }
+  // Only treat as background if > 40% of border samples match
+  if (bestCount < samples.length * 0.4) return null;
+  const lVal = parseInt(bestBucket);
+  return { r: 255, g: 255, b: 255, lab: [lVal, 0, 0] };
 }
 
 // ==================== 邻域平滑 ====================
@@ -145,7 +204,7 @@ function smoothByNeighbors(grid, rows, cols, passCount) {
         for (const [gidStr, count] of Object.entries(cnt)) {
           if (count > domCnt) { domCnt = count; domGid = parseInt(gidStr); }
         }
-        if (domCnt >= 4 && domGid !== selfGid) {
+        if (domCnt >= 3 && domGid !== selfGid) {
           let adopted = null;
           for (let dr = -1; dr <= 1; dr++) {
             for (let dc = -1; dc <= 1; dc++) {
@@ -224,8 +283,12 @@ async function convertToBeadImage(imageBuffer, options = {}) {
   const actualCols = resized.info.width;
   const actualRows = resized.info.height;
 
-  // Step 2: 分组匹配 + 拒绝阈值 + 透明色支持
+  // Step 2: Detect background color (typically white) and build grid
   const matchThreshold = options.matchThreshold || MAX_MATCH_DELTA_E_SQ;
+  const bgColor = options.removeBackground !== false ? detectBackgroundColor(pixelData, channels, actualCols, actualRows) : null;
+  if (bgColor) {
+    console.log("[beadConverter] Background detected, L=" + bgColor.lab[0]);
+  }
   const grid = [];
   for (let row = 0; row < actualRows; row++) {
     grid[row] = [];
@@ -233,13 +296,13 @@ async function convertToBeadImage(imageBuffer, options = {}) {
       const idx = (row * actualCols + col) * channels;
       const r = pixelData[idx], g = pixelData[idx + 1], b = pixelData[idx + 2];
       const a = channels === 4 ? pixelData[idx + 3] : 255;
-      grid[row][col] = matchPixel(r, g, b, a, matchThreshold);
+      grid[row][col] = matchPixel(r, g, b, a, matchThreshold, bgColor);
     }
   }
 
   // Step 3: 邻域平滑 — 动态轮数
   const pixels = actualCols * actualRows;
-  const smoothPasses = Math.min(3, Math.max(1, Math.floor(Math.sqrt(pixels) / 30))) + (options.smoothExtra || 0);
+  const smoothPasses = Math.min(4, Math.max(1, Math.floor(Math.sqrt(pixels) / 20))) + (options.smoothExtra || 0);
   smoothByNeighbors(grid, actualRows, actualCols, smoothPasses);
 
   // Step 4: 方向一致性 — 动态轮数

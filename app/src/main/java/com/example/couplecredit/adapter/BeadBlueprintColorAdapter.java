@@ -39,6 +39,14 @@ public class BeadBlueprintColorAdapter extends RecyclerView.Adapter<BeadBlueprin
         notifyDataSetChanged();
     }
 
+    public List<BeadBlueprintDetailFragment.BlueprintColorDisplayItem> getCurrentItems() {
+        return new ArrayList<>(items);
+    }
+
+    public void updateItems(List<BeadBlueprintDetailFragment.BlueprintColorDisplayItem> newItems) {
+        submitList(newItems);
+    }
+
     @NonNull
     @Override
     public ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
