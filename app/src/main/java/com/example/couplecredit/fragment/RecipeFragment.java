@@ -10,6 +10,7 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.EditText;
+import android.widget.HorizontalScrollView;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.PopupWindow;
@@ -24,6 +25,7 @@ import androidx.fragment.app.Fragment;
 import androidx.recyclerview.widget.ItemTouchHelper;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
+import androidx.recyclerview.widget.StaggeredGridLayoutManager;
 
 import com.bumptech.glide.Glide;
 import com.example.couplecredit.R;
@@ -31,6 +33,7 @@ import com.example.couplecredit.activity.CartActivity;
 import com.example.couplecredit.activity.LoginActivity;
 import com.example.couplecredit.adapter.RecipeAdapter;
 import com.example.couplecredit.adapter.RecipeCategoryAdapter;
+import com.example.couplecredit.adapter.RecommendAdapter;
 import com.example.couplecredit.api.AuthApiClient;
 import com.example.couplecredit.api.AuthApiModels;
 import com.example.couplecredit.config.ApiConfigManager;
@@ -79,6 +82,22 @@ public class RecipeFragment extends Fragment implements RecipeAdapter.RecipeActi
     private boolean isClickScrolling = false;
 
     private final Gson gson = new Gson();
+
+    // 推荐视图相关
+    private View layoutMainTabs;
+    private TextView tabMyRecipes;
+    private TextView tabRecommend;
+    private View layoutRecommendView;
+    private RecyclerView rvRecommendList;
+    private RecommendAdapter recommendAdapter;
+    private LinearLayout llRecommendEmpty;
+    private TextView tabRecommendAll;
+    private TextView tabRecommendIngredient;
+    private HorizontalScrollView scrollIngredientChips;
+    private com.google.android.material.chip.ChipGroup chipGroupIngredients;
+    private final List<String> availableIngredients = new ArrayList<>();
+    private String selectedIngredient = null;
+    private boolean isRecommendMode = false;
 
     @Nullable
     @Override
@@ -245,6 +264,42 @@ public class RecipeFragment extends Fragment implements RecipeAdapter.RecipeActi
         fabRefreshRecipe.setOnClickListener(v -> refreshData());
         btnLoginPrompt.setOnClickListener(v -> openLoginPage());
 
+        // 推荐视图初始化
+        layoutMainTabs = view.findViewById(R.id.layout_main_tabs);
+        tabMyRecipes = view.findViewById(R.id.tab_my_recipes);
+        tabRecommend = view.findViewById(R.id.tab_recommend);
+        layoutRecommendView = view.findViewById(R.id.layout_recommend_view);
+
+        rvRecommendList = layoutRecommendView.findViewById(R.id.rv_recommend_list);
+        llRecommendEmpty = layoutRecommendView.findViewById(R.id.ll_recommend_empty);
+        tabRecommendAll = layoutRecommendView.findViewById(R.id.tab_recommend_all);
+        tabRecommendIngredient = layoutRecommendView.findViewById(R.id.tab_recommend_ingredient);
+        scrollIngredientChips = layoutRecommendView.findViewById(R.id.scroll_ingredient_chips);
+        chipGroupIngredients = layoutRecommendView.findViewById(R.id.chip_group_ingredients);
+
+        rvRecommendList.setLayoutManager(new StaggeredGridLayoutManager(2, StaggeredGridLayoutManager.VERTICAL));
+        recommendAdapter = new RecommendAdapter(recipeId -> showRecipeDetail(recipeId));
+        rvRecommendList.setAdapter(recommendAdapter);
+
+        tabMyRecipes.setOnClickListener(v -> switchToMyRecipes());
+        tabRecommend.setOnClickListener(v -> switchToRecommend());
+        tabRecommendAll.setOnClickListener(v -> {
+            tabRecommendAll.setBackgroundResource(R.drawable.bg_recommend_tab_active);
+            tabRecommendAll.setTextColor(0xFFFFFFFF);
+            tabRecommendIngredient.setBackgroundResource(R.drawable.bg_recommend_tab_inactive);
+            tabRecommendIngredient.setTextColor(0xFF666666);
+            scrollIngredientChips.setVisibility(View.GONE);
+            selectedIngredient = null;
+            loadRecommendations();
+        });
+        tabRecommendIngredient.setOnClickListener(v -> {
+            tabRecommendIngredient.setBackgroundResource(R.drawable.bg_recommend_tab_active);
+            tabRecommendIngredient.setTextColor(0xFFFFFFFF);
+            tabRecommendAll.setBackgroundResource(R.drawable.bg_recommend_tab_inactive);
+            tabRecommendAll.setTextColor(0xFF666666);
+            scrollIngredientChips.setVisibility(View.VISIBLE);
+        });
+
         refreshData();
         DataRefreshBus.subscribe(refreshListener);
     }
@@ -363,6 +418,116 @@ public class RecipeFragment extends Fragment implements RecipeAdapter.RecipeActi
                         Toast.makeText(requireContext(), "加载菜谱失败: " + error, Toast.LENGTH_SHORT).show());
             }
         });
+
+        if (isRecommendMode) {
+            loadRecommendations();
+        }
+    }
+
+    private void switchToMyRecipes() {
+        isRecommendMode = false;
+        tabMyRecipes.setTextColor(0xFF07C160);
+        tabMyRecipes.setTypeface(null, android.graphics.Typeface.BOLD);
+        tabRecommend.setTextColor(0xFF999999);
+        tabRecommend.setTypeface(null, android.graphics.Typeface.NORMAL);
+        layoutContent.setVisibility(View.VISIBLE);
+        layoutRecommendView.setVisibility(View.GONE);
+    }
+
+    private void switchToRecommend() {
+        isRecommendMode = true;
+        tabRecommend.setTextColor(0xFF07C160);
+        tabRecommend.setTypeface(null, android.graphics.Typeface.BOLD);
+        tabMyRecipes.setTextColor(0xFF999999);
+        tabMyRecipes.setTypeface(null, android.graphics.Typeface.NORMAL);
+        layoutContent.setVisibility(View.GONE);
+        layoutRecommendView.setVisibility(View.VISIBLE);
+        loadRecommendations();
+    }
+
+    private void loadRecommendations() {
+        if (!isLoggedIn) return;
+        int userId = UserInfoManager.getCurrentUserId(requireContext());
+        String mode = selectedIngredient != null ? "ingredient" : "recommend";
+        AuthApiClient.getRecipeRecommendations(requireContext(), userId, mode, selectedIngredient, new AuthApiClient.RecipeRecommendCallback() {
+            @Override
+            public void onSuccess(AuthApiModels.RecipeRecommendResponse response) {
+                if (!isAdded()) return;
+                requireActivity().runOnUiThread(() -> {
+                    recommendAdapter.setData(response.data.recipes);
+                    llRecommendEmpty.setVisibility(response.data.recipes.isEmpty() ? View.VISIBLE : View.GONE);
+                    rvRecommendList.setVisibility(response.data.recipes.isEmpty() ? View.GONE : View.VISIBLE);
+                    if (response.data.availableIngredients != null) {
+                        availableIngredients.clear();
+                        availableIngredients.addAll(response.data.availableIngredients);
+                        updateIngredientChips();
+                    }
+                });
+            }
+
+            @Override
+            public void onError(String message) {
+                if (!isAdded()) return;
+                requireActivity().runOnUiThread(() ->
+                    Toast.makeText(requireContext(), "加载推荐失败: " + message, Toast.LENGTH_SHORT).show()
+                );
+            }
+        });
+    }
+
+    private void updateIngredientChips() {
+        if (chipGroupIngredients == null) return;
+        chipGroupIngredients.removeAllViews();
+        for (String ingredient : availableIngredients) {
+            com.google.android.material.chip.Chip chip = new com.google.android.material.chip.Chip(requireContext());
+            chip.setText(ingredient);
+            chip.setClickable(true);
+            chip.setCheckable(true);
+            String ing = ingredient;
+            chip.setOnClickListener(v -> {
+                if (selectedIngredient != null && selectedIngredient.equals(ing)) {
+                    selectedIngredient = null;
+                } else {
+                    selectedIngredient = ing;
+                }
+                loadRecommendations();
+            });
+            chipGroupIngredients.addView(chip);
+        }
+    }
+
+    private void showRecipeDetail(int recipeId) {
+        AuthApiModels.RecipeItemData item = null;
+        for (AuthApiModels.RecipeItemData r : allRecipes) {
+            if (r.recipeId == recipeId) { item = r; break; }
+        }
+        if (item != null) {
+            showRecipeDetailDialog(item);
+        } else {
+            int userId = UserInfoManager.getCurrentUserId(requireContext());
+            AuthApiClient.getRecipeDetail(requireContext(), recipeId, userId, new AuthApiClient.RecipeDetailCallback() {
+                @Override
+                public void onSuccess(AuthApiModels.RecipeDetailResponse response) {
+                    if (!isAdded() || response == null || response.data == null) return;
+                    requireActivity().runOnUiThread(() -> {
+                        AuthApiModels.RecipeItemData proxy = new AuthApiModels.RecipeItemData();
+                        proxy.recipeId = response.data.recipeId;
+                        proxy.title = response.data.title;
+                        proxy.description = response.data.description;
+                        proxy.imageUrl = response.data.imageUrl;
+                        proxy.steps = response.data.steps;
+                        showRecipeDetailDialog(proxy);
+                    });
+                }
+                @Override
+                public void onError(String e) {
+                    if (!isAdded()) return;
+                    requireActivity().runOnUiThread(() ->
+                        Toast.makeText(requireContext(), "加载菜谱失败", Toast.LENGTH_SHORT).show()
+                    );
+                }
+            });
+        }
     }
 
     private void showAddCategoryDialog() {
@@ -443,7 +608,8 @@ public class RecipeFragment extends Fragment implements RecipeAdapter.RecipeActi
 
     private void updateLoginUI() {
         layoutLoginPrompt.setVisibility(isLoggedIn ? View.GONE : View.VISIBLE);
-        layoutContent.setVisibility(isLoggedIn ? View.VISIBLE : View.GONE);
+        layoutContent.setVisibility(isLoggedIn && !isRecommendMode ? View.VISIBLE : View.GONE);
+        layoutMainTabs.setVisibility(isLoggedIn ? View.VISIBLE : View.GONE);
         fabAddRecipe.setEnabled(isLoggedIn);
         fabAddRecipe.setAlpha(isLoggedIn ? 1f : 0.5f);
     }

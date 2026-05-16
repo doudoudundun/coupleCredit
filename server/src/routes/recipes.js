@@ -9,6 +9,7 @@ function createRecipeRouter({ pool }) {
   function invalidateRecipeCache(userId) {
     cache.del(Keys.recipes(userId));
     cache.del(Keys.recipeCategories(userId));
+    cache.delPrefix(Keys.recipeRecommend(userId));
   }
 
   async function replaceRecipeIngredients(recipeId, ingredients) {
@@ -70,6 +71,103 @@ function createRecipeRouter({ pool }) {
 
       const responseData = { ok: true, data: { items, relationshipId } };
       cache.set(Keys.recipes(userId), responseData, TTL.RECIPES);
+      res.json(responseData);
+    } catch (error) { next(error); }
+  });
+
+  // GET /api/recipes/recommend?userId=&mode=&ingredient=
+  router.get("/recommend", async (req, res, next) => {
+    try {
+      const userId = parseRequiredInteger(Number(req.query.userId));
+      const mode = req.query.mode || "recommend";
+      const ingredient = req.query.ingredient || null;
+
+      const cacheKey = Keys.recipeRecommend(userId) + ":" + mode + ":" + (ingredient || "");
+      const cached = cache.get(cacheKey);
+      if (cached) return res.json(cached);
+
+      const relationship = await loadActiveRelationship(pool, userId);
+      const relationshipId = relationship ? relationship.relationship_id : null;
+
+      let recipeQuery, recipeParams;
+      if (relationshipId) {
+        recipeQuery = `SELECT r.recipe_id, r.title, r.description, r.image_url, r.category_id
+                       FROM recipes r
+                       WHERE r.relationship_id = ? OR (r.user_id = ? AND r.relationship_id IS NULL)`;
+        recipeParams = [relationshipId, userId];
+      } else {
+        recipeQuery = `SELECT r.recipe_id, r.title, r.description, r.image_url, r.category_id
+                       FROM recipes r WHERE r.user_id = ? AND r.relationship_id IS NULL`;
+        recipeParams = [userId];
+      }
+      const [recipes] = await pool.execute(recipeQuery, recipeParams);
+
+      if (recipes.length === 0) {
+        const emptyResult = { ok: true, data: { recipes: [], availableIngredients: [] } };
+        cache.set(cacheKey, emptyResult, TTL.RECIPE_RECOMMEND);
+        return res.json(emptyResult);
+      }
+
+      const recipeIds = recipes.map(r => r.recipe_id);
+      const riPlaceholders = recipeIds.map(() => "?").join(",");
+      const [riRows] = await pool.execute(
+        `SELECT recipe_id, ingredient_name FROM recipe_ingredients WHERE recipe_id IN (${riPlaceholders})`,
+        recipeIds
+      );
+      const ingredientsByRecipe = {};
+      for (const ri of riRows) {
+        if (!ingredientsByRecipe[ri.recipe_id]) ingredientsByRecipe[ri.recipe_id] = [];
+        ingredientsByRecipe[ri.recipe_id].push(ri.ingredient_name);
+      }
+
+      let invQuery, invParams;
+      if (relationshipId) {
+        invQuery = `SELECT name FROM inventory WHERE (user_id = ? OR relationship_id = ?)`;
+        invParams = [userId, relationshipId];
+      } else {
+        invQuery = `SELECT name FROM inventory WHERE user_id = ?`;
+        invParams = [userId];
+      }
+      const [invRows] = await pool.execute(invQuery, invParams);
+      const inventoryNames = new Set(invRows.map(r => r.name));
+
+      const results = recipes.map(r => {
+        const recipeIngredients = ingredientsByRecipe[r.recipe_id] || [];
+        const matched = [];
+        const missing = [];
+        for (const name of recipeIngredients) {
+          if (inventoryNames.has(name)) matched.push(name);
+          else missing.push(name);
+        }
+        return {
+          recipeId: r.recipe_id,
+          title: r.title,
+          description: r.description,
+          imageUrl: r.image_url,
+          categoryId: r.category_id,
+          matchInfo: {
+            total: recipeIngredients.length,
+            matched: matched.length,
+            matchedIngredients: matched,
+            missingIngredients: missing
+          }
+        };
+      });
+
+      results.sort((a, b) => a.matchInfo.missingIngredients.length - b.matchInfo.missingIngredients.length);
+
+      let filtered = results;
+      if (mode === "ingredient" && ingredient) {
+        filtered = results.filter(r =>
+          r.matchInfo.matchedIngredients.includes(ingredient) ||
+          r.matchInfo.missingIngredients.includes(ingredient)
+        );
+      }
+
+      const availableIngredients = [...inventoryNames].sort();
+
+      const responseData = { ok: true, data: { recipes: filtered, availableIngredients } };
+      cache.set(cacheKey, responseData, TTL.RECIPE_RECOMMEND);
       res.json(responseData);
     } catch (error) { next(error); }
   });

@@ -142,6 +142,11 @@ public class AuthApiClient {
         void onError(String message);
     }
 
+    public interface RecipeRecommendCallback {
+        void onSuccess(AuthApiModels.RecipeRecommendResponse response);
+        void onError(String message);
+    }
+
     public interface SimpleCallback {
         void onSuccess();
         void onError(String message);
@@ -715,6 +720,24 @@ public class AuthApiClient {
                     if (r != null && r.ok) callback.onSuccess(r);
                     else callback.onError(extractError(r != null ? r.error : null, json));
                 } catch (Exception e) { callback.onError(buildParseError("菜谱列表", json)); }
+            }
+            @Override public void onError(String m) { if (callback != null) callback.onError(m); }
+        });
+    }
+
+    public static void getRecipeRecommendations(Context context, int userId, String mode, String ingredient, RecipeRecommendCallback callback) {
+        String url = "/api/recipes/recommend?userId=" + userId + "&mode=" + (mode != null ? mode : "recommend");
+        if (ingredient != null && !ingredient.isEmpty()) {
+            url += "&ingredient=" + java.net.URLEncoder.encode(ingredient, java.nio.charset.StandardCharsets.UTF_8);
+        }
+        doRequest(context, "GET", url, null, new RawCallback() {
+            @Override public void onSuccess(String json) {
+                if (callback == null) return;
+                try {
+                    AuthApiModels.RecipeRecommendResponse r = GSON.fromJson(normalizeJsonPayload(json), AuthApiModels.RecipeRecommendResponse.class);
+                    if (r != null && r.ok) callback.onSuccess(r);
+                    else callback.onError(extractError(r != null ? r.error : null, json));
+                } catch (Exception e) { callback.onError(buildParseError("菜谱推荐", json)); }
             }
             @Override public void onError(String m) { if (callback != null) callback.onError(m); }
         });

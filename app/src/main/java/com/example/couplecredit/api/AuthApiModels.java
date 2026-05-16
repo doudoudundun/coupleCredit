@@ -743,6 +743,34 @@ public class AuthApiModels {
         public List<RecipeCategoryData> items;
     }
 
+    // Recipe Recommendation
+    public static class RecipeRecommendResponse {
+        public boolean ok;
+        public RecipeRecommendData data;
+        public ErrorBody error;
+    }
+
+    public static class RecipeRecommendData {
+        public List<RecommendRecipeItem> recipes;
+        public List<String> availableIngredients;
+    }
+
+    public static class RecommendRecipeItem {
+        public int recipeId;
+        public String title;
+        public String description;
+        public String imageUrl;
+        public Integer categoryId;
+        public MatchInfo matchInfo;
+    }
+
+    public static class MatchInfo {
+        public int total;
+        public int matched;
+        public List<String> matchedIngredients;
+        public List<String> missingIngredients;
+    }
+
     // User profile
     public static class UserProfileResponse {
         public boolean ok;
