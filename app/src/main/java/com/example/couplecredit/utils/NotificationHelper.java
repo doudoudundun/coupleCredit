@@ -72,6 +72,10 @@ public class NotificationHelper {
     }
 
     public static void registerFcmToken(Context context, String token) {
+        registerPushToken(context, token, "fcm");
+    }
+
+    public static void registerPushToken(Context context, String token, String channel) {
         if (!UserInfoManager.isUserLoggedIn(context)) return;
         int userId = UserInfoManager.getCurrentUserId(context);
         if (userId <= 0) return;
@@ -79,7 +83,7 @@ public class NotificationHelper {
         new Thread(() -> {
             try {
                 String baseUrl = ApiConfigManager.getBaseUrl(context);
-                URL url = new URL(baseUrl + "/api/fcm/register");
+                URL url = new URL(baseUrl + "/api/push/register");
                 HttpURLConnection conn = (HttpURLConnection) url.openConnection();
                 conn.setRequestMethod("POST");
                 conn.setRequestProperty("Content-Type", "application/json; charset=UTF-8");
@@ -87,18 +91,18 @@ public class NotificationHelper {
                 conn.setReadTimeout(5000);
                 conn.setDoOutput(true);
 
-                String json = "{\"userId\":" + userId + ",\"token\":\"" + token + "\"}";
-                Log.d(TAG, "Registering FCM token for userId=" + userId);
+                String json = "{\"userId\":" + userId + ",\"token\":\"" + token + "\",\"channel\":\"" + channel + "\"}";
+                Log.d(TAG, "Registering " + channel + " token for userId=" + userId);
                 OutputStream os = conn.getOutputStream();
                 os.write(json.getBytes("UTF-8"));
                 os.close();
 
                 int status = conn.getResponseCode();
                 conn.disconnect();
-                Log.d(TAG, "FCM token register response status=" + status);
+                Log.d(TAG, channel + " token register response status=" + status);
             } catch (Exception e) {
-                Log.e(TAG, "Failed to register FCM token: " + e.getMessage());
+                Log.e(TAG, "Failed to register " + channel + " token: " + e.getMessage());
             }
-        }, "FcmTokenRegistrar").start();
+        }, channel + "TokenRegistrar").start();
     }
 }

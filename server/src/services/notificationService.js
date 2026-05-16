@@ -1,17 +1,40 @@
 const fcmService = require("./fcmService");
+const jpushService = require("./jpushService");
 const { loadActiveRelationship } = require("../utils/queryHelpers");
 
 async function getTokensForUsers(pool, userIds) {
-  if (!userIds || userIds.length === 0) return [];
-  const placeholders = userIds.map(() => "?").join(",");
-  const [rows] = await pool.execute(`SELECT user_id, token FROM fcm_tokens WHERE user_id IN (${placeholders})`, userIds);
-  return rows;
+  if (!userIds || userIds.length === 0) return { fcm: [], jpush: [] };
+  const uniqueIds = [...new Set(userIds)];
+  const placeholders = uniqueIds.map(() => "?").join(",");
+  const [rows] = await pool.execute(
+    `SELECT user_id, token, channel FROM push_tokens WHERE user_id IN (${placeholders})`,
+    uniqueIds
+  );
+  const fcm = rows.filter(r => r.channel === "fcm").map(r => r.token);
+  const jpush = rows.filter(r => r.channel === "jpush").map(r => r.token);
+  return { fcm, jpush };
 }
 
 async function cleanupInvalidTokens(pool, invalidTokens) {
   if (!invalidTokens || invalidTokens.length === 0) return;
   const placeholders = invalidTokens.map(() => "?").join(",");
-  await pool.execute(`DELETE FROM fcm_tokens WHERE token IN (${placeholders})`, invalidTokens);
+  await pool.execute(`DELETE FROM push_tokens WHERE token IN (${placeholders})`, invalidTokens);
+}
+
+async function pushTokens({ fcm, jpush }, notification) {
+  const allInvalid = [];
+
+  if (jpush.length > 0) {
+    const invalid = await jpushService.pushByRegIds(jpush, notification);
+    allInvalid.push(...invalid);
+  }
+
+  if (jpush.length === 0 && fcm.length > 0) {
+    const invalid = await fcmService.sendMulticast(fcm, notification);
+    allInvalid.push(...invalid);
+  }
+
+  return allInvalid;
 }
 
 async function sendTodoReminder(pool) {
@@ -28,6 +51,21 @@ async function sendTodoReminder(pool) {
 
   console.log(`[TodoReminder] Found ${todos.length} high-priority open todo(s).`);
 
+  const allUserIds = new Set();
+  for (const todo of todos) {
+    allUserIds.add(todo.user_id);
+    if (todo.relationship_id) {
+      try {
+        const rel = await loadActiveRelationship(pool, todo.user_id);
+        if (rel) {
+          allUserIds.add(rel.user_id_1);
+          allUserIds.add(rel.user_id_2);
+        }
+      } catch (_) {}
+    }
+  }
+
+  const tokens = await getTokensForUsers(pool, [...allUserIds]);
   const allInvalidTokens = [];
 
   for (const todo of todos) {
@@ -52,12 +90,8 @@ async function sendTodoReminder(pool) {
       );
     }
 
-    const tokenRows = await getTokensForUsers(pool, userIds);
-    if (tokenRows.length > 0) {
-      const tokens = tokenRows.map(r => r.token);
-      const invalid = await fcmService.sendMulticast(tokens, { title: "高优先级待办提醒", body: todo.title });
-      allInvalidTokens.push(...invalid);
-    }
+    const invalid = await pushTokens(tokens, { title: "高优先级待办提醒", body: todo.title });
+    allInvalidTokens.push(...invalid);
   }
 
   await cleanupInvalidTokens(pool, allInvalidTokens);
@@ -78,28 +112,21 @@ async function sendPartnerReminder(pool, todoId, senderUserId) {
 
   const partnerId = rel.user_id_1 === senderUserId ? rel.user_id_2 : rel.user_id_1;
 
-  // 通知伴侣
   await pool.execute(
     "INSERT INTO notifications (user_id, type, title, body, related_id) VALUES (?, 'partner_nudge', ?, ?, ?)",
     [partnerId, "伴侣提醒你完成待办", todo.title, todo.todo_id]
   );
 
-  // 同时给自己一条确认通知
   await pool.execute(
     "INSERT INTO notifications (user_id, type, title, body, related_id) VALUES (?, 'system', ?, ?, ?)",
     [senderUserId, "提醒已发送", "已提醒伴侣完成「" + todo.title + "」", todo.todo_id]
   );
 
-  // 向双方推送 FCM
   const recipientIds = [partnerId, senderUserId];
-  const tokenRows = await getTokensForUsers(pool, recipientIds);
-  let invalidTokens = [];
-  if (tokenRows.length > 0) {
-    const tokens = tokenRows.map(r => r.token);
-    invalidTokens = await fcmService.sendMulticast(tokens, { title: "伴侣提醒你完成待办", body: todo.title });
-  }
-
+  const tokens = await getTokensForUsers(pool, recipientIds);
+  const invalidTokens = await pushTokens(tokens, { title: "伴侣提醒你完成待办", body: todo.title });
   await cleanupInvalidTokens(pool, invalidTokens);
+
   return { partnerId, todoTitle: todo.title };
 }
 

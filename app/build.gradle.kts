@@ -106,9 +106,9 @@ dependencies {
     // Firebase Cloud Messaging
     implementation("com.google.firebase:firebase-messaging:24.1.1")
 
-    // JPush (极光推送)
-    implementation("cn.jiguang.sdk:jpush:5.9.2")
-    implementation("cn.jiguang.sdk:jcore:2.9.2")
+    // JPush (极光推送) — 本地 SDK
+    implementation(files("libs/jpush-android-6.1.0.jar"))
+    implementation(files("libs/jcore-android-5.4.0.aar"))
 }
 
 if (file("google-services.json").exists()) {

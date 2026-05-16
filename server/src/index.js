@@ -45,9 +45,11 @@ const { createBeadRouter } = require("./routes/beads");
 const { createRestaurantRouter } = require("./routes/restaurants");
 const { createImageGenRouter } = require("./routes/imageGen");
 const { createFcmRouter } = require("./routes/fcm");
+const { createPushRouter } = require("./routes/push");
 const { createNotificationRouter } = require("./routes/notifications");
 const { createAiChatRouter } = require("./routes/aiChat");
 const { initializeApp: initFcm } = require("./services/fcmService");
+const { initialize: initJPush } = require("./services/jpushService");
 const notificationService = require("./services/notificationService");
 const { sendError } = require("./errors");
 const { optionalAuth } = require("./middleware/auth");
@@ -99,6 +101,7 @@ app.use("/api/beads", createBeadRouter({ pool, aiLimiter }));
 app.use("/api/restaurants", createRestaurantRouter({ pool }));
 app.use("/api", aiLimiter, createImageGenRouter());
 app.use("/api/fcm", createFcmRouter({ pool }));
+app.use("/api/push", createPushRouter({ pool }));
 app.use("/api/notifications", createNotificationRouter({ pool }));
 app.use("/api/ai-chat", aiLimiter, createAiChatRouter({ pool }));
 app.use((error, _req, res, _next) => {
@@ -110,6 +113,7 @@ const server = app.listen(config.port, config.host, () => {
   console.log(`Server listening on http://${config.host}:${config.port}`);
 
   initFcm();
+  initJPush();
 
   cron.schedule("0 12 * * *", () => {
     console.log("[Cron] Running daily todo reminder at 12:00...");
