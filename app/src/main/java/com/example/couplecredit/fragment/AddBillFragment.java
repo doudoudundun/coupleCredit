@@ -307,6 +307,13 @@ public class AddBillFragment extends Fragment {
             updateCategorySelection(view, categoryTransport);
         });
 
+        // 停车
+        LinearLayout categoryParking = view.findViewById(R.id.category_parking);
+        categoryParking.setOnClickListener(v -> {
+            selectedCategory = isExpense ? "停车" : "其他";
+            updateCategorySelection(view, categoryParking);
+        });
+
         // 住宿
         LinearLayout categoryHotel = view.findViewById(R.id.category_hotel);
         categoryHotel.setOnClickListener(v -> {
@@ -600,6 +607,7 @@ public class AddBillFragment extends Fragment {
                 rootView.findViewById(R.id.category_fruit),
                 rootView.findViewById(R.id.category_shopping),
                 rootView.findViewById(R.id.category_transport),
+                rootView.findViewById(R.id.category_parking),
                 rootView.findViewById(R.id.category_hotel),
                 rootView.findViewById(R.id.category_daily),
                 rootView.findViewById(R.id.category_study),
@@ -756,6 +764,7 @@ public class AddBillFragment extends Fragment {
             setCategoryStyle(rootView, R.id.category_fruit, "水果", 0, 0);
             setCategoryStyle(rootView, R.id.category_shopping, "购物", 0, 0);
             setCategoryStyle(rootView, R.id.category_transport, "交通", 0, 0);
+            setCategoryStyle(rootView, R.id.category_parking, "停车", 0, 0);
             setCategoryStyle(rootView, R.id.category_hotel, "住宿", 0, 0);
             setCategoryStyle(rootView, R.id.category_entertainment, "娱乐", 0, 0);
             setCategoryStyle(rootView, R.id.category_cosmetic, "化妆", 0, 0);
@@ -778,6 +787,7 @@ public class AddBillFragment extends Fragment {
             rootView.findViewById(R.id.category_fruit).setVisibility(View.VISIBLE);
             rootView.findViewById(R.id.category_shopping).setVisibility(View.VISIBLE);
             rootView.findViewById(R.id.category_transport).setVisibility(View.VISIBLE);
+            rootView.findViewById(R.id.category_parking).setVisibility(View.VISIBLE);
             rootView.findViewById(R.id.category_hotel).setVisibility(View.VISIBLE);
             rootView.findViewById(R.id.category_daily).setVisibility(View.VISIBLE);
             rootView.findViewById(R.id.category_study).setVisibility(View.VISIBLE);
@@ -808,6 +818,7 @@ public class AddBillFragment extends Fragment {
             rootView.findViewById(R.id.category_fruit).setVisibility(View.GONE);
             rootView.findViewById(R.id.category_shopping).setVisibility(View.GONE);
             rootView.findViewById(R.id.category_transport).setVisibility(View.GONE);
+            rootView.findViewById(R.id.category_parking).setVisibility(View.GONE);
             rootView.findViewById(R.id.category_hotel).setVisibility(View.GONE);
             rootView.findViewById(R.id.category_daily).setVisibility(View.GONE);
             rootView.findViewById(R.id.category_study).setVisibility(View.GONE);
@@ -885,6 +896,7 @@ public class AddBillFragment extends Fragment {
         setCategoryStyle(rootView, R.id.category_fruit, "水果", 0, 0);
         setCategoryStyle(rootView, R.id.category_shopping, "购物", 0, 0);
         setCategoryStyle(rootView, R.id.category_transport, "交通", 0, 0);
+        setCategoryStyle(rootView, R.id.category_parking, "停车", 0, 0);
         setCategoryStyle(rootView, R.id.category_hotel, "住宿", 0, 0);
         setCategoryStyle(rootView, R.id.category_entertainment, "娱乐", 0, 0);
         setCategoryStyle(rootView, R.id.category_cosmetic, "化妆", 0, 0);

@@ -53,6 +53,10 @@
                 layout="@layout/item_category" />
 
             <include
+                android:id="@+id/category_parking"
+                layout="@layout/item_category" />
+
+            <include
                 android:id="@+id/category_hotel"
                 layout="@layout/item_category" />
 

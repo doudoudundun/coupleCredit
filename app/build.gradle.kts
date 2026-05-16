@@ -107,8 +107,8 @@ dependencies {
     implementation("com.google.firebase:firebase-messaging:24.1.1")
 
     // JPush (极光推送)
-    implementation("cn.jiguang.sdk:jpush:5.3.2")
-    implementation("cn.jiguang.sdk:jcore:3.9.5")
+    implementation("cn.jiguang.sdk:jpush:5.9.2")
+    implementation("cn.jiguang.sdk:jcore:2.9.2")
 }
 
 if (file("google-services.json").exists()) {

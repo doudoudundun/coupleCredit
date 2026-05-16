@@ -24,8 +24,8 @@ public class CategoryIconMapper {
      * 支出分类列表
      */
     public static final List<String> EXPENSE_CATEGORIES = Arrays.asList(
-        "餐品", "饮品", "水果", "购物", "交通", "住宿", "娱乐", "学习",
-        "医疗", "日常", "旅游", "通讯", "人情", "化妆", "会员", "投资", 
+        "餐品", "饮品", "水果", "购物", "交通", "停车", "住宿", "娱乐", "学习",
+        "医疗", "日常", "旅游", "通讯", "人情", "化妆", "会员", "投资",
         "亲子", "宠物", "装修", "其他"
     );
     
@@ -49,6 +49,7 @@ public class CategoryIconMapper {
         CATEGORY_ICON_MAP.put("水果", R.drawable.img_category_fruit);
         CATEGORY_ICON_MAP.put("购物", R.drawable.img_category_shopping);
         CATEGORY_ICON_MAP.put("交通", R.drawable.img_category_transport);
+        CATEGORY_ICON_MAP.put("停车", R.drawable.img_category_transport);
         CATEGORY_ICON_MAP.put("住宿", R.drawable.img_category_hotel);
         CATEGORY_ICON_MAP.put("娱乐", R.drawable.img_category_entertainment);
         CATEGORY_ICON_MAP.put("学习", R.drawable.img_category_study);
@@ -94,7 +95,8 @@ public class CategoryIconMapper {
         CATEGORY_KEYWORDS.put("购物", "购物|买|购买|商场|超市|网购|淘宝|京东|拼多多|衣服|鞋子|包包");
         
         // 交通类
-        CATEGORY_KEYWORDS.put("交通", "打车|滴滴|出租车|公交|地铁|火车|高铁|飞机|机票|车票|加油|停车|过路费");
+        CATEGORY_KEYWORDS.put("交通", "打车|滴滴|出租车|公交|地铁|火车|高铁|飞机|机票|车票|加油|过路费");
+        CATEGORY_KEYWORDS.put("停车", "停车|停车场|车位|停车费");
         
         // 住宿类
         CATEGORY_KEYWORDS.put("住宿", "住宿|酒店|宾馆|民宿|房租|水电费|物业费|网费|房费");

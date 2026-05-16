@@ -79,12 +79,6 @@
             android:label="自定义Toast演示"
             android:parentActivityName=".activity.MainActivity" />
 
-        <!-- 数据提供者 -->
-        <provider
-            android:name=".database.BillProvider"
-            android:authorities="com.example.couplecredit.billprovider"
-            android:exported="false" />
-
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="com.example.couplecredit.fileprovider"
@@ -102,6 +96,40 @@
                 <action android:name="com.google.firebase.MESSAGING_EVENT" />
             </intent-filter>
         </service>
+
+        <!-- JPush 极光推送 -->
+        <meta-data
+            android:name="JPUSH_APPKEY"
+            android:value="92cd7d5a01d7d114ffba5031"
+            tools:replace="android:value" />
+        <meta-data
+            android:name="JPUSH_CHANNEL"
+            android:value="developer-default"
+            tools:replace="android:value" />
+        <service
+            android:name=".JPushService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="cn.jpush.android.intent.REGISTRATION" />
+                <action android:name="cn.jpush.android.intent.MESSAGE_RECEIVED" />
+                <action android:name="cn.jpush.android.intent.NOTIFICATION_RECEIVED" />
+                <action android:name="cn.jpush.android.intent.NOTIFICATION_OPENED" />
+                <category android:name="com.example.couplecredit" />
+            </intent-filter>
+        </service>
+        <receiver
+            android:name="cn.jpush.android.service.PushReceiver"
+            android:exported="false"
+            tools:ignore="ExportedReceiver">
+            <intent-filter android:priority="1000">
+                <action android:name="cn.jpush.android.intent.NOTIFICATION_RECEIVED_PROXY" />
+                <category android:name="com.example.couplecredit" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.USER_PRESENT" />
+                <action android:name="android.net.conn.CONNECTIVITY_CHANGE" />
+            </intent-filter>
+        </receiver>
 
     </application>
 
