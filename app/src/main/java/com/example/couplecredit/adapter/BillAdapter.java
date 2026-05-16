@@ -131,21 +131,19 @@ public class BillAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
     private void preloadNicknames() {
         if (currentUserId == -1) {
             nicknamesCached = true;
-            notifyDataSetChanged();
+            notifyItemRangeChanged(0, getItemCount());
             return;
         }
-        
-        // 先尝试从缓存获取当前用户昵称
+
         String cachedNickname = NicknameCache.getCachedNickname(context, String.valueOf(currentUserId));
         if (cachedNickname != null) {
             currentUserNickname = cachedNickname;
-            
-            // 如果有情侣关系，继续获取对方昵称
+
             if (currentRelationshipId != null) {
                 loadPartnerNickname();
             } else {
                 nicknamesCached = true;
-                notifyDataSetChanged();
+                notifyItemRangeChanged(0, getItemCount());
             }
             return;
         }
@@ -166,7 +164,7 @@ public class BillAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
                     loadPartnerNickname();
                 } else {
                     nicknamesCached = true;
-                    notifyDataSetChanged();
+                    notifyItemRangeChanged(0, getItemCount());
                 }
             }
 
@@ -181,7 +179,7 @@ public class BillAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
                     loadPartnerNickname();
                 } else {
                     nicknamesCached = true;
-                    notifyDataSetChanged();
+                    notifyItemRangeChanged(0, getItemCount());
                 }
             }
         });
@@ -195,21 +193,21 @@ public class BillAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
                 if (BillAdapter.this.partnerNickname == null) BillAdapter.this.partnerNickname = "对方";
 
                 nicknamesCached = true;
-                notifyDataSetChanged();
+                notifyItemRangeChanged(0, getItemCount());
             }
 
             @Override
             public void onNoCoupleFound() {
                 partnerNickname = "对方";
                 nicknamesCached = true;
-                notifyDataSetChanged();
+                notifyItemRangeChanged(0, getItemCount());
             }
 
             @Override
             public void onError(String error) {
                 partnerNickname = "对方";
                 nicknamesCached = true;
-                notifyDataSetChanged();
+                notifyItemRangeChanged(0, getItemCount());
             }
         });
     }

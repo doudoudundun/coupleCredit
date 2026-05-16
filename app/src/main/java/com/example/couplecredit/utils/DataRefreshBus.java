@@ -1,7 +1,7 @@
 package com.example.couplecredit.utils;
 
-import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 public class DataRefreshBus {
 
@@ -9,7 +9,7 @@ public class DataRefreshBus {
         void onDataRefresh();
     }
 
-    private static final List<Listener> listeners = new ArrayList<>();
+    private static final List<Listener> listeners = new CopyOnWriteArrayList<>();
 
     public static void subscribe(Listener l) {
         if (!listeners.contains(l)) listeners.add(l);
@@ -20,8 +20,11 @@ public class DataRefreshBus {
     }
 
     public static void refreshAll() {
-        for (Listener l : new ArrayList<>(listeners)) {
-            l.onDataRefresh();
+        for (Listener l : listeners) {
+            try {
+                l.onDataRefresh();
+            } catch (Exception ignored) {
+            }
         }
     }
 }

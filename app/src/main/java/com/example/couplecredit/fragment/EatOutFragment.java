@@ -2,8 +2,6 @@ package com.example.couplecredit.fragment;
 
 import android.app.AlertDialog;
 import android.content.Intent;
-import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
 import android.net.Uri;
 import android.os.Bundle;
 import android.text.TextUtils;
@@ -31,11 +29,11 @@ import com.example.couplecredit.api.AuthApiClient;
 import com.example.couplecredit.api.AuthApiModels;
 import com.example.couplecredit.config.ApiConfigManager;
 import com.example.couplecredit.utils.DialogHelper;
+import com.example.couplecredit.utils.ImageCompressor;
 import com.example.couplecredit.utils.RestaurantFormatUtils;
 import com.example.couplecredit.utils.UserInfoManager;
 
 import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -47,9 +45,6 @@ public class EatOutFragment extends Fragment implements RestaurantAdapter.Restau
     private static final String[] PRESET_CATEGORIES = {"中餐", "西餐", "日料", "韩餐", "烧烤", "火锅", "快餐", "甜品饮品", "小吃", "其他"};
     private static final String[] DISTANCE_OPTIONS = {"全部", "500m内", "1km内", "3km内"};
     private static final double[] DISTANCE_VALUES = {0, 500, 1000, 3000};
-    private static final int IMAGE_MAX_DIMENSION = 1024;
-    private static final int IMAGE_JPEG_QUALITY = 80;
-
     private RecyclerView rvList;
     private LinearLayout llEmptyState;
     private TextView tvCount;
@@ -445,7 +440,8 @@ public class EatOutFragment extends Fragment implements RestaurantAdapter.Restau
     private void uploadAndContinue(AlertDialog dialog, String localUri, UploadCallback callback) {
         try {
             Uri imageUri = Uri.parse(localUri);
-            InputStream compressed = compressImage(imageUri);
+            byte[] compressedBytes = ImageCompressor.compress(requireContext(), imageUri, 1024, 80);
+            InputStream compressed = compressedBytes != null ? new ByteArrayInputStream(compressedBytes) : null;
             if (compressed != null) {
                 String fileName = "restaurant_" + System.currentTimeMillis() + ".jpg";
                 AuthApiClient.uploadImage(requireContext(), compressed, fileName, new AuthApiClient.ImageUploadCallback() {
@@ -544,45 +540,6 @@ public class EatOutFragment extends Fragment implements RestaurantAdapter.Restau
             info.append(RestaurantFormatUtils.formatDistance(item.distance));
         }
         tvInfo.setText(info.toString());
-    }
-
-    private InputStream compressImage(Uri imageUri) {
-        try {
-            InputStream is = requireContext().getContentResolver().openInputStream(imageUri);
-            BitmapFactory.Options bounds = new BitmapFactory.Options();
-            bounds.inJustDecodeBounds = true;
-            BitmapFactory.decodeStream(is, null, bounds);
-            is.close();
-
-            int sampleSize = 1;
-            int halfW = bounds.outWidth / 2;
-            int halfH = bounds.outHeight / 2;
-            while ((halfW / sampleSize) >= IMAGE_MAX_DIMENSION && (halfH / sampleSize) >= IMAGE_MAX_DIMENSION) {
-                sampleSize *= 2;
-            }
-
-            is = requireContext().getContentResolver().openInputStream(imageUri);
-            BitmapFactory.Options opts = new BitmapFactory.Options();
-            opts.inSampleSize = sampleSize;
-            opts.inPreferredConfig = Bitmap.Config.ARGB_8888;
-            Bitmap bitmap = BitmapFactory.decodeStream(is, null, opts);
-            is.close();
-            if (bitmap == null) return null;
-
-            if (bitmap.getWidth() > IMAGE_MAX_DIMENSION || bitmap.getHeight() > IMAGE_MAX_DIMENSION) {
-                float scale = Math.min((float) IMAGE_MAX_DIMENSION / bitmap.getWidth(), (float) IMAGE_MAX_DIMENSION / bitmap.getHeight());
-                Bitmap scaled = Bitmap.createScaledBitmap(bitmap, Math.round(bitmap.getWidth() * scale), Math.round(bitmap.getHeight() * scale), true);
-                bitmap.recycle();
-                bitmap = scaled;
-            }
-
-            ByteArrayOutputStream baos = new ByteArrayOutputStream();
-            bitmap.compress(Bitmap.CompressFormat.JPEG, IMAGE_JPEG_QUALITY, baos);
-            bitmap.recycle();
-            return new ByteArrayInputStream(baos.toByteArray());
-        } catch (Exception e) {
-            return null;
-        }
     }
 
     @Override

@@ -35,7 +35,7 @@ public class ChatRepository {
     private int currentUserId = -1;
 
     public ChatRepository(Context context) {
-        this.context = context;
+        this.context = context.getApplicationContext();
         ChatDatabase database = ChatDatabase.getInstance(context);
         chatMessageDao = database.chatMessageDao();
         cloudChatRepository = new CloudChatRepository(context);

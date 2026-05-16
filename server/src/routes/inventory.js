@@ -1,12 +1,11 @@
 const express = require("express");
-const https = require("https");
-const http = require("http");
 const path = require("path");
 const fsPromises = require("fs").promises;
 const { ApiError } = require("../errors");
 const { cache, Keys, TTL } = require("../cache");
-const { loadActiveRelationship, trimValue, parseRequiredInteger, parseRequiredFloat } = require("../utils/queryHelpers");
+const { loadActiveRelationship, trimValue, parseRequiredInteger, parseRequiredFloat, normalizeNullableText, invalidateForUser } = require("../utils/queryHelpers");
 const { withTransaction } = require("../utils/transactions");
+const { callImageApi } = require("../utils/imageApi");
 
 const EXPIRING_WINDOW_DAYS = 3;
 const INVENTORY_SELECT_FIELDS = `inventory_id as inventoryId, user_id as userId, relationship_id as relationshipId,
@@ -17,17 +16,6 @@ const INVENTORY_SELECT_FIELDS = `inventory_id as inventoryId, user_id as userId,
                  DATE_FORMAT(expiration_date, '%Y-%m-%d') as expirationDate,
                  DATE_FORMAT(production_date, '%Y-%m-%d') as productionDate,
                  shelf_life_days as shelfLifeDays`;
-
-function normalizeNullableText(value) {
-  if (value === undefined || value === null) {
-    return null;
-  }
-  if (typeof value !== "string") {
-    return null;
-  }
-  const trimmed = value.trim();
-  return trimmed === "" ? null : trimmed;
-}
 
 function normalizeExpirationMode(value) {
   if (value === undefined || value === null) {
@@ -208,11 +196,7 @@ function createInventoryRouter({ pool }) {
   const router = express.Router();
 
   function invalidateInventoryCache(userId, relationship) {
-    cache.del(Keys.inventory(userId));
-    if (relationship) {
-      cache.del(Keys.inventory(relationship.user_id_1));
-      cache.del(Keys.inventory(relationship.user_id_2));
-    }
+    invalidateForUser(cache, Keys.inventory, userId, relationship);
   }
 
   router.get("/", async (req, res, next) => {
@@ -789,56 +773,6 @@ function createInventoryRouter({ pool }) {
   });
 
   return router;
-}
-
-function resolveImageApiUrl(baseUrl) {
-  const trimmed = String(baseUrl || "").replace(/\/$/, "");
-  if (trimmed.endsWith("/images/generations")) {
-    return trimmed;
-  }
-  if (trimmed.endsWith("/v1")) {
-    return `${trimmed}/images/generations`;
-  }
-  return `${trimmed}/v1/images/generations`;
-}
-
-function callImageApi(baseUrl, apiKey, payload) {
-  return new Promise((resolve, reject) => {
-    const url = new URL(resolveImageApiUrl(baseUrl));
-    const isHttps = url.protocol === "https:";
-    const requester = isHttps ? https : http;
-
-    const body = JSON.stringify(payload);
-    const options = {
-      hostname: url.hostname,
-      port: url.port || (isHttps ? 443 : 80),
-      path: url.pathname + url.search,
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${apiKey}`,
-        "Content-Length": Buffer.byteLength(body)
-      },
-      timeout: 60000
-    };
-
-    const req = requester.request(options, (res) => {
-      let data = "";
-      res.on("data", (chunk) => { data += chunk; });
-      res.on("end", () => {
-        try {
-          resolve(JSON.parse(data));
-        } catch (e) {
-          reject(new Error(`AI Image API response parse error: ${data.substring(0, 200)}`));
-        }
-      });
-    });
-
-    req.on("error", reject);
-    req.on("timeout", () => { req.destroy(); reject(new Error("AI Image API request timeout")); });
-    req.write(body);
-    req.end();
-  });
 }
 
 module.exports = {

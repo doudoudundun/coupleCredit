@@ -3,8 +3,6 @@ package com.example.couplecredit.fragment;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Intent;
-import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
 import android.net.Uri;
 import android.os.Bundle;
 import android.provider.MediaStore;
@@ -34,12 +32,12 @@ import com.example.couplecredit.api.AuthApiModels;
 import com.example.couplecredit.config.ApiConfigManager;
 import com.example.couplecredit.utils.BeadUtils;
 import com.example.couplecredit.utils.DialogHelper;
+import com.example.couplecredit.utils.ImageCompressor;
 import com.example.couplecredit.utils.UserInfoManager;
 import com.example.couplecredit.view.BeadGridView;
 import com.example.couplecredit.viewmodel.BeadInventoryViewModel;
 
 import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -65,8 +63,6 @@ public class BeadBlueprintListFragment extends Fragment {
     }
 
     private static final int REQUEST_IMAGE_PICK = 2001;
-    private static final int MAX_IMAGE_DIMENSION = 2048;
-    private static final int JPEG_QUALITY = 90;
 
     private BeadInventoryViewModel viewModel;
     private BeadBlueprintAdapter adapter;
@@ -321,7 +317,8 @@ public class BeadBlueprintListFragment extends Fragment {
         showLoading("上传图片中...");
         new Thread(() -> {
             try {
-                InputStream compressed = compressImage(imageUri);
+                byte[] compressedBytes = ImageCompressor.compress(requireContext(), imageUri, 2048, 90);
+                InputStream compressed = compressedBytes != null ? new ByteArrayInputStream(compressedBytes) : null;
                 if (compressed == null) {
                     if (!isAdded()) return;
                     requireActivity().runOnUiThread(() -> {
@@ -399,45 +396,6 @@ public class BeadBlueprintListFragment extends Fragment {
                 });
             }
         });
-    }
-
-    private InputStream compressImage(Uri imageUri) {
-        try {
-            InputStream is = requireContext().getContentResolver().openInputStream(imageUri);
-            BitmapFactory.Options bounds = new BitmapFactory.Options();
-            bounds.inJustDecodeBounds = true;
-            BitmapFactory.decodeStream(is, null, bounds);
-            if (is != null) is.close();
-
-            int sampleSize = 1;
-            int halfW = bounds.outWidth / 2;
-            int halfH = bounds.outHeight / 2;
-            while ((halfW / sampleSize) >= MAX_IMAGE_DIMENSION && (halfH / sampleSize) >= MAX_IMAGE_DIMENSION) {
-                sampleSize *= 2;
-            }
-
-            is = requireContext().getContentResolver().openInputStream(imageUri);
-            BitmapFactory.Options opts = new BitmapFactory.Options();
-            opts.inSampleSize = sampleSize;
-            opts.inPreferredConfig = Bitmap.Config.ARGB_8888;
-            Bitmap bitmap = BitmapFactory.decodeStream(is, null, opts);
-            if (is != null) is.close();
-            if (bitmap == null) return null;
-
-            if (bitmap.getWidth() > MAX_IMAGE_DIMENSION || bitmap.getHeight() > MAX_IMAGE_DIMENSION) {
-                float scale = Math.min((float) MAX_IMAGE_DIMENSION / bitmap.getWidth(), (float) MAX_IMAGE_DIMENSION / bitmap.getHeight());
-                Bitmap scaled = Bitmap.createScaledBitmap(bitmap, Math.round(bitmap.getWidth() * scale), Math.round(bitmap.getHeight() * scale), true);
-                bitmap.recycle();
-                bitmap = scaled;
-            }
-
-            ByteArrayOutputStream baos = new ByteArrayOutputStream();
-            bitmap.compress(Bitmap.CompressFormat.JPEG, JPEG_QUALITY, baos);
-            bitmap.recycle();
-            return new ByteArrayInputStream(baos.toByteArray());
-        } catch (Exception e) {
-            return null;
-        }
     }
 
     private ParsedBlueprintColors parseColorDrafts(String raw) {

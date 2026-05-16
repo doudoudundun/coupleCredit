@@ -53,11 +53,31 @@ function parseRequiredAmount(value) {
   return value;
 }
 
+function normalizeNullableText(value) {
+  if (value === undefined || value === null) return null;
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed === "" ? null : trimmed;
+}
+
+function invalidateForUser(cache, keyFn, userId, relationship) {
+  const ids = new Set([userId]);
+  if (relationship) {
+    ids.add(relationship.user_id_1);
+    ids.add(relationship.user_id_2);
+  }
+  for (const id of ids) {
+    cache.del(keyFn(id));
+  }
+}
+
 module.exports = {
   loadActiveRelationship,
   trimValue,
   parseOptionalInteger,
   parseRequiredInteger,
   parseRequiredFloat,
-  parseRequiredAmount
+  parseRequiredAmount,
+  normalizeNullableText,
+  invalidateForUser
 };

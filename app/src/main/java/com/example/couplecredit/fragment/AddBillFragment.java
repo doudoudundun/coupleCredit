@@ -68,8 +68,7 @@ public class AddBillFragment extends Fragment {
     private TextView tvAmountDisplay;// 显示当前输入金额
     private EditText etNote;// 备注输入框
     private TextView tvDate, tvSelf, tvPartner, tvShared;
-//    private View indicatorExpense, indicatorIncome;
-    private AdaptiveGridLayout gridCategories; // 替换原来的GridLayout
+    private AdaptiveGridLayout gridCategories;
 
     private TabLayout mTabLayout;
 
@@ -140,12 +139,7 @@ public class AddBillFragment extends Fragment {
             mTabLayout.addTab(mTabLayout.newTab().setText("支出"));
             mTabLayout.addTab(mTabLayout.newTab().setText("收入"));
         }
-        //mTabLayout.setTabTextColors(getColor(R.color.os_red_basic_color), R.color.os_text_primary_hios);
 
-
-//        indicatorExpense = view.findViewById(R.id.indicator_expense);
-//        indicatorIncome = view.findViewById(R.id.indicator_income);
-        
         // 分类选择区域
         // 初始化自适应网格布局
         gridCategories = view.findViewById(R.id.grid_categories);
@@ -755,8 +749,7 @@ public class AddBillFragment extends Fragment {
         View rootView = getView();
         if (rootView != null) {
             // 使用CategoryIconMapper获取标准化的支出分类和图标
-            // String[] expenseCategories = CategoryIconMapper.getExpenseCategories();
-            
+
             // 为支出分类设置样式 - 使用CategoryIconMapper获取对应图标
             setCategoryStyle(rootView, R.id.category_food, "餐品", 0, 0);
             setCategoryStyle(rootView, R.id.category_drink, "饮品", 0, 0);
@@ -844,7 +837,6 @@ public class AddBillFragment extends Fragment {
         rootView.findViewById(R.id.category_parenting).setVisibility(View.GONE);
         rootView.findViewById(R.id.category_pet).setVisibility(View.GONE);
         rootView.findViewById(R.id.category_decoration).setVisibility(View.GONE);
-        // rootView.findViewById(R.id.category_other).setVisibility(View.GONE);
     }
 
     private void hideIncomeOnlyCategories(View rootView) {
@@ -853,7 +845,6 @@ public class AddBillFragment extends Fragment {
         rootView.findViewById(R.id.category_cashgift).setVisibility(View.GONE);
         rootView.findViewById(R.id.category_parttime).setVisibility(View.GONE);
         rootView.findViewById(R.id.category_financial).setVisibility(View.GONE);
-        // rootView.findViewById(R.id.category_other).setVisibility(View.GONE);
     }
     
     private void showIncomeOnlyCategories(View rootView) {

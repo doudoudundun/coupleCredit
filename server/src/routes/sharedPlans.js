@@ -1,17 +1,13 @@
 const express = require("express");
 const { ApiError } = require("../errors");
 const { cache, Keys, TTL } = require("../cache");
-const { loadActiveRelationship, trimValue, parseRequiredInteger, parseRequiredFloat } = require("../utils/queryHelpers");
+const { loadActiveRelationship, trimValue, parseRequiredInteger, parseRequiredFloat, invalidateForUser } = require("../utils/queryHelpers");
 
 function createSharedPlansRouter({ pool }) {
   const router = express.Router();
 
   function invalidateSharedPlans(userId, relationship) {
-    cache.del(Keys.sharedPlans(userId));
-    if (relationship) {
-      cache.del(Keys.sharedPlans(relationship.user_id_1));
-      cache.del(Keys.sharedPlans(relationship.user_id_2));
-    }
+    invalidateForUser(cache, Keys.sharedPlans, userId, relationship);
   }
 
   async function loadAccessiblePlan(pool, planId, userId) {

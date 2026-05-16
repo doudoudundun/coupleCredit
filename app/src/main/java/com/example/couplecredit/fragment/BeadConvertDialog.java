@@ -4,8 +4,6 @@ import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Context;
 import android.content.Intent;
-import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
 import android.net.Uri;
 import android.provider.MediaStore;
 import android.view.LayoutInflater;
@@ -27,11 +25,11 @@ import com.example.couplecredit.api.AuthApiModels;
 import com.example.couplecredit.config.ApiConfigManager;
 import com.example.couplecredit.utils.BeadUtils;
 import com.example.couplecredit.utils.DialogHelper;
+import com.example.couplecredit.utils.ImageCompressor;
 import com.example.couplecredit.view.BeadGridView;
 import com.example.couplecredit.viewmodel.BeadInventoryViewModel;
 
 import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -224,7 +222,8 @@ public class BeadConvertDialog {
         if (llLoading != null) llLoading.setVisibility(View.VISIBLE);
         new Thread(() -> {
             try {
-                InputStream compressed = compressImage(imageUri);
+                byte[] compressedBytes = ImageCompressor.compress(fragment.requireContext(), imageUri, 2048, 90);
+                InputStream compressed = compressedBytes != null ? new ByteArrayInputStream(compressedBytes) : null;
                 if (compressed == null) {
                     if (!fragment.isAdded()) return;
                     fragment.requireActivity().runOnUiThread(() -> {
@@ -269,33 +268,6 @@ public class BeadConvertDialog {
                 });
             }
         }).start();
-    }
-
-    private InputStream compressImage(Uri imageUri) {
-        try {
-            InputStream is = fragment.requireContext().getContentResolver().openInputStream(imageUri);
-            if (is == null) return null;
-            BitmapFactory.Options opts = new BitmapFactory.Options();
-            opts.inJustDecodeBounds = true;
-            BitmapFactory.decodeStream(is, null, opts);
-            is.close();
-            int scale = 1;
-            int maxDim = 2048;
-            if (opts.outWidth > maxDim || opts.outHeight > maxDim) {
-                scale = Math.max(opts.outWidth, opts.outHeight) / maxDim;
-                if (scale < 1) scale = 1;
-            }
-            BitmapFactory.Options decodeOpts = new BitmapFactory.Options();
-            decodeOpts.inSampleSize = scale;
-            is = fragment.requireContext().getContentResolver().openInputStream(imageUri);
-            Bitmap bitmap = BitmapFactory.decodeStream(is, null, decodeOpts);
-            if (is != null) is.close();
-            if (bitmap == null) return null;
-            ByteArrayOutputStream baos = new ByteArrayOutputStream();
-            bitmap.compress(Bitmap.CompressFormat.JPEG, 90, baos);
-            bitmap.recycle();
-            return new ByteArrayInputStream(baos.toByteArray());
-        } catch (Exception e) { return null; }
     }
 
     private Map<String, String> buildConvertColorMap(List<AuthApiModels.BeadConvertColorData> colors) {

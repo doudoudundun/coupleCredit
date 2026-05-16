@@ -1,17 +1,10 @@
 const express = require("express");
 const { ApiError } = require("../errors");
 const { cache, Keys, TTL } = require("../cache");
-const { loadActiveRelationship, trimValue, parseRequiredInteger } = require("../utils/queryHelpers");
+const { loadActiveRelationship, trimValue, parseRequiredInteger, normalizeNullableText, invalidateForUser } = require("../utils/queryHelpers");
 
 const TODO_SELECT_FIELDS = `todo_id, user_id, relationship_id, title, content, priority, fuzzy_date_text, image_url, status,
                  is_repeatable, series_id, completed_count, created_at, updated_at`;
-
-function normalizeNullableText(value) {
-  if (value === undefined || value === null) return null;
-  if (typeof value !== "string") return null;
-  const trimmed = value.trim();
-  return trimmed === "" ? null : trimmed;
-}
 
 function normalizePriority(value) {
   if (value === undefined) return undefined;
@@ -105,11 +98,7 @@ function createTodoRouter({ pool }, notificationService) {
   const router = express.Router();
 
   function invalidateTodoCache(userId, relationship) {
-    cache.del(Keys.todos(userId));
-    if (relationship) {
-      cache.del(Keys.todos(relationship.user_id_1));
-      cache.del(Keys.todos(relationship.user_id_2));
-    }
+    invalidateForUser(cache, Keys.todos, userId, relationship);
   }
 
   async function loadAccessibleTodo(todoId, userId) {

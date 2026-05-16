@@ -117,12 +117,7 @@ public class ChatModelFragment extends Fragment {
     private Runnable searchRunnable; // 搜索任务
     private View inputSection;               // 输入区域引用
     private int bottomNavHeight = 0;         // 底部导航栏高度
-    
-    // 点赞功能已移除
-    // private ChatMessage lastLikedMessage = null;
-    // private int lastLikedPosition = -1;
-    // private boolean lastLikedStatus = false;
-    
+
     // ======================== 背景更新广播接收器 ========================
     private BroadcastReceiver backgroundUpdateReceiver = new BroadcastReceiver() {
         @Override
@@ -364,22 +359,6 @@ public class ChatModelFragment extends Fragment {
         
         // 设置适配器交互监听器
         messageAdapter.setOnMessageInteractionListener(new ChatMessageAdapter.OnMessageInteractionListener() {
-            // 点赞功能已移除
-            // @Override
-            // public void onLikeStatusChanged(ChatMessage message, int position, boolean isLiked) {
-            //     记录点赞操作信息，用于失败时回滚
-            //     lastLikedMessage = message;
-            //     lastLikedPosition = position;
-            //     lastLikedStatus = !isLiked; // 记录操作前的状态
-            //     
-            //     只更新数据模型，不触发RecyclerView更新，避免界面污染
-            //     LikeButton已经在视觉上完成了状态更新
-            //     直接更新message对象的状态即可，无需通过adapter触发界面更新
-            //     
-            //     异步更新数据库，避免阻塞UI
-            //     viewModel.toggleMessageLike(message);
-            // }
-            
             @Override
             public void onMessageLongClick(View anchorView, ChatMessage message, int position) {
                 // 显示弹出菜单
@@ -808,32 +787,8 @@ public class ChatModelFragment extends Fragment {
         viewModel.getErrorMessage().observe(getViewLifecycleOwner(), errorMsg -> {
             if (errorMsg != null && !errorMsg.isEmpty()) {
                 Toast.makeText(getContext(), errorMsg, Toast.LENGTH_SHORT).show();
-                
-                // 点赞功能已移除 - 不再处理点赞失败回滚
-            // 如果是点赞操作失败，回滚UI状态
-            // if (errorMsg.contains("操作失败") && lastLikedMessage != null && lastLikedPosition >= 0) {
-            //     回滚消息对象的状态
-            //     lastLikedMessage.setLiked(lastLikedStatus);
-            //     
-            //     直接通过ViewHolder回滚UI显示，避免触发RecyclerView更新
-            //     RecyclerView.ViewHolder viewHolder = rvChatMessages.findViewHolderForAdapterPosition(lastLikedPosition);
-            //     if (viewHolder instanceof ChatMessageAdapter.MessageViewHolder) {
-            //         ((ChatMessageAdapter.MessageViewHolder) viewHolder).updateLikeButton(lastLikedStatus);
-            //     }
-            //     
-            //     清除记录
-            //     lastLikedMessage = null;
-            //     lastLikedPosition = -1;
-            // }
             }
         });
-        
-        // 观察成功消息
-//        viewModel.getSuccessMessage().observe(getViewLifecycleOwner(), successMsg -> {
-//            if (successMsg != null && !successMsg.isEmpty()) {
-//                Toast.makeText(getContext(), successMsg, Toast.LENGTH_SHORT).show();
-//            }
-//        });
         
         // 观察加载状态
         viewModel.getIsLoading().observe(getViewLifecycleOwner(), isLoading -> {
@@ -895,7 +850,7 @@ public class ChatModelFragment extends Fragment {
 
         messageAdapter.setOnAiExtractionListener(new ChatMessageAdapter.OnAiExtractionListener() {
             @Override public void onConfirm(int extractionId) {
-                removeExtractionCard(extractionId);
+                markExtractionConfirmed(extractionId);
                 viewModel.confirmExtraction(extractionId);
             }
             @Override public void onDismiss(int extractionId) {
@@ -935,6 +890,17 @@ public class ChatModelFragment extends Fragment {
             ChatMessage m = messageAdapter.getMessageAt(i);
             if (m != null && m.isAiExtraction() && m.getExtractionId() == extractionId) {
                 messageAdapter.removeMessage(i);
+                break;
+            }
+        }
+    }
+
+    private void markExtractionConfirmed(int extractionId) {
+        for (int i = 0; i < messageAdapter.getItemCount(); i++) {
+            ChatMessage m = messageAdapter.getMessageAt(i);
+            if (m != null && m.isAiExtraction() && m.getExtractionId() == extractionId) {
+                m.setExtractionConfirmed(true);
+                messageAdapter.notifyItemChanged(i);
                 break;
             }
         }
@@ -1012,6 +978,7 @@ public class ChatModelFragment extends Fragment {
                 overrides.put("priority", data != null && data.containsKey("priority") ? data.get("priority") : "medium");
             }
             dialog.dismiss();
+            markExtractionConfirmed(extractionId);
             viewModel.confirmExtractionWithOverrides(extractionId, overrides);
         });
 

@@ -26,7 +26,8 @@ const SYSTEM_PROMPT = `你是一个信息提取助手。分析以下情侣聊天
 注意事项：
 - 只提取明确的信息，不要过度推测
 - 没有可提取内容时返回空数组
-- 每条消息最多提取一条记录
+- 同一条消息可能同时匹配多种类型，例如"买了牙膏12块"应同时提取账单和物资，请分别输出
+- 每种类型每条消息最多提取一条记录
 - 返回纯JSON，不要有额外文字`;
 
 function createAiChatRouter({ pool }) {
@@ -35,13 +36,13 @@ function createAiChatRouter({ pool }) {
   router.post("/analyze", async (req, res, next) => {
     try {
       const { userId, messages } = req.body;
-      if (!userId) return res.status(400).json({ ok: false, error: { code: "MISSING_USER_ID" } });
+      if (!userId) return res.status(400).json({ ok: false, error: { code: "MISSING_USER_ID", message: "缺少用户ID" } });
       if (!Array.isArray(messages) || messages.length === 0) {
         return res.json({ ok: true, data: { extractions: [] } });
       }
 
       const rel = await loadActiveRelationship(pool, userId);
-      if (!rel) return res.status(403).json({ ok: false, error: { code: "NO_RELATIONSHIP" } });
+      if (!rel) return res.status(403).json({ ok: false, error: { code: "NO_RELATIONSHIP", message: "未绑定情侣关系" } });
 
       const apiKey = process.env.AI_API_KEY;
       const baseUrl = process.env.AI_BASE_URL || "https://open.bigmodel.cn/api/paas/v4";
@@ -130,9 +131,9 @@ function createAiChatRouter({ pool }) {
   router.get("/extractions", async (req, res, next) => {
     try {
       const userId = parseInt(req.query.userId, 10);
-      if (!userId) return res.status(400).json({ ok: false, error: { code: "MISSING_USER_ID" } });
+      if (!userId) return res.status(400).json({ ok: false, error: { code: "MISSING_USER_ID", message: "缺少用户ID" } });
       const rel = await loadActiveRelationship(pool, userId);
-      if (!rel) return res.status(403).json({ ok: false, error: { code: "NO_RELATIONSHIP" } });
+      if (!rel) return res.status(403).json({ ok: false, error: { code: "NO_RELATIONSHIP", message: "未绑定情侣关系" } });
 
       const [rows] = await pool.execute(
         `SELECT id, result_type, raw_data, status, target_id, created_at FROM ai_extraction_results WHERE relationship_id = ? AND status = 'pending' ORDER BY created_at DESC LIMIT 20`,
@@ -156,15 +157,15 @@ function createAiChatRouter({ pool }) {
     try {
       const extractionId = parseInt(req.params.id, 10);
       const { userId, overrides } = req.body;
-      if (!userId) return res.status(400).json({ ok: false, error: { code: "MISSING_USER_ID" } });
+      if (!userId) return res.status(400).json({ ok: false, error: { code: "MISSING_USER_ID", message: "缺少用户ID" } });
       const rel = await loadActiveRelationship(pool, userId);
-      if (!rel) return res.status(403).json({ ok: false, error: { code: "NO_RELATIONSHIP" } });
+      if (!rel) return res.status(403).json({ ok: false, error: { code: "NO_RELATIONSHIP", message: "未绑定情侣关系" } });
 
       const [rows] = await pool.execute(
         `SELECT * FROM ai_extraction_results WHERE id = ? AND relationship_id = ? AND status = 'pending'`,
         [extractionId, rel.relationship_id]
       );
-      if (rows.length === 0) return res.status(404).json({ ok: false, error: { code: "NOT_FOUND" } });
+      if (rows.length === 0) return res.status(404).json({ ok: false, error: { code: "NOT_FOUND", message: "提取记录不存在" } });
 
       const extraction = rows[0];
       const data = overrides || (typeof extraction.raw_data === "string" ? JSON.parse(extraction.raw_data) : extraction.raw_data);
@@ -222,9 +223,9 @@ function createAiChatRouter({ pool }) {
     try {
       const extractionId = parseInt(req.params.id, 10);
       const { userId } = req.body;
-      if (!userId) return res.status(400).json({ ok: false, error: { code: "MISSING_USER_ID" } });
+      if (!userId) return res.status(400).json({ ok: false, error: { code: "MISSING_USER_ID", message: "缺少用户ID" } });
       const rel = await loadActiveRelationship(pool, userId);
-      if (!rel) return res.status(403).json({ ok: false, error: { code: "NO_RELATIONSHIP" } });
+      if (!rel) return res.status(403).json({ ok: false, error: { code: "NO_RELATIONSHIP", message: "未绑定情侣关系" } });
 
       await pool.execute(
         `UPDATE ai_extraction_results SET status = 'dismissed', updated_at = NOW() WHERE id = ? AND relationship_id = ? AND status = 'pending'`,

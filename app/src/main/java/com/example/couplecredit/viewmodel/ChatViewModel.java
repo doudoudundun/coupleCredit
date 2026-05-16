@@ -431,36 +431,6 @@ public class ChatViewModel extends AndroidViewModel {
     }
     
     /**
-     * 切换消息点赞状态 - 点赞功能已移除
-     * @param message 要切换点赞状态的消息
-     */
-    // public void toggleMessageLike(ChatMessage message) {
-    //     if (message == null) {
-    //         errorMessage.postValue("消息不存在");
-    //         return;
-    //     }
-    //     
-    //     // 注意：message的状态已经在UI层更新，这里只负责数据库同步
-    //     // 不再在这里修改message状态，避免与UI层的更新冲突
-    //     
-    //     // 更新数据库（会自动同步到云端）
-    //     chatRepository.updateMessage(message, new ChatRepository.UpdateCallback() {
-    //         @Override
-    //         public void onSuccess() {
-    //             String status = message.isLiked() ? "点赞" : "取消点赞";
-    //             successMessage.postValue(status + "成功");
-    //         }
-    //         
-    //         @Override
-    //         public void onError(Exception e) {
-    //             // 数据库更新失败时，通过错误消息通知用户
-    //             // UI层需要根据错误回滚状态
-    //             errorMessage.postValue("操作失败: " + e.getMessage());
-    //         }
-    //     });
-    // }
-    
-    /**
      * 删除消息
      * @param message 要删除的消息
      */
@@ -716,20 +686,20 @@ public class ChatViewModel extends AndroidViewModel {
      * 监听同步状态
      */
     private void observeSyncStatus() {
-        // 监听同步进度
-        syncService.getSyncProgressLiveData().observeForever(progress -> {
+        syncServiceProgressObserver = progress -> {
             if (progress != null) {
                 syncProgress.postValue(progress.getPercentage());
-        syncStatusMessage.postValue(progress.message);
+                syncStatusMessage.postValue(progress.message);
             }
-        });
-        
-        // 监听同步错误
-        syncService.getSyncErrorLiveData().observeForever(error -> {
+        };
+        syncService.getSyncProgressLiveData().observeForever(syncServiceProgressObserver);
+
+        syncServiceErrorObserver = error -> {
             if (error != null && !error.isEmpty()) {
                 syncStatusMessage.postValue("SYNC_FAILED");
             }
-        });
+        };
+        syncService.getSyncErrorLiveData().observeForever(syncServiceErrorObserver);
     }
     
     /**
@@ -857,6 +827,12 @@ public class ChatViewModel extends AndroidViewModel {
             }
             if (offlineService != null && syncProgressObserver != null) {
                 offlineService.getSyncProgress().removeObserver(syncProgressObserver);
+            }
+            if (syncService != null && syncServiceProgressObserver != null) {
+                syncService.getSyncProgressLiveData().removeObserver(syncServiceProgressObserver);
+            }
+            if (syncService != null && syncServiceErrorObserver != null) {
+                syncService.getSyncErrorLiveData().removeObserver(syncServiceErrorObserver);
             }
             
             // 清理同步服务
@@ -995,6 +971,8 @@ public class ChatViewModel extends AndroidViewModel {
     private androidx.lifecycle.Observer<OfflineService.OfflineStatus> offlineStatusObserver;
     private androidx.lifecycle.Observer<OfflineCacheManager.CacheStats> cacheStatsObserver;
     private androidx.lifecycle.Observer<OfflineService.SyncProgress> syncProgressObserver;
+    private androidx.lifecycle.Observer<ChatSyncService.SyncProgress> syncServiceProgressObserver;
+    private androidx.lifecycle.Observer<String> syncServiceErrorObserver;
     
     private void observeNetworkAndOfflineStatus() {
         // 监听网络状态变化

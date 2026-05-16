@@ -34,6 +34,7 @@ public class ChatMessage {
     private String extractionType; // bill/inventory/todo
     private String extractionSummary;
     private java.util.Map<String, Object> extractionData;
+    private boolean extractionConfirmed;
     
     // ==================== 构造函数 ====================
     
@@ -340,4 +341,6 @@ public class ChatMessage {
     public void setExtractionSummary(String extractionSummary) { this.extractionSummary = extractionSummary; }
     public java.util.Map<String, Object> getExtractionData() { return extractionData; }
     public void setExtractionData(java.util.Map<String, Object> extractionData) { this.extractionData = extractionData; }
+    public boolean isExtractionConfirmed() { return extractionConfirmed; }
+    public void setExtractionConfirmed(boolean confirmed) { this.extractionConfirmed = confirmed; }
 }

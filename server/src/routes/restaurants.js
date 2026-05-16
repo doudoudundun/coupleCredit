@@ -1,17 +1,13 @@
 const express = require("express");
 const { ApiError } = require("../errors");
 const { cache, Keys, TTL } = require("../cache");
-const { loadActiveRelationship, trimValue, parseRequiredInteger } = require("../utils/queryHelpers");
+const { loadActiveRelationship, trimValue, parseRequiredInteger, invalidateForUser } = require("../utils/queryHelpers");
 
 function createRestaurantRouter({ pool }) {
   const router = express.Router();
 
   function invalidateCache(userId, relationship) {
-    cache.del(Keys.restaurants(userId));
-    if (relationship) {
-      cache.del(Keys.restaurants(relationship.user_id_1));
-      cache.del(Keys.restaurants(relationship.user_id_2));
-    }
+    invalidateForUser(cache, Keys.restaurants, userId, relationship);
   }
 
   // GET /api/restaurants?userId=

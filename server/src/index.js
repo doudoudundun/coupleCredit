@@ -51,7 +51,7 @@ const { initializeApp: initFcm } = require("./services/fcmService");
 const notificationService = require("./services/notificationService");
 const { sendError } = require("./errors");
 const { optionalAuth } = require("./middleware/auth");
-const { standardLimiter, authLimiter, strictLimiter } = require("./middleware/rateLimit");
+const { standardLimiter, authLimiter, strictLimiter, aiLimiter } = require("./middleware/rateLimit");
 const cron = require("node-cron");
 
 const config = readConfig();
@@ -95,12 +95,12 @@ app.use("/api/couple", createCoupleRouter({ pool }));
 app.use("/api/chat", createChatRouter({ pool }));
 app.use("/api/shared-plans", createSharedPlansRouter({ pool }));
 app.use("/api/todos", createTodoRouter({ pool }, notificationService));
-app.use("/api/beads", createBeadRouter({ pool }));
+app.use("/api/beads", createBeadRouter({ pool, aiLimiter }));
 app.use("/api/restaurants", createRestaurantRouter({ pool }));
-app.use("/api", createImageGenRouter());
+app.use("/api", aiLimiter, createImageGenRouter());
 app.use("/api/fcm", createFcmRouter({ pool }));
 app.use("/api/notifications", createNotificationRouter({ pool }));
-app.use("/api/ai-chat", createAiChatRouter({ pool }));
+app.use("/api/ai-chat", aiLimiter, createAiChatRouter({ pool }));
 app.use((error, _req, res, _next) => {
   console.error("Unhandled error:", error);
   sendError(res, error);

@@ -1,13 +1,12 @@
 package com.example.couplecredit.api;
 
 import android.content.Context;
-import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
 import android.net.Uri;
 import android.util.Log;
 
+import com.example.couplecredit.utils.ImageCompressor;
+
 import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -15,8 +14,6 @@ import java.util.concurrent.Executors;
 public class AvatarUploadApi {
     private static final String TAG = "AvatarUploadApi";
     private static final ExecutorService executor = Executors.newCachedThreadPool();
-    private static final int MAX_DIMENSION = 512;
-    private static final int JPEG_QUALITY = 80;
 
     public interface AvatarUploadCallback {
         void onUploadSuccess(String avatarUrl);
@@ -36,7 +33,8 @@ public class AvatarUploadApi {
     public static void uploadAvatar(Context context, int userId, Uri imageUri, AvatarUploadCallback callback) {
         executor.execute(() -> {
             try {
-                InputStream compressed = compressImage(context, imageUri);
+                byte[] compressedBytes = ImageCompressor.compress(context, imageUri, 512, 80);
+                InputStream compressed = compressedBytes != null ? new ByteArrayInputStream(compressedBytes) : null;
                 if (compressed == null) {
                     if (callback != null) callback.onUploadError("图片压缩失败");
                     return;
@@ -93,43 +91,4 @@ public class AvatarUploadApi {
         });
     }
 
-    private static InputStream compressImage(Context context, Uri imageUri) {
-        try {
-            InputStream is = context.getContentResolver().openInputStream(imageUri);
-            BitmapFactory.Options bounds = new BitmapFactory.Options();
-            bounds.inJustDecodeBounds = true;
-            BitmapFactory.decodeStream(is, null, bounds);
-            is.close();
-
-            int sampleSize = 1;
-            int halfW = bounds.outWidth / 2;
-            int halfH = bounds.outHeight / 2;
-            while ((halfW / sampleSize) >= MAX_DIMENSION && (halfH / sampleSize) >= MAX_DIMENSION) {
-                sampleSize *= 2;
-            }
-
-            is = context.getContentResolver().openInputStream(imageUri);
-            BitmapFactory.Options opts = new BitmapFactory.Options();
-            opts.inSampleSize = sampleSize;
-            opts.inPreferredConfig = Bitmap.Config.ARGB_8888;
-            Bitmap bitmap = BitmapFactory.decodeStream(is, null, opts);
-            is.close();
-            if (bitmap == null) return null;
-
-            if (bitmap.getWidth() > MAX_DIMENSION || bitmap.getHeight() > MAX_DIMENSION) {
-                float scale = Math.min((float) MAX_DIMENSION / bitmap.getWidth(), (float) MAX_DIMENSION / bitmap.getHeight());
-                Bitmap scaled = Bitmap.createScaledBitmap(bitmap, Math.round(bitmap.getWidth() * scale), Math.round(bitmap.getHeight() * scale), true);
-                bitmap.recycle();
-                bitmap = scaled;
-            }
-
-            ByteArrayOutputStream baos = new ByteArrayOutputStream();
-            bitmap.compress(Bitmap.CompressFormat.JPEG, JPEG_QUALITY, baos);
-            bitmap.recycle();
-            return new ByteArrayInputStream(baos.toByteArray());
-        } catch (Exception e) {
-            Log.e(TAG, "compressImage failed", e);
-            return null;
-        }
-    }
 }

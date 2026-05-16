@@ -100,9 +100,12 @@ public class AuthApiClient {
         void onError(String message);
     }
 
-    public interface InventoryMutationCallback {
+    public interface MutationCallback {
         void onSuccess();
         void onError(String message);
+    }
+
+    public interface InventoryMutationCallback extends MutationCallback {
     }
 
     public interface ImageUploadCallback {
@@ -131,9 +134,7 @@ public class AuthApiClient {
         void onError(String message);
     }
 
-    public interface RecipeMutationCallback {
-        void onSuccess();
-        void onError(String message);
+    public interface RecipeMutationCallback extends MutationCallback {
     }
 
     public interface CookCallback {
@@ -156,9 +157,7 @@ public class AuthApiClient {
         void onError(String message);
     }
 
-    public interface SharedPlanMutationCallback {
-        void onSuccess();
-        void onError(String message);
+    public interface SharedPlanMutationCallback extends MutationCallback {
     }
 
     public interface TodoListCallback {
@@ -171,9 +170,7 @@ public class AuthApiClient {
         void onError(String message);
     }
 
-    public interface RestaurantMutationCallback {
-        void onSuccess();
-        void onError(String message);
+    public interface RestaurantMutationCallback extends MutationCallback {
     }
 
     private interface RawCallback {
@@ -1106,18 +1103,18 @@ public class AuthApiClient {
     public static void createSharedPlan(Context context, AuthApiModels.CreateSharedPlanRequest request, SharedPlanMutationCallback callback) {
         doRequest(context, "POST", "/api/shared-plans",
                 GSON.toJson(request),
-                sharedPlanMutationCallback("创建共同计划", callback));
+                simpleMutationCallback("创建共同计划", callback));
     }
 
     public static void adjustSharedPlan(Context context, int planId, AuthApiModels.AdjustSharedPlanRequest request, SharedPlanMutationCallback callback) {
         doRequest(context, "POST", "/api/shared-plans/" + planId + "/adjust",
                 GSON.toJson(request),
-                sharedPlanMutationCallback("调整共同计划", callback));
+                simpleMutationCallback("调整共同计划", callback));
     }
     public static void deleteSharedPlan(Context context, int planId, int userId, SharedPlanMutationCallback callback) {
         doRequest(context, "DELETE", "/api/shared-plans/" + planId + "?userId=" + userId,
                 null,
-                sharedPlanMutationCallback("删除共同计划", callback));
+                simpleMutationCallback("删除共同计划", callback));
     }
 
     public static void queryTodos(Context context, int userId, TodoListCallback callback) {
@@ -1458,85 +1455,7 @@ public class AuthApiClient {
         };
     }
 
-    private static RawCallback simpleMutationCallback(String operation, InventoryMutationCallback callback) {
-        return new RawCallback() {
-            @Override
-            public void onSuccess(String json) {
-                if (callback != null) {
-                    try {
-                        AuthApiModels.SimpleResponse response = GSON.fromJson(normalizeJsonPayload(json), AuthApiModels.SimpleResponse.class);
-                        if (response != null && response.ok) {
-                            callback.onSuccess();
-                        } else {
-                            callback.onError(extractError(response != null ? response.error : null, json));
-                        }
-                    } catch (Exception e) {
-                        Log.e(TAG, operation + "响应解析失败: " + json, e);
-                        callback.onError(buildParseError(operation, json));
-                    }
-                }
-            }
-
-            @Override
-            public void onError(String message) {
-                if (callback != null) callback.onError(message);
-            }
-        };
-    }
-
-    private static RawCallback simpleMutationCallback(String operation, RecipeMutationCallback callback) {
-        return new RawCallback() {
-            @Override
-            public void onSuccess(String json) {
-                if (callback != null) {
-                    try {
-                        AuthApiModels.SimpleResponse response = GSON.fromJson(normalizeJsonPayload(json), AuthApiModels.SimpleResponse.class);
-                        if (response != null && response.ok) {
-                            callback.onSuccess();
-                        } else {
-                            callback.onError(extractError(response != null ? response.error : null, json));
-                        }
-                    } catch (Exception e) {
-                        Log.e(TAG, operation + "响应解析失败: " + json, e);
-                        callback.onError(buildParseError(operation, json));
-                    }
-                }
-            }
-
-            @Override
-            public void onError(String message) {
-                if (callback != null) callback.onError(message);
-            }
-        };
-    }
-
-    private static RawCallback sharedPlanMutationCallback(String operation, SharedPlanMutationCallback callback) {
-        return new RawCallback() {
-            @Override
-            public void onSuccess(String json) {
-                if (callback != null) {
-                    try {
-                        AuthApiModels.SimpleResponse response = GSON.fromJson(normalizeJsonPayload(json), AuthApiModels.SimpleResponse.class);
-                        if (response != null && response.ok) {
-                            callback.onSuccess();
-                        } else {
-                            callback.onError(extractError(response != null ? response.error : null, json));
-                        }
-                    } catch (Exception e) {
-                        Log.e(TAG, operation + "响应解析失败: " + json, e);
-                        callback.onError(buildParseError(operation, json));
-                    }
-                }
-            }
-
-            @Override
-            public void onError(String message) {
-                if (callback != null) callback.onError(message);
-            }
-        };
-    }
-
-    private static RawCallback simpleMutationCallback(String operation, RestaurantMutationCallback callback) {
+    private static RawCallback simpleMutationCallback(final String operation, final MutationCallback callback) {
         return new RawCallback() {
             @Override
             public void onSuccess(String json) {

@@ -11,6 +11,7 @@ import android.widget.Toast;
 import androidx.annotation.NonNull;
 import androidx.core.content.ContextCompat;
 import androidx.core.widget.ImageViewCompat;
+import androidx.recyclerview.widget.DiffUtil;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.example.couplecredit.R;
@@ -172,8 +173,31 @@ public class ChatMessageAdapter extends RecyclerView.Adapter<ChatMessageAdapter.
      * @param newMessages 新的消息列表
      */
     public void updateMessages(List<ChatMessage> newMessages) {
+        if (messages == null || messages.isEmpty()) {
+            this.messages = newMessages;
+            notifyDataSetChanged();
+            return;
+        }
+        List<ChatMessage> oldMessages = this.messages;
         this.messages = newMessages;
-        notifyDataSetChanged();
+        DiffUtil.calculateDiff(new DiffUtil.Callback() {
+            @Override public int getOldListSize() { return oldMessages.size(); }
+            @Override public int getNewListSize() { return newMessages.size(); }
+            @Override public boolean areItemsTheSame(int oldPos, int newPos) {
+                ChatMessage o = oldMessages.get(oldPos), n = newMessages.get(newPos);
+                if (o == null || n == null) return o == n;
+                if (o.isAiExtraction() && n.isAiExtraction()) return o.getExtractionId() == n.getExtractionId();
+                return o.getContent() != null && o.getContent().equals(n.getContent())
+                    && o.getTimestamp() == n.getTimestamp()
+                    && o.getUserId() == n.getUserId();
+            }
+            @Override public boolean areContentsTheSame(int oldPos, int newPos) {
+                ChatMessage o = oldMessages.get(oldPos), n = newMessages.get(newPos);
+                if (o == null || n == null) return o == n;
+                if (o.isAiExtraction() || n.isAiExtraction()) return o.isExtractionConfirmed() == n.isExtractionConfirmed();
+                return o.equals(n);
+            }
+        }).dispatchUpdatesTo(this);
     }
 
     public ChatMessage getMessageAt(int position) {
@@ -282,6 +306,7 @@ public class ChatMessageAdapter extends RecyclerView.Adapter<ChatMessageAdapter.
             View btnConfirm = itemView.findViewById(R.id.btn_confirm);
             View btnEdit = itemView.findViewById(R.id.btn_edit);
             View btnDismiss = itemView.findViewById(R.id.btn_dismiss);
+            TextView tvConfirmed = itemView.findViewById(R.id.tv_confirmed_badge);
 
             String type = message.getExtractionType();
             int color;
@@ -296,20 +321,35 @@ public class ChatMessageAdapter extends RecyclerView.Adapter<ChatMessageAdapter.
                 color = 0xFFF59E0B;
                 label = "AI 识别到一条待办";
             }
+
+            boolean confirmed = message.isExtractionConfirmed();
+            if (confirmed) {
+                label += " · 已记录";
+                color = 0xFF9CA3AF;
+            }
+
             if (typeIndicator != null) typeIndicator.setBackgroundColor(color);
             if (tvTypeLabel != null) tvTypeLabel.setText(label);
             if (tvSummary != null) tvSummary.setText(message.getExtractionSummary());
 
-            int extractionId = message.getExtractionId();
-            if (btnConfirm != null) btnConfirm.setOnClickListener(v -> {
-                if (aiExtractionListener != null) aiExtractionListener.onConfirm(extractionId);
-            });
-            if (btnDismiss != null) btnDismiss.setOnClickListener(v -> {
-                if (aiExtractionListener != null) aiExtractionListener.onDismiss(extractionId);
-            });
-            if (btnEdit != null) btnEdit.setOnClickListener(v -> {
-                if (aiExtractionListener != null) aiExtractionListener.onEdit(extractionId, message.getExtractionType(), message.getExtractionData());
-            });
+            int buttonVisibility = confirmed ? View.GONE : View.VISIBLE;
+            if (btnConfirm != null) btnConfirm.setVisibility(buttonVisibility);
+            if (btnEdit != null) btnEdit.setVisibility(buttonVisibility);
+            if (btnDismiss != null) btnDismiss.setVisibility(buttonVisibility);
+            if (tvConfirmed != null) tvConfirmed.setVisibility(confirmed ? View.VISIBLE : View.GONE);
+
+            if (!confirmed) {
+                int extractionId = message.getExtractionId();
+                if (btnConfirm != null) btnConfirm.setOnClickListener(v -> {
+                    if (aiExtractionListener != null) aiExtractionListener.onConfirm(extractionId);
+                });
+                if (btnDismiss != null) btnDismiss.setOnClickListener(v -> {
+                    if (aiExtractionListener != null) aiExtractionListener.onDismiss(extractionId);
+                });
+                if (btnEdit != null) btnEdit.setOnClickListener(v -> {
+                    if (aiExtractionListener != null) aiExtractionListener.onEdit(extractionId, message.getExtractionType(), message.getExtractionData());
+                });
+            }
         }
 
         /**
@@ -387,7 +427,7 @@ public class ChatMessageAdapter extends RecyclerView.Adapter<ChatMessageAdapter.
         }
         
         if (hasUpdates) {
-            notifyDataSetChanged();
+            notifyItemRangeChanged(0, messages.size());
         }
     }
 }

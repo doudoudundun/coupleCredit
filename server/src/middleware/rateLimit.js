@@ -30,4 +30,14 @@ const strictLimiter = rateLimit({
   },
 });
 
-module.exports = { standardLimiter, authLimiter, strictLimiter };
+const aiLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 15,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (_req, res) => {
+    res.status(429).json({ ok: false, error: { code: "RATE_LIMITED", message: "AI 请求过于频繁，请稍后再试" } });
+  },
+});
+
+module.exports = { standardLimiter, authLimiter, strictLimiter, aiLimiter };

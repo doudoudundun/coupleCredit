@@ -11,6 +11,7 @@ const { cache, Keys, TTL } = require("../cache");
 const { trimValue, parseRequiredInteger, loadActiveRelationship } = require("../utils/queryHelpers");
 const { processBeadImage } = require("../utils/beadImageProcessor");
 const { convertToBeadImage } = require("../utils/beadConverter");
+const { buildAiProviderConfig, callAiWithFallback, callAiApi, extractAiResponseText, extractContentPartText } = require("../utils/aiClient");
 
 const BEAD_COLOR_CODES = new Set(BEAD_COLORS.map(color => color.colorCode));
 const DEFAULT_THRESHOLD = 200;
@@ -126,7 +127,7 @@ function mapBlueprintSummaryRow(row) {
   };
 }
 
-function createBeadRouter({ pool }) {
+function createBeadRouter({ pool, aiLimiter }) {
   const router = express.Router();
   const initializedUsers = new Map();
   const INIT_TTL = 3600_000;
@@ -775,7 +776,7 @@ function createBeadRouter({ pool }) {
     }
   });
 
-  router.post("/recognize-colors", async (req, res, next) => {
+  router.post("/recognize-colors", aiLimiter, async (req, res, next) => {
     try {
       const { imageUrl } = req.body;
       if (!imageUrl || typeof imageUrl !== "string" || imageUrl.trim().length === 0) {
@@ -926,7 +927,7 @@ M03 15`;
   });
 
   // POST /convert-to-bead — 将普通图片转换为拼豆方格图，下方附颜色说明
-  router.post("/convert-to-bead", async (req, res, next) => {
+  router.post("/convert-to-bead", aiLimiter, async (req, res, next) => {
     try {
       const { imageUrl } = req.body;
       if (!imageUrl || typeof imageUrl !== "string" || imageUrl.trim().length === 0) {
@@ -1041,28 +1042,6 @@ function downloadImageAsBuffer(imageUrl) {
   });
 }
 
-function buildAiProviderConfig(envPrefix, defaultBaseUrl, defaultModel) {
-  return {
-    apiKey: process.env[`${envPrefix}_API_KEY`],
-    baseUrl: process.env[`${envPrefix}_BASE_URL`] || defaultBaseUrl || null,
-    model: process.env[`${envPrefix}_MODEL`] || defaultModel
-  };
-}
-
-async function callAiWithFallback(payload, primaryProvider, fallbackProvider) {
-  const primaryPayload = { ...payload, model: primaryProvider.model };
-  try {
-    return await callAiApi(primaryProvider.baseUrl, primaryProvider.apiKey, primaryPayload);
-  } catch (primaryError) {
-    if (!fallbackProvider || !fallbackProvider.apiKey || !fallbackProvider.baseUrl) {
-      throw primaryError;
-    }
-    console.warn(`Primary AI recognition failed (${primaryError.message}), trying fallback provider`);
-    const fallbackPayload = { ...payload, model: fallbackProvider.model };
-    return callAiApi(fallbackProvider.baseUrl, fallbackProvider.apiKey, fallbackPayload);
-  }
-}
-
 function parseRecognizedColors(text) {
   const results = [];
   const merged = new Map();
@@ -1091,60 +1070,20 @@ function parseRecognizedColors(text) {
   return results;
 }
 
-function extractAiResponseText(aiResult) {
-  const content = aiResult && aiResult.choices && aiResult.choices[0] && aiResult.choices[0].message
-    ? aiResult.choices[0].message.content
-    : "";
-
-  if (typeof content === "string") {
-    return content;
-  }
-
-  if (Array.isArray(content)) {
-    return content.map(extractContentPartText).filter(Boolean).join("\n");
-  }
-
-  if (content && typeof content === "object") {
-    if (typeof content.text === "string") return content.text;
-    return JSON.stringify(content);
-  }
-
-  return "";
-}
-
-function extractContentPartText(part) {
-  if (typeof part === "string") return part;
-  if (!part || typeof part !== "object") return "";
-  if (typeof part.text === "string") return part.text;
-  if (Array.isArray(part.content)) {
-    return part.content.map(extractContentPartText).filter(Boolean).join("\n");
-  }
-  return "";
-}
-
 function preprocessRecognitionText(text) {
   let output = String(text || "");
-
   const codeBlocks = Array.from(output.matchAll(/```(?:[a-zA-Z0-9_-]+)?\s*([\s\S]*?)```/g)).map(match => match[1]);
-  if (codeBlocks.length > 0) {
-    output = codeBlocks.join("\n");
-  }
+  if (codeBlocks.length > 0) output = codeBlocks.join("\n");
 
   output = output
-    .replace(/[：]/g, ":")
-    .replace(/[，]/g, ",")
-    .replace(/[×✕✖]/g, "x")
-    .replace(/\r/g, "\n")
-    .replace(/\t/g, " ")
-    .replace(/[•·]/g, "-");
+    .replace(/[：]/g, ":").replace(/[，]/g, ",").replace(/[×✕✖]/g, "x")
+    .replace(/\r/g, "\n").replace(/\t/g, " ").replace(/[•·]/g, "-");
 
-  output = output
-    .split("\n")
-    .map((line) => line.trim())
-    .map((line) => line.replace(/^[-*+]+\s+/, ""))
-    .map((line) => line.replace(/^\d+[.)、]\s+/, ""))
+  output = output.split("\n")
+    .map(line => line.trim())
+    .map(line => line.replace(/^[-*+]+\s+/, ""))
+    .map(line => line.replace(/^\d+[.)、]\s+/, ""))
     .join("\n");
-
   return output;
 }
 
@@ -1152,22 +1091,14 @@ function normalizeRecognitionLine(line) {
   if (!line) return "";
   let normalized = line.trim();
   if (!normalized) return "";
-
   normalized = normalized
-    .replace(/[：]/g, ":")
-    .replace(/[，]/g, ",")
-    .replace(/[×✕✖]/g, "x")
-    .replace(/^\|+/, "")
-    .replace(/\|+$/, "")
-    .replace(/\|/g, " ")
-    .replace(/^[-*+]+\s+/, "")
-    .replace(/^\d+[.)、]\s+/, "")
+    .replace(/[：]/g, ":").replace(/[，]/g, ",").replace(/[×✕✖]/g, "x")
+    .replace(/^\|+/, "").replace(/\|+$/, "").replace(/\|/g, " ")
+    .replace(/^[-*+]+\s+/, "").replace(/^\d+[.)、]\s+/, "")
     .replace(/([A-HM]\d{1,2})\s*[xX]\s*(\d+)/gi, "$1 $2")
     .replace(/([A-HM]\d{1,2})\s*[,，]\s*(\d+)/gi, "$1 $2")
-    .replace(/\s*[:=]\s*/g, " ")
-    .replace(/\s+[xX]\s+/g, " ")
+    .replace(/\s*[:=]\s*/g, " ").replace(/\s+[xX]\s+/g, " ")
     .replace(/\s+/g, " ");
-
   return normalized;
 }
 
@@ -1177,49 +1108,6 @@ function isUnableToRecognizeOnly(text) {
     .replace(/[\s\.,，。!！?？:：;；\-_/|]+/g, "")
     .toUpperCase();
   return normalized === "UNABLETORECOGNIZE";
-}
-
-function resolveChatApiUrl(baseUrl) {
-  const trimmed = String(baseUrl || "").replace(/\/$/, "");
-  if (trimmed.endsWith("/chat/completions")) return trimmed;
-  if (trimmed.endsWith("/v1")) return `${trimmed}/chat/completions`;
-  return `${trimmed}/v1/chat/completions`;
-}
-
-function callAiApi(baseUrl, apiKey, payload) {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 120000);
-
-  return fetch(resolveChatApiUrl(baseUrl), {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${apiKey}`
-    },
-    body: JSON.stringify(payload),
-    signal: controller.signal
-  }).then(async (res) => {
-    const data = await res.text();
-    if (!res.ok) {
-      const preview = data.substring(0, 300).replace(/\s+/g, " ");
-      throw new ApiError(502, "AI_API_ERROR", `AI API HTTP ${res.status}: ${preview}`);
-    }
-    try {
-      return JSON.parse(data);
-    } catch (_e) {
-      const preview = data.substring(0, 200).replace(/\s+/g, " ");
-      throw new ApiError(502, "AI_API_ERROR", `AI API response parse error: ${preview}`);
-    }
-  }).catch((error) => {
-    if (error && error.name === "AbortError") {
-      throw new ApiError(504, "AI_API_TIMEOUT", "AI API request timeout");
-    }
-    throw error instanceof ApiError
-      ? error
-      : new ApiError(502, "AI_API_ERROR", `AI API request failed: ${error.message}`);
-  }).finally(() => {
-    clearTimeout(timeoutId);
-  });
 }
 
 module.exports = {
