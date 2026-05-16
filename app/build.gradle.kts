@@ -29,13 +29,8 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
-        buildConfigField("String", "PRIVATE_DB_HOST", "\"${localConfig("PRIVATE_DB_HOST")}\"")
-        buildConfigField("String", "PRIVATE_DB_PORT", "\"${localConfig("PRIVATE_DB_PORT", "3306")}\"")
-        buildConfigField("String", "PRIVATE_DB_NAME", "\"${localConfig("PRIVATE_DB_NAME", "couple_credit_private")}\"")
-        buildConfigField("String", "PRIVATE_DB_USER", "\"${localConfig("PRIVATE_DB_USER", "couple_app")}\"")
-        buildConfigField("String", "PRIVATE_DB_PASSWORD", "\"${localConfig("PRIVATE_DB_PASSWORD")}\"")
-        buildConfigField("String", "PRIVATE_API_BASE_URL", "\"${localConfig("PRIVATE_API_BASE_URL", "https://74bc04858f3e63.lhr.life")}\"")
-        buildConfigField("String", "PRIVATE_API_INVITE_CODE", "\"${localConfig("PRIVATE_API_INVITE_CODE", "COUPLE-PRIVATE-2026")}\"")
+        buildConfigField("String", "PRIVATE_API_BASE_URL", "\"${localConfig("PRIVATE_API_BASE_URL")}\"")
+        buildConfigField("String", "PRIVATE_API_INVITE_CODE", "\"${localConfig("PRIVATE_API_INVITE_CODE")}\"")
     }
 
     buildTypes {
@@ -110,6 +105,10 @@ dependencies {
 
     // Firebase Cloud Messaging
     implementation("com.google.firebase:firebase-messaging:24.1.1")
+
+    // JPush (极光推送)
+    implementation("cn.jiguang.sdk:jpush:5.3.2")
+    implementation("cn.jiguang.sdk:jcore:3.9.5")
 }
 
 if (file("google-services.json").exists()) {

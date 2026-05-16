@@ -20,6 +20,7 @@ docs/superpowers/
 server/node_modules/
 server/.env
 server/firebase-service-account.json
+server/launchd/
 app/google-services.json
 server/uploads/
 db_backup_*
