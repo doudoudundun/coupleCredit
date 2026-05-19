@@ -9,7 +9,6 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
-    <uses-permission android:name="android.permission.VIBRATE" />
 
     <application
         android:name=".MyApplication"
@@ -75,8 +74,8 @@
             android:label="购物车"
             android:parentActivityName=".activity.MainActivity" />
         <activity
-            android:name=".activity.ToastDemoActivity"
-            android:label="自定义Toast演示"
+            android:name=".activity.CalorieActivity"
+            android:label="热量管理"
             android:parentActivityName=".activity.MainActivity" />
 
         <provider
@@ -97,15 +96,10 @@
             </intent-filter>
         </service>
 
-        <!-- JPush 极光推送 -->
-        <meta-data
-            android:name="JPUSH_APPKEY"
-            android:value="92cd7d5a01d7d114ffba5031"
-            tools:replace="android:value" />
-        <meta-data
-            android:name="JPUSH_CHANNEL"
-            android:value="developer-default"
-            tools:replace="android:value" />
+        <!-- JPush 自定义 Receiver -->
+        <service
+            android:name="cn.jpush.android.service.JCommonService"
+            android:exported="false" />
         <service
             android:name=".JPushService"
             android:exported="false">
@@ -117,19 +111,14 @@
                 <category android:name="com.example.couplecredit" />
             </intent-filter>
         </service>
-        <receiver
-            android:name="cn.jpush.android.service.PushReceiver"
-            android:exported="false"
-            tools:ignore="ExportedReceiver">
-            <intent-filter android:priority="1000">
-                <action android:name="cn.jpush.android.intent.NOTIFICATION_RECEIVED_PROXY" />
-                <category android:name="com.example.couplecredit" />
-            </intent-filter>
-            <intent-filter>
-                <action android:name="android.intent.action.USER_PRESENT" />
-                <action android:name="android.net.conn.CONNECTIVITY_CHANGE" />
-            </intent-filter>
-        </receiver>
+
+        <!-- JPush 配置（其余由 jiguang module 自动合并） -->
+        <meta-data
+            android:name="JPUSH_APPKEY"
+            android:value="${JPUSH_APPKEY}" />
+        <meta-data
+            android:name="JPUSH_CHANNEL"
+            android:value="${JPUSH_CHANNEL}" />
 
     </application>
 

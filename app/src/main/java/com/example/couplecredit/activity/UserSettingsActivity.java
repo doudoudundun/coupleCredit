@@ -7,6 +7,7 @@ import android.content.Context;
 import android.net.Uri;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
@@ -380,10 +381,20 @@ public class UserSettingsActivity extends AppCompatActivity {
      * 显示注销确认对话框
      */
     private void showLogoutDialog() {
+        View dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_password_confirm, null);
+        EditText etPassword = dialogView.findViewById(R.id.et_password_confirm);
         new AlertDialog.Builder(this)
                 .setTitle("确认注销")
-                .setMessage("注销后将删除您的所有数据，此操作不可恢复。确定要注销吗？")
-                .setPositiveButton("确定", (dialog, which) -> performLogout())
+                .setMessage("注销后将删除您的所有数据，此操作不可恢复。请输入密码确认：")
+                .setView(dialogView)
+                .setPositiveButton("确定", (dialog, which) -> {
+                    String password = etPassword.getText().toString().trim();
+                    if (password.isEmpty()) {
+                        Toast.makeText(this, "请输入密码", Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                    performLogout(password);
+                })
                 .setNegativeButton("取消", null)
                 .show();
     }
@@ -435,18 +446,16 @@ public class UserSettingsActivity extends AppCompatActivity {
     /**
      * 执行注销操作
      */
-    private void performLogout() {
+    private void performLogout(String password) {
         if (username == null || username.isEmpty()) {
             Toast.makeText(this, "用户信息异常，无法注销", Toast.LENGTH_SHORT).show();
             return;
         }
-        
-        // 显示进度提示
+
         Toast.makeText(this, "正在注销账户...", Toast.LENGTH_SHORT).show();
 
-        // 通过 HTTP API 删除用户账户
         int userIdInt = Integer.parseInt(userId);
-        AuthApiClient.deleteAccount(this, userIdInt, new AuthApiClient.SimpleCallback() {
+        AuthApiClient.deleteAccount(this, userIdInt, password, new AuthApiClient.SimpleCallback() {
             @Override
             public void onSuccess() {
                 runOnUiThread(() -> {

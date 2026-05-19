@@ -47,6 +47,15 @@
                 android:textSize="12sp"
                 android:textColor="#07C160"
                 android:layout_marginTop="4dp" />
+
+            <TextView
+                android:id="@+id/tv_cart_calories"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:text="热量待补"
+                android:textColor="#999999"
+                android:textSize="11sp" />
         </LinearLayout>
 
         <TextView

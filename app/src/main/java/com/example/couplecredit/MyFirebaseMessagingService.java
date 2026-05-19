@@ -31,8 +31,8 @@ public class MyFirebaseMessagingService extends FirebaseMessagingService {
             title = message.getNotification().getTitle();
             body = message.getNotification().getBody();
         }
-        if (title == null) title = "待办提醒";
-        if (body == null) body = "你有新的待办提醒";
+        if (title == null) title = "CoupleCredit";
+        if (body == null) body = "你收到一条新消息";
 
         int notificationId = (int) (System.currentTimeMillis() % Integer.MAX_VALUE);
         Intent intent = new Intent(this, MainActivity.class);

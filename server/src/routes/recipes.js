@@ -1,15 +1,39 @@
 const express = require("express");
 const { ApiError } = require("../errors");
 const { cache, Keys, TTL } = require("../cache");
-const { loadActiveRelationship, trimValue, parseRequiredInteger } = require("../utils/queryHelpers");
+const { loadActiveRelationship, trimValue, parseRequiredInteger, invalidateForUser } = require("../utils/queryHelpers");
+
+const SOURCE_MANUAL = "manual";
+const SOURCE_AUTO = "auto";
+const MEAL_COOK = "cook";
 
 function createRecipeRouter({ pool }) {
   const router = express.Router();
 
-  function invalidateRecipeCache(userId) {
-    cache.del(Keys.recipes(userId));
-    cache.del(Keys.recipeCategories(userId));
-    cache.delPrefix(Keys.recipeRecommend(userId));
+  async function invalidateRecipeCache(userId, relationship) {
+    const ids = new Set([userId]);
+    if (relationship) {
+      ids.add(relationship.user_id_1);
+      ids.add(relationship.user_id_2);
+    }
+    for (const id of ids) {
+      cache.del(Keys.recipes(id));
+      cache.del(Keys.recipeCategories(id));
+      cache.delPrefix(Keys.recipeRecommend(id));
+    }
+    invalidateForUser(cache, Keys.calorieToday, userId, relationship || null);
+    for (const id of ids) {
+      cache.delPrefix(Keys.calorieHistoryByUser(id));
+    }
+  }
+
+  function normalizeManualCalories(value) {
+    if (value === undefined || value === null || value === "") return null;
+    const number = Number(value);
+    if (!Number.isFinite(number) || number < 0) {
+      throw new ApiError(400, "INVALID_REQUEST", "热量参数格式不正确");
+    }
+    return number;
   }
 
   async function replaceRecipeIngredients(recipeId, ingredients) {
@@ -23,6 +47,87 @@ function createRecipeRouter({ pool }) {
       `INSERT INTO recipe_ingredients (recipe_id, inventory_id, ingredient_name, quantity, unit) VALUES ${placeholders}`,
       params
     );
+  }
+
+  async function calculateRecipeCalories(recipeId) {
+    const [ingredients] = await pool.execute(
+      `SELECT ingredient_name, quantity, unit FROM recipe_ingredients WHERE recipe_id = ?`,
+      [recipeId]
+    );
+    if (!ingredients.length) {
+      return null;
+    }
+
+    const names = ingredients.map(i => i.ingredient_name);
+    const placeholders = names.map(() => "?").join(",");
+    const [nutritionRows] = await pool.execute(
+      `SELECT name, calories_per_unit, unit FROM ingredient_nutrition WHERE name IN (${placeholders})`,
+      names
+    );
+    const nutritionByIngredient = {};
+    for (const row of nutritionRows) {
+      nutritionByIngredient[row.name] = row;
+    }
+
+    let total = 0;
+    for (const ingredient of ingredients) {
+      const nutrition = nutritionByIngredient[ingredient.ingredient_name];
+      if (!nutrition) return null;
+      if ((nutrition.unit || "").trim() !== (ingredient.unit || "").trim()) {
+        return null;
+      }
+      total += (Number(ingredient.quantity) || 0) * Number(nutrition.calories_per_unit);
+    }
+
+    return {
+      totalCalories: Number(total.toFixed(2)),
+      calorieSource: SOURCE_AUTO
+    };
+  }
+
+  async function applyRecipeCalories(recipeId, manualCalories) {
+    if (manualCalories != null) {
+      await pool.execute(
+        `UPDATE recipes SET total_calories = ?, calorie_source = '${SOURCE_MANUAL}' WHERE recipe_id = ?`,
+        [manualCalories, recipeId]
+      );
+      return;
+    }
+
+    const autoCalories = await calculateRecipeCalories(recipeId);
+    if (autoCalories) {
+      await pool.execute(
+        `UPDATE recipes SET total_calories = ?, calorie_source = ? WHERE recipe_id = ?`,
+        [autoCalories.totalCalories, autoCalories.calorieSource, recipeId]
+      );
+    } else {
+      await pool.execute(
+        `UPDATE recipes SET total_calories = NULL, calorie_source = NULL WHERE recipe_id = ?`,
+        [recipeId]
+      );
+    }
+  }
+
+  async function insertCookMealRecord(recipeId, userId) {
+    const [rows] = await pool.execute(
+      `SELECT title, total_calories, calorie_source FROM recipes WHERE recipe_id = ? LIMIT 1`,
+      [recipeId]
+    );
+    if (!rows.length) return null;
+    const recipe = rows[0];
+    if (recipe.total_calories == null) return null;
+
+    const [result] = await pool.execute(
+      `INSERT INTO meal_records (user_id, meal_type, recipe_id, restaurant_id, title, calories, calorie_source, note, eaten_at, created_at)
+       VALUES (?, '${MEAL_COOK}', ?, NULL, ?, ?, ?, NULL, NOW(), NOW())`,
+      [userId, recipeId, recipe.title, Number(recipe.total_calories), recipe.calorie_source || SOURCE_MANUAL]
+    );
+    return {
+      recordId: result.insertId,
+      title: recipe.title,
+      calories: Number(recipe.total_calories),
+      calorieSource: recipe.calorie_source || "manual"
+    };
   }
 
   // GET /api/recipes?userId=
@@ -39,17 +144,21 @@ function createRecipeRouter({ pool }) {
       let query, params;
       if (relationshipId) {
         query = `SELECT r.recipe_id, r.user_id, r.category_id, r.title, r.description, r.image_url, r.steps,
+                 r.total_calories, r.calorie_source,
                  r.created_at, r.updated_at,
-                 (SELECT COUNT(*) FROM recipe_ingredients ri WHERE ri.recipe_id = r.recipe_id) AS ingredientCount
+                 COALESCE(ri_agg.cnt, 0) AS ingredientCount
                  FROM recipes r
+                 LEFT JOIN (SELECT recipe_id, COUNT(*) AS cnt FROM recipe_ingredients GROUP BY recipe_id) ri_agg ON ri_agg.recipe_id = r.recipe_id
                  WHERE r.relationship_id = ? OR (r.user_id = ? AND r.relationship_id IS NULL)
                  ORDER BY r.updated_at DESC`;
         params = [relationshipId, userId];
       } else {
         query = `SELECT r.recipe_id, r.user_id, r.category_id, r.title, r.description, r.image_url, r.steps,
+                 r.total_calories, r.calorie_source,
                  r.created_at, r.updated_at,
-                 (SELECT COUNT(*) FROM recipe_ingredients ri WHERE ri.recipe_id = r.recipe_id) AS ingredientCount
+                 COALESCE(ri_agg.cnt, 0) AS ingredientCount
                  FROM recipes r
+                 LEFT JOIN (SELECT recipe_id, COUNT(*) AS cnt FROM recipe_ingredients GROUP BY recipe_id) ri_agg ON ri_agg.recipe_id = r.recipe_id
                  WHERE r.user_id = ? AND r.relationship_id IS NULL
                  ORDER BY r.updated_at DESC`;
         params = [userId];
@@ -64,6 +173,8 @@ function createRecipeRouter({ pool }) {
         description: r.description,
         imageUrl: r.image_url,
         steps: r.steps,
+        totalCalories: r.total_calories !== null ? Number(r.total_calories) : null,
+        calorieSource: r.calorie_source,
         ingredientCount: r.ingredientCount,
         createdAt: r.created_at,
         updatedAt: r.updated_at
@@ -91,12 +202,12 @@ function createRecipeRouter({ pool }) {
 
       let recipeQuery, recipeParams;
       if (relationshipId) {
-        recipeQuery = `SELECT r.recipe_id, r.title, r.description, r.image_url, r.category_id
+        recipeQuery = `SELECT r.recipe_id, r.title, r.description, r.image_url, r.category_id, r.total_calories, r.calorie_source
                        FROM recipes r
                        WHERE r.relationship_id = ? OR (r.user_id = ? AND r.relationship_id IS NULL)`;
         recipeParams = [relationshipId, userId];
       } else {
-        recipeQuery = `SELECT r.recipe_id, r.title, r.description, r.image_url, r.category_id
+        recipeQuery = `SELECT r.recipe_id, r.title, r.description, r.image_url, r.category_id, r.total_calories, r.calorie_source
                        FROM recipes r WHERE r.user_id = ? AND r.relationship_id IS NULL`;
         recipeParams = [userId];
       }
@@ -145,6 +256,8 @@ function createRecipeRouter({ pool }) {
           description: r.description,
           imageUrl: r.image_url,
           categoryId: r.category_id,
+          totalCalories: r.total_calories !== null ? Number(r.total_calories) : null,
+          calorieSource: r.calorie_source,
           matchInfo: {
             total: recipeIngredients.length,
             matched: matched.length,
@@ -179,7 +292,7 @@ function createRecipeRouter({ pool }) {
       const recipeId = parseRequiredInteger(Number(req.params.id));
 
       const [rows] = await pool.execute(
-        `SELECT recipe_id, user_id, category_id, title, description, image_url, steps, created_at, updated_at
+        `SELECT recipe_id, user_id, category_id, title, description, image_url, steps, total_calories, calorie_source, created_at, updated_at
          FROM recipes WHERE recipe_id = ?`, [recipeId]);
       if (rows.length === 0) throw new ApiError(404, "NOT_FOUND", "菜谱不存在");
 
@@ -198,6 +311,8 @@ function createRecipeRouter({ pool }) {
           description: recipe.description,
           imageUrl: recipe.image_url,
           steps: recipe.steps,
+          totalCalories: recipe.total_calories !== null ? Number(recipe.total_calories) : null,
+          calorieSource: recipe.calorie_source,
           createdAt: recipe.created_at,
           updatedAt: recipe.updated_at,
           ingredients: ingredients.map(i => ({
@@ -217,6 +332,7 @@ function createRecipeRouter({ pool }) {
     try {
       const { userId, title, description, imageUrl, steps, ingredients, categoryId } = req.body;
       const parsedUserId = parseRequiredInteger(Number(userId));
+      const manualCalories = normalizeManualCalories(req.body.totalCalories);
       if (!title) throw new ApiError(400, "INVALID_REQUEST", "userId 和 title 必填");
 
       const relationship = await loadActiveRelationship(pool, parsedUserId);
@@ -231,8 +347,9 @@ function createRecipeRouter({ pool }) {
       const recipeId = result.insertId;
 
       await replaceRecipeIngredients(recipeId, ingredients);
+      await applyRecipeCalories(recipeId, manualCalories);
 
-      invalidateRecipeCache(parsedUserId);
+      await invalidateRecipeCache(parsedUserId, relationship);
       res.json({ ok: true, data: { recipeId } });
     } catch (error) { next(error); }
   });
@@ -243,6 +360,8 @@ function createRecipeRouter({ pool }) {
       const recipeId = parseRequiredInteger(Number(req.params.id));
       const { userId, title, description, imageUrl, steps, ingredients, categoryId } = req.body;
       const parsedUserId = parseRequiredInteger(Number(userId));
+      const manualCalories = normalizeManualCalories(req.body.totalCalories);
+      const relationship = await loadActiveRelationship(pool, parsedUserId);
 
       await pool.execute(
         `UPDATE recipes SET title = ?, description = ?, image_url = ?, steps = ?, category_id = ? WHERE recipe_id = ?`,
@@ -252,8 +371,9 @@ function createRecipeRouter({ pool }) {
       // Replace ingredients
       await pool.execute(`DELETE FROM recipe_ingredients WHERE recipe_id = ?`, [recipeId]);
       await replaceRecipeIngredients(recipeId, ingredients);
+      await applyRecipeCalories(recipeId, manualCalories);
 
-      invalidateRecipeCache(parsedUserId);
+      await invalidateRecipeCache(parsedUserId, relationship);
       res.json({ ok: true, message: "菜谱更新成功" });
     } catch (error) { next(error); }
   });
@@ -264,10 +384,11 @@ function createRecipeRouter({ pool }) {
       const recipeId = parseRequiredInteger(Number(req.params.id));
       const userId = parseRequiredInteger(Number(req.query.userId));
 
+      const relationship = await loadActiveRelationship(pool, userId);
       const [result] = await pool.execute(`DELETE FROM recipes WHERE recipe_id = ? AND user_id = ?`, [recipeId, userId]);
       if (result.affectedRows === 0) throw new ApiError(404, "NOT_FOUND", "菜谱不存在或无权删除");
 
-      invalidateRecipeCache(userId);
+      await invalidateRecipeCache(userId, relationship);
       res.json({ ok: true, message: "菜谱删除成功" });
     } catch (error) { next(error); }
   });
@@ -334,10 +455,11 @@ function createRecipeRouter({ pool }) {
         );
       }
 
-      invalidateRecipeCache(userId);
+      const mealRecord = await insertCookMealRecord(recipeId, userId);
+      await invalidateRecipeCache(userId, relationship);
       cache.del(Keys.inventory(userId));
       cache.delPrefix(`bills:${userId}:`);
-      res.json({ ok: true, data: { results, warnings } });
+      res.json({ ok: true, data: { results, warnings, mealRecord } });
     } catch (error) { next(error); }
   });
 

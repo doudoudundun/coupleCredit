@@ -631,6 +631,8 @@ public class AuthApiModels {
         public String description;
         public String imageUrl;
         public String steps;
+        public Double totalCalories;
+        public String calorieSource;
         public int ingredientCount;
         public String createdAt;
         public String updatedAt;
@@ -649,6 +651,8 @@ public class AuthApiModels {
         public String description;
         public String imageUrl;
         public String steps;
+        public Double totalCalories;
+        public String calorieSource;
         public String createdAt;
         public String updatedAt;
         public List<IngredientData> ingredients;
@@ -669,15 +673,17 @@ public class AuthApiModels {
         public String imageUrl;
         public String steps;
         public Integer categoryId;
+        public Double totalCalories;
         public java.util.List<IngredientData> ingredients;
 
-        public CreateRecipeRequest(int userId, String title, String description, String imageUrl, String steps, Integer categoryId, java.util.List<IngredientData> ingredients) {
+        public CreateRecipeRequest(int userId, String title, String description, String imageUrl, String steps, Integer categoryId, Double totalCalories, java.util.List<IngredientData> ingredients) {
             this.userId = userId;
             this.title = title;
             this.description = description;
             this.imageUrl = imageUrl;
             this.steps = steps;
             this.categoryId = categoryId;
+            this.totalCalories = totalCalories;
             this.ingredients = ingredients;
         }
     }
@@ -689,15 +695,17 @@ public class AuthApiModels {
         public String imageUrl;
         public String steps;
         public Integer categoryId;
+        public Double totalCalories;
         public java.util.List<IngredientData> ingredients;
 
-        public UpdateRecipeRequest(int userId, String title, String description, String imageUrl, String steps, Integer categoryId, java.util.List<IngredientData> ingredients) {
+        public UpdateRecipeRequest(int userId, String title, String description, String imageUrl, String steps, Integer categoryId, Double totalCalories, java.util.List<IngredientData> ingredients) {
             this.userId = userId;
             this.title = title;
             this.description = description;
             this.imageUrl = imageUrl;
             this.steps = steps;
             this.categoryId = categoryId;
+            this.totalCalories = totalCalories;
             this.ingredients = ingredients;
         }
     }
@@ -761,6 +769,8 @@ public class AuthApiModels {
         public String description;
         public String imageUrl;
         public Integer categoryId;
+        public Double totalCalories;
+        public String calorieSource;
         public MatchInfo matchInfo;
     }
 
@@ -987,6 +997,7 @@ public class AuthApiModels {
         public String imageUrl;
         public String routeImageUrl;
         public Double avgCost;
+        public Double defaultCalories;
         public Double distance;
         public String address;
         public String note;
@@ -1001,21 +1012,156 @@ public class AuthApiModels {
         public String imageUrl;
         public String routeImageUrl;
         public Double avgCost;
+        public Double defaultCalories;
         public Double distance;
         public String address;
         public String note;
 
-        public RestaurantRequest(int userId, String name, String category, String imageUrl, String routeImageUrl, Double avgCost, Double distance, String address, String note) {
+        public RestaurantRequest(int userId, String name, String category, String imageUrl, String routeImageUrl, Double avgCost, Double defaultCalories, Double distance, String address, String note) {
             this.userId = userId;
             this.name = name;
             this.category = category;
             this.imageUrl = imageUrl;
             this.routeImageUrl = routeImageUrl;
             this.avgCost = avgCost;
+            this.defaultCalories = defaultCalories;
             this.distance = distance;
             this.address = address;
             this.note = note;
         }
+    }
+
+    public static class CalorieSummaryResponse {
+        public boolean ok;
+        public CalorieSummaryData data;
+        public ErrorBody error;
+    }
+
+    public static class CalorieSummaryData {
+        public String date;
+        public double totalCalories;
+        public double dailyGoal;
+        public double progress;
+        public CalorieSourceTotals sourceTotals;
+        public List<CalorieUserSummary> userSummaries;
+        public Integer relationshipId;
+        public List<MealRecord> records;
+    }
+
+    public static class CalorieSourceTotals {
+        public double cook;
+        public double eatOut;
+        public double manual;
+    }
+
+    public static class CalorieUserSummary {
+        public int userId;
+        public String userName;
+        public double totalCalories;
+        public double dailyGoal;
+        public double progress;
+    }
+
+    public static class MealRecord {
+        public int id;
+        public int userId;
+        public String userName;
+        public String mealType;
+        public Integer recipeId;
+        public Integer restaurantId;
+        public String title;
+        public double calories;
+        public String calorieSource;
+        public String note;
+        public String eatenAt;
+        public String createdAt;
+    }
+
+    public static class MealRecordRequest {
+        public final int userId;
+        public final String mealType;
+        public final Integer recipeId;
+        public final Integer restaurantId;
+        public final String title;
+        public final double calories;
+        public final String calorieSource;
+        public final String note;
+        public final String eatenAt;
+
+        public MealRecordRequest(int userId, String mealType, Integer recipeId, Integer restaurantId, String title,
+                                 double calories, String calorieSource, String note, String eatenAt) {
+            this.userId = userId;
+            this.mealType = mealType;
+            this.recipeId = recipeId;
+            this.restaurantId = restaurantId;
+            this.title = title;
+            this.calories = calories;
+            this.calorieSource = calorieSource;
+            this.note = note;
+            this.eatenAt = eatenAt;
+        }
+    }
+
+    public static class CalorieGoalResponse {
+        public boolean ok;
+        public CalorieGoalData data;
+        public ErrorBody error;
+    }
+
+    public static class CalorieGoalData {
+        public int userId;
+        public double dailyGoal;
+        public String updatedAt;
+    }
+
+    public static class CalorieGoalRequest {
+        public final int userId;
+        public final double dailyGoal;
+
+        public CalorieGoalRequest(int userId, double dailyGoal) {
+            this.userId = userId;
+            this.dailyGoal = dailyGoal;
+        }
+    }
+
+    public static class NutritionItem {
+        public Integer id;
+        public String name;
+        public double caloriesPerUnit;
+        public String unit;
+        public String category;
+        public String createdAt;
+        public String updatedAt;
+
+        public NutritionItem() {
+        }
+
+        public NutritionItem(String name, double caloriesPerUnit, String unit, String category) {
+            this.name = name;
+            this.caloriesPerUnit = caloriesPerUnit;
+            this.unit = unit;
+            this.category = category;
+        }
+    }
+
+    public static class NutritionResponse {
+        public boolean ok;
+        public NutritionData data;
+        public ErrorBody error;
+    }
+
+    public static class NutritionData {
+        public NutritionItem item;
+    }
+
+    public static class NutritionSearchResponse {
+        public boolean ok;
+        public NutritionSearchData data;
+        public ErrorBody error;
+    }
+
+    public static class NutritionSearchData {
+        public List<NutritionItem> items;
     }
 
     public static class AiAnalyzeRequest {

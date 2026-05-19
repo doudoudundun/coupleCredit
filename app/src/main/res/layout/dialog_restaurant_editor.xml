@@ -80,6 +80,20 @@
         </LinearLayout>
 
         <EditText
+            android:id="@+id/et_default_calories"
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:layout_marginTop="10dp"
+            android:background="@drawable/input_background"
+            android:hint="默认人均热量(kcal)"
+            android:inputType="numberDecimal"
+            android:maxLines="1"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:textColor="#333333"
+            android:textSize="14sp" />
+
+        <EditText
             android:id="@+id/et_address"
             android:layout_width="match_parent"
             android:layout_height="44dp"

@@ -282,6 +282,7 @@ public class EatOutFragment extends Fragment implements RestaurantAdapter.Restau
         EditText etName = dialogView.findViewById(R.id.et_name);
         Spinner spinnerCategory = dialogView.findViewById(R.id.spinner_category);
         EditText etAvgCost = dialogView.findViewById(R.id.et_avg_cost);
+        EditText etDefaultCalories = dialogView.findViewById(R.id.et_default_calories);
         EditText etDistance = dialogView.findViewById(R.id.et_distance);
         EditText etAddress = dialogView.findViewById(R.id.et_address);
         ImageView ivImage = dialogView.findViewById(R.id.iv_image);
@@ -310,6 +311,7 @@ public class EatOutFragment extends Fragment implements RestaurantAdapter.Restau
             btnSave.setText("保存修改");
             etName.setText(existing.name);
             if (existing.avgCost != null) etAvgCost.setText(String.valueOf(existing.avgCost));
+            if (existing.defaultCalories != null) etDefaultCalories.setText(String.valueOf(existing.defaultCalories));
             if (existing.distance != null) etDistance.setText(String.valueOf(existing.distance));
             etAddress.setText(existing.address != null ? existing.address : "");
             etNote.setText(existing.note != null ? existing.note : "");
@@ -393,6 +395,13 @@ public class EatOutFragment extends Fragment implements RestaurantAdapter.Restau
             }
             final Double distance = distanceTemp;
 
+            Double defaultCaloriesTemp = null;
+            String defaultCaloriesStr = etDefaultCalories.getText().toString().trim();
+            if (!TextUtils.isEmpty(defaultCaloriesStr)) {
+                try { defaultCaloriesTemp = Double.parseDouble(defaultCaloriesStr); } catch (NumberFormatException ignored) {}
+            }
+            final Double defaultCalories = defaultCaloriesTemp;
+
             final String address = etAddress.getText().toString().trim();
             final String note = etNote.getText().toString().trim();
             final int userId = UserInfoManager.getCurrentUserId(requireContext());
@@ -415,18 +424,18 @@ public class EatOutFragment extends Fragment implements RestaurantAdapter.Restau
                 uploadAndContinue(dialog, pendingImageUrl, menuUploadUrl -> {
                     if (routeImageChanged && pendingRouteImageUrl != null) {
                         uploadAndContinue(dialog, pendingRouteImageUrl, routeUploadUrl -> {
-                            doSaveRestaurant(dialog, userId, name, category, menuUploadUrl, routeUploadUrl, avgCost, distance, address, note, existing);
+                            doSaveRestaurant(dialog, makeReq(userId, name, category, menuUploadUrl, routeUploadUrl, avgCost, defaultCalories, distance, address, note), existing);
                         });
                     } else {
-                        doSaveRestaurant(dialog, userId, name, category, menuUploadUrl, routeImageUrlFinal, avgCost, distance, address, note, existing);
+                        doSaveRestaurant(dialog, makeReq(userId, name, category, menuUploadUrl, routeImageUrlFinal, avgCost, defaultCalories, distance, address, note), existing);
                     }
                 });
             } else if (routeImageChanged && pendingRouteImageUrl != null) {
                 uploadAndContinue(dialog, pendingRouteImageUrl, routeUploadUrl -> {
-                    doSaveRestaurant(dialog, userId, name, category, menuImageUrl, routeUploadUrl, avgCost, distance, address, note, existing);
+                    doSaveRestaurant(dialog, makeReq(userId, name, category, menuImageUrl, routeUploadUrl, avgCost, defaultCalories, distance, address, note), existing);
                 });
             } else {
-                doSaveRestaurant(dialog, userId, name, category, menuImageUrl, routeImageUrlFinal, avgCost, distance, address, note, existing);
+                doSaveRestaurant(dialog, makeReq(userId, name, category, menuImageUrl, routeImageUrlFinal, avgCost, defaultCalories, distance, address, note), existing);
             }
         });
 
@@ -462,9 +471,12 @@ public class EatOutFragment extends Fragment implements RestaurantAdapter.Restau
         }
     }
 
-    private void doSaveRestaurant(AlertDialog dialog, int userId, String name, String category, String imageUrl, String routeImageUrl, Double avgCost, Double distance, String address, String note, AuthApiModels.RestaurantItemData existing) {
+    private AuthApiModels.RestaurantRequest makeReq(int userId, String name, String category, String imageUrl, String routeImageUrl, Double avgCost, Double defaultCalories, Double distance, String address, String note) {
+        return new AuthApiModels.RestaurantRequest(userId, name, category, imageUrl, routeImageUrl, avgCost, defaultCalories, distance, address, note);
+    }
+
+    private void doSaveRestaurant(AlertDialog dialog, AuthApiModels.RestaurantRequest req, AuthApiModels.RestaurantItemData existing) {
         if (existing == null) {
-            AuthApiModels.RestaurantRequest req = new AuthApiModels.RestaurantRequest(userId, name, category, imageUrl, routeImageUrl, avgCost, distance, address, note);
             AuthApiClient.createRestaurant(requireContext(), req, new AuthApiClient.RestaurantMutationCallback() {
                 @Override public void onSuccess() {
                     if (!isAdded()) return;
@@ -476,7 +488,6 @@ public class EatOutFragment extends Fragment implements RestaurantAdapter.Restau
                 }
             });
         } else {
-            AuthApiModels.RestaurantRequest req = new AuthApiModels.RestaurantRequest(userId, name, category, imageUrl, routeImageUrl, avgCost, distance, address, note);
             AuthApiClient.updateRestaurant(requireContext(), existing.restaurantId, req, new AuthApiClient.RestaurantMutationCallback() {
                 @Override public void onSuccess() {
                     if (!isAdded()) return;

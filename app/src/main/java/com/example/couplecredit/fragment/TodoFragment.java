@@ -391,28 +391,6 @@ public class TodoFragment extends Fragment implements TodoAdapter.TodoActionList
         });
     }
 
-    @Override
-    public void onRemindPartner(AuthApiModels.TodoItemData item) {
-        int userId = UserInfoManager.getCurrentUserId(requireContext());
-        AuthApiClient.remindPartner(requireContext(), item.todoId, userId, new AuthApiClient.SimpleCallback() {
-            @Override
-            public void onSuccess() {
-                if (!isAdded()) return;
-                requireActivity().runOnUiThread(() ->
-                        Toast.makeText(requireContext(), "已提醒伴侣完成「" + item.title + "」", Toast.LENGTH_SHORT).show()
-                );
-            }
-
-            @Override
-            public void onError(String message) {
-                if (!isAdded()) return;
-                requireActivity().runOnUiThread(() ->
-                        Toast.makeText(requireContext(), message, Toast.LENGTH_SHORT).show()
-                );
-            }
-        });
-    }
-
     private void showTodoDialog(@Nullable AuthApiModels.TodoItemData existing) {
         AlertDialog.Builder builder = new AlertDialog.Builder(requireContext(), R.style.CustomDialogStyle);
         View dialogView = LayoutInflater.from(requireContext()).inflate(R.layout.dialog_todo, null);

@@ -25,7 +25,7 @@ async function pushByRegIds(regIds, notification) {
         .setPlatform("android")
         .setAudience(JPush.registration_id(regIds))
         .setNotification(
-          JPush.android(notification.body, notification.title, 1)
+          JPush.android(notification.body, notification.title)
         )
         .send((err, res) => {
           if (err) {

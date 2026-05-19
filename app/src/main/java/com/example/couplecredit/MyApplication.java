@@ -33,8 +33,22 @@ public class MyApplication extends MultiDexApplication {
                     NotificationHelper.registerPushToken(this, regId, "jpush");
                 }
             }
+
+            // 延迟再试一次，等待 InitProvider 完成初始化
+            new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
+                try {
+                    if (!UserInfoManager.isUserLoggedIn(this)) return;
+                    String regId = JPushInterface.getRegistrationID(this);
+                    if (regId != null && !regId.isEmpty()) {
+                        Log.d(TAG, "JPush regId delayed: " + regId);
+                        NotificationHelper.registerPushToken(this, regId, "jpush");
+                    }
+                } catch (Throwable e) {
+                    Log.e(TAG, "JPush delayed check failed: " + e.getMessage());
+                }
+            }, 15000);
         } catch (Throwable e) {
-            Log.e(TAG, "JPush init failed: " + e.getMessage());
+            Log.e(TAG, "JPush setup failed: " + e.getMessage());
         }
     }
 

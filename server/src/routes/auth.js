@@ -157,6 +157,9 @@ function createAuthRouter({ pool, config, authLimiter, strictLimiter }) {
       const { userId, avatarUrl } = req.body;
       if (!userId || !avatarUrl) throw new ApiError(400, "INVALID_REQUEST", "userId 和 avatarUrl 必填");
 
+      const [rows] = await pool.execute("SELECT id FROM users WHERE id = ? LIMIT 1", [userId]);
+      if (rows.length === 0) throw new ApiError(404, "NOT_FOUND", "用户不存在");
+
       await pool.execute(`UPDATE users SET avatar = ? WHERE id = ?`, [avatarUrl, userId]);
       cache.del(Keys.profile(userId));
 
@@ -215,7 +218,11 @@ function createAuthRouter({ pool, config, authLimiter, strictLimiter }) {
       const { userId, nickname } = req.body;
       if (!userId) throw new ApiError(400, "INVALID_REQUEST", "userId 必填");
 
-      await pool.execute("UPDATE users SET nickname = ? WHERE id = ?", [nickname || null, userId]);
+      const [rows] = await pool.execute("SELECT id FROM users WHERE id = ? LIMIT 1", [userId]);
+      if (rows.length === 0) throw new ApiError(404, "NOT_FOUND", "用户不存在");
+
+      const [result] = await pool.execute("UPDATE users SET nickname = ? WHERE id = ?", [nickname || null, userId]);
+      if (result.affectedRows === 0) throw new ApiError(404, "NOT_FOUND", "昵称更新失败");
       cache.del(Keys.profile(userId));
       res.json({ ok: true, message: "昵称更新成功" });
     } catch (error) {
@@ -250,13 +257,22 @@ function createAuthRouter({ pool, config, authLimiter, strictLimiter }) {
   router.delete("/account", strictLimiter, async (req, res, next) => {
     try {
       const userId = parseInt(req.query.userId, 10);
+      const password = req.body?.password || req.query?.password;
       if (!userId || userId <= 0) throw new ApiError(400, "INVALID_REQUEST", "userId 参数无效");
+      if (!password) throw new ApiError(400, "INVALID_REQUEST", "需要密码确认");
+
+      const [users] = await pool.execute("SELECT password FROM users WHERE id = ? LIMIT 1", [userId]);
+      if (users.length === 0) throw new ApiError(404, "NOT_FOUND", "用户不存在");
+
+      const matched = await bcrypt.compare(password, users[0].password);
+      if (!matched) throw new ApiError(401, "WRONG_PASSWORD", "密码错误，无法删除账号");
 
       await pool.execute(
         "DELETE FROM couple_relationships WHERE user_id_1 = ? OR user_id_2 = ?",
         [userId, userId]
       );
-      await pool.execute("DELETE FROM users WHERE id = ?", [userId]);
+      const [result] = await pool.execute("DELETE FROM users WHERE id = ?", [userId]);
+      if (result.affectedRows === 0) throw new ApiError(404, "NOT_FOUND", "账号删除失败");
       cache.del(Keys.profile(userId));
       cache.del(Keys.relationship(userId));
       cache.del(Keys.coupleRole(userId));

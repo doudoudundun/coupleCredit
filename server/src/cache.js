@@ -65,6 +65,10 @@ const Keys = {
   sharedPlans: (userId) => `shared-plans:${userId}`,
   todos: (userId) => `todos:${userId}`,
   restaurants: (userId) => `restaurants:${userId}`,
+  calorieToday: (userId) => `calorie:today:${userId}`,
+  calorieHistory: (userId, date) => `calorie:history:${userId}:${date}`,
+  calorieHistoryByUser: (userId) => `calorie:history:${userId}:`,
+  nutritionSearch: (query) => `nutrition:search:${query}`,
 };
 
 // TTL constants (seconds)
@@ -81,6 +85,8 @@ const TTL = {
   SHARED_PLANS: 15,
   TODOS: 15,
   RESTAURANTS: 30,
+  CALORIE: 15,
+  NUTRITION: 300,
 };
 
 module.exports = { cache, Keys, TTL };

@@ -22,6 +22,7 @@ import com.example.couplecredit.R;
 import com.example.couplecredit.api.AuthApiClient;
 import com.example.couplecredit.api.AuthApiModels;
 import com.example.couplecredit.config.ApiConfigManager;
+import com.example.couplecredit.utils.CalorieFormatUtils;
 import com.example.couplecredit.utils.UserInfoManager;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
@@ -42,6 +43,9 @@ public class CartActivity extends AppCompatActivity {
 
     private RecyclerView rvCartList;
     private LinearLayout llCartEmpty;
+    private TextView tvMealCalories;
+    private TextView tvTodayCalories;
+    private TextView btnCookAll;
     private CartAdapter cartAdapter;
     private final List<AuthApiModels.RecipeItemData> cartItems = new ArrayList<>();
 
@@ -54,8 +58,10 @@ public class CartActivity extends AppCompatActivity {
         rvCartList = findViewById(R.id.rv_cart_list);
         llCartEmpty = findViewById(R.id.ll_cart_empty);
         TextView btnAddMore = findViewById(R.id.btn_add_more);
-        TextView btnCookAll = findViewById(R.id.btn_cook_all);
+        btnCookAll = findViewById(R.id.btn_cook_all);
         TextView tvDate = findViewById(R.id.tv_cart_date);
+        tvMealCalories = findViewById(R.id.tv_cart_meal_calories);
+        tvTodayCalories = findViewById(R.id.tv_cart_today_calories);
 
         SimpleDateFormat sdf = new SimpleDateFormat("M月d日 EEEE", Locale.CHINESE);
         tvDate.setText(sdf.format(new Date()));
@@ -91,6 +97,7 @@ public class CartActivity extends AppCompatActivity {
         if (loaded != null) cartItems.addAll(loaded);
         cartAdapter.notifyDataSetChanged();
         updateEmptyState();
+        updateCaloriePreview();
     }
 
     private void saveCart() {
@@ -109,6 +116,7 @@ public class CartActivity extends AppCompatActivity {
         cartAdapter.notifyItemRemoved(position);
         cartAdapter.notifyItemRangeChanged(position, cartItems.size());
         saveCart();
+        updateCaloriePreview();
     }
 
     private void cookAll() {
@@ -145,7 +153,7 @@ public class CartActivity extends AppCompatActivity {
                 msg.append(item.title).append(": ");
                 if (response.data != null && response.data.results != null) {
                     for (AuthApiModels.CookResultItem r : response.data.results) {
-                        msg.append(r.name).append(" -").append(formatDecimal(r.consumed)).append(r.unit).append(" ");
+                        msg.append(r.name).append(" -").append(CalorieFormatUtils.formatDecimal(r.consumed)).append(r.unit).append(" ");
                     }
                 }
                 if (response.data != null && response.data.warnings != null && !response.data.warnings.isEmpty()) {
@@ -170,13 +178,6 @@ public class CartActivity extends AppCompatActivity {
                 });
             }
         });
-    }
-
-    private String formatDecimal(double value) {
-        if (value == (long) value) {
-            return String.valueOf((long) value);
-        }
-        return String.format(Locale.getDefault(), "%.2f", value).replaceAll("0+$", "").replaceAll("\\.$", "");
     }
 
     public static void addToCart(android.content.Context context, AuthApiModels.RecipeItemData recipe) {
@@ -212,6 +213,38 @@ public class CartActivity extends AppCompatActivity {
         Type type = new TypeToken<List<AuthApiModels.RecipeItemData>>(){}.getType();
         List<AuthApiModels.RecipeItemData> cart = GSON.fromJson(json, type);
         return cart != null ? cart : new ArrayList<>();
+    }
+
+    private void updateCaloriePreview() {
+        double mealCalories = 0;
+        for (AuthApiModels.RecipeItemData item : cartItems) {
+            if (item.totalCalories != null) {
+                mealCalories += item.totalCalories;
+            }
+        }
+        tvMealCalories.setText("本餐预估 " + CalorieFormatUtils.formatDecimal(mealCalories) + " kcal");
+        btnCookAll.setText(mealCalories > 0 ? "烹饪 · 约 " + CalorieFormatUtils.formatDecimal(mealCalories) + " kcal" : "烹饪");
+
+        int userId = UserInfoManager.getCurrentUserId(this);
+        if (userId <= 0) {
+            tvTodayCalories.setText("今日已吃 0 / 2000 kcal");
+            return;
+        }
+        AuthApiClient.getTodayCalories(this, userId, new AuthApiClient.CalorieSummaryCallback() {
+            @Override
+            public void onSuccess(AuthApiModels.CalorieSummaryResponse response) {
+                runOnUiThread(() -> {
+                    double total = response != null && response.data != null ? response.data.totalCalories : 0;
+                    double goal = response != null && response.data != null ? response.data.dailyGoal : 2000;
+                    tvTodayCalories.setText("今日已吃 " + CalorieFormatUtils.formatDecimal(total) + " / " + CalorieFormatUtils.formatDecimal(goal) + " kcal");
+                });
+            }
+
+            @Override
+            public void onError(String message) {
+                runOnUiThread(() -> tvTodayCalories.setText("今日已吃 0 / 2000 kcal"));
+            }
+        });
     }
 
     private void showRecipeDetail(AuthApiModels.RecipeItemData item) {
@@ -330,7 +363,7 @@ public class CartActivity extends AppCompatActivity {
                             row.addView(tvIngName);
 
                             TextView tvQty = new TextView(CartActivity.this);
-                            tvQty.setText(formatDecimal(ing.quantity) + " " + ing.unit);
+                            tvQty.setText(CalorieFormatUtils.formatDecimal(ing.quantity) + " " + ing.unit);
                             tvQty.setTextSize(14);
                             tvQty.setTextColor(0xFF666666);
                             row.addView(tvQty);
@@ -367,6 +400,8 @@ public class CartActivity extends AppCompatActivity {
             AuthApiModels.RecipeItemData item = cartItems.get(position);
             holder.tvTitle.setText(item.title);
             holder.tvIngredients.setText(item.ingredientCount + " 种食材");
+            holder.tvCalories.setText(item.totalCalories != null ? CalorieFormatUtils.formatCalories(item.totalCalories, item.calorieSource) : "热量待补");
+            holder.tvCalories.setTextColor(CalorieFormatUtils.resolveCalorieColor(item.totalCalories, item.calorieSource));
 
             if (item.imageUrl != null && !item.imageUrl.isEmpty()) {
                 Glide.with(holder.ivImage.getContext())
@@ -394,6 +429,7 @@ public class CartActivity extends AppCompatActivity {
             ImageView ivImage;
             TextView tvTitle;
             TextView tvIngredients;
+            TextView tvCalories;
             TextView btnRemove;
 
             CartHolder(View itemView) {
@@ -401,6 +437,7 @@ public class CartActivity extends AppCompatActivity {
                 ivImage = itemView.findViewById(R.id.iv_cart_image);
                 tvTitle = itemView.findViewById(R.id.tv_cart_title);
                 tvIngredients = itemView.findViewById(R.id.tv_cart_ingredients);
+                tvCalories = itemView.findViewById(R.id.tv_cart_calories);
                 btnRemove = itemView.findViewById(R.id.btn_cart_remove);
             }
         }

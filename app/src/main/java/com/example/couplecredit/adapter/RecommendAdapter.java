@@ -13,6 +13,7 @@ import com.bumptech.glide.Glide;
 import com.example.couplecredit.R;
 import com.example.couplecredit.api.AuthApiModels;
 import com.example.couplecredit.config.ApiConfigManager;
+import com.example.couplecredit.utils.CalorieFormatUtils;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -29,6 +30,7 @@ public class RecommendAdapter extends RecyclerView.Adapter<RecommendAdapter.View
 
     public interface OnRecipeClickListener {
         void onRecipeClick(int recipeId);
+        void onAddToCart(AuthApiModels.RecommendRecipeItem item);
     }
 
     public RecommendAdapter(OnRecipeClickListener listener) {
@@ -55,6 +57,8 @@ public class RecommendAdapter extends RecyclerView.Adapter<RecommendAdapter.View
         AuthApiModels.RecommendRecipeItem item = items.get(position);
 
         holder.tvTitle.setText(item.title);
+        holder.tvCalories.setText(CalorieFormatUtils.formatCalories(item.totalCalories, item.calorieSource));
+        holder.tvCalories.setTextColor(CalorieFormatUtils.resolveCalorieColor(item.totalCalories, item.calorieSource));
 
         if (item.imageUrl != null && !item.imageUrl.isEmpty()) {
             String url = ApiConfigManager.resolveResourceUrl(holder.ivImage.getContext(), item.imageUrl);
@@ -111,6 +115,9 @@ public class RecommendAdapter extends RecyclerView.Adapter<RecommendAdapter.View
         holder.itemView.setOnClickListener(v -> {
             if (listener != null) listener.onRecipeClick(item.recipeId);
         });
+        holder.btnAddCart.setOnClickListener(v -> {
+            if (listener != null) listener.onAddToCart(item);
+        });
     }
 
     @Override
@@ -122,14 +129,18 @@ public class RecommendAdapter extends RecyclerView.Adapter<RecommendAdapter.View
         ImageView ivImage;
         TextView tvTitle;
         TextView tvMatch;
+        TextView tvCalories;
         TextView tvIngredients;
+        View btnAddCart;
 
         ViewHolder(View view) {
             super(view);
             ivImage = view.findViewById(R.id.iv_recommend_image);
             tvTitle = view.findViewById(R.id.tv_recommend_title);
             tvMatch = view.findViewById(R.id.tv_recommend_match);
+            tvCalories = view.findViewById(R.id.tv_recommend_calories);
             tvIngredients = view.findViewById(R.id.tv_recommend_ingredients);
+            btnAddCart = view.findViewById(R.id.btn_recommend_add_cart);
         }
     }
 }

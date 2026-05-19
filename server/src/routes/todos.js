@@ -94,7 +94,7 @@ function mapTodo(row) {
   };
 }
 
-function createTodoRouter({ pool }, notificationService) {
+function createTodoRouter({ pool }) {
   const router = express.Router();
 
   function invalidateTodoCache(userId, relationship) {
@@ -311,17 +311,6 @@ function createTodoRouter({ pool }, notificationService) {
       await pool.execute("DELETE FROM todo_items WHERE todo_id = ?", [todoId]);
       invalidateTodoCache(userId, relationship);
       res.json({ ok: true, message: "代办删除成功" });
-    } catch (error) {
-      next(error);
-    }
-  });
-
-  router.post("/:id/remind", async (req, res, next) => {
-    try {
-      const todoId = parseRequiredInteger(parseInt(req.params.id, 10));
-      const userId = parseRequiredInteger(req.body.userId);
-      const result = await notificationService.sendPartnerReminder(pool, todoId, userId);
-      res.json({ ok: true, message: "已提醒伴侣", data: result });
     } catch (error) {
       next(error);
     }

@@ -4,12 +4,18 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.Manifest;
+import android.content.pm.PackageManager;
+import android.os.Build;
 import android.os.Bundle;
 import android.util.Log;
 
 import androidx.activity.EdgeToEdge;
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
@@ -63,6 +69,14 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         EdgeToEdge.enable(this);
         setContentView(R.layout.activity_main);
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
+                    != PackageManager.PERMISSION_GRANTED) {
+                ActivityCompat.requestPermissions(this,
+                        new String[]{Manifest.permission.POST_NOTIFICATIONS}, 1001);
+            }
+        }
 
         Utils.init(this);
 
@@ -261,6 +275,36 @@ public class MainActivity extends AppCompatActivity {
             mBottomNav.setSelectedItemId(R.id.nav_inventory);
         } else {
             showFragment(inventoryFragment);
+        }
+    }
+
+    public void navigateToRecipe() {
+        if (mBottomNav != null && mBottomNav.getSelectedItemId() != R.id.nav_recipe) {
+            mBottomNav.setSelectedItemId(R.id.nav_recipe);
+        } else {
+            showFragment(recipeFragment);
+        }
+    }
+
+    public void navigateToTodo() {
+        if (mBottomNav != null && mBottomNav.getSelectedItemId() != R.id.nav_todo) {
+            mBottomNav.setSelectedItemId(R.id.nav_todo);
+        } else {
+            showFragment(todoFragment);
+        }
+    }
+
+    public void navigateToAddBillTab() {
+        navigateToHome();
+        if (headFragment != null) {
+            headFragment.switchToAddBillTab();
+        }
+    }
+
+    public void navigateToReportTab() {
+        navigateToHome();
+        if (headFragment != null) {
+            headFragment.switchToReportTab();
         }
     }
 

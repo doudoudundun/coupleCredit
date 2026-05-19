@@ -43,6 +43,7 @@ const { createSharedPlansRouter } = require("./routes/sharedPlans");
 const { createTodoRouter } = require("./routes/todos");
 const { createBeadRouter } = require("./routes/beads");
 const { createRestaurantRouter } = require("./routes/restaurants");
+const { createCalorieRouter, createNutritionRouter } = require("./routes/calorie");
 const { createImageGenRouter } = require("./routes/imageGen");
 const { createFcmRouter } = require("./routes/fcm");
 const { createPushRouter } = require("./routes/push");
@@ -50,15 +51,14 @@ const { createNotificationRouter } = require("./routes/notifications");
 const { createAiChatRouter } = require("./routes/aiChat");
 const { initializeApp: initFcm } = require("./services/fcmService");
 const { initialize: initJPush } = require("./services/jpushService");
-const notificationService = require("./services/notificationService");
 const { sendError } = require("./errors");
 const { optionalAuth } = require("./middleware/auth");
 const { standardLimiter, authLimiter, strictLimiter, aiLimiter } = require("./middleware/rateLimit");
-const cron = require("node-cron");
 
 const config = readConfig();
 const pool = createPool(config);
 const app = express();
+
 app.set("trust proxy", 1);
 
 app.use(cors());
@@ -96,9 +96,11 @@ app.use("/api/recipe-categories", createRecipeCategoryRouter({ pool }));
 app.use("/api/couple", createCoupleRouter({ pool }));
 app.use("/api/chat", createChatRouter({ pool }));
 app.use("/api/shared-plans", createSharedPlansRouter({ pool }));
-app.use("/api/todos", createTodoRouter({ pool }, notificationService));
+app.use("/api/todos", createTodoRouter({ pool }));
 app.use("/api/beads", createBeadRouter({ pool, aiLimiter }));
 app.use("/api/restaurants", createRestaurantRouter({ pool }));
+app.use("/api/calorie", createCalorieRouter({ pool }));
+app.use("/api/nutrition", createNutritionRouter({ pool }));
 app.use("/api", aiLimiter, createImageGenRouter());
 app.use("/api/fcm", createFcmRouter({ pool }));
 app.use("/api/push", createPushRouter({ pool }));
@@ -114,12 +116,6 @@ const server = app.listen(config.port, config.host, () => {
 
   initFcm();
   initJPush();
-
-  cron.schedule("0 12 * * *", () => {
-    console.log("[Cron] Running daily todo reminder at 12:00...");
-    notificationService.sendTodoReminder(pool).catch(err => console.error("[Cron] Todo reminder error:", err));
-  });
-  console.log("[Cron] Daily todo reminder scheduled at 12:00");
 });
 
 function gracefulShutdown() {

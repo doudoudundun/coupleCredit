@@ -178,6 +178,29 @@ public class AuthApiClient {
     public interface RestaurantMutationCallback extends MutationCallback {
     }
 
+    public interface CalorieSummaryCallback {
+        void onSuccess(AuthApiModels.CalorieSummaryResponse response);
+        void onError(String message);
+    }
+
+    public interface CalorieGoalCallback {
+        void onSuccess(AuthApiModels.CalorieGoalResponse response);
+        void onError(String message);
+    }
+
+    public interface NutritionCallback {
+        void onSuccess(AuthApiModels.NutritionResponse response);
+        void onError(String message);
+    }
+
+    public interface NutritionSearchCallback {
+        void onSuccess(AuthApiModels.NutritionSearchResponse response);
+        void onError(String message);
+    }
+
+    public interface CalorieMutationCallback extends MutationCallback {
+    }
+
     private interface RawCallback {
         void onSuccess(String json);
         void onError(String message);
@@ -851,6 +874,95 @@ public class AuthApiClient {
         doRequest(context, "DELETE", "/api/restaurants/" + restaurantId + "?userId=" + userId, null, simpleMutationCallback("删除商家", callback));
     }
 
+    public static void getTodayCalories(Context context, int userId, CalorieSummaryCallback callback) {
+        doRequest(context, "GET", "/api/calorie/today?userId=" + userId, null, new RawCallback() {
+            @Override public void onSuccess(String json) {
+                if (callback == null) return;
+                try {
+                    AuthApiModels.CalorieSummaryResponse r = GSON.fromJson(normalizeJsonPayload(json), AuthApiModels.CalorieSummaryResponse.class);
+                    if (r != null && r.ok) callback.onSuccess(r);
+                    else callback.onError(extractError(r != null ? r.error : null, json));
+                } catch (Exception e) { callback.onError(buildParseError("今日热量", json)); }
+            }
+            @Override public void onError(String m) { if (callback != null) callback.onError(m); }
+        });
+    }
+
+    public static void getCalorieHistory(Context context, int userId, String date, CalorieSummaryCallback callback) {
+        String path = "/api/calorie/history?userId=" + userId + "&date=" + java.net.URLEncoder.encode(date, java.nio.charset.StandardCharsets.UTF_8);
+        doRequest(context, "GET", path, null, new RawCallback() {
+            @Override public void onSuccess(String json) {
+                if (callback == null) return;
+                try {
+                    AuthApiModels.CalorieSummaryResponse r = GSON.fromJson(normalizeJsonPayload(json), AuthApiModels.CalorieSummaryResponse.class);
+                    if (r != null && r.ok) callback.onSuccess(r);
+                    else callback.onError(extractError(r != null ? r.error : null, json));
+                } catch (Exception e) { callback.onError(buildParseError("热量历史", json)); }
+            }
+            @Override public void onError(String m) { if (callback != null) callback.onError(m); }
+        });
+    }
+
+    public static void recordMeal(Context context, AuthApiModels.MealRecordRequest req, CalorieMutationCallback callback) {
+        doRequest(context, "POST", "/api/calorie/record", GSON.toJson(req), simpleMutationCallback("记录热量", callback));
+    }
+
+    public static void deleteMealRecord(Context context, int recordId, int userId, CalorieMutationCallback callback) {
+        doRequest(context, "DELETE", "/api/calorie/record/" + recordId + "?userId=" + userId, null, simpleMutationCallback("删除热量记录", callback));
+    }
+
+    public static void getCalorieGoal(Context context, int userId, CalorieGoalCallback callback) {
+        doRequest(context, "GET", "/api/calorie/goal?userId=" + userId, null, new RawCallback() {
+            @Override public void onSuccess(String json) {
+                if (callback == null) return;
+                try {
+                    AuthApiModels.CalorieGoalResponse r = GSON.fromJson(normalizeJsonPayload(json), AuthApiModels.CalorieGoalResponse.class);
+                    if (r != null && r.ok) callback.onSuccess(r);
+                    else callback.onError(extractError(r != null ? r.error : null, json));
+                } catch (Exception e) { callback.onError(buildParseError("热量目标", json)); }
+            }
+            @Override public void onError(String m) { if (callback != null) callback.onError(m); }
+        });
+    }
+
+    public static void updateCalorieGoal(Context context, int userId, double dailyGoal, CalorieMutationCallback callback) {
+        doRequest(context, "PUT", "/api/calorie/goal", GSON.toJson(new AuthApiModels.CalorieGoalRequest(userId, dailyGoal)), simpleMutationCallback("更新热量目标", callback));
+    }
+
+    public static void searchNutrition(Context context, String query, NutritionSearchCallback callback) {
+        String path = "/api/nutrition/search?q=" + java.net.URLEncoder.encode(query != null ? query : "", java.nio.charset.StandardCharsets.UTF_8);
+        doRequest(context, "GET", path, null, new RawCallback() {
+            @Override public void onSuccess(String json) {
+                if (callback == null) return;
+                try {
+                    AuthApiModels.NutritionSearchResponse r = GSON.fromJson(normalizeJsonPayload(json), AuthApiModels.NutritionSearchResponse.class);
+                    if (r != null && r.ok) callback.onSuccess(r);
+                    else callback.onError(extractError(r != null ? r.error : null, json));
+                } catch (Exception e) { callback.onError(buildParseError("食材热量搜索", json)); }
+            }
+            @Override public void onError(String m) { if (callback != null) callback.onError(m); }
+        });
+    }
+
+    public static void getNutrition(Context context, String name, NutritionCallback callback) {
+        String path = "/api/nutrition?name=" + java.net.URLEncoder.encode(name != null ? name : "", java.nio.charset.StandardCharsets.UTF_8);
+        doRequest(context, "GET", path, null, new RawCallback() {
+            @Override public void onSuccess(String json) {
+                if (callback == null) return;
+                try {
+                    AuthApiModels.NutritionResponse r = GSON.fromJson(normalizeJsonPayload(json), AuthApiModels.NutritionResponse.class);
+                    if (r != null && r.ok) callback.onSuccess(r);
+                    else callback.onError(extractError(r != null ? r.error : null, json));
+                } catch (Exception e) { callback.onError(buildParseError("食材热量", json)); }
+            }
+            @Override public void onError(String m) { if (callback != null) callback.onError(m); }
+        });
+    }
+
+    public static void upsertNutrition(Context context, AuthApiModels.NutritionItem item, CalorieMutationCallback callback) {
+        doRequest(context, "POST", "/api/nutrition", GSON.toJson(item), simpleMutationCallback("保存食材热量", callback));
+    }
+
     public interface ProfileCallback {
         void onSuccess(AuthApiModels.UserProfileData profile);
         void onError(String message);
@@ -903,8 +1015,9 @@ public class AuthApiClient {
         doRequest(context, "PUT", "/api/auth/password", body, fireAndForgetCallback(callback));
     }
 
-    public static void deleteAccount(Context context, int userId, SimpleCallback callback) {
-        doRequest(context, "DELETE", "/api/auth/account?userId=" + userId, null, fireAndForgetCallback(callback));
+    public static void deleteAccount(Context context, int userId, String password, SimpleCallback callback) {
+        String body = "{\"userId\":" + userId + ",\"password\":" + GSON.toJson(password) + "}";
+        doRequest(context, "DELETE", "/api/auth/account?userId=" + userId, body, fireAndForgetCallback(callback));
     }
 
     public interface CoupleRoleCallback {
@@ -1032,8 +1145,8 @@ public class AuthApiClient {
         void onError(String message);
     }
 
-    public static void getChatMessages(Context context, int relationshipId, int limit, Long before, ChatMessageListCallback callback) {
-        String path = "/api/chat/messages?relationshipId=" + relationshipId + "&limit=" + limit;
+    public static void getChatMessages(Context context, int userId, int relationshipId, int limit, Long before, ChatMessageListCallback callback) {
+        String path = "/api/chat/messages?userId=" + userId + "&relationshipId=" + relationshipId + "&limit=" + limit;
         if (before != null) path += "&before=" + before;
         doRequest(context, "GET", path, null, new RawCallback() {
             @Override public void onSuccess(String json) {
@@ -1076,17 +1189,18 @@ public class AuthApiClient {
         });
     }
 
-    public static void toggleChatLike(Context context, long messageId, boolean isLiked, SimpleCallback callback) {
+    public static void toggleChatLike(Context context, int userId, long messageId, boolean isLiked, SimpleCallback callback) {
         doRequest(context, "PUT", "/api/chat/messages/" + messageId + "/like",
-                "{\"isLiked\":" + isLiked + "}", fireAndForgetCallback(callback));
+                "{\"userId\":" + userId + ",\"isLiked\":" + isLiked + "}", fireAndForgetCallback(callback));
     }
 
-    public static void deleteChatMessage(Context context, long messageId, SimpleCallback callback) {
-        doRequest(context, "DELETE", "/api/chat/messages/" + messageId, null, fireAndForgetCallback(callback));
+    public static void deleteChatMessage(Context context, int userId, long messageId, SimpleCallback callback) {
+        doRequest(context, "DELETE", "/api/chat/messages/" + messageId + "?userId=" + userId, null, fireAndForgetCallback(callback));
     }
 
-    public static void searchChatMessages(Context context, int relationshipId, String keyword, ChatMessageListCallback callback) {
-        doRequest(context, "GET", "/api/chat/search?relationshipId=" + relationshipId + "&keyword=" + keyword, null, new RawCallback() {
+    public static void searchChatMessages(Context context, int userId, int relationshipId, String keyword, ChatMessageListCallback callback) {
+        String encoded = java.net.URLEncoder.encode(keyword != null ? keyword : "", java.nio.charset.StandardCharsets.UTF_8);
+        doRequest(context, "GET", "/api/chat/search?userId=" + userId + "&relationshipId=" + relationshipId + "&keyword=" + encoded, null, new RawCallback() {
             @Override public void onSuccess(String json) {
                 if (callback == null) return;
                 try {
@@ -1184,12 +1298,6 @@ public class AuthApiClient {
 
     public static void duplicateTodo(Context context, int todoId, int userId, SimpleCallback callback) {
         doRequest(context, "POST", "/api/todos/" + todoId + "/duplicate",
-                GSON.toJson(java.util.Collections.singletonMap("userId", userId)),
-                fireAndForgetCallback(callback));
-    }
-
-    public static void remindPartner(Context context, int todoId, int userId, SimpleCallback callback) {
-        doRequest(context, "POST", "/api/todos/" + todoId + "/remind",
                 GSON.toJson(java.util.Collections.singletonMap("userId", userId)),
                 fireAndForgetCallback(callback));
     }

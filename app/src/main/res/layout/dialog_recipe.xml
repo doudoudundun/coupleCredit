@@ -52,6 +52,40 @@
         android:textSize="14sp"
         android:layout_marginBottom="10dp" />
 
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="10dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <EditText
+            android:id="@+id/et_recipe_calories"
+            android:layout_width="0dp"
+            android:layout_height="44dp"
+            android:layout_marginEnd="8dp"
+            android:layout_weight="1"
+            android:background="@drawable/input_background"
+            android:hint="手动热量(可选 kcal)"
+            android:inputType="numberDecimal"
+            android:maxLines="1"
+            android:paddingStart="14dp"
+            android:paddingEnd="14dp"
+            android:textSize="14sp" />
+
+        <TextView
+            android:id="@+id/btn_recipe_auto_calories"
+            android:layout_width="92dp"
+            android:layout_height="44dp"
+            android:background="@drawable/category_tag_background"
+            android:gravity="center"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
+            android:text="自动计算"
+            android:textColor="#07C160"
+            android:textSize="13sp" />
+    </LinearLayout>
+
     <EditText
         android:id="@+id/et_recipe_steps"
         android:layout_width="match_parent"

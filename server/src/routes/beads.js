@@ -7,6 +7,7 @@ const fs = require("fs");
 const path = require("path");
 
 const { ApiError } = require("../errors");
+const { withTransaction } = require("../utils/transactions");
 const { cache, Keys, TTL } = require("../cache");
 const { trimValue, parseRequiredInteger, loadActiveRelationship } = require("../utils/queryHelpers");
 const { processBeadImage } = require("../utils/beadImageProcessor");
@@ -372,10 +373,14 @@ function createBeadRouter({ pool, aiLimiter }) {
 
       const [updateResult] = await pool.execute(
         `UPDATE bead_inventory
-         SET quantity = quantity - ?, updated_at = NOW()
-         WHERE color_code = ? AND user_id = ?`,
-        [consumeAmount, colorCode, userId]
+         SET quantity = GREATEST(0, quantity - ?), updated_at = NOW()
+         WHERE color_code = ? AND user_id = ? AND quantity >= ?`,
+        [consumeAmount, colorCode, userId, consumeAmount]
       );
+
+      if (updateResult.affectedRows === 0) {
+        throw new ApiError(400, "INSUFFICIENT_STOCK", "库存不足或颜色不存在");
+      }
 
       invalidateBeadCache(userId);
       res.json({
@@ -434,21 +439,30 @@ function createBeadRouter({ pool, aiLimiter }) {
       }
 
       await ensureBeadData(userId);
-      const updated = [];
 
-      for (const item of items) {
-        const colorCode = normalizeColorCode(item.colorCode);
-        const quantity = parsePositiveInteger(item.quantity, "消耗数量");
-        await pool.execute(
-          `UPDATE bead_inventory SET quantity = GREATEST(0, quantity - ?), updated_at = NOW() WHERE color_code = ? AND user_id = ?`,
-          [quantity, colorCode, userId]
-        );
-        const [rows] = await pool.execute(
-          `SELECT quantity FROM bead_inventory WHERE color_code = ? AND user_id = ? LIMIT 1`,
-          [colorCode, userId]
-        );
-        updated.push({ colorCode, newQuantity: rows.length > 0 ? Number(rows[0].quantity) : 0 });
-      }
+      const updated = await withTransaction(pool, async (conn) => {
+        const results = [];
+        for (const item of items) {
+          const colorCode = normalizeColorCode(item.colorCode);
+          const quantity = parsePositiveInteger(item.quantity, "消耗数量");
+
+          const [updateResult] = await conn.execute(
+            `UPDATE bead_inventory SET quantity = GREATEST(0, quantity - ?), updated_at = NOW() WHERE color_code = ? AND user_id = ? AND quantity >= ?`,
+            [quantity, colorCode, userId, quantity]
+          );
+
+          if (updateResult.affectedRows === 0) {
+            throw new ApiError(400, "INSUFFICIENT_STOCK", `${colorCode} 库存不足`);
+          }
+
+          const [rows] = await conn.execute(
+            `SELECT quantity FROM bead_inventory WHERE color_code = ? AND user_id = ? LIMIT 1`,
+            [colorCode, userId]
+          );
+          results.push({ colorCode, newQuantity: rows.length > 0 ? Number(rows[0].quantity) : 0 });
+        }
+        return results;
+      });
 
       invalidateBeadCache(userId);
       res.json({ ok: true, message: "批量扣减成功", data: { updated } });

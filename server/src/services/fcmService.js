@@ -1,5 +1,6 @@
 const path = require("path");
 const admin = require("firebase-admin");
+const { HttpsProxyAgent } = require("https-proxy-agent");
 
 let initialized = false;
 
@@ -13,7 +14,13 @@ function initializeApp() {
     return;
   }
   const serviceAccount = require(serviceAccountPath);
-  admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
+  const appOptions = { credential: admin.credential.cert(serviceAccount) };
+  const proxy = process.env.HTTPS_PROXY || process.env.HTTP_PROXY;
+  if (proxy) {
+    appOptions.httpAgent = new HttpsProxyAgent(proxy);
+    console.log("FCM: Using proxy " + proxy);
+  }
+  admin.initializeApp(appOptions);
   initialized = true;
   console.log("FCM: Initialized with firebase-admin, project=" + serviceAccount.project_id);
 }

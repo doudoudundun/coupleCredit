@@ -22,11 +22,11 @@ function createRestaurantRouter({ pool }) {
 
       let query, params;
       if (relationshipId) {
-        query = `SELECT restaurant_id, user_id, relationship_id, name, category, image_url, route_image_url, avg_cost, distance, address, note, created_at, updated_at
+        query = `SELECT restaurant_id, user_id, relationship_id, name, category, image_url, route_image_url, avg_cost, default_calories, distance, address, note, created_at, updated_at
                  FROM restaurants WHERE relationship_id = ? OR (user_id = ? AND relationship_id IS NULL) ORDER BY updated_at DESC`;
         params = [relationshipId, userId];
       } else {
-        query = `SELECT restaurant_id, user_id, relationship_id, name, category, image_url, route_image_url, avg_cost, distance, address, note, created_at, updated_at
+        query = `SELECT restaurant_id, user_id, relationship_id, name, category, image_url, route_image_url, avg_cost, default_calories, distance, address, note, created_at, updated_at
                  FROM restaurants WHERE user_id = ? AND relationship_id IS NULL ORDER BY updated_at DESC`;
         params = [userId];
       }
@@ -41,6 +41,7 @@ function createRestaurantRouter({ pool }) {
         imageUrl: r.image_url,
         routeImageUrl: r.route_image_url,
         avgCost: r.avg_cost !== null ? Number(r.avg_cost) : null,
+        defaultCalories: r.default_calories !== null ? Number(r.default_calories) : null,
         distance: r.distance !== null ? Number(r.distance) : null,
         address: r.address,
         note: r.note,
@@ -68,14 +69,15 @@ function createRestaurantRouter({ pool }) {
       const imageUrl = req.body.imageUrl || null;
       const routeImageUrl = req.body.routeImageUrl || null;
       const avgCost = req.body.avgCost != null ? Number(req.body.avgCost) : null;
+      const defaultCalories = req.body.defaultCalories != null ? Number(req.body.defaultCalories) : null;
       const distance = req.body.distance != null ? Number(req.body.distance) : null;
       const address = trimValue(req.body.address) || null;
       const note = trimValue(req.body.note) || null;
 
       const [result] = await pool.execute(
-        `INSERT INTO restaurants (user_id, relationship_id, name, category, image_url, route_image_url, avg_cost, distance, address, note, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
-        [userId, relationshipId, name, category, imageUrl, routeImageUrl, avgCost, distance, address, note]
+        `INSERT INTO restaurants (user_id, relationship_id, name, category, image_url, route_image_url, avg_cost, default_calories, distance, address, note, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+        [userId, relationshipId, name, category, imageUrl, routeImageUrl, avgCost, defaultCalories, distance, address, note]
       );
 
       invalidateCache(userId, relationship);
@@ -83,7 +85,7 @@ function createRestaurantRouter({ pool }) {
         ok: true,
         data: {
           restaurantId: result.insertId,
-          userId, relationshipId, name, category, imageUrl, routeImageUrl, avgCost, distance, address, note
+          userId, relationshipId, name, category, imageUrl, routeImageUrl, avgCost, defaultCalories, distance, address, note
         }
       });
     } catch (error) { next(error); }
@@ -116,6 +118,7 @@ function createRestaurantRouter({ pool }) {
       if (req.body.imageUrl !== undefined) { updates.push("image_url = ?"); params.push(req.body.imageUrl || null); }
       if (req.body.routeImageUrl !== undefined) { updates.push("route_image_url = ?"); params.push(req.body.routeImageUrl || null); }
       if (req.body.avgCost !== undefined) { updates.push("avg_cost = ?"); params.push(req.body.avgCost != null ? Number(req.body.avgCost) : null); }
+      if (req.body.defaultCalories !== undefined) { updates.push("default_calories = ?"); params.push(req.body.defaultCalories != null ? Number(req.body.defaultCalories) : null); }
       if (req.body.distance !== undefined) { updates.push("distance = ?"); params.push(req.body.distance != null ? Number(req.body.distance) : null); }
       if (req.body.address !== undefined) { updates.push("address = ?"); params.push(trimValue(req.body.address) || null); }
       if (req.body.note !== undefined) { updates.push("note = ?"); params.push(trimValue(req.body.note) || null); }

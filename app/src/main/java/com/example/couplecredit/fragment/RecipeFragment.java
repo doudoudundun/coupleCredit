@@ -18,6 +18,7 @@ import android.widget.Spinner;
 import android.widget.ArrayAdapter;
 import android.widget.TextView;
 import android.widget.Toast;
+import android.widget.ProgressBar;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -37,6 +38,7 @@ import com.example.couplecredit.adapter.RecommendAdapter;
 import com.example.couplecredit.api.AuthApiClient;
 import com.example.couplecredit.api.AuthApiModels;
 import com.example.couplecredit.config.ApiConfigManager;
+import com.example.couplecredit.utils.CalorieFormatUtils;
 import com.example.couplecredit.utils.DataLocalCache;
 import com.example.couplecredit.utils.DataRefreshBus;
 import com.example.couplecredit.utils.DialogHelper;
@@ -48,7 +50,6 @@ import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 
 public class RecipeFragment extends Fragment implements RecipeAdapter.RecipeActionListener {
 
@@ -66,6 +67,14 @@ public class RecipeFragment extends Fragment implements RecipeAdapter.RecipeActi
     private TextView btnAddCategory;
     private TextView btnDoneEdit;
     private boolean isCategoryEditMode = false;
+    private View layoutCalorieSummary;
+    private View layoutCalorieDetail;
+    private TextView tvCalorieSummaryTitle;
+    private TextView tvCalorieCook;
+    private TextView tvCalorieEatOut;
+    private TextView tvCalorieManual;
+    private ProgressBar progressCalorie;
+    private boolean calorieExpanded = false;
 
     private RecipeAdapter recipeAdapter;
     private RecipeCategoryAdapter categoryAdapter;
@@ -122,8 +131,19 @@ public class RecipeFragment extends Fragment implements RecipeAdapter.RecipeActi
         btnDoneEdit = view.findViewById(R.id.btn_done_edit);
         btnCart = view.findViewById(R.id.btn_cart);
         tvCartBadge = view.findViewById(R.id.tv_cart_badge);
+        layoutCalorieSummary = view.findViewById(R.id.layout_calorie_summary);
+        layoutCalorieDetail = view.findViewById(R.id.layout_calorie_detail);
+        tvCalorieSummaryTitle = view.findViewById(R.id.tv_calorie_summary_title);
+        tvCalorieCook = view.findViewById(R.id.tv_calorie_cook);
+        tvCalorieEatOut = view.findViewById(R.id.tv_calorie_eat_out);
+        tvCalorieManual = view.findViewById(R.id.tv_calorie_manual);
+        progressCalorie = view.findViewById(R.id.progress_calorie);
 
         btnCart.setOnClickListener(v -> startActivity(new Intent(requireContext(), CartActivity.class)));
+        layoutCalorieSummary.setOnClickListener(v -> {
+            calorieExpanded = !calorieExpanded;
+            layoutCalorieDetail.setVisibility(calorieExpanded ? View.VISIBLE : View.GONE);
+        });
 
         View btnEatOut = view.findViewById(R.id.btn_eat_out);
         btnEatOut.setOnClickListener(v -> {
@@ -278,7 +298,27 @@ public class RecipeFragment extends Fragment implements RecipeAdapter.RecipeActi
         chipGroupIngredients = layoutRecommendView.findViewById(R.id.chip_group_ingredients);
 
         rvRecommendList.setLayoutManager(new StaggeredGridLayoutManager(2, StaggeredGridLayoutManager.VERTICAL));
-        recommendAdapter = new RecommendAdapter(recipeId -> showRecipeDetail(recipeId));
+        recommendAdapter = new RecommendAdapter(new RecommendAdapter.OnRecipeClickListener() {
+            @Override
+            public void onRecipeClick(int recipeId) {
+                showRecipeDetail(recipeId);
+            }
+
+            @Override
+            public void onAddToCart(AuthApiModels.RecommendRecipeItem item) {
+                AuthApiModels.RecipeItemData cartItem = new AuthApiModels.RecipeItemData();
+                cartItem.recipeId = item.recipeId;
+                cartItem.title = item.title;
+                cartItem.description = item.description;
+                cartItem.imageUrl = item.imageUrl;
+                cartItem.categoryId = item.categoryId;
+                cartItem.totalCalories = item.totalCalories;
+                cartItem.calorieSource = item.calorieSource;
+                cartItem.ingredientCount = item.matchInfo != null ? item.matchInfo.total : 0;
+                CartActivity.addToCart(requireContext(), cartItem);
+                updateCartBadge();
+            }
+        });
         rvRecommendList.setAdapter(recommendAdapter);
 
         tabMyRecipes.setOnClickListener(v -> switchToMyRecipes());
@@ -341,10 +381,12 @@ public class RecipeFragment extends Fragment implements RecipeAdapter.RecipeActi
             allRecipes.clear();
             recipeAdapter.setData(categoryList, allRecipes);
             updateEmptyState();
+            layoutCalorieSummary.setVisibility(View.GONE);
             return;
         }
 
         int userId = UserInfoManager.getCurrentUserId(requireContext());
+        loadCalorieSummary(userId);
 
         if (categoryList.isEmpty()) {
             String cachedCats = DataLocalCache.get(requireContext(), "recipe_cats_" + userId);
@@ -422,6 +464,47 @@ public class RecipeFragment extends Fragment implements RecipeAdapter.RecipeActi
         if (isRecommendMode) {
             loadRecommendations();
         }
+    }
+
+    private void loadCalorieSummary(int userId) {
+        AuthApiClient.getTodayCalories(requireContext(), userId, new AuthApiClient.CalorieSummaryCallback() {
+            @Override
+            public void onSuccess(AuthApiModels.CalorieSummaryResponse response) {
+                if (!isAdded()) return;
+                requireActivity().runOnUiThread(() -> renderCalorieSummary(response != null ? response.data : null));
+            }
+
+            @Override
+            public void onError(String message) {
+                if (!isAdded()) return;
+                requireActivity().runOnUiThread(() -> {
+                    layoutCalorieSummary.setVisibility(View.VISIBLE);
+                    tvCalorieSummaryTitle.setText("今日 0 / 2000 kcal");
+                    progressCalorie.setProgress(0);
+                    tvCalorieCook.setText("烹饪 0 kcal");
+                    tvCalorieEatOut.setText("外食 0 kcal");
+                    tvCalorieManual.setText("手动 0 kcal");
+                });
+            }
+        });
+    }
+
+    private void renderCalorieSummary(@Nullable AuthApiModels.CalorieSummaryData data) {
+        layoutCalorieSummary.setVisibility(View.VISIBLE);
+        double total = data != null ? data.totalCalories : 0;
+        double goal = data != null ? data.dailyGoal : 2000;
+        tvCalorieSummaryTitle.setText("今日 " + CalorieFormatUtils.formatNumber(total) + " / " + CalorieFormatUtils.formatNumber(goal) + " kcal");
+        progressCalorie.setProgress((int) Math.max(0, Math.min(100, Math.round(data != null ? data.progress : 0))));
+        if (data != null && data.sourceTotals != null) {
+            tvCalorieCook.setText("烹饪 " + CalorieFormatUtils.formatNumber(data.sourceTotals.cook) + " kcal");
+            tvCalorieEatOut.setText("外食 " + CalorieFormatUtils.formatNumber(data.sourceTotals.eatOut) + " kcal");
+            tvCalorieManual.setText("手动 " + CalorieFormatUtils.formatNumber(data.sourceTotals.manual) + " kcal");
+        } else {
+            tvCalorieCook.setText("烹饪 0 kcal");
+            tvCalorieEatOut.setText("外食 0 kcal");
+            tvCalorieManual.setText("手动 0 kcal");
+        }
+        layoutCalorieDetail.setVisibility(calorieExpanded ? View.VISIBLE : View.GONE);
     }
 
     private void switchToMyRecipes() {
@@ -754,20 +837,13 @@ public class RecipeFragment extends Fragment implements RecipeAdapter.RecipeActi
             row.addView(tvIngName);
 
             TextView tvQty = new TextView(requireContext());
-            tvQty.setText(formatDecimal(ing.quantity) + " " + ing.unit);
+            tvQty.setText(CalorieFormatUtils.formatDecimal(ing.quantity) + " " + ing.unit);
             tvQty.setTextSize(14);
             tvQty.setTextColor(0xFF666666);
             row.addView(tvQty);
 
             llIngredients.addView(row);
         }
-    }
-
-    private String formatDecimal(double value) {
-        if (value == (long) value) {
-            return String.valueOf((long) value);
-        }
-        return String.format(Locale.getDefault(), "%.2f", value).replaceAll("0+$", "").replaceAll("\\.$", "");
     }
 
     private void renderSteps(LinearLayout llSteps, TextView tvStepsLabel, String steps, int dp) {
@@ -861,6 +937,8 @@ public class RecipeFragment extends Fragment implements RecipeAdapter.RecipeActi
         TextView tvTitle = dialogView.findViewById(R.id.tv_dialog_title);
         EditText etTitle = dialogView.findViewById(R.id.et_recipe_title);
         EditText etDesc = dialogView.findViewById(R.id.et_recipe_desc);
+        EditText etCalories = dialogView.findViewById(R.id.et_recipe_calories);
+        TextView btnAutoCalories = dialogView.findViewById(R.id.btn_recipe_auto_calories);
         EditText etSteps = dialogView.findViewById(R.id.et_recipe_steps);
         ImageView ivImage = dialogView.findViewById(R.id.iv_recipe_image);
         View flImage = dialogView.findViewById(R.id.fl_recipe_image);
@@ -894,6 +972,9 @@ public class RecipeFragment extends Fragment implements RecipeAdapter.RecipeActi
             btnSave.setText("保存修改");
             etTitle.setText(existing.title);
             etDesc.setText(existing.description != null ? existing.description : "");
+            if (CalorieFormatUtils.SOURCE_MANUAL.equals(existing.calorieSource) && existing.totalCalories != null) {
+                etCalories.setText(String.valueOf(existing.totalCalories));
+            }
             etSteps.setText(existing.steps != null ? existing.steps.replace("[\"", "").replace("\"]", "").replace("\",\"", "\n") : "");
             pendingImageUrl = existing.imageUrl;
             imageChanged = false;
@@ -951,6 +1032,14 @@ public class RecipeFragment extends Fragment implements RecipeAdapter.RecipeActi
             }
         });
 
+        btnAutoCalories.setOnClickListener(v -> {
+            etCalories.setText("");
+            String message = llIngredients.getChildCount() > 0
+                    ? "已切换为自动计算，保存后会按食材热量重算"
+                    : "已切换为自动计算，保存后会按食材热量重算；当前还没有食材";
+            Toast.makeText(requireContext(), message, Toast.LENGTH_SHORT).show();
+        });
+
         btnAddIngredient.setOnClickListener(v -> addIngredientRow(llIngredients, null, inventoryItems));
 
         btnSave.setOnClickListener(v -> {
@@ -974,6 +1063,18 @@ public class RecipeFragment extends Fragment implements RecipeAdapter.RecipeActi
                 steps = sb.toString();
             }
             final String finalSteps = steps;
+            final Double manualCalories;
+            String calorieText = etCalories.getText().toString().trim();
+            if (TextUtils.isEmpty(calorieText)) {
+                manualCalories = null;
+            } else {
+                try {
+                    manualCalories = Double.parseDouble(calorieText);
+                } catch (NumberFormatException e) {
+                    Toast.makeText(getContext(), "热量格式不正确", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+            }
 
             List<AuthApiModels.IngredientData> finalIngredients = new ArrayList<>();
             for (int i = 0; i < llIngredients.getChildCount(); i++) {
@@ -986,7 +1087,12 @@ public class RecipeFragment extends Fragment implements RecipeAdapter.RecipeActi
                     if (!TextUtils.isEmpty(iName)) {
                         AuthApiModels.IngredientData ing = new AuthApiModels.IngredientData();
                         ing.ingredientName = iName;
-                        ing.quantity = TextUtils.isEmpty(iQty) ? 0 : Double.parseDouble(iQty);
+                        try {
+                            ing.quantity = TextUtils.isEmpty(iQty) ? 0 : Double.parseDouble(iQty);
+                        } catch (NumberFormatException e) {
+                            Toast.makeText(getContext(), "食材数量格式不正确", Toast.LENGTH_SHORT).show();
+                            return;
+                        }
                         ing.unit = TextUtils.isEmpty(iUnit) ? "个" : iUnit;
                         Object tag = row.getTag();
                         if (tag instanceof Integer) ing.inventoryId = (Integer) tag;
@@ -1009,7 +1115,7 @@ public class RecipeFragment extends Fragment implements RecipeAdapter.RecipeActi
                         AuthApiClient.uploadImage(requireContext(), compressed, fileName, new AuthApiClient.ImageUploadCallback() {
                             @Override public void onSuccess(String serverUrl) {
                                 if (!isAdded()) return;
-                                requireActivity().runOnUiThread(() -> saveRecipe(dialog, userId, title, desc, finalSteps, serverUrl, selectedCatId, existing, finalIngredients));
+                                requireActivity().runOnUiThread(() -> saveRecipe(dialog, new AuthApiModels.CreateRecipeRequest(userId, title, desc, serverUrl, finalSteps, selectedCatId, manualCalories, finalIngredients), existing));
                             }
                             @Override public void onError(String e) {
                                 if (!isAdded()) return;
@@ -1017,14 +1123,14 @@ public class RecipeFragment extends Fragment implements RecipeAdapter.RecipeActi
                             }
                         });
                     } else {
-                        saveRecipe(dialog, userId, title, desc, finalSteps, null, selectedCatId, existing, finalIngredients);
+                        saveRecipe(dialog, new AuthApiModels.CreateRecipeRequest(userId, title, desc, null, finalSteps, selectedCatId, manualCalories, finalIngredients), existing);
                     }
                 } catch (Exception e) {
-                    saveRecipe(dialog, userId, title, desc, finalSteps, null, selectedCatId, existing, finalIngredients);
+                    saveRecipe(dialog, new AuthApiModels.CreateRecipeRequest(userId, title, desc, null, finalSteps, selectedCatId, manualCalories, finalIngredients), existing);
                 }
             } else {
                 String imageUrl = existing != null ? existing.imageUrl : null;
-                saveRecipe(dialog, userId, title, desc, finalSteps, imageUrl, selectedCatId, existing, finalIngredients);
+                saveRecipe(dialog, new AuthApiModels.CreateRecipeRequest(userId, title, desc, imageUrl, finalSteps, selectedCatId, manualCalories, finalIngredients), existing);
             }
         });
 
@@ -1075,6 +1181,13 @@ public class RecipeFragment extends Fragment implements RecipeAdapter.RecipeActi
         row.addView(etQty);
         row.addView(etUnit);
 
+        TextView btnNutrition = new TextView(requireContext());
+        btnNutrition.setText("设置热量");
+        btnNutrition.setTextSize(11);
+        btnNutrition.setTextColor(0xFF07C160);
+        btnNutrition.setPadding(dp * 8, dp * 4, 0, dp * 4);
+        row.addView(btnNutrition);
+
         if (existing != null) {
             etName.setText(existing.ingredientName);
             etQty.setText(existing.quantity % 1 == 0 ? String.valueOf((long) existing.quantity) : String.valueOf(existing.quantity));
@@ -1102,12 +1215,73 @@ public class RecipeFragment extends Fragment implements RecipeAdapter.RecipeActi
             return true;
         });
 
+        btnNutrition.setOnClickListener(v -> showNutritionDialog(etName, etUnit));
+
         llIngredients.addView(row);
     }
 
-    private void saveRecipe(AlertDialog dialog, int userId, String title, String desc, String steps, String imageUrl, Integer categoryId, AuthApiModels.RecipeItemData existing, List<AuthApiModels.IngredientData> finalIngredients) {
+    private void showNutritionDialog(EditText etName, EditText etUnit) {
+        String ingredientName = etName.getText().toString().trim();
+        if (TextUtils.isEmpty(ingredientName)) {
+            Toast.makeText(requireContext(), "请先填写食材名", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        View dialogView = LayoutInflater.from(requireContext()).inflate(R.layout.dialog_calorie_goal, null);
+        TextView title = dialogView.findViewById(R.id.btn_save_calorie_goal);
+        TextView headerTitle = dialogView.findViewById(R.id.tv_calorie_goal_title);
+        headerTitle.setText("设置食材热量");
+        EditText etGoal = dialogView.findViewById(R.id.et_calorie_goal);
+        etGoal.setHint("每单位热量 kcal");
+        title.setText("保存");
+        AlertDialog dialog = new AlertDialog.Builder(requireContext(), R.style.CustomDialogStyle).setView(dialogView).create();
+        AuthApiClient.getNutrition(requireContext(), ingredientName, new AuthApiClient.NutritionCallback() {
+            @Override public void onSuccess(AuthApiModels.NutritionResponse response) {
+                if (!isAdded()) return;
+                requireActivity().runOnUiThread(() -> {
+                    if (response != null && response.data != null && response.data.item != null) {
+                        etGoal.setText(String.valueOf(response.data.item.caloriesPerUnit));
+                        if (response.data.item.unit != null) {
+                            etUnit.setText(response.data.item.unit);
+                        }
+                    }
+                });
+            }
+            @Override public void onError(String message) { }
+        });
+        title.setOnClickListener(v -> {
+            String calorieText = etGoal.getText().toString().trim();
+            String unit = etUnit.getText().toString().trim();
+            if (TextUtils.isEmpty(calorieText) || TextUtils.isEmpty(unit)) {
+                Toast.makeText(requireContext(), "请输入热量和单位", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            double calories;
+            try {
+                calories = Double.parseDouble(calorieText);
+            } catch (NumberFormatException e) {
+                Toast.makeText(requireContext(), "热量格式不正确", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            AuthApiModels.NutritionItem item = new AuthApiModels.NutritionItem(ingredientName, calories, unit, null);
+            AuthApiClient.upsertNutrition(requireContext(), item, new AuthApiClient.CalorieMutationCallback() {
+                @Override public void onSuccess() {
+                    if (!isAdded()) return;
+                    requireActivity().runOnUiThread(() -> {
+                        Toast.makeText(requireContext(), "食材热量已保存", Toast.LENGTH_SHORT).show();
+                        dialog.dismiss();
+                    });
+                }
+                @Override public void onError(String message) {
+                    if (!isAdded()) return;
+                    requireActivity().runOnUiThread(() -> Toast.makeText(requireContext(), message, Toast.LENGTH_SHORT).show());
+                }
+            });
+        });
+        DialogHelper.showWide(dialog, requireContext());
+    }
+
+    private void saveRecipe(AlertDialog dialog, AuthApiModels.CreateRecipeRequest req, AuthApiModels.RecipeItemData existing) {
         if (existing == null) {
-            AuthApiModels.CreateRecipeRequest req = new AuthApiModels.CreateRecipeRequest(userId, title, desc, imageUrl, steps, categoryId, finalIngredients);
             AuthApiClient.createRecipe(requireContext(), req, new AuthApiClient.RecipeMutationCallback() {
                 @Override public void onSuccess() {
                     if (!isAdded()) return;
@@ -1119,8 +1293,8 @@ public class RecipeFragment extends Fragment implements RecipeAdapter.RecipeActi
                 }
             });
         } else {
-            AuthApiModels.UpdateRecipeRequest req = new AuthApiModels.UpdateRecipeRequest(userId, title, desc, imageUrl, steps, categoryId, finalIngredients);
-            AuthApiClient.updateRecipe(requireContext(), existing.recipeId, req, new AuthApiClient.RecipeMutationCallback() {
+            AuthApiModels.UpdateRecipeRequest updateReq = new AuthApiModels.UpdateRecipeRequest(req.userId, req.title, req.description, req.imageUrl, req.steps, req.categoryId, req.totalCalories, req.ingredients);
+            AuthApiClient.updateRecipe(requireContext(), existing.recipeId, updateReq, new AuthApiClient.RecipeMutationCallback() {
                 @Override public void onSuccess() {
                     if (!isAdded()) return;
                     requireActivity().runOnUiThread(() -> { dialog.dismiss(); refreshData(); });
@@ -1145,4 +1319,5 @@ public class RecipeFragment extends Fragment implements RecipeAdapter.RecipeActi
             imageChanged = true;
         }
     }
+
 }

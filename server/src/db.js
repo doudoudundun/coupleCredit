@@ -8,28 +8,31 @@ function createPool(config) {
     user: config.dbUser,
     password: config.dbPassword,
     waitForConnections: true,
-    connectionLimit: 20,
+    connectionLimit: 30,
     queueLimit: 0,
     enableKeepAlive: true,
-    keepAliveInitialDelay: 30000,
+    keepAliveInitialDelay: 10000,
     idleTimeout: 300000,
-    maxIdle: 10,
+    maxIdle: 15,
     charset: "utf8mb4",
     timezone: "+08:00"
   });
 
-  warmPool(pool, 3);
+  warmPool(pool, 5);
   return pool;
 }
 
 async function warmPool(pool, count) {
+  const tasks = [];
   for (let i = 0; i < count; i++) {
-    try {
-      const conn = await pool.getConnection();
-      await conn.execute("SELECT 1");
-      conn.release();
-    } catch (_) {}
+    tasks.push(
+      pool.getConnection().then(async (conn) => {
+        await conn.execute("SELECT 1");
+        conn.release();
+      }).catch(() => {})
+    );
   }
+  await Promise.all(tasks);
 }
 
 module.exports = { createPool };

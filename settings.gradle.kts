@@ -22,3 +22,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "coupleCredit"
 include(":app")
+include(":jiguang")

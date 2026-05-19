@@ -21,17 +21,17 @@ import java.net.URL;
 public class NotificationHelper {
 
     private static final String TAG = "NotificationHelper";
-    private static final String CHANNEL_ID = "todo_reminders";
-    private static final String CHANNEL_NAME = "待办提醒";
+    private static final String CHANNEL_ID = "app_notifications";
+    private static final String CHANNEL_NAME = "应用通知";
 
     public static void createNotificationChannel(Context context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             NotificationManager manager = context.getSystemService(NotificationManager.class);
-            if (manager != null) {
-                manager.deleteNotificationChannel(CHANNEL_ID);
+            if (manager != null && manager.getNotificationChannel(CHANNEL_ID) != null) {
+                return;
             }
             NotificationChannel channel = new NotificationChannel(CHANNEL_ID, CHANNEL_NAME, NotificationManager.IMPORTANCE_HIGH);
-            channel.setDescription("高优先级待办提醒通知");
+            channel.setDescription("应用通知");
             channel.enableLights(true);
             channel.enableVibration(false);
             channel.setLockscreenVisibility(android.app.Notification.VISIBILITY_PUBLIC);

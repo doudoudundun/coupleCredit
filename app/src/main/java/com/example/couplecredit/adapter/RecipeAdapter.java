@@ -16,6 +16,7 @@ import com.bumptech.glide.Glide;
 import com.example.couplecredit.R;
 import com.example.couplecredit.api.AuthApiModels;
 import com.example.couplecredit.config.ApiConfigManager;
+import com.example.couplecredit.utils.CalorieFormatUtils;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -142,6 +143,8 @@ public class RecipeAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder>
             RecipeHolder rh = (RecipeHolder) holder;
             rh.tvTitle.setText(item.title);
             rh.tvDesc.setText(item.description != null ? item.description : "");
+            rh.tvCalories.setText(CalorieFormatUtils.formatCalories(item.totalCalories, item.calorieSource));
+            rh.tvCalories.setTextColor(CalorieFormatUtils.resolveCalorieColor(item.totalCalories, item.calorieSource));
             rh.tvIngredients.setText(item.ingredientCount + " 种食材");
 
             if (item.imageUrl != null && !item.imageUrl.isEmpty()) {
@@ -194,6 +197,7 @@ public class RecipeAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder>
         ImageView ivImage;
         TextView tvTitle;
         TextView tvDesc;
+        TextView tvCalories;
         TextView tvIngredients;
         ImageButton btnAdd;
         ImageButton btnMore;
@@ -203,6 +207,7 @@ public class RecipeAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder>
             ivImage = itemView.findViewById(R.id.iv_recipe_image);
             tvTitle = itemView.findViewById(R.id.tv_recipe_title);
             tvDesc = itemView.findViewById(R.id.tv_recipe_desc);
+            tvCalories = itemView.findViewById(R.id.tv_recipe_calories);
             tvIngredients = itemView.findViewById(R.id.tv_recipe_ingredients);
             btnAdd = itemView.findViewById(R.id.btn_recipe_add);
             btnMore = itemView.findViewById(R.id.btn_recipe_more);

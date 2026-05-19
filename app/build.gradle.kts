@@ -31,6 +31,18 @@ android {
 
         buildConfigField("String", "PRIVATE_API_BASE_URL", "\"${localConfig("PRIVATE_API_BASE_URL")}\"")
         buildConfigField("String", "PRIVATE_API_INVITE_CODE", "\"${localConfig("PRIVATE_API_INVITE_CODE")}\"")
+
+        manifestPlaceholders["JPUSH_PKGNAME"] = "com.example.couplecredit"
+        manifestPlaceholders["JPUSH_APPKEY"] = "92cd7d5a01d7d114ffba5031"
+        manifestPlaceholders["JPUSH_CHANNEL"] = "developer-default"
+        manifestPlaceholders["XIAOMI_APPID"] = ""
+        manifestPlaceholders["XIAOMI_APPKEY"] = ""
+        manifestPlaceholders["OPPO_APPKEY"] = ""
+        manifestPlaceholders["OPPO_APPID"] = ""
+        manifestPlaceholders["OPPO_APPSECRET"] = ""
+        manifestPlaceholders["VIVO_APPKEY"] = ""
+        manifestPlaceholders["VIVO_APPID"] = ""
+        manifestPlaceholders["HONOR_APPID"] = ""
     }
 
     buildTypes {
@@ -106,9 +118,8 @@ dependencies {
     // Firebase Cloud Messaging
     implementation("com.google.firebase:firebase-messaging:24.1.1")
 
-    // JPush (极光推送) — 本地 SDK
-    implementation(files("libs/jpush-android-6.1.0.jar"))
-    implementation(files("libs/jcore-android-5.4.0.aar"))
+    // JPush (极光推送) — 模块化集成
+    implementation(project(":jiguang"))
 }
 
 if (file("google-services.json").exists()) {

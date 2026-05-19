@@ -133,7 +133,7 @@ public class CloudChatRepository {
                 if (callback != null) callback.onSuccess(new ArrayList<>());
                 return;
             }
-            AuthApiClient.getChatMessages(context, currentRelationshipId, 200, null,
+            AuthApiClient.getChatMessages(context, currentUserId, currentRelationshipId, 200, null,
                     new AuthApiClient.ChatMessageListCallback() {
                         @Override
                         public void onSuccess(List<AuthApiModels.ChatMessageData> messages) {
@@ -154,7 +154,7 @@ public class CloudChatRepository {
     }
 
     public void updateMessageLikeStatus(long cloudMessageId, String messageContent, String timestamp, boolean isLiked, UpdateCallback callback) {
-        AuthApiClient.toggleChatLike(context, cloudMessageId, isLiked, new AuthApiClient.SimpleCallback() {
+        AuthApiClient.toggleChatLike(context, currentUserId, cloudMessageId, isLiked, new AuthApiClient.SimpleCallback() {
             @Override
             public void onSuccess() {
                 if (callback != null) {
@@ -171,7 +171,7 @@ public class CloudChatRepository {
     }
 
     public void deleteMessage(long messageId, String messageContent, String timestamp, DeleteCallback callback) {
-        AuthApiClient.deleteChatMessage(context, messageId, new AuthApiClient.SimpleCallback() {
+        AuthApiClient.deleteChatMessage(context, currentUserId, messageId, new AuthApiClient.SimpleCallback() {
             @Override
             public void onSuccess() {
                 if (callback != null) {
@@ -193,7 +193,7 @@ public class CloudChatRepository {
                 if (callback != null) callback.onSuccess(new ArrayList<>());
                 return;
             }
-            AuthApiClient.searchChatMessages(context, currentRelationshipId, keyword,
+            AuthApiClient.searchChatMessages(context, currentUserId, currentRelationshipId, keyword,
                     new AuthApiClient.ChatMessageListCallback() {
                         @Override
                         public void onSuccess(List<AuthApiModels.ChatMessageData> messages) {

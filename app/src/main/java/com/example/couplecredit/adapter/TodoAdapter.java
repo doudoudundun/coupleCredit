@@ -43,7 +43,6 @@ public class TodoAdapter extends RecyclerView.Adapter<TodoAdapter.TodoHolder> {
         void onEdit(AuthApiModels.TodoItemData item);
         void onDelete(AuthApiModels.TodoItemData item);
         void onDuplicate(AuthApiModels.TodoItemData item);
-        void onRemindPartner(AuthApiModels.TodoItemData item);
     }
 
     private final List<AuthApiModels.TodoItemData> items = new ArrayList<>();
@@ -262,12 +261,6 @@ public class TodoAdapter extends RecyclerView.Adapter<TodoAdapter.TodoHolder> {
         holder.btnDuplicate.setOnClickListener(v -> {
             if (duplicatingTodoIds.contains(item.todoId)) return;
             if (listener != null) listener.onDuplicate(item);
-        });
-
-        boolean isShared = item.relationshipId != null && item.relationshipId > 0;
-        holder.btnRemindPartner.setVisibility(isShared && !done ? View.VISIBLE : View.GONE);
-        holder.btnRemindPartner.setOnClickListener(v -> {
-            if (listener != null) listener.onRemindPartner(item);
         });
 
         if (animatingStatusTransition) {
@@ -508,7 +501,6 @@ public class TodoAdapter extends RecyclerView.Adapter<TodoAdapter.TodoHolder> {
         TextView btnDuplicate;
         TextView btnEdit;
         TextView btnDelete;
-        TextView btnRemindPartner;
         LinearLayout layoutExpanded;
         ImageView ivImage;
         ImageView ivLargeImage;
@@ -530,7 +522,6 @@ public class TodoAdapter extends RecyclerView.Adapter<TodoAdapter.TodoHolder> {
             btnDuplicate = itemView.findViewById(R.id.btn_duplicate_todo);
             btnEdit = itemView.findViewById(R.id.btn_edit_todo);
             btnDelete = itemView.findViewById(R.id.btn_delete_todo);
-            btnRemindPartner = itemView.findViewById(R.id.btn_remind_partner);
             layoutExpanded = itemView.findViewById(R.id.layout_expanded);
             ivImage = itemView.findViewById(R.id.iv_todo_image);
             ivLargeImage = itemView.findViewById(R.id.iv_todo_large_image);

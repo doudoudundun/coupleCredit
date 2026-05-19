@@ -135,6 +135,72 @@
         </LinearLayout>
 
         <LinearLayout
+            android:id="@+id/layout_calorie_summary"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
+            android:layout_marginTop="8dp"
+            android:layout_marginEnd="12dp"
+            android:background="@android:color/white"
+            android:orientation="vertical"
+            android:padding="12dp"
+            android:visibility="gone">
+
+            <TextView
+                android:id="@+id/tv_calorie_summary_title"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="今日 0 / 2000 kcal"
+                android:textColor="#1A1A1A"
+                android:textSize="15sp"
+                android:textStyle="bold" />
+
+            <ProgressBar
+                android:id="@+id/progress_calorie"
+                style="?android:attr/progressBarStyleHorizontal"
+                android:layout_width="match_parent"
+                android:layout_height="8dp"
+                android:layout_marginTop="8dp"
+                android:max="100"
+                android:progress="0" />
+
+            <LinearLayout
+                android:id="@+id/layout_calorie_detail"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <TextView
+                    android:id="@+id/tv_calorie_cook"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="烹饪 0 kcal"
+                    android:textColor="#07C160"
+                    android:textSize="12sp" />
+
+                <TextView
+                    android:id="@+id/tv_calorie_eat_out"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:text="外食 0 kcal"
+                    android:textColor="#FF8F00"
+                    android:textSize="12sp" />
+
+                <TextView
+                    android:id="@+id/tv_calorie_manual"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:text="手动 0 kcal"
+                    android:textColor="#1976D2"
+                    android:textSize="12sp" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <LinearLayout
             android:id="@+id/layout_login_prompt"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
