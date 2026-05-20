@@ -14,7 +14,7 @@ function createPushRouter({ pool }) {
       if (!token || typeof token !== "string" || token.trim().length < 10) {
         throw new ApiError(400, "INVALID_REQUEST", "无效的 push token");
       }
-      if (!["fcm", "jpush"].includes(channel)) {
+      if (!["fcm"].includes(channel)) {
         throw new ApiError(400, "INVALID_REQUEST", "不支持的推送通道: " + channel);
       }
 

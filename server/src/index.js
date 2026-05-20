@@ -50,7 +50,6 @@ const { createPushRouter } = require("./routes/push");
 const { createNotificationRouter } = require("./routes/notifications");
 const { createAiChatRouter } = require("./routes/aiChat");
 const { initializeApp: initFcm } = require("./services/fcmService");
-const { initialize: initJPush } = require("./services/jpushService");
 const { sendError } = require("./errors");
 const { optionalAuth } = require("./middleware/auth");
 const { standardLimiter, authLimiter, strictLimiter, aiLimiter } = require("./middleware/rateLimit");
@@ -115,7 +114,6 @@ const server = app.listen(config.port, config.host, () => {
   console.log(`Server listening on http://${config.host}:${config.port}`);
 
   initFcm();
-  initJPush();
 });
 
 function gracefulShutdown() {

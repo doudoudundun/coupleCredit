@@ -7,8 +7,6 @@ import androidx.multidex.MultiDexApplication;
 import com.example.couplecredit.utils.NotificationHelper;
 import com.example.couplecredit.utils.UserInfoManager;
 
-import cn.jpush.android.api.JPushInterface;
-
 public class MyApplication extends MultiDexApplication {
     private static final String TAG = "MyApplication";
 
@@ -16,40 +14,7 @@ public class MyApplication extends MultiDexApplication {
     public void onCreate() {
         super.onCreate();
         NotificationHelper.createNotificationChannel(this);
-        initJPush();
         initFcmToken();
-    }
-
-    private void initJPush() {
-        try {
-            JPushInterface.setDebugMode(true);
-            JPushInterface.init(this);
-            Log.d(TAG, "JPush initialized");
-
-            if (UserInfoManager.isUserLoggedIn(this)) {
-                String regId = JPushInterface.getRegistrationID(this);
-                if (regId != null && !regId.isEmpty()) {
-                    Log.d(TAG, "JPush regId: " + regId);
-                    NotificationHelper.registerPushToken(this, regId, "jpush");
-                }
-            }
-
-            // 延迟再试一次，等待 InitProvider 完成初始化
-            new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
-                try {
-                    if (!UserInfoManager.isUserLoggedIn(this)) return;
-                    String regId = JPushInterface.getRegistrationID(this);
-                    if (regId != null && !regId.isEmpty()) {
-                        Log.d(TAG, "JPush regId delayed: " + regId);
-                        NotificationHelper.registerPushToken(this, regId, "jpush");
-                    }
-                } catch (Throwable e) {
-                    Log.e(TAG, "JPush delayed check failed: " + e.getMessage());
-                }
-            }, 15000);
-        } catch (Throwable e) {
-            Log.e(TAG, "JPush setup failed: " + e.getMessage());
-        }
     }
 
     private void initFcmToken() {

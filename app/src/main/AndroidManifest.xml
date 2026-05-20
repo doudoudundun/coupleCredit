@@ -96,30 +96,6 @@
             </intent-filter>
         </service>
 
-        <!-- JPush 自定义 Receiver -->
-        <service
-            android:name="cn.jpush.android.service.JCommonService"
-            android:exported="false" />
-        <service
-            android:name=".JPushService"
-            android:exported="false">
-            <intent-filter>
-                <action android:name="cn.jpush.android.intent.REGISTRATION" />
-                <action android:name="cn.jpush.android.intent.MESSAGE_RECEIVED" />
-                <action android:name="cn.jpush.android.intent.NOTIFICATION_RECEIVED" />
-                <action android:name="cn.jpush.android.intent.NOTIFICATION_OPENED" />
-                <category android:name="com.example.couplecredit" />
-            </intent-filter>
-        </service>
-
-        <!-- JPush 配置（其余由 jiguang module 自动合并） -->
-        <meta-data
-            android:name="JPUSH_APPKEY"
-            android:value="${JPUSH_APPKEY}" />
-        <meta-data
-            android:name="JPUSH_CHANNEL"
-            android:value="${JPUSH_CHANNEL}" />
-
     </application>
 
 </manifest>
