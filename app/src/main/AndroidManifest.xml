@@ -77,6 +77,18 @@
             android:name=".activity.CalorieActivity"
             android:label="热量管理"
             android:parentActivityName=".activity.MainActivity" />
+        <activity
+            android:name=".activity.AssetsActivity"
+            android:label="我的资产"
+            android:parentActivityName=".activity.MainActivity" />
+        <activity
+            android:name=".activity.AddAssetActivity"
+            android:label="添加资产"
+            android:parentActivityName=".activity.AssetsActivity" />
+        <activity
+            android:name=".activity.AssetDetailActivity"
+            android:label="资产详情"
+            android:parentActivityName=".activity.AssetsActivity" />
 
         <provider
             android:name="androidx.core.content.FileProvider"

@@ -1221,4 +1221,138 @@ public class AuthApiModels {
         public int targetId;
         public String type;
     }
+
+    // --- Asset models ---
+
+    public static class AssetItemData {
+        public int assetId;
+        public int userId;
+        public Integer relationshipId;
+        public String name;
+        public String category;
+        public String imageUrl;
+        public String originalImageUrl;
+        public String purchaseDate;
+        public Double purchasePrice;
+        public Double currentValue;
+        public String status;
+        public String note;
+        public String disposedAt;
+        public String createdAt;
+        public String updatedAt;
+        public int holdDays;
+        public double dailyCost;
+        public double monthlyCost;
+    }
+
+    public static class AssetListData {
+        public List<AssetItemData> items;
+        public Integer relationshipId;
+    }
+
+    public static class AssetStatsData {
+        public double totalValue;
+        public int totalCount;
+        public double dailyAvgCost;
+        public double monthlyAvgCost;
+        public List<CategoryBreakdown> categoryBreakdown;
+        public StatusBreakdown statusBreakdown;
+        public AssetItemData latestItem;
+    }
+
+    public static class CategoryBreakdown {
+        public String category;
+        public int count;
+        public double totalValue;
+    }
+
+    public static class StatusBreakdown {
+        public int active;
+        public int idle;
+        public int disposed;
+    }
+
+    public static class AssetCategoryData {
+        public List<String> categories;
+    }
+
+    public static class AssetListResponse {
+        public boolean ok;
+        public String message;
+        public AssetListData data;
+        public ErrorBody error;
+    }
+
+    public static class AssetStatsResponse {
+        public boolean ok;
+        public String message;
+        public AssetStatsData data;
+        public ErrorBody error;
+    }
+
+    public static class AssetCategoryListResponse {
+        public boolean ok;
+        public String message;
+        public AssetCategoryData data;
+        public ErrorBody error;
+    }
+
+    public static class AssetMutationResponse {
+        public boolean ok;
+        public String message;
+        public AssetMutationData data;
+        public ErrorBody error;
+    }
+
+    public static class AssetMutationData {
+        public int assetId;
+    }
+
+    public static class AssetStatusUpdateRequest {
+        public final int userId;
+        public final String status;
+
+        public AssetStatusUpdateRequest(int userId, String status) {
+            this.userId = userId;
+            this.status = status;
+        }
+    }
+
+    public static class CreateAssetRequest {
+        public final int userId;
+        public final String name;
+        public final String category;
+        public final String imageUrl;
+        public final String originalImageUrl;
+        public final String purchaseDate;
+        public final Double purchasePrice;
+        public final Double currentValue;
+        public final String status;
+        public final String note;
+
+        public CreateAssetRequest(int userId, String name, String category, String imageUrl, String originalImageUrl,
+                                  String purchaseDate, Double purchasePrice, Double currentValue, String status, String note) {
+            this.userId = userId;
+            this.name = name;
+            this.category = category;
+            this.imageUrl = imageUrl;
+            this.originalImageUrl = originalImageUrl;
+            this.purchaseDate = purchaseDate;
+            this.purchasePrice = purchasePrice;
+            this.currentValue = currentValue;
+            this.status = status;
+            this.note = note;
+        }
+    }
+
+    public static class RemoveBgResponse {
+        public boolean ok;
+        public String message;
+        public RemoveBgData data;
+        public ErrorBody error;
+    }
+
+    public static class RemoveBgData {
+        public String imageUrl;
+    }
 }

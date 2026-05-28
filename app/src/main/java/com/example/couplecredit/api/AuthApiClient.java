@@ -201,6 +201,42 @@ public class AuthApiClient {
     public interface CalorieMutationCallback extends MutationCallback {
     }
 
+    // Asset callbacks
+    public interface AssetListCallback {
+        void onSuccess(AuthApiModels.AssetListResponse response);
+        void onError(String message);
+    }
+
+    public interface AssetStatsCallback {
+        void onSuccess(AuthApiModels.AssetStatsResponse response);
+        void onError(String message);
+    }
+
+    public interface AssetCategoryListCallback {
+        void onSuccess(AuthApiModels.AssetCategoryListResponse response);
+        void onError(String message);
+    }
+
+    public interface AssetMutationCallback {
+        void onSuccess(AuthApiModels.AssetMutationResponse response);
+        void onError(String message);
+    }
+
+    public interface AssetStatusCallback {
+        void onSuccess();
+        void onError(String message);
+    }
+
+    public interface AssetDeleteCallback {
+        void onSuccess();
+        void onError(String message);
+    }
+
+    public interface RemoveBgCallback {
+        void onSuccess(AuthApiModels.RemoveBgResponse response);
+        void onError(String message);
+    }
+
     private interface RawCallback {
         void onSuccess(String json);
         void onError(String message);
@@ -1756,5 +1792,286 @@ public class AuthApiClient {
             }
         }
         return builder.toString();
+    }
+
+    // --- Asset API methods ---
+
+    public static void getAssets(Context context, int userId, AssetListCallback callback) {
+        doRequest(context, "GET", "/api/assets?userId=" + userId, null,
+                new RawCallback() {
+                    @Override
+                    public void onSuccess(String json) {
+                        if (callback != null) {
+                            try {
+                                AuthApiModels.AssetListResponse response = GSON.fromJson(json, AuthApiModels.AssetListResponse.class);
+                                if (response != null && response.ok) {
+                                    callback.onSuccess(response);
+                                } else {
+                                    callback.onError(extractError(response != null ? response.error : null, json));
+                                }
+                            } catch (Exception e) {
+                                Log.e(TAG, "getAssets 响应解析失败: " + json, e);
+                                callback.onError(buildParseError("资产列表", json));
+                            }
+                        }
+                    }
+
+                    @Override
+                    public void onError(String message) {
+                        if (callback != null) callback.onError(message);
+                    }
+                });
+    }
+
+    public static void getAssetsByFilter(Context context, int userId, String category, String status, AssetListCallback callback) {
+        StringBuilder url = new StringBuilder("/api/assets?userId=").append(userId);
+        if (category != null && !category.isEmpty()) url.append("&category=").append(category);
+        if (status != null && !status.isEmpty()) url.append("&status=").append(status);
+
+        doRequest(context, "GET", url.toString(), null,
+                new RawCallback() {
+                    @Override
+                    public void onSuccess(String json) {
+                        if (callback != null) {
+                            try {
+                                AuthApiModels.AssetListResponse response = GSON.fromJson(json, AuthApiModels.AssetListResponse.class);
+                                if (response != null && response.ok) {
+                                    callback.onSuccess(response);
+                                } else {
+                                    callback.onError(extractError(response != null ? response.error : null, json));
+                                }
+                            } catch (Exception e) {
+                                Log.e(TAG, "getAssetsByFilter 响应解析失败: " + json, e);
+                                callback.onError(buildParseError("资产列表", json));
+                            }
+                        }
+                    }
+
+                    @Override
+                    public void onError(String message) {
+                        if (callback != null) callback.onError(message);
+                    }
+                });
+    }
+
+    public static void getAssetById(Context context, int assetId, int userId, AssetListCallback callback) {
+        doRequest(context, "GET", "/api/assets/" + assetId + "?userId=" + userId, null,
+                new RawCallback() {
+                    @Override
+                    public void onSuccess(String json) {
+                        if (callback != null) {
+                            try {
+                                AuthApiModels.AssetListResponse response = GSON.fromJson(json, AuthApiModels.AssetListResponse.class);
+                                if (response != null && response.ok) {
+                                    callback.onSuccess(response);
+                                } else {
+                                    callback.onError(extractError(response != null ? response.error : null, json));
+                                }
+                            } catch (Exception e) {
+                                Log.e(TAG, "getAssetById 响应解析失败: " + json, e);
+                                callback.onError(buildParseError("资产详情", json));
+                            }
+                        }
+                    }
+
+                    @Override
+                    public void onError(String message) {
+                        if (callback != null) callback.onError(message);
+                    }
+                });
+    }
+
+    public static void getAssetStats(Context context, int userId, AssetStatsCallback callback) {
+        doRequest(context, "GET", "/api/assets/stats?userId=" + userId, null,
+                new RawCallback() {
+                    @Override
+                    public void onSuccess(String json) {
+                        if (callback != null) {
+                            try {
+                                AuthApiModels.AssetStatsResponse response = GSON.fromJson(json, AuthApiModels.AssetStatsResponse.class);
+                                if (response != null && response.ok) {
+                                    callback.onSuccess(response);
+                                } else {
+                                    callback.onError(extractError(response != null ? response.error : null, json));
+                                }
+                            } catch (Exception e) {
+                                Log.e(TAG, "getAssetStats 响应解析失败: " + json, e);
+                                callback.onError(buildParseError("资产统计", json));
+                            }
+                        }
+                    }
+
+                    @Override
+                    public void onError(String message) {
+                        if (callback != null) callback.onError(message);
+                    }
+                });
+    }
+
+    public static void getAssetCategories(Context context, int userId, AssetCategoryListCallback callback) {
+        doRequest(context, "GET", "/api/assets/categories?userId=" + userId, null,
+                new RawCallback() {
+                    @Override
+                    public void onSuccess(String json) {
+                        if (callback != null) {
+                            try {
+                                AuthApiModels.AssetCategoryListResponse response = GSON.fromJson(json, AuthApiModels.AssetCategoryListResponse.class);
+                                if (response != null && response.ok) {
+                                    callback.onSuccess(response);
+                                } else {
+                                    callback.onError(extractError(response != null ? response.error : null, json));
+                                }
+                            } catch (Exception e) {
+                                Log.e(TAG, "getAssetCategories 响应解析失败: " + json, e);
+                                callback.onError(buildParseError("资产分类", json));
+                            }
+                        }
+                    }
+
+                    @Override
+                    public void onError(String message) {
+                        if (callback != null) callback.onError(message);
+                    }
+                });
+    }
+
+    public static void createAsset(Context context, AuthApiModels.CreateAssetRequest request, AssetMutationCallback callback) {
+        doRequest(context, "POST", "/api/assets",
+                GSON.toJson(request),
+                new RawCallback() {
+                    @Override
+                    public void onSuccess(String json) {
+                        if (callback != null) {
+                            try {
+                                AuthApiModels.AssetMutationResponse response = GSON.fromJson(json, AuthApiModels.AssetMutationResponse.class);
+                                if (response != null && response.ok) {
+                                    callback.onSuccess(response);
+                                } else {
+                                    callback.onError(extractError(response != null ? response.error : null, json));
+                                }
+                            } catch (Exception e) {
+                                Log.e(TAG, "createAsset 响应解析失败: " + json, e);
+                                callback.onError(buildParseError("创建资产", json));
+                            }
+                        }
+                    }
+
+                    @Override
+                    public void onError(String message) {
+                        if (callback != null) callback.onError(message);
+                    }
+                });
+    }
+
+    public static void updateAsset(Context context, int assetId, AuthApiModels.CreateAssetRequest request, SimpleCallback callback) {
+        doRequest(context, "PUT", "/api/assets/" + assetId,
+                GSON.toJson(request),
+                new RawCallback() {
+                    @Override
+                    public void onSuccess(String json) {
+                        if (callback != null) {
+                            try {
+                                AuthApiModels.SimpleResponse response = GSON.fromJson(json, AuthApiModels.SimpleResponse.class);
+                                if (response != null && response.ok) {
+                                    callback.onSuccess();
+                                } else {
+                                    callback.onError(extractError(response != null ? response.error : null, json));
+                                }
+                            } catch (Exception e) {
+                                Log.e(TAG, "updateAsset 响应解析失败: " + json, e);
+                                callback.onError(buildParseError("更新资产", json));
+                            }
+                        }
+                    }
+
+                    @Override
+                    public void onError(String message) {
+                        if (callback != null) callback.onError(message);
+                    }
+                });
+    }
+
+    public static void updateAssetStatus(Context context, int assetId, int userId, String status, AssetStatusCallback callback) {
+        AuthApiModels.AssetStatusUpdateRequest request = new AuthApiModels.AssetStatusUpdateRequest(userId, status);
+        doRequest(context, "PATCH", "/api/assets/" + assetId + "/status",
+                GSON.toJson(request),
+                new RawCallback() {
+                    @Override
+                    public void onSuccess(String json) {
+                        if (callback != null) {
+                            try {
+                                AuthApiModels.SimpleResponse response = GSON.fromJson(json, AuthApiModels.SimpleResponse.class);
+                                if (response != null && response.ok) {
+                                    callback.onSuccess();
+                                } else {
+                                    callback.onError(extractError(response != null ? response.error : null, json));
+                                }
+                            } catch (Exception e) {
+                                Log.e(TAG, "updateAssetStatus 响应解析失败: " + json, e);
+                                callback.onError(buildParseError("更新资产状态", json));
+                            }
+                        }
+                    }
+
+                    @Override
+                    public void onError(String message) {
+                        if (callback != null) callback.onError(message);
+                    }
+                });
+    }
+
+    public static void deleteAsset(Context context, int assetId, int userId, AssetDeleteCallback callback) {
+        doRequest(context, "DELETE", "/api/assets/" + assetId + "?userId=" + userId, null,
+                new RawCallback() {
+                    @Override
+                    public void onSuccess(String json) {
+                        if (callback != null) {
+                            try {
+                                AuthApiModels.SimpleResponse response = GSON.fromJson(json, AuthApiModels.SimpleResponse.class);
+                                if (response != null && response.ok) {
+                                    callback.onSuccess();
+                                } else {
+                                    callback.onError(extractError(response != null ? response.error : null, json));
+                                }
+                            } catch (Exception e) {
+                                Log.e(TAG, "deleteAsset 响应解析失败: " + json, e);
+                                callback.onError(buildParseError("删除资产", json));
+                            }
+                        }
+                    }
+
+                    @Override
+                    public void onError(String message) {
+                        if (callback != null) callback.onError(message);
+                    }
+                });
+    }
+
+    public static void removeBackground(Context context, String imageUrl, RemoveBgCallback callback) {
+        doRequest(context, "POST", "/api/assets/remove-bg",
+                GSON.toJson(new AuthApiModels.RemoveBgData() {{ this.imageUrl = imageUrl; }}),
+                new RawCallback() {
+                    @Override
+                    public void onSuccess(String json) {
+                        if (callback != null) {
+                            try {
+                                AuthApiModels.RemoveBgResponse response = GSON.fromJson(json, AuthApiModels.RemoveBgResponse.class);
+                                if (response != null && response.ok) {
+                                    callback.onSuccess(response);
+                                } else {
+                                    callback.onError(extractError(response != null ? response.error : null, json));
+                                }
+                            } catch (Exception e) {
+                                Log.e(TAG, "removeBackground 响应解析失败: " + json, e);
+                                callback.onError(buildParseError("抠图", json));
+                            }
+                        }
+                    }
+
+                    @Override
+                    public void onError(String message) {
+                        if (callback != null) callback.onError(message);
+                    }
+                });
     }
 }

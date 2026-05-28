@@ -69,6 +69,9 @@ const Keys = {
   calorieHistory: (userId, date) => `calorie:history:${userId}:${date}`,
   calorieHistoryByUser: (userId) => `calorie:history:${userId}:`,
   nutritionSearch: (query) => `nutrition:search:${query}`,
+  assets: (userId) => `assets:${userId}`,
+  assetStats: (userId) => `asset-stats:${userId}`,
+  assetCategories: (userId) => `asset-cats:${userId}`,
 };
 
 // TTL constants (seconds)
@@ -87,6 +90,8 @@ const TTL = {
   RESTAURANTS: 30,
   CALORIE: 15,
   NUTRITION: 300,
+  ASSETS: 15,
+  ASSET_CATS: 60,
 };
 
 module.exports = { cache, Keys, TTL };

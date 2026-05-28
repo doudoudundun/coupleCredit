@@ -71,6 +71,7 @@ public class MyFragment extends Fragment {
     private LinearLayout llOverviewTodo;
     private LinearLayout llOverviewInventory;
     private LinearLayout llOverviewCouple;
+    private LinearLayout llOverviewAsset;
     private LinearLayout llUserSettings;
     private LinearLayout llInventory;
     private LinearLayout llCoupleInfo;
@@ -81,6 +82,7 @@ public class MyFragment extends Fragment {
     private TextView tvOverviewTodoSummary;
     private TextView tvOverviewInventorySummary;
     private TextView tvOverviewCoupleSummary;
+    private TextView tvAssetOverviewSummary;
     private View viewSettingsDivider;
     private ImageView ivUserAvatar;
 
@@ -159,6 +161,7 @@ public class MyFragment extends Fragment {
         llOverviewTodo = view.findViewById(R.id.ll_overview_todo);
         llOverviewInventory = view.findViewById(R.id.ll_overview_inventory);
         llOverviewCouple = view.findViewById(R.id.ll_overview_couple);
+        llOverviewAsset = view.findViewById(R.id.ll_overview_asset);
         llUserSettings = view.findViewById(R.id.ll_user_settings);
         llInventory = view.findViewById(R.id.ll_inventory);
         llCoupleInfo = view.findViewById(R.id.ll_couple_info);
@@ -169,6 +172,7 @@ public class MyFragment extends Fragment {
         tvOverviewTodoSummary = view.findViewById(R.id.tv_overview_todo_summary);
         tvOverviewInventorySummary = view.findViewById(R.id.tv_overview_inventory_summary);
         tvOverviewCoupleSummary = view.findViewById(R.id.tv_overview_couple_summary);
+        tvAssetOverviewSummary = view.findViewById(R.id.tv_asset_overview_summary);
         viewSettingsDivider = view.findViewById(R.id.view_settings_divider);
         ivUserAvatar = view.findViewById(R.id.iv_user_avatar);
     }
@@ -249,6 +253,15 @@ public class MyFragment extends Fragment {
             intent.putExtra("username", username);
             intent.putExtra("id", userId);
             startActivity(intent);
+        });
+
+        llOverviewAsset.setOnClickListener(v -> {
+            if (!isLoggedIn) {
+                Intent intent = new Intent(getActivity(), LoginActivity.class);
+                loginLauncher.launch(intent);
+                return;
+            }
+            startActivity(new Intent(getActivity(), AssetsActivity.class));
         });
 
         llLogin.setOnClickListener(v -> {
@@ -559,6 +572,7 @@ public class MyFragment extends Fragment {
         loadBillOverview(currentUserId);
         loadTodoOverview(currentUserId);
         loadInventoryOverview(currentUserId);
+        loadAssetOverview(currentUserId);
     }
 
     private void resetOverviewSummary() {
@@ -566,6 +580,7 @@ public class MyFragment extends Fragment {
         tvOverviewTodoSummary.setText("登录后查看待办状态");
         tvOverviewInventorySummary.setText("登录后查看库存变化");
         tvOverviewCoupleSummary.setText("登录后查看绑定关系");
+        tvAssetOverviewSummary.setText("登录后查看资产统计");
     }
 
     private void loadBillOverview(int currentUserId) {
@@ -676,6 +691,33 @@ public class MyFragment extends Fragment {
             public void onError(String message) {
                 if (getActivity() == null) return;
                 getActivity().runOnUiThread(() -> tvOverviewInventorySummary.setText("库存状态暂时无法获取"));
+            }
+        });
+    }
+
+    private void loadAssetOverview(int currentUserId) {
+        if (!isLoggedIn || getContext() == null) {
+            tvAssetOverviewSummary.setText("登录后查看资产统计");
+            return;
+        }
+        AuthApiClient.getAssetStats(getContext(), currentUserId, new AuthApiClient.AssetStatsCallback() {
+            @Override
+            public void onSuccess(AuthApiModels.AssetStatsResponse response) {
+                if (getActivity() == null) return;
+                getActivity().runOnUiThread(() -> {
+                    if (response.data != null) {
+                        tvAssetOverviewSummary.setText(
+                                "总资产 ¥" + String.format("%.0f", response.data.totalValue) +
+                                        " · " + response.data.totalCount + " 件物品"
+                        );
+                    }
+                });
+            }
+
+            @Override
+            public void onError(String message) {
+                if (getActivity() == null) return;
+                getActivity().runOnUiThread(() -> tvAssetOverviewSummary.setText("资产数据暂时无法获取"));
             }
         });
     }
