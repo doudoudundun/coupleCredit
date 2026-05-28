@@ -167,7 +167,7 @@ public class AssetDetailActivity extends AppCompatActivity {
     }
 
     private void confirmDelete() {
-        new AlertDialog.Builder(this)
+        new AlertDialog.Builder(this, R.style.CustomDialogStyle)
                 .setTitle("删除资产")
                 .setMessage("确定要删除这个资产吗？")
                 .setPositiveButton("删除", (dialog, which) -> deleteAsset())

@@ -26,7 +26,7 @@ public class AssetsActivity extends AppCompatActivity implements AssetAdapter.On
 
     private RecyclerView rvAssets;
     private AssetAdapter adapter;
-    private TextView tvTotalValue, tvTotalCount, tvDailyAvg, tvMonthlyAvg;
+    private TextView tvTotalValue, tvTotalCount, tvDailyAvg, tvMonthlyAvg, tvEmpty;
     private LinearLayout llCategoryFilters, llStatusFilters;
     private int currentUserId;
     private String selectedCategory = null;
@@ -60,6 +60,7 @@ public class AssetsActivity extends AppCompatActivity implements AssetAdapter.On
         tvMonthlyAvg = findViewById(R.id.tv_monthly_avg);
         llCategoryFilters = findViewById(R.id.ll_category_filters);
         llStatusFilters = findViewById(R.id.ll_status_filters);
+        tvEmpty = findViewById(R.id.tv_empty);
 
         ImageView ivBack = findViewById(R.id.iv_back);
         ivBack.setOnClickListener(v -> finish());
@@ -234,6 +235,9 @@ public class AssetsActivity extends AppCompatActivity implements AssetAdapter.On
                         runOnUiThread(() -> {
                             if (response.data != null && response.data.items != null) {
                                 adapter.updateData(response.data.items);
+                                boolean empty = response.data.items.isEmpty();
+                                tvEmpty.setVisibility(empty ? View.VISIBLE : View.GONE);
+                                rvAssets.setVisibility(empty ? View.GONE : View.VISIBLE);
                             }
                         });
                     }
