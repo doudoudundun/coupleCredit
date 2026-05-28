@@ -222,20 +222,12 @@ public class AuthApiClient {
         void onError(String message);
     }
 
-    public interface AssetStatusCallback {
-        void onSuccess();
+    public interface AssetDetailCallback {
+        void onSuccess(AuthApiModels.AssetItemData asset);
         void onError(String message);
     }
 
-    public interface AssetDeleteCallback {
-        void onSuccess();
-        void onError(String message);
-    }
-
-    public interface RemoveBgCallback {
-        void onSuccess(AuthApiModels.RemoveBgResponse response);
-        void onError(String message);
-    }
+    // AssetStatusCallback and AssetDeleteCallback replaced by SimpleCallback
 
     private interface RawCallback {
         void onSuccess(String json);
@@ -1797,30 +1789,7 @@ public class AuthApiClient {
     // --- Asset API methods ---
 
     public static void getAssets(Context context, int userId, AssetListCallback callback) {
-        doRequest(context, "GET", "/api/assets?userId=" + userId, null,
-                new RawCallback() {
-                    @Override
-                    public void onSuccess(String json) {
-                        if (callback != null) {
-                            try {
-                                AuthApiModels.AssetListResponse response = GSON.fromJson(json, AuthApiModels.AssetListResponse.class);
-                                if (response != null && response.ok) {
-                                    callback.onSuccess(response);
-                                } else {
-                                    callback.onError(extractError(response != null ? response.error : null, json));
-                                }
-                            } catch (Exception e) {
-                                Log.e(TAG, "getAssets 响应解析失败: " + json, e);
-                                callback.onError(buildParseError("资产列表", json));
-                            }
-                        }
-                    }
-
-                    @Override
-                    public void onError(String message) {
-                        if (callback != null) callback.onError(message);
-                    }
-                });
+        getAssetsByFilter(context, userId, null, null, callback);
     }
 
     public static void getAssetsByFilter(Context context, int userId, String category, String status, AssetListCallback callback) {
@@ -1854,18 +1823,24 @@ public class AuthApiClient {
                 });
     }
 
-    public static void getAssetById(Context context, int assetId, int userId, AssetListCallback callback) {
+    public static void getAssetById(Context context, int assetId, int userId, AssetDetailCallback callback) {
         doRequest(context, "GET", "/api/assets/" + assetId + "?userId=" + userId, null,
                 new RawCallback() {
                     @Override
                     public void onSuccess(String json) {
                         if (callback != null) {
                             try {
-                                AuthApiModels.AssetListResponse response = GSON.fromJson(json, AuthApiModels.AssetListResponse.class);
-                                if (response != null && response.ok) {
-                                    callback.onSuccess(response);
+                                JsonObject obj = GSON.fromJson(json, JsonObject.class);
+                                if (obj != null && obj.has("ok") && obj.get("ok").getAsBoolean()) {
+                                    AuthApiModels.AssetItemData asset = GSON.fromJson(obj.get("data"), AuthApiModels.AssetItemData.class);
+                                    callback.onSuccess(asset);
                                 } else {
-                                    callback.onError(extractError(response != null ? response.error : null, json));
+                                    String error = json;
+                                    if (obj != null && obj.has("error")) {
+                                        JsonObject err = obj.getAsJsonObject("error");
+                                        error = err.has("message") ? err.get("message").getAsString() : json;
+                                    }
+                                    callback.onError(error);
                                 }
                             } catch (Exception e) {
                                 Log.e(TAG, "getAssetById 响应解析失败: " + json, e);
@@ -1991,7 +1966,7 @@ public class AuthApiClient {
                 });
     }
 
-    public static void updateAssetStatus(Context context, int assetId, int userId, String status, AssetStatusCallback callback) {
+    public static void updateAssetStatus(Context context, int assetId, int userId, String status, SimpleCallback callback) {
         AuthApiModels.AssetStatusUpdateRequest request = new AuthApiModels.AssetStatusUpdateRequest(userId, status);
         doRequest(context, "PATCH", "/api/assets/" + assetId + "/status",
                 GSON.toJson(request),
@@ -2020,7 +1995,7 @@ public class AuthApiClient {
                 });
     }
 
-    public static void deleteAsset(Context context, int assetId, int userId, AssetDeleteCallback callback) {
+    public static void deleteAsset(Context context, int assetId, int userId, SimpleCallback callback) {
         doRequest(context, "DELETE", "/api/assets/" + assetId + "?userId=" + userId, null,
                 new RawCallback() {
                     @Override
@@ -2047,7 +2022,7 @@ public class AuthApiClient {
                 });
     }
 
-    public static void removeBackground(Context context, String imageUrl, RemoveBgCallback callback) {
+    public static void removeBackground(Context context, String imageUrl, AssetCategoryListCallback callback) {
         doRequest(context, "POST", "/api/assets/remove-bg",
                 GSON.toJson(new AuthApiModels.RemoveBgData() {{ this.imageUrl = imageUrl; }}),
                 new RawCallback() {

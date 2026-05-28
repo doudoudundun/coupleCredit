@@ -24,8 +24,7 @@ public class AssetDetailActivity extends AppCompatActivity {
     private AuthApiModels.AssetItemData currentAsset;
 
     @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
+    protected void onCreate(Bundle savedInstanceState) {        super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_asset_detail);
 
         assetId = getIntent().getIntExtra("assetId", -1);
@@ -53,17 +52,12 @@ public class AssetDetailActivity extends AppCompatActivity {
     }
 
     private void loadAssetDetail() {
-        AuthApiClient.getAssetById(this, assetId, currentUserId, new AuthApiClient.AssetListCallback() {
+        AuthApiClient.getAssetById(this, assetId, currentUserId, new AuthApiClient.AssetDetailCallback() {
             @Override
-            public void onSuccess(AuthApiModels.AssetListResponse response) {
+            public void onSuccess(AuthApiModels.AssetItemData asset) {
                 runOnUiThread(() -> {
-                    if (response.data != null && response.data.items != null && !response.data.items.isEmpty()) {
-                        currentAsset = response.data.items.get(0);
-                        displayAssetDetails();
-                    } else {
-                        Toast.makeText(AssetDetailActivity.this, "资产不存在", Toast.LENGTH_SHORT).show();
-                        finish();
-                    }
+                    currentAsset = asset;
+                    displayAssetDetails();
                 });
             }
 
@@ -153,7 +147,7 @@ public class AssetDetailActivity extends AppCompatActivity {
         }
 
         AuthApiClient.updateAssetStatus(this, assetId, currentUserId, newStatus,
-                new AuthApiClient.AssetStatusCallback() {
+                new AuthApiClient.SimpleCallback() {
                     @Override
                     public void onSuccess() {
                         runOnUiThread(() -> {
@@ -182,7 +176,7 @@ public class AssetDetailActivity extends AppCompatActivity {
     }
 
     private void deleteAsset() {
-        AuthApiClient.deleteAsset(this, assetId, currentUserId, new AuthApiClient.AssetDeleteCallback() {
+        AuthApiClient.deleteAsset(this, assetId, currentUserId, new AuthApiClient.SimpleCallback() {
             @Override
             public void onSuccess() {
                 runOnUiThread(() -> {

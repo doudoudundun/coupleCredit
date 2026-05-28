@@ -1,7 +1,6 @@
 const express = require("express");
 const sharp = require("sharp");
 const path = require("path");
-const fsPromises = require("fs").promises;
 const { ApiError } = require("../errors");
 const { cache, Keys, TTL } = require("../cache");
 const { loadActiveRelationship, trimValue, parseRequiredInteger, normalizeNullableText, invalidateForUser } = require("../utils/queryHelpers");
@@ -16,6 +15,26 @@ const ASSET_SELECT_FIELDS = `asset_id as assetId, user_id as userId, relationshi
 const DEFAULT_CATEGORIES = [
   '电子设备', '衣物', '包包', '鞋履', '家具', '配饰', '美妆', '书籍', '其他'
 ];
+
+function ownershipWhere(relationshipId, userId) {
+  if (relationshipId) {
+    return { clause: "(relationship_id = ? OR (user_id = ? AND relationship_id IS NULL))", params: [relationshipId, userId] };
+  }
+  return { clause: "user_id = ? AND relationship_id IS NULL", params: [userId] };
+}
+
+function computeMetrics(row, now) {
+  const purchaseDate = row.purchaseDate ? new Date(row.purchaseDate) : null;
+  const holdDays = purchaseDate ? Math.floor((now - purchaseDate) / (1000 * 60 * 60 * 24)) : 0;
+  const dailyCost = (holdDays > 0 && row.purchasePrice) ? row.purchasePrice / holdDays : 0;
+  const monthlyCost = dailyCost * 30;
+  return {
+    ...row,
+    holdDays,
+    dailyCost: Math.round(dailyCost * 100) / 100,
+    monthlyCost: Math.round(monthlyCost * 100) / 100
+  };
+}
 
 function createAssetsRouter({ pool }) {
   const router = express.Router();
@@ -33,23 +52,15 @@ function createAssetsRouter({ pool }) {
       const category = req.query.category ? trimValue(req.query.category) : null;
       const status = req.query.status ? trimValue(req.query.status) : null;
 
-      const cacheKey = Keys.assets(userId) + (category ? `:${category}` : '') + (status ? `:${status}` : '');
-      const cached = cache.get(cacheKey);
-      if (cached) return res.json(cached);
+      const cached = cache.get(Keys.assets(userId));
+      if (cached && !category && !status) return res.json(cached);
 
       const relationship = await loadActiveRelationship(pool, userId);
       const relationshipId = relationship ? relationship.relationship_id : null;
 
-      let query;
-      let params = [];
-
-      if (relationshipId) {
-        query = `SELECT ${ASSET_SELECT_FIELDS} FROM assets WHERE (relationship_id = ? OR (user_id = ? AND relationship_id IS NULL))`;
-        params = [relationshipId, userId];
-      } else {
-        query = `SELECT ${ASSET_SELECT_FIELDS} FROM assets WHERE user_id = ? AND relationship_id IS NULL`;
-        params = [userId];
-      }
+      const scope = ownershipWhere(relationshipId, userId);
+      let query = `SELECT ${ASSET_SELECT_FIELDS} FROM assets WHERE ${scope.clause}`;
+      let params = [...scope.params];
 
       if (category) {
         query += " AND category = ?";
@@ -65,26 +76,14 @@ function createAssetsRouter({ pool }) {
       const [rows] = await pool.execute(query, params);
 
       const now = new Date();
-      const items = rows.map(row => {
-        const purchaseDate = row.purchaseDate ? new Date(row.purchaseDate) : null;
-        const holdDays = purchaseDate ? Math.floor((now - purchaseDate) / (1000 * 60 * 60 * 24)) : 0;
-        const dailyCost = (holdDays > 0 && row.purchasePrice) ? row.purchasePrice / holdDays : 0;
-        const monthlyCost = dailyCost * 30;
-
-        return {
-          ...row,
-          holdDays,
-          dailyCost: Math.round(dailyCost * 100) / 100,
-          monthlyCost: Math.round(monthlyCost * 100) / 100
-        };
-      });
+      const items = rows.map(row => computeMetrics(row, now));
 
       const responseData = {
         ok: true,
         message: "查询成功",
         data: { items, relationshipId }
       };
-      cache.set(cacheKey, responseData, TTL.ASSETS);
+      cache.set(Keys.assets(userId), responseData, TTL.ASSETS);
       res.json(responseData);
     } catch (error) {
       next(error);
@@ -102,18 +101,11 @@ function createAssetsRouter({ pool }) {
       const relationship = await loadActiveRelationship(pool, userId);
       const relationshipId = relationship ? relationship.relationship_id : null;
 
-      let query;
-      let params = [];
-
-      if (relationshipId) {
-        query = `SELECT ${ASSET_SELECT_FIELDS} FROM assets WHERE relationship_id = ? OR (user_id = ? AND relationship_id IS NULL)`;
-        params = [relationshipId, userId];
-      } else {
-        query = `SELECT ${ASSET_SELECT_FIELDS} FROM assets WHERE user_id = ? AND relationship_id IS NULL`;
-        params = [userId];
-      }
-
-      const [rows] = await pool.execute(query, params);
+      const scope = ownershipWhere(relationshipId, userId);
+      const [rows] = await pool.execute(
+        `SELECT ${ASSET_SELECT_FIELDS} FROM assets WHERE ${scope.clause}`,
+        scope.params
+      );
 
       const now = new Date();
       let totalValue = 0;
@@ -124,14 +116,12 @@ function createAssetsRouter({ pool }) {
       let totalDailyCost = 0;
 
       rows.forEach(row => {
-        const purchaseDate = row.purchaseDate ? new Date(row.purchaseDate) : null;
-        const holdDays = purchaseDate ? Math.floor((now - purchaseDate) / (1000 * 60 * 60 * 24)) : 0;
-        const dailyCost = (holdDays > 0 && row.purchasePrice) ? row.purchasePrice / holdDays : 0;
+        const metrics = computeMetrics(row, now);
 
         if (row.status === 'active' || row.status === 'idle') {
           totalValue += Number(row.purchasePrice) || 0;
         }
-        totalDailyCost += dailyCost;
+        totalDailyCost += metrics.dailyCost;
 
         if (!categoryBreakdown[row.category]) {
           categoryBreakdown[row.category] = { count: 0, totalValue: 0 };
@@ -187,22 +177,12 @@ function createAssetsRouter({ pool }) {
       const relationship = await loadActiveRelationship(pool, userId);
       const relationshipId = relationship ? relationship.relationship_id : null;
 
-      let query;
-      let params = [];
+      const scope = ownershipWhere(relationshipId, userId);
+      const query = `SELECT name, is_default as isDefault FROM asset_categories
+               WHERE is_default = TRUE OR ${scope.clause}
+               ORDER BY is_default DESC, created_at ASC`;
 
-      if (relationshipId) {
-        query = `SELECT name, is_default as isDefault FROM asset_categories
-                 WHERE is_default = TRUE OR (relationship_id = ? OR (user_id = ? AND relationship_id IS NULL))
-                 ORDER BY is_default DESC, created_at ASC`;
-        params = [relationshipId, userId];
-      } else {
-        query = `SELECT name, is_default as isDefault FROM asset_categories
-                 WHERE is_default = TRUE OR (user_id = ? AND relationship_id IS NULL)
-                 ORDER BY is_default DESC, created_at ASC`;
-        params = [userId];
-      }
-
-      const [rows] = await pool.execute(query, params);
+      const [rows] = await pool.execute(query, scope.params);
 
       const responseData = {
         ok: true,
@@ -305,38 +285,19 @@ function createAssetsRouter({ pool }) {
       const relationship = await loadActiveRelationship(pool, userId);
       const relationshipId = relationship ? relationship.relationship_id : null;
 
-      let query;
-      let params;
-
-      if (relationshipId) {
-        query = `SELECT ${ASSET_SELECT_FIELDS} FROM assets WHERE asset_id = ? AND (relationship_id = ? OR (user_id = ? AND relationship_id IS NULL))`;
-        params = [assetId, relationshipId, userId];
-      } else {
-        query = `SELECT ${ASSET_SELECT_FIELDS} FROM assets WHERE asset_id = ? AND user_id = ? AND relationship_id IS NULL`;
-        params = [assetId, userId];
-      }
-
-      const [rows] = await pool.execute(query, params);
+      const scope = ownershipWhere(relationshipId, userId);
+      const [rows] = await pool.execute(
+        `SELECT ${ASSET_SELECT_FIELDS} FROM assets WHERE asset_id = ? AND ${scope.clause}`,
+        [assetId, ...scope.params]
+      );
       if (rows.length === 0) {
         throw new ApiError(404, "NOT_FOUND", "资产不存在");
       }
 
-      const row = rows[0];
-      const now = new Date();
-      const purchaseDate = row.purchaseDate ? new Date(row.purchaseDate) : null;
-      const holdDays = purchaseDate ? Math.floor((now - purchaseDate) / (1000 * 60 * 60 * 24)) : 0;
-      const dailyCost = (holdDays > 0 && row.purchasePrice) ? row.purchasePrice / holdDays : 0;
-      const monthlyCost = dailyCost * 30;
-
       res.json({
         ok: true,
         message: "查询成功",
-        data: {
-          ...row,
-          holdDays,
-          dailyCost: Math.round(dailyCost * 100) / 100,
-          monthlyCost: Math.round(monthlyCost * 100) / 100
-        }
+        data: computeMetrics(rows[0], new Date())
       });
     } catch (error) {
       next(error);
@@ -348,25 +309,6 @@ function createAssetsRouter({ pool }) {
     try {
       const assetId = parseRequiredInteger(parseInt(req.params.id, 10));
       const userId = parseRequiredInteger(req.body.userId);
-
-      const relationship = await loadActiveRelationship(pool, userId);
-      const relationshipId = relationship ? relationship.relationship_id : null;
-
-      let checkQuery;
-      let checkParams;
-
-      if (relationshipId) {
-        checkQuery = "SELECT asset_id FROM assets WHERE asset_id = ? AND (relationship_id = ? OR (user_id = ? AND relationship_id IS NULL))";
-        checkParams = [assetId, relationshipId, userId];
-      } else {
-        checkQuery = "SELECT asset_id FROM assets WHERE asset_id = ? AND user_id = ? AND relationship_id IS NULL";
-        checkParams = [assetId, userId];
-      }
-
-      const [existing] = await pool.execute(checkQuery, checkParams);
-      if (existing.length === 0) {
-        throw new ApiError(404, "NOT_FOUND", "资产不存在或无权修改");
-      }
 
       const updates = [];
       const params = [];
@@ -414,10 +356,20 @@ function createAssetsRouter({ pool }) {
         throw new ApiError(400, "INVALID_REQUEST", "没有提供要更新的字段");
       }
 
-      updates.push("updated_at = NOW()");
-      params.push(assetId);
+      const relationship = await loadActiveRelationship(pool, userId);
+      const relationshipId = relationship ? relationship.relationship_id : null;
+      const scope = ownershipWhere(relationshipId, userId);
 
-      await pool.execute(`UPDATE assets SET ${updates.join(", ")} WHERE asset_id = ?`, params);
+      updates.push("updated_at = NOW()");
+      params.push(assetId, ...scope.params);
+
+      const [result] = await pool.execute(
+        `UPDATE assets SET ${updates.join(", ")} WHERE asset_id = ? AND ${scope.clause}`,
+        params
+      );
+      if (result.affectedRows === 0) {
+        throw new ApiError(404, "NOT_FOUND", "资产不存在或无权修改");
+      }
 
       invalidateAssetsCache(userId, relationship);
       res.json({ ok: true, message: "资产更新成功" });
@@ -439,33 +391,15 @@ function createAssetsRouter({ pool }) {
 
       const relationship = await loadActiveRelationship(pool, userId);
       const relationshipId = relationship ? relationship.relationship_id : null;
+      const scope = ownershipWhere(relationshipId, userId);
 
-      let checkQuery;
-      let checkParams;
-
-      if (relationshipId) {
-        checkQuery = "SELECT asset_id FROM assets WHERE asset_id = ? AND (relationship_id = ? OR (user_id = ? AND relationship_id IS NULL))";
-        checkParams = [assetId, relationshipId, userId];
-      } else {
-        checkQuery = "SELECT asset_id FROM assets WHERE asset_id = ? AND user_id = ? AND relationship_id IS NULL";
-        checkParams = [assetId, userId];
-      }
-
-      const [existing] = await pool.execute(checkQuery, checkParams);
-      if (existing.length === 0) {
+      const disposedAt = status === 'disposed' ? "NOW()" : "NULL";
+      const [result] = await pool.execute(
+        `UPDATE assets SET status = ?, disposed_at = ${disposedAt}, updated_at = NOW() WHERE asset_id = ? AND ${scope.clause}`,
+        [status, assetId, ...scope.params]
+      );
+      if (result.affectedRows === 0) {
         throw new ApiError(404, "NOT_FOUND", "资产不存在或无权修改");
-      }
-
-      if (status === 'disposed') {
-        await pool.execute(
-          "UPDATE assets SET status = ?, disposed_at = NOW(), updated_at = NOW() WHERE asset_id = ?",
-          [status, assetId]
-        );
-      } else {
-        await pool.execute(
-          "UPDATE assets SET status = ?, disposed_at = NULL, updated_at = NOW() WHERE asset_id = ?",
-          [status, assetId]
-        );
       }
 
       invalidateAssetsCache(userId, relationship);
@@ -483,19 +417,12 @@ function createAssetsRouter({ pool }) {
 
       const relationship = await loadActiveRelationship(pool, userId);
       const relationshipId = relationship ? relationship.relationship_id : null;
+      const scope = ownershipWhere(relationshipId, userId);
 
-      let deleteQuery;
-      let deleteParams;
-
-      if (relationshipId) {
-        deleteQuery = "DELETE FROM assets WHERE asset_id = ? AND (relationship_id = ? OR (user_id = ? AND relationship_id IS NULL))";
-        deleteParams = [assetId, relationshipId, userId];
-      } else {
-        deleteQuery = "DELETE FROM assets WHERE asset_id = ? AND user_id = ? AND relationship_id IS NULL";
-        deleteParams = [assetId, userId];
-      }
-
-      const [result] = await pool.execute(deleteQuery, deleteParams);
+      const [result] = await pool.execute(
+        `DELETE FROM assets WHERE asset_id = ? AND ${scope.clause}`,
+        [assetId, ...scope.params]
+      );
       if (result.affectedRows === 0) {
         throw new ApiError(404, "NOT_FOUND", "资产不存在或无权删除");
       }
@@ -519,44 +446,23 @@ function createAssetsRouter({ pool }) {
       const outputFilename = `nobg_${Date.now()}.png`;
       const outputPath = path.resolve(__dirname, "../../uploads", outputFilename);
 
-      try {
-        await fsPromises.access(imagePath);
-      } catch {
-        throw new ApiError(404, "NOT_FOUND", "图片文件不存在");
-      }
-
-      const image = sharp(imagePath);
-      const metadata = await image.metadata();
-
-      const { data, info } = await image
+      const { data, info } = await sharp(imagePath)
         .ensureAlpha()
         .raw()
         .toBuffer({ resolveWithObject: true });
 
-      const pixels = Buffer.alloc(data.length);
       for (let i = 0; i < data.length; i += info.channels) {
         const r = data[i];
         const g = data[i + 1];
         const b = data[i + 2];
-        const a = info.channels === 4 ? data[i + 3] : 255;
 
-        const isLight = r > 200 && g > 200 && b > 200;
-        const isWhiteish = Math.abs(r - g) < 30 && Math.abs(g - b) < 30 && Math.abs(r - b) < 30;
-
-        if (isLight && isWhiteish) {
-          pixels[i] = 0;
-          pixels[i + 1] = 0;
-          pixels[i + 2] = 0;
-          pixels[i + 3] = 0;
-        } else {
-          pixels[i] = r;
-          pixels[i + 1] = g;
-          pixels[i + 2] = b;
-          pixels[i + 3] = a;
+        if (r > 200 && g > 200 && b > 200 &&
+            Math.abs(r - g) < 30 && Math.abs(g - b) < 30 && Math.abs(r - b) < 30) {
+          data[i + 3] = 0;
         }
       }
 
-      await sharp(pixels, {
+      await sharp(data, {
         raw: {
           width: info.width,
           height: info.height,

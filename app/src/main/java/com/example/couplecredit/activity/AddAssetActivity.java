@@ -30,7 +30,6 @@ public class AddAssetActivity extends AppCompatActivity {
     private Spinner spinnerCategory;
     private int currentUserId;
     private String imageUrl = null;
-    private String originalImageUrl = null;
 
     private final ActivityResultLauncher<Intent> imagePickerLauncher =
             registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> {
@@ -38,8 +37,7 @@ public class AddAssetActivity extends AppCompatActivity {
                     Uri imageUri = result.getData().getData();
                     if (imageUri != null) {
                         ivAssetImage.setImageURI(imageUri);
-                        originalImageUrl = imageUri.toString();
-                        imageUrl = originalImageUrl;
+                        imageUrl = imageUri.toString();
                     }
                 }
             });
@@ -168,7 +166,7 @@ public class AddAssetActivity extends AppCompatActivity {
         }
 
         AuthApiModels.CreateAssetRequest request = new AuthApiModels.CreateAssetRequest(
-                currentUserId, name, category, imageUrl, originalImageUrl,
+                currentUserId, name, category, imageUrl, imageUrl,
                 purchaseDate.isEmpty() ? null : purchaseDate,
                 purchasePrice, currentValue, "active", note.isEmpty() ? null : note
         );
