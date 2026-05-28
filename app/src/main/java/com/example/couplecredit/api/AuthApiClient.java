@@ -6,6 +6,7 @@ import android.util.Log;
 
 import com.example.couplecredit.config.ApiConfigManager;
 import com.google.gson.Gson;
+import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
 import java.io.BufferedReader;
@@ -224,6 +225,11 @@ public class AuthApiClient {
 
     public interface AssetDetailCallback {
         void onSuccess(AuthApiModels.AssetItemData asset);
+        void onError(String message);
+    }
+
+    public interface RemoveBgCallback {
+        void onSuccess(AuthApiModels.RemoveBgResponse response);
         void onError(String message);
     }
 
@@ -2022,7 +2028,7 @@ public class AuthApiClient {
                 });
     }
 
-    public static void removeBackground(Context context, String imageUrl, AssetCategoryListCallback callback) {
+    public static void removeBackground(Context context, String imageUrl, RemoveBgCallback callback) {
         doRequest(context, "POST", "/api/assets/remove-bg",
                 GSON.toJson(new AuthApiModels.RemoveBgData() {{ this.imageUrl = imageUrl; }}),
                 new RawCallback() {
