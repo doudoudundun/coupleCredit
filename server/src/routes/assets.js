@@ -25,14 +25,17 @@ function ownershipWhere(relationshipId, userId) {
 
 function computeMetrics(row, now) {
   const purchaseDate = row.purchaseDate ? new Date(row.purchaseDate) : null;
-  const holdDays = purchaseDate ? Math.floor((now - purchaseDate) / (1000 * 60 * 60 * 24)) : 0;
-  const dailyCost = (holdDays > 0 && row.purchasePrice) ? row.purchasePrice / holdDays : 0;
-  const monthlyCost = dailyCost * 30;
+  let holdDays = 0;
+  if (purchaseDate) {
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const purchased = new Date(purchaseDate.getFullYear(), purchaseDate.getMonth(), purchaseDate.getDate());
+    holdDays = Math.max(1, Math.round((today - purchased) / (1000 * 60 * 60 * 24)));
+  }
+  const dailyCost = row.purchasePrice ? row.purchasePrice / holdDays : 0;
   return {
     ...row,
     holdDays,
-    dailyCost: Math.round(dailyCost * 100) / 100,
-    monthlyCost: Math.round(monthlyCost * 100) / 100
+    dailyCost: Math.round(dailyCost * 100) / 100
   };
 }
 
@@ -102,58 +105,55 @@ function createAssetsRouter({ pool }) {
       const relationshipId = relationship ? relationship.relationship_id : null;
 
       const scope = ownershipWhere(relationshipId, userId);
-      const [rows] = await pool.execute(
-        `SELECT ${ASSET_SELECT_FIELDS} FROM assets WHERE ${scope.clause}`,
+      const scopeClause = `WHERE ${scope.clause}`;
+
+      const [[{ totalCount, totalValue: sqlTotalValue }]] = await pool.execute(
+        `SELECT COUNT(*) as totalCount,
+                COALESCE(SUM(CASE WHEN status IN ('active','idle') THEN purchase_price END), 0) as totalValue
+         FROM assets ${scopeClause}`,
         scope.params
       );
 
+      const [categoryRows] = await pool.execute(
+        `SELECT category, COUNT(*) as count, COALESCE(SUM(purchase_price), 0) as totalValue
+         FROM assets ${scopeClause} GROUP BY category`, scope.params
+      );
+      const categoryBreakdown = categoryRows.map(r => ({
+        category: r.category,
+        count: r.count,
+        totalValue: Math.round(Number(r.totalValue) * 100) / 100
+      }));
+
+      const [statusRows] = await pool.execute(
+        `SELECT status, COUNT(*) as count FROM assets ${scopeClause} GROUP BY status`, scope.params
+      );
+      const statusBreakdown = { active: 0, idle: 0, disposed: 0 };
+      statusRows.forEach(r => { statusBreakdown[r.status] = r.count; });
+
+      const [latestRows] = await pool.execute(
+        `SELECT ${ASSET_SELECT_FIELDS} FROM assets ${scopeClause}
+         ORDER BY created_at DESC LIMIT 1`, scope.params
+      );
+      const latestItem = latestRows.length > 0 ? latestRows[0] : null;
+
+      const [allRows] = await pool.execute(
+        `SELECT purchase_price as purchasePrice, purchase_date as purchaseDate
+         FROM assets ${scopeClause}`, scope.params
+      );
       const now = new Date();
-      let totalValue = 0;
-      let totalCount = rows.length;
-      let categoryBreakdown = {};
-      let statusBreakdown = { active: 0, idle: 0, disposed: 0 };
-      let latestItem = null;
       let totalDailyCost = 0;
-
-      rows.forEach(row => {
-        const metrics = computeMetrics(row, now);
-
-        if (row.status === 'active' || row.status === 'idle') {
-          totalValue += Number(row.purchasePrice) || 0;
-        }
-        totalDailyCost += metrics.dailyCost;
-
-        if (!categoryBreakdown[row.category]) {
-          categoryBreakdown[row.category] = { count: 0, totalValue: 0 };
-        }
-        categoryBreakdown[row.category].count++;
-        categoryBreakdown[row.category].totalValue += Number(row.purchasePrice) || 0;
-
-        if (row.status) {
-          statusBreakdown[row.status] = (statusBreakdown[row.status] || 0) + 1;
-        }
-
-        if (!latestItem || new Date(row.createdAt) > new Date(latestItem.createdAt)) {
-          latestItem = row;
-        }
+      allRows.forEach(row => {
+        totalDailyCost += computeMetrics(row, now).dailyCost;
       });
-
-      const dailyAvgCost = totalCount > 0 ? totalDailyCost / totalCount : 0;
-      const monthlyAvgCost = dailyAvgCost * 30;
 
       const responseData = {
         ok: true,
         message: "查询成功",
         data: {
-          totalValue: Math.round(totalValue * 100) / 100,
+          totalValue: Math.round(Number(sqlTotalValue) * 100) / 100,
           totalCount,
-          dailyAvgCost: Math.round(dailyAvgCost * 100) / 100,
-          monthlyAvgCost: Math.round(monthlyAvgCost * 100) / 100,
-          categoryBreakdown: Object.entries(categoryBreakdown).map(([category, data]) => ({
-            category,
-            count: data.count,
-            totalValue: Math.round(data.totalValue * 100) / 100
-          })),
+          dailyAvgCost: Math.round(totalDailyCost * 100) / 100,
+          categoryBreakdown,
           statusBreakdown,
           latestItem
         }

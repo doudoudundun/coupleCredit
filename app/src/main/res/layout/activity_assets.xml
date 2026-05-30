@@ -97,19 +97,8 @@
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
-                        android:gravity="center"
-                        android:text="日均 ¥0"
-                        android:textColor="#FFFFFF"
-                        android:textSize="12sp"
-                        android:alpha="0.9" />
-
-                    <TextView
-                        android:id="@+id/tv_monthly_avg"
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
                         android:gravity="end"
-                        android:text="月均 ¥0"
+                        android:text="日总 ¥0"
                         android:textColor="#FFFFFF"
                         android:textSize="12sp"
                         android:alpha="0.9" />

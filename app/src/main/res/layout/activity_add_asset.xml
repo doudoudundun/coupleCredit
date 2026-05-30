@@ -59,21 +59,62 @@
                 android:orientation="vertical"
                 android:padding="24dp">
 
-                <ImageView
-                    android:id="@+id/iv_asset_image"
+                <FrameLayout
                     android:layout_width="120dp"
-                    android:layout_height="120dp"
-                    android:background="@drawable/bg_image_placeholder"
-                    android:src="@drawable/ic_add_photo"
-                    android:tint="#999999" />
+                    android:layout_height="120dp">
+
+                    <ImageView
+                        android:id="@+id/iv_asset_image"
+                        android:layout_width="120dp"
+                        android:layout_height="120dp"
+                        android:background="@drawable/bg_image_placeholder"
+                        android:src="@drawable/ic_add_photo"
+                        android:tint="#999999" />
+
+                    <LinearLayout
+                        android:id="@+id/ll_image_loading"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:background="#80FFFFFF"
+                        android:gravity="center"
+                        android:orientation="vertical"
+                        android:visibility="gone">
+
+                        <ProgressBar
+                            android:layout_width="28dp"
+                            android:layout_height="28dp" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="4dp"
+                            android:text="上传中..."
+                            android:textColor="#666666"
+                            android:textSize="11sp" />
+                    </LinearLayout>
+                </FrameLayout>
 
                 <TextView
+                    android:id="@+id/tv_image_hint"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
                     android:text="点击拍照或选择照片"
                     android:textColor="#999999"
                     android:textSize="12sp" />
+
+                <Button
+                    android:id="@+id/btn_remove_bg"
+                    android:layout_width="wrap_content"
+                    android:layout_height="32dp"
+                    android:layout_marginTop="8dp"
+                    android:background="@drawable/btn_cancel_background"
+                    android:paddingStart="12dp"
+                    android:paddingEnd="12dp"
+                    android:text="抠图去背景"
+                    android:textColor="#666666"
+                    android:textSize="12sp"
+                    android:visibility="gone" />
             </LinearLayout>
 
             <!-- Form Fields -->

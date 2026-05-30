@@ -31,7 +31,7 @@ import java.io.ByteArrayInputStream;
 import java.util.Calendar;
 import java.util.List;
 
-public class AddAssetActivity extends AppCompatActivity {
+public class EditAssetActivity extends AppCompatActivity {
 
     private enum UploadState { IDLE, UPLOADING, PROCESSING }
 
@@ -43,6 +43,7 @@ public class AddAssetActivity extends AppCompatActivity {
     private Spinner spinnerCategory;
     private View btnSave;
     private int currentUserId;
+    private int assetId;
     private String imageUrl = null;
     private UploadState uploadState = UploadState.IDLE;
 
@@ -61,16 +62,18 @@ public class AddAssetActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_add_asset);
 
+        assetId = getIntent().getIntExtra("assetId", -1);
         currentUserId = UserInfoManager.getCurrentUserId(this);
-        if (currentUserId == -1) {
-            Toast.makeText(this, "请先登录", Toast.LENGTH_SHORT).show();
+
+        if (assetId == -1 || currentUserId == -1) {
+            Toast.makeText(this, "参数错误", Toast.LENGTH_SHORT).show();
             finish();
             return;
         }
 
         initViews();
         setupListeners();
-        loadCategories();
+        loadAssetDetail();
     }
 
     private void initViews() {
@@ -97,29 +100,64 @@ public class AddAssetActivity extends AppCompatActivity {
         btnRemoveBg.setOnClickListener(v -> {
             if (uploadState != UploadState.PROCESSING && imageUrl != null) doRemoveBackground();
         });
-        btnSave.setOnClickListener(v -> saveAsset());
+        btnSave.setOnClickListener(v -> updateAsset());
     }
 
-    private void loadCategories() {
+    private void loadAssetDetail() {
+        AuthApiClient.getAssetById(this, assetId, currentUserId, new AuthApiClient.AssetDetailCallback() {
+            @Override
+            public void onSuccess(AuthApiModels.AssetItemData asset) {
+                runOnUiThread(() -> populateFields(asset));
+            }
+
+            @Override
+            public void onError(String message) {
+                runOnUiThread(() -> {
+                    Toast.makeText(EditAssetActivity.this, "加载失败: " + message, Toast.LENGTH_SHORT).show();
+                    finish();
+                });
+            }
+        });
+    }
+
+    private void populateFields(AuthApiModels.AssetItemData asset) {
+        etAssetName.setText(asset.name);
+        etPurchaseDate.setText(asset.purchaseDate != null ? asset.purchaseDate : "");
+        etPurchasePrice.setText(asset.purchasePrice != null ? String.valueOf(asset.purchasePrice) : "");
+        etCurrentValue.setText(asset.currentValue != null ? String.valueOf(asset.currentValue) : "");
+        etNote.setText(asset.note != null ? asset.note : "");
+        imageUrl = asset.imageUrl;
+
+        if (asset.imageUrl != null && !asset.imageUrl.isEmpty()) {
+            String baseUrl = ApiConfigManager.getBaseUrl(this);
+            Glide.with(this).load(baseUrl + asset.imageUrl).into(ivAssetImage);
+            ivAssetImage.setColorFilter(null);
+            tvImageHint.setText("点击更换照片");
+            btnRemoveBg.setVisibility(View.VISIBLE);
+        }
+
         AuthApiClient.getAssetCategories(this, currentUserId, new AuthApiClient.AssetCategoryListCallback() {
             @Override
             public void onSuccess(AuthApiModels.AssetCategoryListResponse response) {
                 runOnUiThread(() -> {
                     if (response.data != null && response.data.categories != null) {
                         ArrayAdapter<String> adapter = new ArrayAdapter<>(
-                                AddAssetActivity.this,
+                                EditAssetActivity.this,
                                 android.R.layout.simple_spinner_item,
                                 response.data.categories
                         );
                         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
                         spinnerCategory.setAdapter(adapter);
+
+                        int pos = response.data.categories.indexOf(asset.category);
+                        if (pos >= 0) spinnerCategory.setSelection(pos);
                     }
                 });
             }
 
             @Override
             public void onError(String message) {
-                runOnUiThread(() -> Toast.makeText(AddAssetActivity.this, "加载分类失败", Toast.LENGTH_SHORT).show());
+                runOnUiThread(() -> Toast.makeText(EditAssetActivity.this, "加载分类失败", Toast.LENGTH_SHORT).show());
             }
         });
     }
@@ -136,6 +174,7 @@ public class AddAssetActivity extends AppCompatActivity {
         tvImageHint.setText("正在上传...");
         btnSave.setEnabled(false);
         btnSave.setAlpha(0.5f);
+        btnRemoveBg.setVisibility(View.GONE);
 
         new Thread(() -> {
             byte[] compressed = ImageCompressor.compress(this, imageUri, 2048, 90);
@@ -143,7 +182,7 @@ public class AddAssetActivity extends AppCompatActivity {
                 runOnUiThread(() -> {
                     uploadState = UploadState.IDLE;
                     llImageLoading.setVisibility(View.GONE);
-                    tvImageHint.setText("点击拍照或选择照片");
+                    tvImageHint.setText("点击更换照片");
                     btnSave.setEnabled(true);
                     btnSave.setAlpha(1.0f);
                     Toast.makeText(this, "图片压缩失败", Toast.LENGTH_SHORT).show();
@@ -166,8 +205,8 @@ public class AddAssetActivity extends AppCompatActivity {
                         btnSave.setAlpha(1.0f);
                         btnRemoveBg.setVisibility(View.VISIBLE);
 
-                        String baseUrl = ApiConfigManager.getBaseUrl(AddAssetActivity.this);
-                        Glide.with(AddAssetActivity.this)
+                        String baseUrl = ApiConfigManager.getBaseUrl(EditAssetActivity.this);
+                        Glide.with(EditAssetActivity.this)
                                 .load(baseUrl + serverImageUrl)
                                 .centerCrop()
                                 .into(ivAssetImage);
@@ -180,10 +219,10 @@ public class AddAssetActivity extends AppCompatActivity {
                     runOnUiThread(() -> {
                         uploadState = UploadState.IDLE;
                         llImageLoading.setVisibility(View.GONE);
-                        tvImageHint.setText("点击拍照或选择照片");
+                        tvImageHint.setText("点击更换照片");
                         btnSave.setEnabled(true);
                         btnSave.setAlpha(1.0f);
-                        Toast.makeText(AddAssetActivity.this, "图片上传失败: " + message, Toast.LENGTH_SHORT).show();
+                        Toast.makeText(EditAssetActivity.this, "图片上传失败: " + message, Toast.LENGTH_SHORT).show();
                     });
                 }
             });
@@ -213,12 +252,12 @@ public class AddAssetActivity extends AppCompatActivity {
 
                     if (response.data != null && response.data.imageUrl != null) {
                         imageUrl = response.data.imageUrl;
-                        String baseUrl = ApiConfigManager.getBaseUrl(AddAssetActivity.this);
-                        Glide.with(AddAssetActivity.this)
+                        String baseUrl = ApiConfigManager.getBaseUrl(EditAssetActivity.this);
+                        Glide.with(EditAssetActivity.this)
                                 .load(baseUrl + response.data.imageUrl)
                                 .centerCrop()
                                 .into(ivAssetImage);
-                        Toast.makeText(AddAssetActivity.this, "抠图完成", Toast.LENGTH_SHORT).show();
+                        Toast.makeText(EditAssetActivity.this, "抠图完成", Toast.LENGTH_SHORT).show();
                     }
                 });
             }
@@ -233,7 +272,7 @@ public class AddAssetActivity extends AppCompatActivity {
                     btnSave.setAlpha(1.0f);
                     btnRemoveBg.setEnabled(true);
                     btnRemoveBg.setAlpha(1.0f);
-                    Toast.makeText(AddAssetActivity.this, "抠图失败: " + message, Toast.LENGTH_SHORT).show();
+                    Toast.makeText(EditAssetActivity.this, "抠图失败: " + message, Toast.LENGTH_SHORT).show();
                 });
             }
         });
@@ -253,7 +292,7 @@ public class AddAssetActivity extends AppCompatActivity {
         dialog.show();
     }
 
-    private void saveAsset() {
+    private void updateAsset() {
         if (uploadState != UploadState.IDLE) {
             Toast.makeText(this, "图片正在处理中，请稍候", Toast.LENGTH_SHORT).show();
             return;
@@ -309,11 +348,11 @@ public class AddAssetActivity extends AppCompatActivity {
         btnSave.setEnabled(false);
         btnSave.setAlpha(0.5f);
 
-        AuthApiClient.createAsset(this, request, new AuthApiClient.AssetMutationCallback() {
+        AuthApiClient.updateAsset(this, assetId, request, new AuthApiClient.SimpleCallback() {
             @Override
-            public void onSuccess(AuthApiModels.AssetMutationResponse response) {
+            public void onSuccess() {
                 runOnUiThread(() -> {
-                    Toast.makeText(AddAssetActivity.this, "资产添加成功", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(EditAssetActivity.this, "更新成功", Toast.LENGTH_SHORT).show();
                     setResult(RESULT_OK);
                     finish();
                 });
@@ -324,7 +363,7 @@ public class AddAssetActivity extends AppCompatActivity {
                 runOnUiThread(() -> {
                     btnSave.setEnabled(true);
                     btnSave.setAlpha(1.0f);
-                    Toast.makeText(AddAssetActivity.this, "添加失败: " + message, Toast.LENGTH_SHORT).show();
+                    Toast.makeText(EditAssetActivity.this, "更新失败: " + message, Toast.LENGTH_SHORT).show();
                 });
             }
         });

@@ -26,7 +26,7 @@ public class AssetsActivity extends AppCompatActivity implements AssetAdapter.On
 
     private RecyclerView rvAssets;
     private AssetAdapter adapter;
-    private TextView tvTotalValue, tvTotalCount, tvDailyAvg, tvMonthlyAvg, tvEmpty;
+    private TextView tvTotalValue, tvTotalCount, tvDailyAvg, tvEmpty;
     private LinearLayout llCategoryFilters, llStatusFilters;
     private int currentUserId;
     private String selectedCategory = null;
@@ -57,7 +57,6 @@ public class AssetsActivity extends AppCompatActivity implements AssetAdapter.On
         tvTotalValue = findViewById(R.id.tv_total_value);
         tvTotalCount = findViewById(R.id.tv_total_count);
         tvDailyAvg = findViewById(R.id.tv_daily_avg);
-        tvMonthlyAvg = findViewById(R.id.tv_monthly_avg);
         llCategoryFilters = findViewById(R.id.ll_category_filters);
         llStatusFilters = findViewById(R.id.ll_status_filters);
         tvEmpty = findViewById(R.id.tv_empty);
@@ -214,8 +213,7 @@ public class AssetsActivity extends AppCompatActivity implements AssetAdapter.On
                     if (response.data != null) {
                         tvTotalValue.setText("¥ " + String.format("%.2f", response.data.totalValue));
                         tvTotalCount.setText(response.data.totalCount + " 件物品");
-                        tvDailyAvg.setText("日均 ¥" + String.format("%.1f", response.data.dailyAvgCost));
-                        tvMonthlyAvg.setText("月均 ¥" + String.format("%.0f", response.data.monthlyAvgCost));
+                        tvDailyAvg.setText("日总 ¥" + String.format("%.1f", response.data.dailyAvgCost));
                     }
                 });
             }

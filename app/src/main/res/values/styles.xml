@@ -10,6 +10,14 @@
         <item name="android:windowAnimationStyle">@android:style/Animation.Dialog</item>
         <item name="android:backgroundDimEnabled">true</item>
         <item name="android:backgroundDimAmount">0.5</item>
+        <item name="android:colorAccent">@color/primary_color</item>
+        <item name="colorAccent">@color/primary_color</item>
+        <item name="android:textColorPrimary">#333333</item>
+        <item name="android:buttonBarButtonStyle">@style/DialogButtonStyle</item>
+    </style>
+
+    <style name="DialogButtonStyle" parent="Widget.AppCompat.Button.ButtonBar.AlertDialog">
+        <item name="android:textColor">@color/primary_color</item>
     </style>
 
     <style name="SegmentTabTextStyle" parent="TextAppearance.Design.Tab">

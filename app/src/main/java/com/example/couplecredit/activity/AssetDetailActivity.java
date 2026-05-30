@@ -1,5 +1,6 @@
 package com.example.couplecredit.activity;
 
+import android.content.Intent;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.Button;
@@ -22,9 +23,11 @@ public class AssetDetailActivity extends AppCompatActivity {
     private int assetId;
     private int currentUserId;
     private AuthApiModels.AssetItemData currentAsset;
+    private boolean loaded;
 
     @Override
-    protected void onCreate(Bundle savedInstanceState) {        super.onCreate(savedInstanceState);
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_asset_detail);
 
         assetId = getIntent().getIntExtra("assetId", -1);
@@ -45,7 +48,9 @@ public class AssetDetailActivity extends AppCompatActivity {
         findViewById(R.id.iv_delete).setOnClickListener(v -> confirmDelete());
 
         findViewById(R.id.btn_edit).setOnClickListener(v -> {
-            // TODO: Edit asset - will be implemented later
+            Intent intent = new Intent(this, EditAssetActivity.class);
+            intent.putExtra("assetId", assetId);
+            startActivity(intent);
         });
 
         findViewById(R.id.btn_status).setOnClickListener(v -> toggleStatus());
@@ -69,12 +74,27 @@ public class AssetDetailActivity extends AppCompatActivity {
                 });
             }
         });
+
+        AuthApiClient.getAssetStats(this, currentUserId, new AuthApiClient.AssetStatsCallback() {
+            @Override
+            public void onSuccess(AuthApiModels.AssetStatsResponse response) {
+                runOnUiThread(() -> {
+                    if (response.data != null) {
+                        ((TextView) findViewById(R.id.tv_total_assets))
+                                .setText("¥" + String.format("%.0f", response.data.totalValue));
+                    }
+                });
+            }
+
+            @Override
+            public void onError(String message) {
+            }
+        });
     }
 
     private void displayAssetDetails() {
         if (currentAsset == null) return;
 
-        // Image
         ImageView ivImage = findViewById(R.id.iv_asset_image);
         if (currentAsset.imageUrl != null && !currentAsset.imageUrl.isEmpty()) {
             String baseUrl = ApiConfigManager.getBaseUrl(this);
@@ -87,12 +107,9 @@ public class AssetDetailActivity extends AppCompatActivity {
             ivImage.setImageResource(R.drawable.ic_asset_placeholder);
         }
 
-        // Stats
         ((TextView) findViewById(R.id.tv_hold_days)).setText(String.valueOf(currentAsset.holdDays));
         ((TextView) findViewById(R.id.tv_daily_cost)).setText("¥" + String.format("%.1f", currentAsset.dailyCost));
-        ((TextView) findViewById(R.id.tv_monthly_cost)).setText("¥" + String.format("%.0f", currentAsset.monthlyCost));
 
-        // Details
         ((TextView) findViewById(R.id.tv_asset_name)).setText(currentAsset.name);
         ((TextView) findViewById(R.id.tv_asset_category)).setText(currentAsset.category);
         ((TextView) findViewById(R.id.tv_purchase_price)).setText(currentAsset.purchasePrice != null ?
@@ -102,14 +119,12 @@ public class AssetDetailActivity extends AppCompatActivity {
         ((TextView) findViewById(R.id.tv_current_value)).setText(currentAsset.currentValue != null ?
                 "¥" + String.format("%.2f", currentAsset.currentValue) : "未设置");
 
-        // Note
         TextView tvNote = findViewById(R.id.tv_note);
         if (currentAsset.note != null && !currentAsset.note.isEmpty()) {
             tvNote.setText(currentAsset.note);
             tvNote.setVisibility(View.VISIBLE);
         }
 
-        // Status button
         updateStatusButton();
     }
 
@@ -192,5 +207,12 @@ public class AssetDetailActivity extends AppCompatActivity {
                 );
             }
         });
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (loaded) loadAssetDetail();
+        loaded = true;
     }
 }

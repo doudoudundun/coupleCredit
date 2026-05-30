@@ -89,6 +89,10 @@
             android:name=".activity.AssetDetailActivity"
             android:label="资产详情"
             android:parentActivityName=".activity.AssetsActivity" />
+        <activity
+            android:name=".activity.EditAssetActivity"
+            android:label="编辑资产"
+            android:parentActivityName=".activity.AssetDetailActivity" />
 
         <provider
             android:name="androidx.core.content.FileProvider"
