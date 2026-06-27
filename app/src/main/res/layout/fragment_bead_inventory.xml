@@ -3,7 +3,7 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#F6F7FB">
+    android:background="@color/bg_page">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -45,7 +45,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="拼豆库存"
-                        android:textColor="#111827"
+                        android:textColor="@color/text_title"
                         android:textSize="22sp"
                         android:textStyle="bold" />
 
@@ -55,7 +55,7 @@
                         android:layout_height="wrap_content"
                         android:layout_marginTop="3dp"
                         android:text="221 色 · 0 色告急 · 理论消耗 0 颗"
-                        android:textColor="#6B7280"
+                        android:textColor="@color/text_muted"
                         android:textSize="13sp" />
                 </LinearLayout>
             </LinearLayout>
@@ -142,7 +142,7 @@
                     android:paddingEnd="14dp"
                     android:paddingBottom="7dp"
                     android:text="只看告急"
-                    android:textColor="#6B7280"
+                    android:textColor="@color/text_muted"
                     android:textSize="13sp" />
 
                 <View

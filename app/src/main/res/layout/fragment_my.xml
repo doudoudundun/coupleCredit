@@ -8,7 +8,7 @@
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:background="#F6F7FB"
+        android:background="@color/bg_page"
         android:orientation="vertical"
         android:padding="16dp">
 
@@ -123,7 +123,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:text="热量管理"
-                    android:textColor="#1A1A1A"
+                    android:textColor="@color/text_title"
                     android:textSize="17sp"
                     android:textStyle="bold" />
 
@@ -132,7 +132,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="4dp"
                     android:text="查看今日摄入、补记饮食、管理每日目标"
-                    android:textColor="#666666"
+                    android:textColor="@color/text_muted"
                     android:textSize="12sp" />
 
                 <TextView
@@ -142,6 +142,73 @@
                     android:layout_marginTop="8dp"
                     android:text="今日 0 / 2000 kcal"
                     android:textColor="#07C160"
+                    android:textSize="13sp" />
+            </LinearLayout>
+
+            <ImageView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:contentDescription="箭头"
+                android:src="@drawable/ic_arrow_right" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/ll_period_entry"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:background="@drawable/bg_my_card_rose"
+            android:clickable="true"
+            android:focusable="true"
+            android:gravity="center_vertical"
+            android:minHeight="104dp"
+            android:orientation="horizontal"
+            android:padding="16dp">
+
+            <FrameLayout
+                android:layout_width="42dp"
+                android:layout_height="42dp"
+                android:background="@drawable/bg_my_chip_rose"
+                android:padding="9dp">
+
+                <ImageView
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:contentDescription="经期管理"
+                    android:src="@drawable/ic_calendar"
+                    android:tint="#E91E63" />
+            </FrameLayout>
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="12dp"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="经期管理"
+                    android:textColor="@color/text_title"
+                    android:textSize="17sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:text="记录经期、预测下次日期"
+                    android:textColor="@color/text_muted"
+                    android:textSize="12sp" />
+
+                <TextView
+                    android:id="@+id/tv_period_entry_summary"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="登录后查看经期信息"
+                    android:textColor="#E91E63"
                     android:textSize="13sp" />
             </LinearLayout>
 
@@ -183,7 +250,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:text="本月账单"
-                    android:textColor="#111111"
+                    android:textColor="@color/text_title"
                     android:textSize="14sp"
                     android:textStyle="bold" />
 
@@ -193,7 +260,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
                     android:text="登录后查看本月收支"
-                    android:textColor="#666666"
+                    android:textColor="@color/text_muted"
                     android:textSize="12sp" />
             </LinearLayout>
 
@@ -214,7 +281,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:text="待办进度"
-                    android:textColor="#111111"
+                    android:textColor="@color/text_title"
                     android:textSize="14sp"
                     android:textStyle="bold" />
 
@@ -224,7 +291,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
                     android:text="登录后查看待办状态"
-                    android:textColor="#666666"
+                    android:textColor="@color/text_muted"
                     android:textSize="12sp" />
             </LinearLayout>
 
@@ -245,7 +312,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:text="库存提醒"
-                    android:textColor="#111111"
+                    android:textColor="@color/text_title"
                     android:textSize="14sp"
                     android:textStyle="bold" />
 
@@ -255,7 +322,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
                     android:text="登录后查看库存变化"
-                    android:textColor="#666666"
+                    android:textColor="@color/text_muted"
                     android:textSize="12sp" />
             </LinearLayout>
 
@@ -276,7 +343,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:text="情侣协作"
-                    android:textColor="#111111"
+                    android:textColor="@color/text_title"
                     android:textSize="14sp"
                     android:textStyle="bold" />
 
@@ -286,7 +353,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
                     android:text="登录后查看绑定关系"
-                    android:textColor="#666666"
+                    android:textColor="@color/text_muted"
                     android:textSize="12sp" />
             </LinearLayout>
         </GridLayout>
@@ -329,7 +396,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:text="我的资产"
-                    android:textColor="#1A1A1A"
+                    android:textColor="@color/text_title"
                     android:textSize="17sp"
                     android:textStyle="bold" />
 
@@ -338,7 +405,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="4dp"
                     android:text="查看资产价值、每日花费"
-                    android:textColor="#666666"
+                    android:textColor="@color/text_muted"
                     android:textSize="12sp" />
 
                 <TextView
@@ -403,7 +470,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="12dp"
                     android:text="记一笔"
-                    android:textColor="#111111"
+                    android:textColor="@color/text_title"
                     android:textSize="15sp"
                     android:textStyle="bold" />
 
@@ -447,7 +514,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="12dp"
                     android:text="看报表"
-                    android:textColor="#111111"
+                    android:textColor="@color/text_title"
                     android:textSize="15sp"
                     android:textStyle="bold" />
 
@@ -492,7 +559,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="12dp"
                     android:text="家庭存货"
-                    android:textColor="#111111"
+                    android:textColor="@color/text_title"
                     android:textSize="15sp"
                     android:textStyle="bold" />
 
@@ -536,7 +603,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="12dp"
                     android:text="待办清单"
-                    android:textColor="#111111"
+                    android:textColor="@color/text_title"
                     android:textSize="15sp"
                     android:textStyle="bold" />
 
@@ -580,7 +647,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="12dp"
                     android:text="菜谱与购物"
-                    android:textColor="#111111"
+                    android:textColor="@color/text_title"
                     android:textSize="15sp"
                     android:textStyle="bold" />
 
@@ -624,7 +691,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="12dp"
                     android:text="外食记录"
-                    android:textColor="#111111"
+                    android:textColor="@color/text_title"
                     android:textSize="15sp"
                     android:textStyle="bold" />
 
@@ -672,7 +739,7 @@
                     android:layout_gravity="center_vertical"
                     android:layout_weight="1"
                     android:text="个人设置"
-                    android:textColor="#111111"
+                    android:textColor="@color/text_title"
                     android:textSize="16sp" />
 
                 <ImageView
@@ -707,7 +774,7 @@
                     android:layout_gravity="center_vertical"
                     android:layout_weight="1"
                     android:text="设置聊天背景"
-                    android:textColor="#111111"
+                    android:textColor="@color/text_title"
                     android:textSize="16sp" />
 
                 <ImageView

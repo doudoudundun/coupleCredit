@@ -23,4 +23,13 @@
     <color name="border_color">#E0E0E0</color>        <!-- 边框颜色：浅灰色 -->
     <color name="border_light">#F0F0F0</color>       <!-- 浅边框颜色 -->
     <color name="text_secondary">#757575</color>     <!-- 次要文本颜色：深灰色 -->
+
+    <!-- 统一文字色 token（4 档灰阶） -->
+    <color name="text_title">#1A1A1A</color>     <!-- 标题/重点 -->
+    <color name="text_body">#333333</color>      <!-- 正文 -->
+    <color name="text_muted">#666666</color>     <!-- 次要文本 -->
+    <color name="text_disabled">#999999</color>  <!-- 占位/禁用 -->
+
+    <!-- 统一页面背景 -->
+    <color name="bg_page">#F5F5F5</color>
 </resources>

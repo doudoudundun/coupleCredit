@@ -1,6 +1,7 @@
 package com.example.couplecredit.activity;
 
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.os.Bundle;
 import android.view.View;
@@ -12,6 +13,7 @@ import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.recyclerview.widget.RecyclerView;
 import androidx.recyclerview.widget.StaggeredGridLayoutManager;
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
 import com.example.couplecredit.R;
 import com.example.couplecredit.adapter.AssetAdapter;
@@ -24,6 +26,11 @@ import java.util.List;
 
 public class AssetsActivity extends AppCompatActivity implements AssetAdapter.OnAssetClickListener {
 
+    private static final String PREFS_NAME = "assets_list_cache";
+    private static final String KEY_LIST_CACHE = "list_cache";
+    private static final String KEY_STATS_CACHE = "stats_cache";
+
+    private SwipeRefreshLayout swipeRefresh;
     private RecyclerView rvAssets;
     private AssetAdapter adapter;
     private TextView tvTotalValue, tvTotalCount, tvDailyAvg, tvEmpty;
@@ -47,12 +54,14 @@ public class AssetsActivity extends AppCompatActivity implements AssetAdapter.On
         initViews();
         setupRecyclerView();
         setupListeners();
+        loadFromCache();
         loadCategories();
         loadStats();
         loadAssets();
     }
 
     private void initViews() {
+        swipeRefresh = findViewById(R.id.swipe_refresh);
         rvAssets = findViewById(R.id.rv_assets);
         tvTotalValue = findViewById(R.id.tv_total_value);
         tvTotalCount = findViewById(R.id.tv_total_count);
@@ -74,9 +83,64 @@ public class AssetsActivity extends AppCompatActivity implements AssetAdapter.On
     }
 
     private void setupListeners() {
+        swipeRefresh.setColorSchemeResources(R.color.primary_color);
+        swipeRefresh.setOnRefreshListener(this::refreshData);
+
         findViewById(R.id.fab_add).setOnClickListener(v -> {
             startActivity(new Intent(this, AddAssetActivity.class));
         });
+
+        findViewById(R.id.iv_refresh).setOnClickListener(v -> refreshData());
+    }
+
+    private void loadFromCache() {
+        SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+
+        String cachedStats = prefs.getString(KEY_STATS_CACHE, null);
+        if (cachedStats != null) {
+            try {
+                AuthApiModels.AssetStatsResponse stats = AuthApiClient.GSON.fromJson(cachedStats, AuthApiModels.AssetStatsResponse.class);
+                if (stats != null && stats.data != null) {
+                    tvTotalValue.setText("¥ " + String.format("%.2f", stats.data.totalValue));
+                    tvTotalCount.setText(stats.data.totalCount + " 件物品");
+                    tvDailyAvg.setText("日总 ¥" + String.format("%.1f", stats.data.dailyAvgCost));
+                }
+            } catch (Exception ignored) {}
+        }
+
+        String cachedList = prefs.getString(KEY_LIST_CACHE, null);
+        if (cachedList != null) {
+            try {
+                AuthApiModels.AssetListResponse list = AuthApiClient.GSON.fromJson(cachedList, AuthApiModels.AssetListResponse.class);
+                if (list != null && list.data != null && list.data.items != null) {
+                    adapter.updateData(list.data.items);
+                    boolean empty = list.data.items.isEmpty();
+                    tvEmpty.setVisibility(empty ? View.VISIBLE : View.GONE);
+                    rvAssets.setVisibility(empty ? View.GONE : View.VISIBLE);
+                }
+            } catch (Exception ignored) {}
+        }
+    }
+
+    private void saveListCache(AuthApiModels.AssetListResponse response) {
+        try {
+            getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
+                    .edit().putString(KEY_LIST_CACHE, AuthApiClient.GSON.toJson(response)).apply();
+        } catch (Exception ignored) {}
+    }
+
+    private void saveStatsCache(AuthApiModels.AssetStatsResponse response) {
+        try {
+            getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
+                    .edit().putString(KEY_STATS_CACHE, AuthApiClient.GSON.toJson(response)).apply();
+        } catch (Exception ignored) {}
+    }
+
+    private void refreshData() {
+        swipeRefresh.setRefreshing(true);
+        loadCategories();
+        loadStats();
+        loadAssets();
     }
 
     private void loadCategories() {
@@ -105,10 +169,7 @@ public class AssetsActivity extends AppCompatActivity implements AssetAdapter.On
 
     private void setupCategoryFilters(List<String> categories) {
         llCategoryFilters.removeAllViews();
-
-        // "All" button
         addCategoryChip("全部", true);
-
         for (String category : categories) {
             addCategoryChip(category, false);
         }
@@ -150,10 +211,8 @@ public class AssetsActivity extends AppCompatActivity implements AssetAdapter.On
             if (child instanceof TextView) {
                 TextView chip = (TextView) child;
                 String chipText = chip.getText().toString();
-
                 boolean isSelected = (selectedCategory == null && chipText.equals("全部")) ||
                         (selectedCategory != null && selectedCategory.equals(chipText));
-
                 if (isSelected) {
                     chip.setBackgroundResource(R.drawable.bg_chip_selected);
                     chip.setTextColor(Color.WHITE);
@@ -167,7 +226,6 @@ public class AssetsActivity extends AppCompatActivity implements AssetAdapter.On
 
     private void setupStatusFilters() {
         llStatusFilters.removeAllViews();
-
         String[] statuses = {"全部", "在用", "闲置", "已处置"};
         String[] statusValues = {null, "active", "idle", "disposed"};
 
@@ -185,7 +243,6 @@ public class AssetsActivity extends AppCompatActivity implements AssetAdapter.On
             chip.setLayoutParams(params);
 
             boolean isSelected = (selectedStatus == statusValues[i]);
-
             if (isSelected) {
                 chip.setBackgroundResource(R.drawable.bg_chip_selected);
                 chip.setTextColor(Color.WHITE);
@@ -211,6 +268,7 @@ public class AssetsActivity extends AppCompatActivity implements AssetAdapter.On
             public void onSuccess(AuthApiModels.AssetStatsResponse response) {
                 runOnUiThread(() -> {
                     if (response.data != null) {
+                        saveStatsCache(response);
                         tvTotalValue.setText("¥ " + String.format("%.2f", response.data.totalValue));
                         tvTotalCount.setText(response.data.totalCount + " 件物品");
                         tvDailyAvg.setText("日总 ¥" + String.format("%.1f", response.data.dailyAvgCost));
@@ -220,7 +278,11 @@ public class AssetsActivity extends AppCompatActivity implements AssetAdapter.On
 
             @Override
             public void onError(String message) {
-                runOnUiThread(() -> Toast.makeText(AssetsActivity.this, "加载统计失败", Toast.LENGTH_SHORT).show());
+                runOnUiThread(() -> {
+                    if (!swipeRefresh.isRefreshing()) {
+                        Toast.makeText(AssetsActivity.this, "加载统计失败", Toast.LENGTH_SHORT).show();
+                    }
+                });
             }
         });
     }
@@ -231,7 +293,9 @@ public class AssetsActivity extends AppCompatActivity implements AssetAdapter.On
                     @Override
                     public void onSuccess(AuthApiModels.AssetListResponse response) {
                         runOnUiThread(() -> {
+                            swipeRefresh.setRefreshing(false);
                             if (response.data != null && response.data.items != null) {
+                                saveListCache(response);
                                 adapter.updateData(response.data.items);
                                 boolean empty = response.data.items.isEmpty();
                                 tvEmpty.setVisibility(empty ? View.VISIBLE : View.GONE);
@@ -242,7 +306,12 @@ public class AssetsActivity extends AppCompatActivity implements AssetAdapter.On
 
                     @Override
                     public void onError(String message) {
-                        runOnUiThread(() -> Toast.makeText(AssetsActivity.this, "加载资产失败", Toast.LENGTH_SHORT).show());
+                        runOnUiThread(() -> {
+                            swipeRefresh.setRefreshing(false);
+                            if (!swipeRefresh.isRefreshing()) {
+                                Toast.makeText(AssetsActivity.this, "加载资产失败", Toast.LENGTH_SHORT).show();
+                            }
+                        });
                     }
                 });
     }

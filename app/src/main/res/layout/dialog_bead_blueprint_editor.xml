@@ -13,7 +13,7 @@
         android:layout_marginBottom="16dp"
         android:gravity="center"
         android:text="新建拼豆图纸"
-        android:textColor="#1A1A1A"
+        android:textColor="@color/text_title"
         android:textSize="20sp"
         android:textStyle="bold" />
 
@@ -85,7 +85,7 @@
             android:focusable="true"
             android:gravity="center"
             android:text="图片转拼豆图"
-            android:textColor="#374151"
+            android:textColor="@color/text_body"
             android:textSize="14sp"
             android:textStyle="bold" />
     </LinearLayout>
@@ -104,7 +104,7 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:text="网格大小"
-            android:textColor="#374151"
+            android:textColor="@color/text_body"
             android:textSize="14sp" />
 
         <TextView
@@ -117,7 +117,7 @@
             android:focusable="true"
             android:gravity="center"
             android:text="小29"
-            android:textColor="#6B7280"
+            android:textColor="@color/text_muted"
             android:textSize="13sp" />
 
         <TextView
@@ -144,7 +144,7 @@
             android:focusable="true"
             android:gravity="center"
             android:text="大52"
-            android:textColor="#6B7280"
+            android:textColor="@color/text_muted"
             android:textSize="13sp" />
 
         <TextView
@@ -157,7 +157,7 @@
             android:focusable="true"
             android:gravity="center"
             android:text="超大104"
-            android:textColor="#6B7280"
+            android:textColor="@color/text_muted"
             android:textSize="12sp" />
     </LinearLayout>
 
@@ -190,7 +190,7 @@
             android:layout_height="wrap_content"
             android:layout_marginStart="8dp"
             android:text="处理中..."
-            android:textColor="#6B7280"
+            android:textColor="@color/text_muted"
             android:textSize="13sp" />
     </LinearLayout>
 
@@ -211,7 +211,7 @@
         android:layout_height="wrap_content"
         android:layout_marginBottom="20dp"
         android:text="保存后可在详情页记录制作次数，制作不会自动扣减库存。"
-        android:textColor="#6B7280"
+        android:textColor="@color/text_muted"
         android:textSize="12sp" />
 
     <LinearLayout
@@ -230,7 +230,7 @@
             android:focusable="true"
             android:gravity="center"
             android:text="取消"
-            android:textColor="#6B7280"
+            android:textColor="@color/text_muted"
             android:textSize="14sp" />
 
         <TextView

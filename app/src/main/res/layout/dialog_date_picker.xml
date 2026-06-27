@@ -19,7 +19,7 @@
             android:layout_height="wrap_content"
             android:text="取消"
             android:textSize="16sp"
-            android:textColor="#999999"
+            android:textColor="@color/text_disabled"
             android:padding="10dp"
             android:clickable="true"
             android:background="?android:attr/selectableItemBackground" />

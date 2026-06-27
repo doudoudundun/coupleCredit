@@ -25,7 +25,7 @@ import java.util.Map;
 
 public class AuthApiClient {
     private static final String TAG = "AuthApiClient";
-    private static final Gson GSON = new Gson();
+    public static final Gson GSON = new Gson();
     private static final int CONNECT_TIMEOUT_MS = 5000;
     private static final int READ_TIMEOUT_MS = 8000;
     private static final String DEFAULT_ERROR = "服务器连接失败，请稍后重试";
@@ -1709,6 +1709,9 @@ public class AuthApiClient {
 
     private static String normalizeErrorMessage(String rawBody) {
         try {
+            if (rawBody == null || rawBody.trim().equals("null")) {
+                return "服务器响应异常，请重试";
+            }
             AuthApiModels.SimpleResponse response = GSON.fromJson(normalizeJsonPayload(rawBody), AuthApiModels.SimpleResponse.class);
             return extractError(response != null ? response.error : null, rawBody);
         } catch (Exception ignored) {
@@ -1736,7 +1739,7 @@ public class AuthApiClient {
                     connection.setConnectTimeout(CONNECT_TIMEOUT_MS);
                     connection.setReadTimeout(readTimeout);
 
-                    if (bodyJson != null) {
+                    if (bodyJson != null && !bodyJson.trim().equals("null") && !bodyJson.contains(":null") && !bodyJson.equals("{}")) {
                         connection.setDoOutput(true);
                         try (OutputStream os = connection.getOutputStream();
                              BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(os, StandardCharsets.UTF_8))) {
@@ -2029,8 +2032,13 @@ public class AuthApiClient {
     }
 
     public static void removeBackground(Context context, String imageUrl, RemoveBgCallback callback) {
+        AuthApiModels.RemoveBgData data = new AuthApiModels.RemoveBgData();
+        data.imageUrl = imageUrl;
+        String bodyJson = GSON.toJson(data);
+        Log.d(TAG, "removeBackground imageUrl=" + imageUrl + " body=" + bodyJson);
         doRequest(context, "POST", "/api/assets/remove-bg",
-                GSON.toJson(new AuthApiModels.RemoveBgData() {{ this.imageUrl = imageUrl; }}),
+                bodyJson,
+                AI_REQUEST_TIMEOUT_MS,
                 new RawCallback() {
                     @Override
                     public void onSuccess(String json) {
@@ -2054,5 +2062,45 @@ public class AuthApiClient {
                         if (callback != null) callback.onError(message);
                     }
                 });
+    }
+
+    public interface PeriodListCallback {
+        void onSuccess(AuthApiModels.PeriodListResponse response);
+        void onError(String message);
+    }
+
+    public static void getPeriodRecords(Context context, int userId, PeriodListCallback callback) {
+        doRequest(context, "GET", "/api/period?userId=" + userId, null,
+                new RawCallback() {
+                    @Override
+                    public void onSuccess(String json) {
+                        if (callback != null) {
+                            try {
+                                AuthApiModels.PeriodListResponse r = GSON.fromJson(normalizeJsonPayload(json), AuthApiModels.PeriodListResponse.class);
+                                if (r != null && r.ok) callback.onSuccess(r);
+                                else callback.onError(extractError(r != null ? r.error : null, json));
+                            } catch (Exception e) {
+                                callback.onError(buildParseError("经期记录", json));
+                            }
+                        }
+                    }
+
+                    @Override
+                    public void onError(String message) {
+                        if (callback != null) callback.onError(message);
+                    }
+                });
+    }
+
+    public static void createPeriodRecord(Context context, AuthApiModels.CreatePeriodRequest req, MutationCallback callback) {
+        doRequest(context, "POST", "/api/period", GSON.toJson(req), simpleMutationCallback("记录经期", callback));
+    }
+
+    public static void updatePeriodRecord(Context context, int recordId, AuthApiModels.UpdatePeriodRequest req, MutationCallback callback) {
+        doRequest(context, "PUT", "/api/period/" + recordId, GSON.toJson(req), simpleMutationCallback("更新经期", callback));
+    }
+
+    public static void deletePeriodRecord(Context context, int recordId, int userId, MutationCallback callback) {
+        doRequest(context, "DELETE", "/api/period/" + recordId + "?userId=" + userId, null, simpleMutationCallback("删除经期", callback));
     }
 }

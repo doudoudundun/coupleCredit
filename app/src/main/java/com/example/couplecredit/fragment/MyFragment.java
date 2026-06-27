@@ -40,6 +40,7 @@ import com.example.couplecredit.activity.CalorieActivity;
 import com.example.couplecredit.activity.ChatBackgroundActivity;
 import com.example.couplecredit.activity.LoginActivity;
 import com.example.couplecredit.activity.MainActivity;
+import com.example.couplecredit.activity.PeriodActivity;
 import com.example.couplecredit.activity.UserSettingsActivity;
 import com.example.couplecredit.api.AvatarUploadApi;
 import com.example.couplecredit.api.AuthApiClient;
@@ -62,6 +63,7 @@ public class MyFragment extends Fragment {
 
     private LinearLayout llChatBackground;
     private LinearLayout llCalorieEntry;
+    private LinearLayout llPeriodEntry;
     private LinearLayout llLogin;
     private LinearLayout llQuickAddBill;
     private LinearLayout llQuickReport;
@@ -79,6 +81,7 @@ public class MyFragment extends Fragment {
     private TextView tvLoginText;
     private TextView tvCoupleInfo;
     private TextView tvCalorieEntrySummary;
+    private TextView tvPeriodEntrySummary;
     private TextView tvOverviewBillSummary;
     private TextView tvOverviewTodoSummary;
     private TextView tvOverviewInventorySummary;
@@ -152,6 +155,7 @@ public class MyFragment extends Fragment {
     private void initViews(View view) {
         llChatBackground = view.findViewById(R.id.ll_chat_background);
         llCalorieEntry = view.findViewById(R.id.ll_calorie_entry);
+        llPeriodEntry = view.findViewById(R.id.ll_period_entry);
         llLogin = view.findViewById(R.id.ll_login);
         llQuickAddBill = view.findViewById(R.id.ll_quick_add_bill);
         llQuickReport = view.findViewById(R.id.ll_quick_report);
@@ -169,6 +173,7 @@ public class MyFragment extends Fragment {
         tvLoginText = view.findViewById(R.id.tv_login_text);
         tvCoupleInfo = view.findViewById(R.id.tv_couple_info);
         tvCalorieEntrySummary = view.findViewById(R.id.tv_calorie_entry_summary);
+        tvPeriodEntrySummary = view.findViewById(R.id.tv_period_entry_summary);
         tvOverviewBillSummary = view.findViewById(R.id.tv_overview_bill_summary);
         tvOverviewTodoSummary = view.findViewById(R.id.tv_overview_todo_summary);
         tvOverviewInventorySummary = view.findViewById(R.id.tv_overview_inventory_summary);
@@ -205,6 +210,15 @@ public class MyFragment extends Fragment {
                 loginLauncher.launch(intent);
             } else {
                 startActivity(new Intent(getActivity(), CalorieActivity.class));
+            }
+        });
+
+        llPeriodEntry.setOnClickListener(v -> {
+            if (!isLoggedIn) {
+                Intent intent = new Intent(getActivity(), LoginActivity.class);
+                loginLauncher.launch(intent);
+            } else {
+                startActivity(new Intent(getActivity(), PeriodActivity.class));
             }
         });
 
@@ -472,8 +486,32 @@ public class MyFragment extends Fragment {
 
         updateLoginUI();
         loadSavedAvatar();
+        loadSummaryFromCache();
         loadCalorieSummary();
+        loadPeriodSummary();
         loadOverviewSummary();
+    }
+
+    private void loadSummaryFromCache() {
+        if (!isLoggedIn || getContext() == null) return;
+        SharedPreferences prefs = requireContext().getSharedPreferences("my_fragment_cache", Context.MODE_PRIVATE);
+        tvCalorieEntrySummary.setText(prefs.getString("calorie", null));
+        tvPeriodEntrySummary.setText(prefs.getString("period", null));
+        tvOverviewBillSummary.setText(prefs.getString("bill", null));
+        tvOverviewTodoSummary.setText(prefs.getString("todo", null));
+        tvOverviewInventorySummary.setText(prefs.getString("inventory", null));
+        tvAssetOverviewSummary.setText(prefs.getString("asset", null));
+        String couple = prefs.getString("couple", null);
+        if (couple != null) {
+            tvOverviewCoupleSummary.setText(couple);
+            llCoupleInfo.setVisibility(View.VISIBLE);
+        }
+    }
+
+    private void saveCache(String key, String value) {
+        if (getContext() == null) return;
+        requireContext().getSharedPreferences("my_fragment_cache", Context.MODE_PRIVATE)
+                .edit().putString(key, value).apply();
     }
 
     private void updateLoginUI() {
@@ -533,6 +571,7 @@ public class MyFragment extends Fragment {
             ivUserAvatar.setImageResource(R.drawable.ic_default_avatar);
             llCoupleInfo.setVisibility(View.GONE);
             tvCalorieEntrySummary.setText("登录后查看今日热量");
+            tvPeriodEntrySummary.setText("登录后查看经期信息");
             resetOverviewSummary();
         }
     }
@@ -549,7 +588,9 @@ public class MyFragment extends Fragment {
                 if (getActivity() == null) return;
                 getActivity().runOnUiThread(() -> {
                     if (response != null && response.data != null) {
-                        tvCalorieEntrySummary.setText("今日 " + CalorieFormatUtils.formatNumber(response.data.totalCalories) + " / " + CalorieFormatUtils.formatNumber(response.data.dailyGoal) + " kcal");
+                        String text = "今日 " + CalorieFormatUtils.formatNumber(response.data.totalCalories) + " / " + CalorieFormatUtils.formatNumber(response.data.dailyGoal) + " kcal";
+                        tvCalorieEntrySummary.setText(text);
+                        saveCache("calorie", text);
                     } else {
                         tvCalorieEntrySummary.setText("今日 0 / 2000 kcal");
                     }
@@ -560,6 +601,40 @@ public class MyFragment extends Fragment {
             public void onError(String message) {
                 if (getActivity() == null) return;
                 getActivity().runOnUiThread(() -> tvCalorieEntrySummary.setText("今日 0 / 2000 kcal"));
+            }
+        });
+    }
+
+    private void loadPeriodSummary() {
+        if (!isLoggedIn || getContext() == null) {
+            tvPeriodEntrySummary.setText("登录后查看经期信息");
+            return;
+        }
+        int currentUserId = UserInfoManager.getCurrentUserId(getContext());
+        AuthApiClient.getPeriodRecords(getContext(), currentUserId, new AuthApiClient.PeriodListCallback() {
+            @Override
+            public void onSuccess(AuthApiModels.PeriodListResponse response) {
+                if (getActivity() == null) return;
+                getActivity().runOnUiThread(() -> {
+                    if (response != null && response.data != null) {
+                        String text;
+                        if (response.data.predictedNextStart != null) {
+                            text = "预计下次: " + response.data.predictedNextStart;
+                        } else if (!response.data.records.isEmpty()) {
+                            text = "记录更多经期来预测下次日期";
+                        } else {
+                            text = "点击开始记录经期";
+                        }
+                        tvPeriodEntrySummary.setText(text);
+                        saveCache("period", text);
+                    }
+                });
+            }
+
+            @Override
+            public void onError(String message) {
+                if (getActivity() == null) return;
+                getActivity().runOnUiThread(() -> tvPeriodEntrySummary.setText("经期信息暂时无法获取"));
             }
         });
     }
@@ -607,7 +682,9 @@ public class MyFragment extends Fragment {
                             expense += bill.amount;
                         }
                     }
-                    tvOverviewBillSummary.setText("支出 ¥" + CalorieFormatUtils.formatNumber(expense) + " · 收入 ¥" + CalorieFormatUtils.formatNumber(income));
+                    String text = "支出 ¥" + CalorieFormatUtils.formatNumber(expense) + " · 收入 ¥" + CalorieFormatUtils.formatNumber(income);
+                    tvOverviewBillSummary.setText(text);
+                    saveCache("bill", text);
                 });
             }
 
@@ -643,7 +720,9 @@ public class MyFragment extends Fragment {
                         }
                     }
                     String suffix = missedCount > 0 ? " · 逾期 " + missedCount : "";
-                    tvOverviewTodoSummary.setText("待处理 " + openCount + " · 已完成 " + doneCount + suffix);
+                    String text = "待处理 " + openCount + " · 已完成 " + doneCount + suffix;
+                    tvOverviewTodoSummary.setText(text);
+                    saveCache("todo", text);
                 });
             }
 
@@ -684,7 +763,9 @@ public class MyFragment extends Fragment {
                     if (expiringCount > 0) {
                         summary.append(" · ").append(expiringCount).append(" 项临期");
                     }
-                    tvOverviewInventorySummary.setText(summary.toString());
+                    String text = summary.toString();
+                    tvOverviewInventorySummary.setText(text);
+                    saveCache("inventory", text);
                 });
             }
 
@@ -707,10 +788,10 @@ public class MyFragment extends Fragment {
                 if (getActivity() == null) return;
                 getActivity().runOnUiThread(() -> {
                     if (response.data != null) {
-                        tvAssetOverviewSummary.setText(
-                                "总资产 ¥" + String.format("%.0f", response.data.totalValue) +
-                                        " · " + response.data.totalCount + " 件物品"
-                        );
+                        String text = "总资产 ¥" + String.format("%.0f", response.data.totalValue) +
+                                " · " + response.data.totalCount + " 件物品";
+                        tvAssetOverviewSummary.setText(text);
+                        saveCache("asset", text);
                     }
                 });
             }
@@ -736,7 +817,9 @@ public class MyFragment extends Fragment {
                 getActivity().runOnUiThread(() -> {
                     String display = partnerNickname != null && !partnerNickname.isEmpty() ? partnerNickname : partnerName;
                     tvCoupleInfo.setText("已绑定: " + display);
-                    tvOverviewCoupleSummary.setText("已与 " + display + " 绑定");
+                    String overview = "已与 " + display + " 绑定";
+                    tvOverviewCoupleSummary.setText(overview);
+                    saveCache("couple", overview);
                     llCoupleInfo.setVisibility(View.VISIBLE);
                 });
             }

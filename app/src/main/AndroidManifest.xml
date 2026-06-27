@@ -93,6 +93,11 @@
             android:name=".activity.EditAssetActivity"
             android:label="编辑资产"
             android:parentActivityName=".activity.AssetDetailActivity" />
+        <activity
+            android:name=".activity.PeriodActivity"
+            android:label="经期管理"
+            android:parentActivityName=".activity.MainActivity"
+            android:screenOrientation="portrait" />
 
         <provider
             android:name="androidx.core.content.FileProvider"

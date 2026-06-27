@@ -22,7 +22,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="2025年7月 >"
-                android:textColor="#333333"
+                android:textColor="@color/text_body"
                 android:textSize="12dp"
                 android:textStyle="bold" />
 
@@ -36,7 +36,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="结余："
-                android:textColor="#333333"
+                android:textColor="@color/text_body"
                 android:textSize="12dp"
                 android:textStyle="bold" />
 

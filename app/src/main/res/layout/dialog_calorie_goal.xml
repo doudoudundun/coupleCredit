@@ -12,7 +12,7 @@
         android:layout_height="wrap_content"
         android:gravity="center"
         android:text="每日热量目标"
-        android:textColor="#1A1A1A"
+        android:textColor="@color/text_title"
         android:textSize="18sp"
         android:textStyle="bold" />
 

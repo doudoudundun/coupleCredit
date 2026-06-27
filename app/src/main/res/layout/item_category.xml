@@ -32,6 +32,6 @@
         android:layout_height="wrap_content"
         android:text="分类"
         android:textSize="12sp"
-        android:textColor="#666666" />
+        android:textColor="@color/text_muted" />
 
 </LinearLayout>

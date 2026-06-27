@@ -5,7 +5,7 @@
     android:layout_height="match_parent"
     android:orientation="vertical"
     android:padding="24dp"
-    android:background="#F5F5F5">
+    android:background="@color/bg_page">
 
     <!-- 标题 -->
     <TextView
@@ -14,7 +14,7 @@
         android:text="情侣绑定"
         android:textSize="24sp"
         android:textStyle="bold"
-        android:textColor="#333333"
+        android:textColor="@color/text_body"
         android:gravity="center"
         android:layout_marginBottom="32dp" />
 
@@ -24,7 +24,7 @@
         android:layout_height="wrap_content"
         android:text="选择一种方式与您的情侣建立关系"
         android:textSize="16sp"
-        android:textColor="#666666"
+        android:textColor="@color/text_muted"
         android:gravity="center"
         android:layout_marginBottom="48dp" />
 
@@ -49,7 +49,7 @@
                 android:text="发起邀请"
                 android:textSize="18sp"
                 android:textStyle="bold"
-                android:textColor="#333333"
+                android:textColor="@color/text_body"
                 android:layout_marginBottom="8dp" />
 
             <TextView
@@ -57,7 +57,7 @@
                 android:layout_height="wrap_content"
                 android:text="生成邀请码，分享给您的情侣"
                 android:textSize="14sp"
-                android:textColor="#666666"
+                android:textColor="@color/text_muted"
                 android:layout_marginBottom="16dp" />
 
             <Button
@@ -93,7 +93,7 @@
                 android:text="输入邀请码"
                 android:textSize="18sp"
                 android:textStyle="bold"
-                android:textColor="#333333"
+                android:textColor="@color/text_body"
                 android:layout_marginBottom="8dp" />
 
             <TextView
@@ -101,7 +101,7 @@
                 android:layout_height="wrap_content"
                 android:text="输入您情侣发送的邀请码"
                 android:textSize="14sp"
-                android:textColor="#666666"
+                android:textColor="@color/text_muted"
                 android:layout_marginBottom="16dp" />
 
             <Button
@@ -124,7 +124,7 @@
         android:layout_height="wrap_content"
         android:text="建立情侣关系后，您可以共享积分和查看对方的消费记录"
         android:textSize="12sp"
-        android:textColor="#999999"
+        android:textColor="@color/text_disabled"
         android:gravity="center"
         android:layout_marginTop="32dp" />
 

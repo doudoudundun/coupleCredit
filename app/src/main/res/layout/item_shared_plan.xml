@@ -57,7 +57,7 @@
             android:autoSizeTextType="uniform"
             android:maxLines="1"
             android:text="￥1000.00"
-            android:textColor="#111827"
+            android:textColor="@color/text_title"
             android:textSize="24sp"
             android:textStyle="bold" />
 
@@ -67,7 +67,7 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="4dp"
             android:text="初始值 ￥1000.00"
-            android:textColor="#6B7280"
+            android:textColor="@color/text_muted"
             android:textSize="12sp" />
 
         <LinearLayout

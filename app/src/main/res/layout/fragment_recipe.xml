@@ -3,7 +3,7 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#F5F5F5">
+    android:background="@color/bg_page">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -51,7 +51,7 @@
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:text="菜谱"
-                android:textColor="#1A1A1A"
+                android:textColor="@color/text_title"
                 android:textSize="22sp"
                 android:textStyle="bold" />
 
@@ -61,7 +61,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginEnd="12dp"
                 android:text="0 道菜"
-                android:textColor="#999999"
+                android:textColor="@color/text_disabled"
                 android:textSize="13sp" />
 
             <FrameLayout
@@ -130,7 +130,7 @@
                 android:layout_weight="1"
                 android:gravity="center"
                 android:text="推荐"
-                android:textColor="#999999"
+                android:textColor="@color/text_disabled"
                 android:textSize="15sp" />
         </LinearLayout>
 
@@ -151,7 +151,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:text="今日 0 / 2000 kcal"
-                android:textColor="#1A1A1A"
+                android:textColor="@color/text_title"
                 android:textSize="15sp"
                 android:textStyle="bold" />
 
@@ -213,7 +213,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginBottom="16dp"
                 android:text="登录后查看菜谱"
-                android:textColor="#999999"
+                android:textColor="@color/text_disabled"
                 android:textSize="16sp" />
 
             <TextView
@@ -307,7 +307,7 @@
                             android:layout_height="wrap_content"
                             android:layout_marginBottom="8dp"
                             android:text="还没有菜谱"
-                            android:textColor="#999999"
+                            android:textColor="@color/text_disabled"
                             android:textSize="16sp" />
 
                         <TextView

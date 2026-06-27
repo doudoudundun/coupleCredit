@@ -16,7 +16,10 @@ function readConfig() {
     dbUser: process.env.DB_USER || "couple_app",
     dbPassword: process.env.DB_PASSWORD,
     inviteCode: process.env.INVITE_CODE,
-    bcryptRounds: Number(process.env.BCRYPT_ROUNDS || 10)
+    bcryptRounds: Number(process.env.BCRYPT_ROUNDS || 10),
+    // 微信小程序登录配置（可选，未配置则微信登录接口返回未启用）
+    wechatAppId: process.env.WECHAT_APPID || "",
+    wechatSecret: process.env.WECHAT_SECRET || ""
   };
 }
 

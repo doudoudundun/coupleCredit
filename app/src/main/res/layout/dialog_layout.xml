@@ -94,7 +94,7 @@
                 android:layout_height="wrap_content"
                 android:text="支出-交通"
                 android:textSize="16sp"
-                android:textColor="#333333" />
+                android:textColor="@color/text_body" />
 
             <Spinner
                 android:id="@+id/spinner_bill_category"
@@ -135,7 +135,7 @@
                 android:layout_weight="1"
                 android:text="金额"
                 android:textSize="16sp"
-                android:textColor="#666666" />
+                android:textColor="@color/text_muted" />
             
             <TextView
                 android:id="@+id/tv_fare"
@@ -171,7 +171,7 @@
                 android:layout_weight="1"
                 android:text="日期"
                 android:textSize="16sp"
-                android:textColor="#666666" />
+                android:textColor="@color/text_muted" />
             
             <TextView
                 android:id="@+id/tv_date"
@@ -179,7 +179,7 @@
                 android:layout_height="wrap_content"
                 android:text="2025-08-14"
                 android:textSize="16sp"
-                android:textColor="#333333" />
+                android:textColor="@color/text_body" />
 
         </LinearLayout>
 
@@ -201,7 +201,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="备注"
-            android:textColor="#666666"
+            android:textColor="@color/text_muted"
             android:textSize="14sp" />
 
         <TextView
@@ -209,7 +209,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
-            android:textColor="#333333"
+            android:textColor="@color/text_body"
             android:textSize="16sp"
             android:lineSpacingExtra="4dp" />
             
@@ -218,7 +218,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
-            android:textColor="#333333"
+            android:textColor="@color/text_body"
             android:textSize="16sp"
             android:background="@android:color/transparent"
             android:hint="请输入备注"

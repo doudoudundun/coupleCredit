@@ -14,7 +14,7 @@
         android:paddingHorizontal="14dp"
         android:paddingVertical="10dp"
         android:text="编辑菜谱"
-        android:textColor="#333333"
+        android:textColor="@color/text_body"
         android:textSize="13sp" />
 
     <TextView

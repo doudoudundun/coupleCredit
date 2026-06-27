@@ -1,6 +1,7 @@
 package com.example.couplecredit.activity;
 
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.Button;
@@ -19,6 +20,9 @@ import com.example.couplecredit.config.ApiConfigManager;
 import com.example.couplecredit.utils.UserInfoManager;
 
 public class AssetDetailActivity extends AppCompatActivity {
+
+    private static final String PREFS_NAME = "assets_detail_cache";
+    private static final String KEY_DETAIL_CACHE = "detail_cache_";
 
     private int assetId;
     private int currentUserId;
@@ -40,6 +44,7 @@ public class AssetDetailActivity extends AppCompatActivity {
         }
 
         initViews();
+        loadFromCache();
         loadAssetDetail();
     }
 
@@ -56,12 +61,33 @@ public class AssetDetailActivity extends AppCompatActivity {
         findViewById(R.id.btn_status).setOnClickListener(v -> toggleStatus());
     }
 
+    private void loadFromCache() {
+        SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+        String cached = prefs.getString(KEY_DETAIL_CACHE + assetId, null);
+        if (cached != null) {
+            try {
+                AuthApiModels.AssetItemData asset = AuthApiClient.GSON.fromJson(cached, AuthApiModels.AssetItemData.class);
+                if (asset != null) {
+                    currentAsset = asset;
+                    runOnUiThread(this::displayAssetDetails);
+                }
+            } catch (Exception ignored) {}
+        }
+    }
+
+    private void saveToCache() {
+        if (currentAsset == null) return;
+        SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+        prefs.edit().putString(KEY_DETAIL_CACHE + assetId, AuthApiClient.GSON.toJson(currentAsset)).apply();
+    }
+
     private void loadAssetDetail() {
         AuthApiClient.getAssetById(this, assetId, currentUserId, new AuthApiClient.AssetDetailCallback() {
             @Override
             public void onSuccess(AuthApiModels.AssetItemData asset) {
                 runOnUiThread(() -> {
                     currentAsset = asset;
+                    saveToCache();
                     displayAssetDetails();
                 });
             }
@@ -69,8 +95,10 @@ public class AssetDetailActivity extends AppCompatActivity {
             @Override
             public void onError(String message) {
                 runOnUiThread(() -> {
-                    Toast.makeText(AssetDetailActivity.this, "加载失败: " + message, Toast.LENGTH_SHORT).show();
-                    finish();
+                    if (currentAsset == null) {
+                        Toast.makeText(AssetDetailActivity.this, "加载失败: " + message, Toast.LENGTH_SHORT).show();
+                        finish();
+                    }
                 });
             }
         });
@@ -103,6 +131,7 @@ public class AssetDetailActivity extends AppCompatActivity {
                     .placeholder(R.drawable.ic_asset_placeholder)
                     .centerCrop()
                     .into(ivImage);
+            ivImage.setImageTintList(null);
         } else {
             ivImage.setImageResource(R.drawable.ic_asset_placeholder);
         }
@@ -195,6 +224,8 @@ public class AssetDetailActivity extends AppCompatActivity {
             @Override
             public void onSuccess() {
                 runOnUiThread(() -> {
+                    SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+                    prefs.edit().remove(KEY_DETAIL_CACHE + assetId).apply();
                     Toast.makeText(AssetDetailActivity.this, "删除成功", Toast.LENGTH_SHORT).show();
                     finish();
                 });

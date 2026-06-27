@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:gravity="center"
+    android:minHeight="48dp"
+    android:orientation="vertical"
+    android:padding="2dp">
+
+    <TextView
+        android:id="@+id/tv_day"
+        android:layout_width="38dp"
+        android:layout_height="38dp"
+        android:gravity="center"
+        android:textColor="#FF6B5566"
+        android:textSize="13.5sp" />
+
+    <View
+        android:id="@+id/v_indicator"
+        android:layout_width="5dp"
+        android:layout_height="5dp"
+        android:layout_marginTop="1dp"
+        android:background="@drawable/bg_period_day"
+        android:visibility="gone" />
+</LinearLayout>

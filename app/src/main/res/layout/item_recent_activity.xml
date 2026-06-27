@@ -62,7 +62,7 @@
                 android:ellipsize="end"
                 android:maxLines="1"
                 android:text="食材 · 10个"
-                android:textColor="#6B7280"
+                android:textColor="@color/text_muted"
                 android:textSize="11sp" />
         </LinearLayout>
     </LinearLayout>

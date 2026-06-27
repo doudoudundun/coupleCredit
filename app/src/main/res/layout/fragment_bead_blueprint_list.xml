@@ -3,7 +3,7 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#F6F7FB">
+    android:background="@color/bg_page">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -40,7 +40,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="拼豆图纸"
-                    android:textColor="#111827"
+                    android:textColor="@color/text_title"
                     android:textSize="22sp"
                     android:textStyle="bold" />
 
@@ -50,7 +50,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="3dp"
                     android:text="记录每张图纸需要的颜色和数量"
-                    android:textColor="#6B7280"
+                    android:textColor="@color/text_muted"
                     android:textSize="13sp" />
             </LinearLayout>
         </LinearLayout>
@@ -70,7 +70,7 @@
             android:gravity="center"
             android:padding="24dp"
             android:text="还没有拼豆图纸，点击右下角新建。"
-            android:textColor="#6B7280"
+            android:textColor="@color/text_muted"
             android:visibility="gone" />
     </LinearLayout>
 

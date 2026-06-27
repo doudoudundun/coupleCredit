@@ -24,7 +24,7 @@
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:text="菜谱详情"
-                android:textColor="#1A1A1A"
+                android:textColor="@color/text_title"
                 android:textSize="20sp"
                 android:textStyle="bold" />
 
@@ -55,7 +55,7 @@
                 android:background="?attr/selectableItemBackgroundBorderless"
                 android:gravity="center"
                 android:text="✕"
-                android:textColor="#999999"
+                android:textColor="@color/text_disabled"
                 android:textSize="16sp" />
         </LinearLayout>
 
@@ -73,7 +73,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginBottom="6dp"
-            android:textColor="#1A1A1A"
+            android:textColor="@color/text_title"
             android:textSize="20sp"
             android:textStyle="bold" />
 
@@ -83,7 +83,7 @@
             android:layout_height="wrap_content"
             android:layout_marginBottom="16dp"
             android:lineSpacingExtra="4dp"
-            android:textColor="#666666"
+            android:textColor="@color/text_muted"
             android:textSize="14sp" />
 
         <TextView
@@ -91,7 +91,7 @@
             android:layout_height="wrap_content"
             android:layout_marginBottom="8dp"
             android:text="所需食材"
-            android:textColor="#333333"
+            android:textColor="@color/text_body"
             android:textSize="16sp"
             android:textStyle="bold" />
 
@@ -110,7 +110,7 @@
             android:layout_height="wrap_content"
             android:layout_marginBottom="8dp"
             android:text="烹饪步骤"
-            android:textColor="#333333"
+            android:textColor="@color/text_body"
             android:textSize="16sp"
             android:textStyle="bold"
             android:visibility="gone" />

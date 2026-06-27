@@ -32,7 +32,7 @@
             android:layout_height="wrap_content"
             android:text="applemusic"
             android:textSize="16sp"
-            android:textColor="#333333"
+            android:textColor="@color/text_body"
             android:textStyle="bold" />
 
         <TextView
@@ -41,7 +41,7 @@
             android:layout_height="wrap_content"
             android:text=""
             android:textSize="12sp"
-            android:textColor="#999999"
+            android:textColor="@color/text_disabled"
             android:layout_marginTop="2dp" />
 
     </LinearLayout>
@@ -59,7 +59,7 @@
             android:layout_height="wrap_content"
             android:text="-6"
             android:textSize="16sp"
-            android:textColor="#333333"
+            android:textColor="@color/text_body"
             android:textStyle="bold" />
 
         <ImageView

@@ -16,7 +16,7 @@
             android:layout_height="wrap_content"
             android:gravity="center"
             android:text="添加商家"
-            android:textColor="#1A1A1A"
+            android:textColor="@color/text_title"
             android:textSize="18sp"
             android:textStyle="bold" />
 
@@ -31,7 +31,7 @@
             android:maxLines="1"
             android:paddingStart="12dp"
             android:paddingEnd="12dp"
-            android:textColor="#333333"
+            android:textColor="@color/text_body"
             android:textSize="14sp" />
 
         <Spinner
@@ -60,7 +60,7 @@
                 android:maxLines="1"
                 android:paddingStart="12dp"
                 android:paddingEnd="12dp"
-                android:textColor="#333333"
+                android:textColor="@color/text_body"
                 android:textSize="14sp" />
 
             <EditText
@@ -75,7 +75,7 @@
                 android:maxLines="1"
                 android:paddingStart="12dp"
                 android:paddingEnd="12dp"
-                android:textColor="#333333"
+                android:textColor="@color/text_body"
                 android:textSize="14sp" />
         </LinearLayout>
 
@@ -90,7 +90,7 @@
             android:maxLines="1"
             android:paddingStart="12dp"
             android:paddingEnd="12dp"
-            android:textColor="#333333"
+            android:textColor="@color/text_body"
             android:textSize="14sp" />
 
         <EditText
@@ -104,7 +104,7 @@
             android:maxLines="1"
             android:paddingStart="12dp"
             android:paddingEnd="12dp"
-            android:textColor="#333333"
+            android:textColor="@color/text_body"
             android:textSize="14sp" />
 
         <FrameLayout
@@ -126,7 +126,7 @@
                 android:layout_height="wrap_content"
                 android:layout_gravity="center"
                 android:text="点击添加菜谱图片"
-                android:textColor="#999999"
+                android:textColor="@color/text_disabled"
                 android:textSize="13sp" />
         </FrameLayout>
 
@@ -149,7 +149,7 @@
                 android:layout_height="wrap_content"
                 android:layout_gravity="center"
                 android:text="点击添加路程截图(导航截图)"
-                android:textColor="#999999"
+                android:textColor="@color/text_disabled"
                 android:textSize="13sp" />
         </FrameLayout>
 
@@ -168,7 +168,7 @@
             android:paddingTop="10dp"
             android:paddingEnd="12dp"
             android:paddingBottom="10dp"
-            android:textColor="#333333"
+            android:textColor="@color/text_body"
             android:textSize="14sp" />
 
         <LinearLayout

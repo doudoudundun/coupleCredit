@@ -2,7 +2,7 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#F5F5F5"
+    android:background="@color/bg_page"
     android:orientation="vertical">
 
     <LinearLayout
@@ -29,7 +29,7 @@
             android:layout_weight="1"
             android:gravity="center"
             android:text="热量管理"
-            android:textColor="#1A1A1A"
+            android:textColor="@color/text_title"
             android:textSize="18sp"
             android:textStyle="bold" />
 
@@ -56,7 +56,7 @@
             android:layout_height="wrap_content"
             android:padding="6dp"
             android:text="前一天"
-            android:textColor="#666666"
+            android:textColor="@color/text_muted"
             android:textSize="13sp" />
 
         <TextView
@@ -66,7 +66,7 @@
             android:layout_weight="1"
             android:gravity="center"
             android:text="今天"
-            android:textColor="#1A1A1A"
+            android:textColor="@color/text_title"
             android:textSize="15sp"
             android:textStyle="bold" />
 
@@ -76,7 +76,7 @@
             android:layout_height="wrap_content"
             android:padding="6dp"
             android:text="后一天"
-            android:textColor="#666666"
+            android:textColor="@color/text_muted"
             android:textSize="13sp" />
     </LinearLayout>
 
@@ -93,7 +93,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="0 kcal"
-            android:textColor="#1A1A1A"
+            android:textColor="@color/text_title"
             android:textSize="28sp"
             android:textStyle="bold" />
 
@@ -121,7 +121,7 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="10dp"
             android:text="烹饪 0  外食 0  手动 0"
-            android:textColor="#666666"
+            android:textColor="@color/text_muted"
             android:textSize="12sp" />
 
         <LinearLayout
@@ -173,7 +173,7 @@
         android:gravity="center"
         android:padding="24dp"
         android:text="当天还没有热量记录"
-        android:textColor="#999999"
+        android:textColor="@color/text_disabled"
         android:textSize="14sp"
         android:visibility="gone" />
 </LinearLayout>

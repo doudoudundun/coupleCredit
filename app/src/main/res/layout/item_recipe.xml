@@ -44,7 +44,7 @@
                     android:ellipsize="end"
                     android:maxLines="1"
                     android:text="菜谱名称"
-                    android:textColor="#1A1A1A"
+                    android:textColor="@color/text_title"
                     android:textSize="15sp"
                     android:textStyle="bold" />
 
@@ -67,7 +67,7 @@
                 android:ellipsize="end"
                 android:maxLines="1"
                 android:text="描述"
-                android:textColor="#999999"
+                android:textColor="@color/text_disabled"
                 android:textSize="12sp" />
 
             <TextView
@@ -76,7 +76,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="4dp"
                 android:text="热量待补"
-                android:textColor="#999999"
+                android:textColor="@color/text_disabled"
                 android:textSize="11sp" />
 
             <LinearLayout

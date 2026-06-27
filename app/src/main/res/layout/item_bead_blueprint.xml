@@ -37,7 +37,7 @@
                 android:ellipsize="end"
                 android:maxLines="1"
                 android:text="图纸名称"
-                android:textColor="#111827"
+                android:textColor="@color/text_title"
                 android:textSize="16sp"
                 android:textStyle="bold" />
 
@@ -47,7 +47,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="6dp"
                 android:text="0 色 · 每次 0 颗"
-                android:textColor="#6B7280"
+                android:textColor="@color/text_muted"
                 android:textSize="13sp" />
         </LinearLayout>
 

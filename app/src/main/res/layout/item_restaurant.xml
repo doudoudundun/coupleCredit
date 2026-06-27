@@ -45,7 +45,7 @@
                     android:ellipsize="end"
                     android:maxLines="1"
                     android:text="商家名称"
-                    android:textColor="#1A1A1A"
+                    android:textColor="@color/text_title"
                     android:textSize="16sp"
                     android:textStyle="bold" />
 
@@ -75,7 +75,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="¥0/人"
-                    android:textColor="#666666"
+                    android:textColor="@color/text_muted"
                     android:textSize="14sp" />
 
                 <TextView
@@ -84,7 +84,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginStart="12dp"
                     android:text="0m"
-                    android:textColor="#999999"
+                    android:textColor="@color/text_disabled"
                     android:textSize="14sp" />
             </LinearLayout>
 
@@ -97,7 +97,7 @@
                 android:ellipsize="end"
                 android:maxLines="1"
                 android:text="地址"
-                android:textColor="#999999"
+                android:textColor="@color/text_disabled"
                 android:textSize="12sp"
                 android:visibility="gone" />
         </LinearLayout>

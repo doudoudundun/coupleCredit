@@ -50,6 +50,7 @@ const { createFcmRouter } = require("./routes/fcm");
 const { createPushRouter } = require("./routes/push");
 const { createNotificationRouter } = require("./routes/notifications");
 const { createAiChatRouter } = require("./routes/aiChat");
+const { createPeriodRouter } = require("./routes/period");
 const { initializeApp: initFcm } = require("./services/fcmService");
 const { sendError } = require("./errors");
 const { optionalAuth } = require("./middleware/auth");
@@ -107,6 +108,7 @@ app.use("/api/fcm", createFcmRouter({ pool }));
 app.use("/api/push", createPushRouter({ pool }));
 app.use("/api/notifications", createNotificationRouter({ pool }));
 app.use("/api/ai-chat", aiLimiter, createAiChatRouter({ pool }));
+app.use("/api/period", createPeriodRouter({ pool }));
 app.use((error, _req, res, _next) => {
   console.error("Unhandled error:", error);
   sendError(res, error);

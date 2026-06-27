@@ -36,7 +36,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="我们的7月 >"
-                android:textColor="#333333"
+                android:textColor="@color/text_body"
                 android:textSize="16sp"
                 android:textStyle="bold" />
 
@@ -79,7 +79,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="4dp"
                     android:text="支出"
-                    android:textColor="#666666"
+                    android:textColor="@color/text_muted"
                     android:textSize="12sp" />
 
             </LinearLayout>
@@ -111,7 +111,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="4dp"
                     android:text="收入"
-                    android:textColor="#666666"
+                    android:textColor="@color/text_muted"
                     android:textSize="12sp" />
 
             </LinearLayout>
@@ -125,7 +125,7 @@
             android:gravity="center"
             android:padding="32dp"
             android:text="登录以查看账单"
-            android:textColor="#666666"
+            android:textColor="@color/text_muted"
             android:textSize="16sp"
             android:visibility="gone" />
 
@@ -134,7 +134,7 @@
             android:layout_width="match_parent"
             android:layout_height="0dp"
             android:layout_weight="1"
-            android:background="#F5F5F5"
+            android:background="@color/bg_page"
             android:clipToPadding="false"
             android:paddingBottom="88dp" />
     </LinearLayout>

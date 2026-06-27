@@ -4,7 +4,7 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#F5F5F5"
+    android:background="@color/bg_page"
     android:orientation="vertical"
     tools:context=".fragment.AddBillFragment">
 
@@ -189,7 +189,7 @@
                 android:background="@drawable/gray_rounded_background"
                 android:padding="8dp"
                 android:text="对方"
-                android:textColor="#666666"
+                android:textColor="@color/text_muted"
                 android:textSize="12sp" />
 
             <!-- 共同按钮 -->
@@ -201,7 +201,7 @@
                 android:background="@drawable/gray_rounded_background"
                 android:padding="8dp"
                 android:text="共同"
-                android:textColor="#666666"
+                android:textColor="@color/text_muted"
                 android:textSize="12sp" />
 
             <!-- 小钱包按钮 -->
@@ -212,7 +212,7 @@
                 android:background="@drawable/gray_rounded_background"
                 android:padding="8dp"
                 android:text="小钱包"
-                android:textColor="#666666"
+                android:textColor="@color/text_muted"
                 android:textSize="12sp"
                 android:visibility="gone" />
 
@@ -234,8 +234,8 @@
                 android:background="@null"
                 android:hint="点击输入备注"
                 android:padding="6dp"
-                android:textColor="#666666"
-                android:textColorHint="#999999"
+                android:textColor="@color/text_muted"
+                android:textColorHint="@color/text_disabled"
                 android:textSize="16sp" />
 
             <TextView
@@ -267,7 +267,7 @@
                 android:background="@android:color/white"
                 android:gravity="center"
                 android:text="1"
-                android:textColor="#333333"
+                android:textColor="@color/text_body"
                 android:textSize="20sp" />
 
             <TextView
@@ -279,7 +279,7 @@
                 android:background="@android:color/white"
                 android:gravity="center"
                 android:text="2"
-                android:textColor="#333333"
+                android:textColor="@color/text_body"
                 android:textSize="20sp" />
 
             <TextView
@@ -291,7 +291,7 @@
                 android:background="@android:color/white"
                 android:gravity="center"
                 android:text="3"
-                android:textColor="#333333"
+                android:textColor="@color/text_body"
                 android:textSize="20sp" />
 
             <TextView
@@ -303,7 +303,7 @@
                 android:background="@android:color/white"
                 android:gravity="center"
                 android:text="⌫"
-                android:textColor="#333333"
+                android:textColor="@color/text_body"
                 android:textSize="20sp" />
 
             <!-- 第二行 -->
@@ -316,7 +316,7 @@
                 android:background="@android:color/white"
                 android:gravity="center"
                 android:text="4"
-                android:textColor="#333333"
+                android:textColor="@color/text_body"
                 android:textSize="20sp" />
 
             <TextView
@@ -328,7 +328,7 @@
                 android:background="@android:color/white"
                 android:gravity="center"
                 android:text="5"
-                android:textColor="#333333"
+                android:textColor="@color/text_body"
                 android:textSize="20sp" />
 
             <TextView
@@ -340,7 +340,7 @@
                 android:background="@android:color/white"
                 android:gravity="center"
                 android:text="6"
-                android:textColor="#333333"
+                android:textColor="@color/text_body"
                 android:textSize="20sp" />
 
             <TextView
@@ -352,7 +352,7 @@
                 android:background="@android:color/white"
                 android:gravity="center"
                 android:text="+"
-                android:textColor="#333333"
+                android:textColor="@color/text_body"
                 android:textSize="20sp" />
 
             <!-- 第三行 -->
@@ -365,7 +365,7 @@
                 android:background="@android:color/white"
                 android:gravity="center"
                 android:text="7"
-                android:textColor="#333333"
+                android:textColor="@color/text_body"
                 android:textSize="20sp" />
 
             <TextView
@@ -377,7 +377,7 @@
                 android:background="@android:color/white"
                 android:gravity="center"
                 android:text="8"
-                android:textColor="#333333"
+                android:textColor="@color/text_body"
                 android:textSize="20sp" />
 
             <TextView
@@ -389,7 +389,7 @@
                 android:background="@android:color/white"
                 android:gravity="center"
                 android:text="9"
-                android:textColor="#333333"
+                android:textColor="@color/text_body"
                 android:textSize="20sp" />
 
             <TextView
@@ -401,7 +401,7 @@
                 android:background="@android:color/white"
                 android:gravity="center"
                 android:text="-"
-                android:textColor="#333333"
+                android:textColor="@color/text_body"
                 android:textSize="20sp" />
 
             <!-- 第四行 -->
@@ -414,7 +414,7 @@
                 android:background="@android:color/white"
                 android:gravity="center"
                 android:text="再记"
-                android:textColor="#333333"
+                android:textColor="@color/text_body"
                 android:textSize="16sp" />
 
             <TextView
@@ -426,7 +426,7 @@
                 android:background="@android:color/white"
                 android:gravity="center"
                 android:text="0"
-                android:textColor="#333333"
+                android:textColor="@color/text_body"
                 android:textSize="20sp" />
 
             <TextView
@@ -438,7 +438,7 @@
                 android:background="@android:color/white"
                 android:gravity="center"
                 android:text="."
-                android:textColor="#333333"
+                android:textColor="@color/text_body"
                 android:textSize="20sp" />
 
             <TextView

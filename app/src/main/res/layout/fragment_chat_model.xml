@@ -40,7 +40,7 @@
                 android:paddingEnd="14dp"
                 android:textSize="14sp"
                 android:textColorHint="#BBBBBB"
-                android:textColor="#333333"
+                android:textColor="@color/text_body"
                 android:inputType="text"
                 android:imeOptions="actionSearch"
                 android:singleLine="true" />
@@ -193,7 +193,7 @@
                 android:paddingBottom="8dp"
                 android:scrollbars="vertical"
                 android:textSize="15sp"
-                android:textColor="#333333"
+                android:textColor="@color/text_body"
                 android:textColorHint="#BBBBBB" />
 
             <!-- 发送按钮（有输入时显示） -->
@@ -241,7 +241,7 @@
                     android:layout_height="wrap_content"
                     android:text="拍照"
                     android:textSize="12sp"
-                    android:textColor="#666666"
+                    android:textColor="@color/text_muted"
                     android:layout_marginTop="6dp" />
             </LinearLayout>
 
@@ -267,7 +267,7 @@
                     android:layout_height="wrap_content"
                     android:text="相册"
                     android:textSize="12sp"
-                    android:textColor="#666666"
+                    android:textColor="@color/text_muted"
                     android:layout_marginTop="6dp" />
             </LinearLayout>
 

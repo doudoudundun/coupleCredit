@@ -45,6 +45,7 @@ public class EditAssetActivity extends AppCompatActivity {
     private int currentUserId;
     private int assetId;
     private String imageUrl = null;
+    private String originalImageUrl = null;
     private UploadState uploadState = UploadState.IDLE;
 
     private final ActivityResultLauncher<Intent> imagePickerLauncher =
@@ -127,11 +128,12 @@ public class EditAssetActivity extends AppCompatActivity {
         etCurrentValue.setText(asset.currentValue != null ? String.valueOf(asset.currentValue) : "");
         etNote.setText(asset.note != null ? asset.note : "");
         imageUrl = asset.imageUrl;
+        originalImageUrl = asset.originalImageUrl != null ? asset.originalImageUrl : asset.imageUrl;
 
         if (asset.imageUrl != null && !asset.imageUrl.isEmpty()) {
             String baseUrl = ApiConfigManager.getBaseUrl(this);
             Glide.with(this).load(baseUrl + asset.imageUrl).into(ivAssetImage);
-            ivAssetImage.setColorFilter(null);
+            ivAssetImage.setImageTintList(null);
             tvImageHint.setText("点击更换照片");
             btnRemoveBg.setVisibility(View.VISIBLE);
         }
@@ -210,7 +212,7 @@ public class EditAssetActivity extends AppCompatActivity {
                                 .load(baseUrl + serverImageUrl)
                                 .centerCrop()
                                 .into(ivAssetImage);
-                        ivAssetImage.setColorFilter(null);
+                        ivAssetImage.setImageTintList(null);
                     });
                 }
 
@@ -255,8 +257,10 @@ public class EditAssetActivity extends AppCompatActivity {
                         String baseUrl = ApiConfigManager.getBaseUrl(EditAssetActivity.this);
                         Glide.with(EditAssetActivity.this)
                                 .load(baseUrl + response.data.imageUrl)
+                                .placeholder(R.drawable.ic_asset_placeholder)
                                 .centerCrop()
                                 .into(ivAssetImage);
+                        ivAssetImage.setImageTintList(null);
                         Toast.makeText(EditAssetActivity.this, "抠图完成", Toast.LENGTH_SHORT).show();
                     }
                 });
@@ -340,7 +344,7 @@ public class EditAssetActivity extends AppCompatActivity {
         }
 
         AuthApiModels.CreateAssetRequest request = new AuthApiModels.CreateAssetRequest(
-                currentUserId, name, category, imageUrl, imageUrl,
+                currentUserId, name, category, imageUrl, originalImageUrl,
                 purchaseDate.isEmpty() ? null : purchaseDate,
                 purchasePrice, currentValue, "active", note.isEmpty() ? null : note
         );

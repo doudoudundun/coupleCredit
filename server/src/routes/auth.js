@@ -110,6 +110,107 @@ function createAuthRouter({ pool, config, authLimiter, strictLimiter }) {
     }
   });
 
+  // 用 wx.login 的 code 换取微信 openid
+  async function exchangeOpenid(code) {
+    if (!config.wechatAppId || !config.wechatSecret) {
+      throw new ApiError(503, "WECHAT_NOT_CONFIGURED", "微信登录未配置");
+    }
+    if (!code) throw new ApiError(400, "INVALID_REQUEST", "缺少 code");
+
+    const url = `https://api.weixin.qq.com/sns/jscode2session?appid=${encodeURIComponent(config.wechatAppId)}&secret=${encodeURIComponent(config.wechatSecret)}&js_code=${encodeURIComponent(code)}&grant_type=authorization_code`;
+    let payload;
+    try {
+      const resp = await fetch(url, { method: "GET" });
+      payload = await resp.json();
+    } catch (e) {
+      throw new ApiError(502, "WECHAT_UPSTREAM_ERROR", "微信服务请求失败");
+    }
+    if (!payload || payload.errcode || !payload.openid) {
+      throw new ApiError(401, "WECHAT_AUTH_FAILED", payload && payload.errmsg ? payload.errmsg : "微信登录校验失败");
+    }
+    return payload.openid;
+  }
+
+  function buildUserSession(user) {
+    const accessToken = signToken({ userId: user.id });
+    const refreshToken = signRefreshToken({ userId: user.id });
+    return {
+      userId: user.id,
+      username: user.username,
+      email: user.email,
+      nickname: user.nickname || null,
+      avatarUrl: user.avatar || null,
+      accessToken,
+      refreshToken
+    };
+  }
+
+  // 微信登录：code -> openid -> 查绑定。已绑定返回登录态，未绑定返回 { bound:false, openid }
+  router.post("/wechat-login", authLimiter, async (req, res, next) => {
+    try {
+      const code = typeof req.body.code === "string" ? req.body.code : "";
+      const openid = await exchangeOpenid(code);
+
+      const [rows] = await pool.execute(
+        "SELECT id, username, email, nickname, avatar, status FROM users WHERE wechat_openid = ? LIMIT 1",
+        [openid]
+      );
+
+      if (rows.length === 0) {
+        return res.json({ ok: true, message: "需要绑定账号", data: { bound: false, openid } });
+      }
+
+      const user = rows[0];
+      if (user.status !== "active") {
+        throw new ApiError(403, "USER_DISABLED", "用户不可登录");
+      }
+
+      res.json({ ok: true, message: "登录成功", data: Object.assign({ bound: true }, buildUserSession(user)) });
+      setImmediate(() => preloadUserCache(user.id));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // 微信绑定：openid + 已有账号密码，校验后写入 wechat_openid 并返回登录态
+  router.post("/wechat-bind", authLimiter, async (req, res, next) => {
+    try {
+      const openid = trimValue(req.body.openid);
+      const username = trimValue(req.body.username);
+      const password = typeof req.body.password === "string" ? req.body.password : "";
+      if (!openid || !username || !password) {
+        throw new ApiError(400, "INVALID_REQUEST", "参数不完整");
+      }
+
+      const [bound] = await pool.execute(
+        "SELECT id FROM users WHERE wechat_openid = ? LIMIT 1",
+        [openid]
+      );
+      if (bound.length > 0) {
+        throw new ApiError(409, "OPENID_BOUND", "该微信已绑定其他账号");
+      }
+
+      const [rows] = await pool.execute(
+        "SELECT id, username, email, nickname, avatar, password, status FROM users WHERE username = ? LIMIT 1",
+        [username]
+      );
+      if (rows.length === 0) throw new ApiError(401, "INVALID_CREDENTIALS", "用户名或密码错误");
+
+      const user = rows[0];
+      if (user.status !== "active") throw new ApiError(403, "USER_DISABLED", "用户不可登录");
+
+      const matched = await bcrypt.compare(password, user.password);
+      if (!matched) throw new ApiError(401, "INVALID_CREDENTIALS", "用户名或密码错误");
+
+      await pool.execute("UPDATE users SET wechat_openid = ? WHERE id = ?", [openid, user.id]);
+
+      res.json({ ok: true, message: "绑定成功", data: Object.assign({ bound: true }, buildUserSession(user)) });
+      setImmediate(() => preloadUserCache(user.id));
+    } catch (error) {
+      next(error);
+    }
+  });
+
   router.get("/couple-info", async (req, res, next) => {
     try {
       const userId = parseInt(req.query.userId, 10);

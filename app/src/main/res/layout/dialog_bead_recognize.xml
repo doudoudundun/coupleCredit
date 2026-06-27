@@ -14,7 +14,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="图纸识图"
-            android:textColor="#111827"
+            android:textColor="@color/text_title"
             android:textSize="20sp"
             android:textStyle="bold" />
 
@@ -81,7 +81,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginStart="8dp"
                 android:text="识别中..."
-                android:textColor="#6B7280"
+                android:textColor="@color/text_muted"
                 android:textSize="13sp" />
         </LinearLayout>
 
@@ -113,7 +113,7 @@
                 android:background="@drawable/category_tag_background"
                 android:gravity="center"
                 android:text="取消"
-                android:textColor="#6B7280"
+                android:textColor="@color/text_muted"
                 android:textSize="14sp" />
 
             <TextView

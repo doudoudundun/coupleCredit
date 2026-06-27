@@ -3,7 +3,7 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#F6F7FB">
+    android:background="@color/bg_page">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -36,7 +36,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="2dp"
                 android:text="管理家具用品与日常库存，和记账一样重要。"
-                android:textColor="#6B7280"
+                android:textColor="@color/text_muted"
                 android:textSize="12sp" />
 
             <LinearLayout
@@ -58,7 +58,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="总条目"
-                        android:textColor="#6B7280"
+                        android:textColor="@color/text_muted"
                         android:textSize="11sp" />
 
                     <TextView
@@ -86,7 +86,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="告急数量"
-                        android:textColor="#6B7280"
+                        android:textColor="@color/text_muted"
                         android:textSize="11sp" />
 
                     <TextView
@@ -113,7 +113,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="临期/过期"
-                        android:textColor="#6B7280"
+                        android:textColor="@color/text_muted"
                         android:textSize="11sp" />
 
                     <TextView
@@ -169,7 +169,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:background="#F6F7FB"
+            android:background="@color/bg_page"
             android:paddingStart="16dp"
             android:paddingTop="8dp"
             android:paddingEnd="16dp">
@@ -252,7 +252,7 @@
                         android:layout_marginTop="8dp"
                         android:gravity="center"
                         android:text="查看库存、记录消耗、补货提醒都将在这里完成。"
-                        android:textColor="#6B7280"
+                        android:textColor="@color/text_muted"
                         android:textSize="13sp" />
 
                     <TextView
@@ -353,7 +353,7 @@
                                 android:ellipsize="end"
                                 android:maxLines="1"
                                 android:text="221 色库存、告急与图纸消耗统计"
-                                android:textColor="#6B7280"
+                                android:textColor="@color/text_muted"
                                 android:textSize="13sp" />
                         </LinearLayout>
 
@@ -411,7 +411,7 @@
                                 android:layout_height="wrap_content"
                                 android:layout_marginTop="16dp"
                                 android:text="还没有物资记录"
-                                android:textColor="#999999"
+                                android:textColor="@color/text_disabled"
                                 android:textSize="16sp" />
 
                             <TextView

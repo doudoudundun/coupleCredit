@@ -3,7 +3,7 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#F5F5F5"
+    android:background="@color/bg_page"
     android:orientation="vertical">
 
     <LinearLayout
@@ -37,7 +37,7 @@
             android:paddingStart="14dp"
             android:paddingEnd="14dp"
             android:text="按食材"
-            android:textColor="#666666"
+            android:textColor="@color/text_muted"
             android:textSize="13sp" />
     </LinearLayout>
 
@@ -84,7 +84,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="还没有菜谱推荐"
-            android:textColor="#999999"
+            android:textColor="@color/text_disabled"
             android:textSize="15sp" />
 
         <TextView

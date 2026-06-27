@@ -3,7 +3,7 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#F5F5F5">
+    android:background="@color/bg_page">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -36,7 +36,7 @@
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:text="出去吃"
-                android:textColor="#1A1A1A"
+                android:textColor="@color/text_title"
                 android:textSize="22sp"
                 android:textStyle="bold" />
 
@@ -45,7 +45,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="0 家"
-                android:textColor="#999999"
+                android:textColor="@color/text_disabled"
                 android:textSize="13sp" />
         </LinearLayout>
 
@@ -115,7 +115,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginBottom="8dp"
                     android:text="还没有收藏的商家"
-                    android:textColor="#999999"
+                    android:textColor="@color/text_disabled"
                     android:textSize="16sp" />
 
                 <TextView

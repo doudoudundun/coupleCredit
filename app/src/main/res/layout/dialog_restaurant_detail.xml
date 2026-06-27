@@ -15,7 +15,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="商家名称"
-            android:textColor="#1A1A1A"
+            android:textColor="@color/text_title"
             android:textSize="20sp"
             android:textStyle="bold" />
 
@@ -41,7 +41,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginStart="8dp"
                 android:text="¥50/人"
-                android:textColor="#666666"
+                android:textColor="@color/text_muted"
                 android:textSize="14sp" />
 
             <TextView
@@ -50,7 +50,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginStart="12dp"
                 android:text="距家 1.2km"
-                android:textColor="#999999"
+                android:textColor="@color/text_disabled"
                 android:textSize="14sp" />
         </LinearLayout>
 
@@ -60,7 +60,7 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="4dp"
             android:text="地址"
-            android:textColor="#999999"
+            android:textColor="@color/text_disabled"
             android:textSize="13sp"
             android:visibility="gone" />
 
@@ -76,7 +76,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="备注"
-            android:textColor="#333333"
+            android:textColor="@color/text_body"
             android:textSize="14sp"
             android:textStyle="bold"
             android:visibility="gone" />
@@ -86,7 +86,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="4dp"
-            android:textColor="#666666"
+            android:textColor="@color/text_muted"
             android:textSize="14sp"
             android:visibility="gone" />
 
@@ -96,7 +96,7 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="12dp"
             android:text="路程导航"
-            android:textColor="#333333"
+            android:textColor="@color/text_body"
             android:textSize="14sp"
             android:textStyle="bold"
             android:visibility="gone" />
@@ -149,7 +149,7 @@
                 android:background="@drawable/button_outline_background"
                 android:gravity="center"
                 android:text="关闭"
-                android:textColor="#999999"
+                android:textColor="@color/text_disabled"
                 android:textSize="14sp" />
         </LinearLayout>
     </LinearLayout>

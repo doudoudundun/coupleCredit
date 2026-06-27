@@ -3,7 +3,7 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#F5F5F5"
+    android:background="@color/bg_page"
     android:fitsSystemWindows="true"
     android:orientation="vertical">
 
@@ -101,7 +101,7 @@
                         android:layout_marginTop="4dp"
                         android:gravity="center"
                         android:text="持有天数"
-                        android:textColor="#888888"
+                        android:textColor="@color/text_disabled"
                         android:textSize="11sp" />
                 </LinearLayout>
 
@@ -131,7 +131,7 @@
                         android:layout_marginTop="4dp"
                         android:gravity="center"
                         android:text="每日花费"
-                        android:textColor="#888888"
+                        android:textColor="@color/text_disabled"
                         android:textSize="11sp" />
                 </LinearLayout>
 
@@ -161,7 +161,7 @@
                         android:layout_marginTop="4dp"
                         android:gravity="center"
                         android:text="总计资产"
-                        android:textColor="#888888"
+                        android:textColor="@color/text_disabled"
                         android:textSize="11sp" />
                 </LinearLayout>
             </LinearLayout>
@@ -180,7 +180,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:text="资产名称"
-                    android:textColor="#111111"
+                    android:textColor="@color/text_title"
                     android:textSize="18sp"
                     android:textStyle="bold" />
 
@@ -190,7 +190,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="4dp"
                     android:text="分类"
-                    android:textColor="#888888"
+                    android:textColor="@color/text_disabled"
                     android:textSize="12sp" />
 
                 <View
@@ -210,7 +210,7 @@
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
                         android:text="购入价格"
-                        android:textColor="#888888"
+                        android:textColor="@color/text_disabled"
                         android:textSize="13sp" />
 
                     <TextView
@@ -218,7 +218,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="¥0.00"
-                        android:textColor="#111111"
+                        android:textColor="@color/text_title"
                         android:textSize="13sp" />
                 </LinearLayout>
 
@@ -233,7 +233,7 @@
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
                         android:text="购入日期"
-                        android:textColor="#888888"
+                        android:textColor="@color/text_disabled"
                         android:textSize="13sp" />
 
                     <TextView
@@ -241,7 +241,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="未设置"
-                        android:textColor="#111111"
+                        android:textColor="@color/text_title"
                         android:textSize="13sp" />
                 </LinearLayout>
 
@@ -256,7 +256,7 @@
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
                         android:text="当前估值"
-                        android:textColor="#888888"
+                        android:textColor="@color/text_disabled"
                         android:textSize="13sp" />
 
                     <TextView
@@ -264,7 +264,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="未设置"
-                        android:textColor="#111111"
+                        android:textColor="@color/text_title"
                         android:textSize="13sp" />
                 </LinearLayout>
 
@@ -273,7 +273,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="16dp"
-                    android:textColor="#666666"
+                    android:textColor="@color/text_muted"
                     android:textSize="13sp"
                     android:visibility="gone" />
             </LinearLayout>
@@ -290,10 +290,11 @@
                     android:layout_width="0dp"
                     android:layout_height="44dp"
                     android:layout_weight="1"
-                    android:layout_marginEnd="6dp"
+                    android:layout_marginEnd="8dp"
                     android:background="@drawable/btn_cancel_background"
+                    app:backgroundTint="@null"
                     android:text="编辑"
-                    android:textColor="#666666"
+                    android:textColor="@color/text_muted"
                     android:textSize="14sp" />
 
                 <Button
@@ -301,8 +302,9 @@
                     android:layout_width="0dp"
                     android:layout_height="44dp"
                     android:layout_weight="1"
-                    android:layout_marginStart="6dp"
+                    android:layout_marginStart="8dp"
                     android:background="@drawable/button_primary_background"
+                    app:backgroundTint="@null"
                     android:text="标记闲置"
                     android:textColor="#FFFFFF"
                     android:textSize="14sp" />

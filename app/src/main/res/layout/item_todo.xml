@@ -72,7 +72,7 @@
                 android:gravity="end"
                 android:maxLines="1"
                 android:text="这周末"
-                android:textColor="#6B7280"
+                android:textColor="@color/text_muted"
                 android:textSize="12sp" />
         </LinearLayout>
 
@@ -111,7 +111,7 @@
                         android:ellipsize="end"
                         android:maxLines="2"
                         android:text="代办标题"
-                        android:textColor="#111827"
+                        android:textColor="@color/text_title"
                         android:textSize="16sp"
                         android:textStyle="bold" />
 
@@ -133,7 +133,7 @@
                     android:ellipsize="end"
                     android:maxLines="2"
                     android:text="点击展开详情"
-                    android:textColor="#6B7280"
+                    android:textColor="@color/text_muted"
                     android:textSize="13sp" />
             </LinearLayout>
         </LinearLayout>
@@ -151,7 +151,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:text="完整内容"
-                android:textColor="#374151"
+                android:textColor="@color/text_body"
                 android:textSize="14sp" />
 
             <TextView
@@ -160,7 +160,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="10dp"
                 android:text="已完成 0 次"
-                android:textColor="#6B7280"
+                android:textColor="@color/text_muted"
                 android:textSize="12sp"
                 android:textStyle="bold"
                 android:visibility="gone" />
@@ -218,7 +218,7 @@
                     android:paddingStart="16dp"
                     android:paddingEnd="16dp"
                     android:text="编辑"
-                    android:textColor="#374151"
+                    android:textColor="@color/text_body"
                     android:textSize="13sp" />
 
                 <TextView

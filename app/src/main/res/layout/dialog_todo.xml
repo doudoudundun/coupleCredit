@@ -13,7 +13,7 @@
         android:layout_marginBottom="20dp"
         android:gravity="center"
         android:text="添加代办"
-        android:textColor="#1A1A1A"
+        android:textColor="@color/text_title"
         android:textSize="20sp"
         android:textStyle="bold" />
 
@@ -100,7 +100,7 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:text="重复任务"
-            android:textColor="#111827"
+            android:textColor="@color/text_title"
             android:textSize="14sp" />
 
         <Switch

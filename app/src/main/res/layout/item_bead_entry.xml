@@ -54,7 +54,7 @@
                 android:ellipsize="end"
                 android:maxLines="1"
                 android:text="221 色库存、告急与图纸消耗统计"
-                android:textColor="#6B7280"
+                android:textColor="@color/text_muted"
                 android:textSize="13sp" />
         </LinearLayout>
 

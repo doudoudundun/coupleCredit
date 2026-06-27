@@ -1355,4 +1355,55 @@ public class AuthApiModels {
     public static class RemoveBgData {
         public String imageUrl;
     }
+
+    public static class PeriodRecordData {
+        public int id;
+        public int userId;
+        public String userName;
+        public String startDate;
+        public String endDate;
+        public String note;
+        public String createdAt;
+    }
+
+    public static class PeriodListData {
+        public List<PeriodRecordData> records;
+        public Integer averageCycleDays;
+        public String predictedNextStart;
+        public Integer partnerAverageCycleDays;
+        public String partnerPredictedNextStart;
+        public Integer relationshipId;
+    }
+
+    public static class PeriodListResponse {
+        public boolean ok;
+        public PeriodListData data;
+        public ErrorBody error;
+    }
+
+    public static class CreatePeriodRequest {
+        public final int userId;
+        public final String startDate;
+        public final String note;
+
+        public CreatePeriodRequest(int userId, String startDate, String note) {
+            this.userId = userId;
+            this.startDate = startDate;
+            this.note = note;
+        }
+    }
+
+    public static class UpdatePeriodRequest {
+        public final int userId;
+        public final String startDate;
+        public final String endDate;
+        public final String note;
+
+        public UpdatePeriodRequest(int userId, String startDate, String endDate, String note) {
+            this.userId = userId;
+            this.startDate = startDate;
+            this.endDate = endDate;
+            this.note = note;
+        }
+    }
 }

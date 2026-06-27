@@ -19,7 +19,7 @@
             android:layout_marginBottom="20dp"
             android:gravity="center"
             android:text="添加存货"
-            android:textColor="#1A1A1A"
+            android:textColor="@color/text_title"
             android:textSize="20sp"
             android:textStyle="bold" />
 
@@ -127,7 +127,7 @@
                     android:gravity="center"
                     android:maxLines="1"
                     android:text="✨ AI生成"
-                    android:textColor="#6B7280"
+                    android:textColor="@color/text_muted"
                     android:textSize="13sp" />
             </LinearLayout>
         </LinearLayout>
@@ -202,7 +202,7 @@
             android:layout_marginTop="4dp"
             android:layout_marginBottom="6dp"
             android:text="保质期设置"
-            android:textColor="#111827"
+            android:textColor="@color/text_title"
             android:textSize="14sp"
             android:textStyle="bold" />
 
@@ -216,7 +216,7 @@
             android:paddingStart="14dp"
             android:paddingEnd="14dp"
             android:text="选择到期日期（可选）"
-            android:textColor="#6B7280"
+            android:textColor="@color/text_muted"
             android:textSize="14sp" />
 
         <TextView
@@ -254,7 +254,7 @@
                 android:paddingStart="14dp"
                 android:paddingEnd="14dp"
                 android:text="选择生产日期"
-                android:textColor="#6B7280"
+                android:textColor="@color/text_muted"
                 android:textSize="14sp" />
 
             <EditText
@@ -274,7 +274,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:text="将自动计算到期日期"
-                android:textColor="#6B7280"
+                android:textColor="@color/text_muted"
                 android:textSize="12sp" />
         </LinearLayout>
 

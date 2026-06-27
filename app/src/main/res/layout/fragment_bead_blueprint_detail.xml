@@ -3,7 +3,7 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#F6F7FB">
+    android:background="@color/bg_page">
 
     <LinearLayout
         android:id="@+id/preview_mode_layout"
@@ -40,7 +40,7 @@
                 android:ellipsize="end"
                 android:maxLines="1"
                 android:text="图纸详情"
-                android:textColor="#111827"
+                android:textColor="@color/text_title"
                 android:textSize="18sp"
                 android:textStyle="bold" />
 
@@ -100,7 +100,7 @@
                 android:background="@drawable/rounded_card_background"
                 android:padding="10dp"
                 android:text="每次 0 颗"
-                android:textColor="#111827"
+                android:textColor="@color/text_title"
                 android:textSize="13sp"
                 android:textStyle="bold" />
 
@@ -113,7 +113,7 @@
                 android:background="@drawable/rounded_card_background"
                 android:padding="10dp"
                 android:text="已制作 0 次"
-                android:textColor="#111827"
+                android:textColor="@color/text_title"
                 android:textSize="13sp"
                 android:textStyle="bold" />
         </LinearLayout>
@@ -238,7 +238,7 @@
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:text="颜色选择"
-                android:textColor="#333333"
+                android:textColor="@color/text_body"
                 android:textSize="14sp"
                 android:textStyle="bold" />
 

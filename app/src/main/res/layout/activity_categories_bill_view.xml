@@ -7,7 +7,7 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:orientation="vertical"
     android:padding="24dp"
-    android:background="#F5F5F5"
+    android:background="@color/bg_page"
     tools:context=".activity.CategoriesBillViewActivity">
     <TextView
         android:layout_width="match_parent"
@@ -15,7 +15,7 @@
         android:text="收支明细"
         android:textSize="24sp"
         android:textStyle="bold"
-        android:textColor="#333333"
+        android:textColor="@color/text_body"
         android:gravity="center"
         android:layout_marginBottom="32dp" />
 
@@ -24,7 +24,7 @@
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
-        android:background="#F5F5F5" />
+        android:background="@color/bg_page" />
 
 </LinearLayout>
 

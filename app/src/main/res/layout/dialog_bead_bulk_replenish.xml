@@ -12,7 +12,7 @@
         android:layout_marginBottom="16dp"
         android:gravity="center"
         android:text="快捷补货"
-        android:textColor="#1A1A1A"
+        android:textColor="@color/text_title"
         android:textSize="20sp"
         android:textStyle="bold" />
 
@@ -42,7 +42,7 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:text="已选 0 种颜色"
-            android:textColor="#6B7280"
+            android:textColor="@color/text_muted"
             android:textSize="14sp" />
 
         <EditText
@@ -94,7 +94,7 @@
             android:paddingStart="18dp"
             android:paddingEnd="18dp"
             android:text="关闭"
-            android:textColor="#6B7280" />
+            android:textColor="@color/text_muted" />
 
         <TextView
             android:id="@+id/btn_bulk_replenish"

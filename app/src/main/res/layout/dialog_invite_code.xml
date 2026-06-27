@@ -19,7 +19,7 @@
             android:text="您的邀请码"
             android:textSize="18sp"
             android:textStyle="bold"
-            android:textColor="#333333"
+            android:textColor="@color/text_body"
             android:layout_centerInParent="true" />
 
         <ImageView
@@ -48,7 +48,7 @@
             android:layout_height="wrap_content"
             android:text="邀请码"
             android:textSize="14sp"
-            android:textColor="#666666"
+            android:textColor="@color/text_muted"
             android:layout_marginBottom="8dp" />
 
         <TextView
@@ -58,7 +58,7 @@
             android:text="ABC123"
             android:textSize="32sp"
             android:textStyle="bold"
-            android:textColor="#333333"
+            android:textColor="@color/text_body"
             android:letterSpacing="0.2"
             android:layout_marginBottom="16dp" />
 
@@ -100,7 +100,7 @@
         android:layout_height="wrap_content"
         android:text="将此邀请码分享给您的情侣，对方输入后即可建立情侣关系"
         android:textSize="12sp"
-        android:textColor="#999999"
+        android:textColor="@color/text_disabled"
         android:gravity="center"
         android:lineSpacingExtra="4dp" />
 

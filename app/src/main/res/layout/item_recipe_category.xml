@@ -18,7 +18,7 @@
             android:paddingTop="14dp"
             android:paddingBottom="14dp"
             android:textSize="13sp"
-            android:textColor="#666666"
+            android:textColor="@color/text_muted"
             android:maxLines="1"
             android:ellipsize="end" />
 

@@ -3,7 +3,7 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#F6F7FB">
+    android:background="@color/bg_page">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -33,7 +33,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="4dp"
                 android:text="记录生活待办、灵感和想法。"
-                android:textColor="#6B7280"
+                android:textColor="@color/text_muted"
                 android:textSize="13sp" />
 
             <LinearLayout
@@ -49,7 +49,7 @@
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
                     android:text="0 项"
-                    android:textColor="#111827"
+                    android:textColor="@color/text_title"
                     android:textSize="16sp"
                     android:textStyle="bold" />
             </LinearLayout>
@@ -195,7 +195,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="登录后查看代办"
-                android:textColor="#999999"
+                android:textColor="@color/text_disabled"
                 android:textSize="16sp" />
 
             <TextView
@@ -246,7 +246,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="16dp"
                     android:text="还没有代办"
-                    android:textColor="#999999"
+                    android:textColor="@color/text_disabled"
                     android:textSize="16sp" />
 
                 <TextView

@@ -171,7 +171,7 @@ public class AddAssetActivity extends AppCompatActivity {
                                 .load(baseUrl + serverImageUrl)
                                 .centerCrop()
                                 .into(ivAssetImage);
-                        ivAssetImage.setColorFilter(null);
+                        ivAssetImage.setImageTintList(null);
                     });
                 }
 

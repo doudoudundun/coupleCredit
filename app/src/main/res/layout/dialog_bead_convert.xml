@@ -15,7 +15,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="图片转拼豆图"
-            android:textColor="#111827"
+            android:textColor="@color/text_title"
             android:textSize="20sp"
             android:textStyle="bold" />
 
@@ -63,7 +63,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="列数"
-                android:textColor="#374151"
+                android:textColor="@color/text_body"
                 android:textSize="13sp"
                 android:textStyle="bold" />
 
@@ -80,7 +80,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="36 列"
-                android:textColor="#6B7280"
+                android:textColor="@color/text_muted"
                 android:textSize="12sp" />
 
             <LinearLayout
@@ -94,7 +94,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="行数"
-                    android:textColor="#374151"
+                    android:textColor="@color/text_body"
                     android:textSize="13sp"
                     android:textStyle="bold" />
 
@@ -124,7 +124,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="10dp"
                 android:text="匹配精度"
-                android:textColor="#374151"
+                android:textColor="@color/text_body"
                 android:textSize="13sp"
                 android:textStyle="bold" />
 
@@ -142,7 +142,7 @@
                     android:background="@drawable/category_tag_background"
                     android:gravity="center"
                     android:text="宽松"
-                    android:textColor="#6B7280"
+                    android:textColor="@color/text_muted"
                     android:textSize="12sp" />
 
                 <TextView
@@ -166,7 +166,7 @@
                     android:background="@drawable/category_tag_background"
                     android:gravity="center"
                     android:text="严格"
-                    android:textColor="#6B7280"
+                    android:textColor="@color/text_muted"
                     android:textSize="12sp" />
             </LinearLayout>
 
@@ -175,7 +175,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="10dp"
                 android:text="平滑程度"
-                android:textColor="#374151"
+                android:textColor="@color/text_body"
                 android:textSize="13sp"
                 android:textStyle="bold" />
 
@@ -205,7 +205,7 @@
                     android:background="@drawable/category_tag_background"
                     android:gravity="center"
                     android:text="中"
-                    android:textColor="#6B7280"
+                    android:textColor="@color/text_muted"
                     android:textSize="12sp" />
 
                 <TextView
@@ -217,7 +217,7 @@
                     android:background="@drawable/category_tag_background"
                     android:gravity="center"
                     android:text="高"
-                    android:textColor="#6B7280"
+                    android:textColor="@color/text_muted"
                     android:textSize="12sp" />
             </LinearLayout>
 
@@ -253,7 +253,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginStart="8dp"
                 android:text="转换中..."
-                android:textColor="#6B7280"
+                android:textColor="@color/text_muted"
                 android:textSize="13sp" />
         </LinearLayout>
 
@@ -278,7 +278,7 @@
                 android:background="@drawable/category_tag_background"
                 android:gravity="center"
                 android:text="取消"
-                android:textColor="#6B7280"
+                android:textColor="@color/text_muted"
                 android:textSize="14sp" />
 
             <TextView

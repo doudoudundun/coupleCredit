@@ -55,7 +55,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginStart="4dp"
                     android:text="10 个"
-                    android:textColor="#111827"
+                    android:textColor="@color/text_title"
                     android:textSize="12sp"
                     android:textStyle="bold" />
 
@@ -108,7 +108,7 @@
                 android:ellipsize="end"
                 android:maxLines="1"
                 android:text="最近更新: 今天 12:00"
-                android:textColor="#6B7280"
+                android:textColor="@color/text_muted"
                 android:textSize="11sp" />
 
             <TextView
