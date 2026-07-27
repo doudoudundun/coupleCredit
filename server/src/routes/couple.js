@@ -10,7 +10,7 @@ function createCoupleRouter({ pool }) {
 
   router.get("/role", async (req, res, next) => {
     try {
-      const userId = parseInt(req.query.userId, 10);
+      const userId = req.userId;
       if (!userId || userId <= 0) throw new ApiError(400, "INVALID_REQUEST", "userId 参数无效");
 
       const rel = await loadActiveRelationship(pool, userId);
@@ -32,7 +32,7 @@ function createCoupleRouter({ pool }) {
 
   router.get("/relationship-id", async (req, res, next) => {
     try {
-      const userId = parseInt(req.query.userId, 10);
+      const userId = req.userId;
       if (!userId || userId <= 0) throw new ApiError(400, "INVALID_REQUEST", "userId 参数无效");
 
       const rel = await loadActiveRelationship(pool, userId);
@@ -44,7 +44,7 @@ function createCoupleRouter({ pool }) {
 
   router.post("/generate-invite", async (req, res, next) => {
     try {
-      const { userId } = req.body;
+      const userId = req.userId;
       if (!userId) throw new ApiError(400, "INVALID_REQUEST", "userId 必填");
 
       const existing = await loadActiveRelationship(pool, userId);
@@ -157,7 +157,7 @@ function createCoupleRouter({ pool }) {
 
   router.delete("/unbind", async (req, res, next) => {
     try {
-      const userId = parseInt(req.query.userId, 10);
+      const userId = req.userId;
       if (!userId || userId <= 0) throw new ApiError(400, "INVALID_REQUEST", "userId 参数无效");
 
       const rel = await loadActiveRelationship(pool, userId);

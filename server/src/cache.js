@@ -72,6 +72,10 @@ const Keys = {
   assets: (userId) => `assets:${userId}`,
   assetStats: (userId) => `asset-stats:${userId}`,
   assetCategories: (userId) => `asset-cats:${userId}`,
+  passwordAccounts: (userId) => `pwd-accounts:${userId}`,
+  passwordAccountItem: (id) => `pwd-account:${id}`,
+  passwordAccountCategories: (userId) => `pwd-account-cats:${userId}`,
+  overview: (userId, year, month) => `overview:${userId}:${year}-${month}`,
 };
 
 // TTL constants (seconds)
@@ -92,6 +96,10 @@ const TTL = {
   NUTRITION: 300,
   ASSETS: 15,
   ASSET_CATS: 60,
+  PASSWORD_ACCOUNTS: 15,
+  PASSWORD_ACCOUNT_ITEM: 15,
+  PASSWORD_ACCOUNT_CATS: 60,
+  OVERVIEW: 10,
 };
 
 module.exports = { cache, Keys, TTL };

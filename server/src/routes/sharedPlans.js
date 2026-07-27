@@ -26,7 +26,7 @@ function createSharedPlansRouter({ pool }) {
 
   router.get("/", async (req, res, next) => {
     try {
-      const userId = parseRequiredInteger(parseInt(req.query.userId, 10));
+      const userId = parseRequiredInteger(req.userId);
       const cached = cache.get(Keys.sharedPlans(userId));
       if (cached) return res.json(cached);
 
@@ -63,7 +63,7 @@ function createSharedPlansRouter({ pool }) {
 
   router.post("/", async (req, res, next) => {
     try {
-      const userId = parseRequiredInteger(req.body.userId);
+      const userId = parseRequiredInteger(req.userId);
       const name = trimValue(req.body.name);
       const initialAmount = parseRequiredFloat(req.body.initialAmount ?? 0);
       const visibility = req.body.visibility === "self" ? "self" : "both";
@@ -89,7 +89,7 @@ function createSharedPlansRouter({ pool }) {
   router.post("/:id/adjust", async (req, res, next) => {
     try {
       const planId = parseRequiredInteger(parseInt(req.params.id, 10));
-      const userId = parseRequiredInteger(req.body.userId);
+      const userId = parseRequiredInteger(req.userId);
       const amount = parseRequiredFloat(req.body.amount);
       if (amount <= 0) throw new ApiError(400, "INVALID_REQUEST", "调整金额必须大于0");
       const direction = req.body.direction === "out" ? "out" : "in";
@@ -120,7 +120,7 @@ function createSharedPlansRouter({ pool }) {
   router.delete("/:id", async (req, res, next) => {
     try {
       const planId = parseRequiredInteger(parseInt(req.params.id, 10));
-      const userId = parseRequiredInteger(parseInt(req.query.userId, 10));
+      const userId = parseRequiredInteger(req.userId);
       const { plan, relationship } = await loadAccessiblePlan(pool, planId, userId);
       if (!plan || plan.created_by !== userId) throw new ApiError(404, "NOT_FOUND", "计划不存在或无权删除");
       await pool.execute("DELETE FROM shared_plans WHERE plan_id = ?", [planId]);

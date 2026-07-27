@@ -1,6 +1,10 @@
 const jwt = require("jsonwebtoken");
+const { readConfig } = require("../config");
 
-const SECRET = process.env.JWT_SECRET || "change-me-in-production";
+// SECRET 由 config.js 强制校验（必填 + 长度 ≥ 32），不再有硬编码兜底。
+// readConfig 是幂等的读取，不会重复抛错（启动时 index.js 已调用过一次）。
+const config = readConfig();
+const SECRET = config.jwtSecret;
 const ACCESS_EXPIRES = process.env.JWT_ACCESS_EXPIRES || "15m";
 const REFRESH_EXPIRES = process.env.JWT_REFRESH_EXPIRES || "7d";
 

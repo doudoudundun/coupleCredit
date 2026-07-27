@@ -7,7 +7,7 @@ function createFcmRouter({ pool }) {
 
   router.post("/register", async (req, res, next) => {
     try {
-      const userId = parseRequiredInteger(req.body.userId);
+      const userId = parseRequiredInteger(req.userId);
       const token = req.body.token;
       if (!token || typeof token !== "string" || token.trim().length < 10) {
         throw new ApiError(400, "INVALID_REQUEST", "无效的 FCM token");

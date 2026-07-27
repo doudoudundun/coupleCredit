@@ -29,6 +29,7 @@ loadDotEnv();
 const express = require("express");
 const cors = require("cors");
 const compression = require("compression");
+const helmet = require("helmet");
 const { readConfig } = require("./config");
 const { createPool } = require("./db");
 const { createAuthRouter } = require("./routes/auth");
@@ -51,9 +52,11 @@ const { createPushRouter } = require("./routes/push");
 const { createNotificationRouter } = require("./routes/notifications");
 const { createAiChatRouter } = require("./routes/aiChat");
 const { createPeriodRouter } = require("./routes/period");
+const { createMeRouter } = require("./routes/me");
+const { createPasswordAccountsRouter } = require("./routes/passwordAccounts");
 const { initializeApp: initFcm } = require("./services/fcmService");
 const { sendError } = require("./errors");
-const { optionalAuth } = require("./middleware/auth");
+const { requireAuthForBusiness } = require("./middleware/auth");
 const { standardLimiter, authLimiter, strictLimiter, aiLimiter } = require("./middleware/rateLimit");
 
 const config = readConfig();
@@ -62,19 +65,29 @@ const app = express();
 
 app.set("trust proxy", 1);
 
-app.use(cors());
+// 安全响应头（HSTS/X-Frame-Options/X-Content-Type-Options 等）
+// crossOriginResourcePolicy 设为 cross-origin，允许 App 端跨域加载 /uploads 图片
+app.use(helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } }));
+app.use(cors({ origin: config.allowedOrigins, credentials: true }));
 app.use(compression({ level: 6, threshold: 512 }));
 app.use(express.json({ limit: "10mb" }));
 app.use(standardLimiter);
-app.use(optionalAuth);
-app.use("/uploads", express.static(path.resolve(__dirname, "../uploads")));
-app.use(express.static(path.resolve(__dirname, "../public")));
-
-// Request timing + health check
+// 健康检查不需要鉴权，放在全局鉴权之前
 app.get("/api/health", (_req, res) => {
   res.json({ ok: true, uptime: process.uptime(), rss: Math.round(process.memoryUsage().rss / 1024 / 1024) + "MB" });
 });
+// auth 路由挂在全局鉴权之前：login/register/refresh/wechat 等公开端点不需要 token；
+// auth 内部的敏感端点（profile/avatar/nickname/password/account）自行挂 requireAuthForBusiness
+app.use("/api/auth", createAuthRouter({ pool, config, authLimiter, strictLimiter }));
+// /uploads 静态资源（图片）公开访问：App 用 Glide 加载图片不带 token，
+// 文件名随机不可猜作为隐私防护。支持 ?w= 实时缩放转 webp（remove-bg 生成的 nobg PNG 单张 4MB+）。
+const { imageResizeMiddleware } = require("./middleware/imageResize");
+app.use("/uploads", imageResizeMiddleware(path.resolve(__dirname, "../uploads")));
+app.use(express.static(path.resolve(__dirname, "../public")));
+// 业务全局鉴权（兼容期：无 token 降级 userId 并打 warn；App 联调通过后切纯 requireAuth）
+app.use(requireAuthForBusiness);
 
+// Request timing
 app.use((req, res, next) => {
   const start = Date.now();
   res.on("finish", () => {
@@ -88,7 +101,6 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use("/api/auth", createAuthRouter({ pool, config, authLimiter, strictLimiter }));
 app.use("/api/bills", createBillsRouter({ pool }));
 app.use("/api/inventory", createInventoryRouter({ pool }));
 app.use("/api/upload", createUploadRouter());
@@ -109,6 +121,8 @@ app.use("/api/push", createPushRouter({ pool }));
 app.use("/api/notifications", createNotificationRouter({ pool }));
 app.use("/api/ai-chat", aiLimiter, createAiChatRouter({ pool }));
 app.use("/api/period", createPeriodRouter({ pool }));
+app.use("/api/me", createMeRouter({ pool }));
+app.use("/api/password-accounts", createPasswordAccountsRouter({ pool, config }));
 app.use((error, _req, res, _next) => {
   console.error("Unhandled error:", error);
   sendError(res, error);

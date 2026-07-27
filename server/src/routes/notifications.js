@@ -7,7 +7,7 @@ function createNotificationRouter({ pool }) {
 
   router.get("/", async (req, res, next) => {
     try {
-      const userId = parseRequiredInteger(parseInt(req.query.userId, 10));
+      const userId = parseRequiredInteger(req.userId);
       const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 20, 1), 50);
       const [rows] = await pool.execute(
         "SELECT notification_id, type, title, body, related_id, is_read, created_at FROM notifications WHERE user_id = ? ORDER BY created_at DESC LIMIT " + limit,
@@ -30,7 +30,7 @@ function createNotificationRouter({ pool }) {
   router.put("/:id/read", async (req, res, next) => {
     try {
       const notificationId = parseRequiredInteger(parseInt(req.params.id, 10));
-      const userId = parseRequiredInteger(req.body.userId);
+      const userId = parseRequiredInteger(req.userId);
       const [result] = await pool.execute(
         "UPDATE notifications SET is_read = 1 WHERE notification_id = ? AND user_id = ?",
         [notificationId, userId]

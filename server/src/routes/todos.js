@@ -121,7 +121,7 @@ function createTodoRouter({ pool }) {
 
   router.get("/", async (req, res, next) => {
     try {
-      const userId = parseRequiredInteger(parseInt(req.query.userId, 10));
+      const userId = parseRequiredInteger(req.userId);
       const cached = cache.get(Keys.todos(userId));
       if (cached) return res.json(cached);
 
@@ -154,7 +154,7 @@ function createTodoRouter({ pool }) {
 
   router.post("/", async (req, res, next) => {
     try {
-      const userId = parseRequiredInteger(req.body.userId);
+      const userId = parseRequiredInteger(req.userId);
       const title = trimValue(req.body.title);
       if (!title) throw new ApiError(400, "INVALID_REQUEST", "标题不能为空");
 
@@ -198,7 +198,7 @@ function createTodoRouter({ pool }) {
   router.put("/:id", async (req, res, next) => {
     try {
       const todoId = parseRequiredInteger(parseInt(req.params.id, 10));
-      const userId = parseRequiredInteger(req.body.userId);
+      const userId = parseRequiredInteger(req.userId);
       const { todo, relationship } = await loadAccessibleTodo(todoId, userId);
       if (!todo) throw new ApiError(404, "NOT_FOUND", "代办不存在或无权修改");
 
@@ -269,7 +269,7 @@ function createTodoRouter({ pool }) {
   router.post("/:id/duplicate", async (req, res, next) => {
     try {
       const todoId = parseRequiredInteger(parseInt(req.params.id, 10));
-      const userId = parseRequiredInteger(req.body.userId);
+      const userId = parseRequiredInteger(req.userId);
       const { todo, relationship } = await loadAccessibleTodo(todoId, userId);
       if (!todo) throw new ApiError(404, "NOT_FOUND", "代办不存在或无权访问");
       if (todo.status !== "done") throw new ApiError(400, "INVALID_REQUEST", "仅已完成的重复任务可再来一次");
@@ -304,7 +304,7 @@ function createTodoRouter({ pool }) {
   router.delete("/:id", async (req, res, next) => {
     try {
       const todoId = parseRequiredInteger(parseInt(req.params.id, 10));
-      const userId = parseRequiredInteger(parseInt(req.query.userId, 10));
+      const userId = parseRequiredInteger(req.userId);
       const { todo, relationship } = await loadAccessibleTodo(todoId, userId);
       if (!todo) throw new ApiError(404, "NOT_FOUND", "代办不存在或无权删除");
 

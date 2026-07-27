@@ -71,7 +71,7 @@ function createPeriodRouter({ pool }) {
 
   router.get("/", async (req, res, next) => {
     try {
-      const userId = parseRequiredInteger(Number(req.query.userId));
+      const userId = parseRequiredInteger(req.userId);
       const relationship = await loadActiveRelationship(pool, userId);
       const userIds = [userId];
       if (relationship) {
@@ -126,7 +126,7 @@ function createPeriodRouter({ pool }) {
 
   router.post("/", async (req, res, next) => {
     try {
-      const userId = parseRequiredInteger(Number(req.body.userId));
+      const userId = parseRequiredInteger(req.userId);
       const startDate = resolveDateString(req.body.startDate);
       const note = normalizeNullableText(req.body.note);
 
@@ -152,7 +152,7 @@ function createPeriodRouter({ pool }) {
 
   router.put("/:id", async (req, res, next) => {
     try {
-      const userId = parseRequiredInteger(Number(req.body.userId));
+      const userId = parseRequiredInteger(req.userId);
       const recordId = parseRequiredInteger(Number(req.params.id));
       const startDate = req.body.startDate ? resolveDateString(req.body.startDate) : null;
       const endDate = req.body.endDate ? resolveDateString(req.body.endDate) : null;
@@ -188,7 +188,7 @@ function createPeriodRouter({ pool }) {
 
   router.delete("/:id", async (req, res, next) => {
     try {
-      const userId = parseRequiredInteger(Number(req.query.userId));
+      const userId = parseRequiredInteger(req.userId);
       const recordId = parseRequiredInteger(Number(req.params.id));
 
       const [rows] = await pool.execute(

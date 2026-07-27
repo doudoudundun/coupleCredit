@@ -289,7 +289,7 @@ function createBeadRouter({ pool, aiLimiter }) {
 
   router.get("/inventory", async (req, res, next) => {
     try {
-      const userId = parseRequiredInteger(parseInt(req.query.userId, 10));
+      const userId = parseRequiredInteger(req.userId);
       const response = await getCachedOrFreshInventoryResponse(userId);
       res.json(response);
     } catch (error) {
@@ -299,7 +299,7 @@ function createBeadRouter({ pool, aiLimiter }) {
 
   router.get("/inventory/low-stock", async (req, res, next) => {
     try {
-      const userId = parseRequiredInteger(parseInt(req.query.userId, 10));
+      const userId = parseRequiredInteger(req.userId);
       const response = await getCachedOrFreshInventoryResponse(userId);
       const lowStockItems = response.data.items.filter(item => item.isLowStock);
       res.json({
@@ -316,7 +316,7 @@ function createBeadRouter({ pool, aiLimiter }) {
 
   router.get("/inventory/summary", async (req, res, next) => {
     try {
-      const userId = parseRequiredInteger(parseInt(req.query.userId, 10));
+      const userId = parseRequiredInteger(req.userId);
       const response = await getCachedOrFreshInventoryResponse(userId);
       res.json({ ok: true, data: response.data.summary });
     } catch (error) {
@@ -326,7 +326,7 @@ function createBeadRouter({ pool, aiLimiter }) {
 
   router.put("/inventory/:colorCode", async (req, res, next) => {
     try {
-      const userId = parseRequiredInteger(req.body.userId);
+      const userId = parseRequiredInteger(req.userId);
       const colorCode = normalizeColorCode(req.params.colorCode);
       const updates = [];
       const params = [];
@@ -365,7 +365,7 @@ function createBeadRouter({ pool, aiLimiter }) {
 
   router.post("/inventory/:colorCode/consume", async (req, res, next) => {
     try {
-      const userId = parseRequiredInteger(req.body.userId);
+      const userId = parseRequiredInteger(req.userId);
       const colorCode = normalizeColorCode(req.params.colorCode);
       const consumeAmount = parsePositiveInteger(req.body.consumeAmount, "消耗数量");
 
@@ -398,7 +398,7 @@ function createBeadRouter({ pool, aiLimiter }) {
 
   router.post("/inventory/:colorCode/replenish", async (req, res, next) => {
     try {
-      const userId = parseRequiredInteger(req.body.userId);
+      const userId = parseRequiredInteger(req.userId);
       const colorCode = normalizeColorCode(req.params.colorCode);
       const addAmount = parsePositiveInteger(req.body.addAmount, "补货数量");
 
@@ -432,7 +432,7 @@ function createBeadRouter({ pool, aiLimiter }) {
 
   router.post("/inventory/batch-deduct", async (req, res, next) => {
     try {
-      const userId = parseRequiredInteger(req.body.userId);
+      const userId = parseRequiredInteger(req.userId);
       const items = req.body.items;
       if (!Array.isArray(items) || items.length === 0) {
         throw new ApiError(400, "INVALID_REQUEST", "需要提供消耗列表");
@@ -473,7 +473,7 @@ function createBeadRouter({ pool, aiLimiter }) {
 
   router.get("/settings", async (req, res, next) => {
     try {
-      const userId = parseRequiredInteger(parseInt(req.query.userId, 10));
+      const userId = parseRequiredInteger(req.userId);
       await ensureBeadSettings(userId);
       const [rows] = await pool.execute(
         `SELECT default_threshold FROM bead_settings WHERE user_id = ? LIMIT 1`,
@@ -492,7 +492,7 @@ function createBeadRouter({ pool, aiLimiter }) {
 
   router.put("/settings", async (req, res, next) => {
     try {
-      const userId = parseRequiredInteger(req.body.userId);
+      const userId = parseRequiredInteger(req.userId);
       const defaultThreshold = parsePositiveInteger(req.body.defaultThreshold, "默认阈值");
       await pool.execute(
         `INSERT INTO bead_settings (user_id, default_threshold)
@@ -509,7 +509,7 @@ function createBeadRouter({ pool, aiLimiter }) {
 
   router.get("/blueprints", async (req, res, next) => {
     try {
-      const userId = parseRequiredInteger(parseInt(req.query.userId, 10));
+      const userId = parseRequiredInteger(req.userId);
       const cacheKey = Keys.beadBlueprints(userId);
       const cached = cache.get(cacheKey);
       if (cached) {
@@ -557,7 +557,7 @@ function createBeadRouter({ pool, aiLimiter }) {
     let connection;
 
     try {
-      const userId = parseRequiredInteger(req.body.userId);
+      const userId = parseRequiredInteger(req.userId);
       const name = trimValue(req.body.name);
       if (!name) {
         throw new ApiError(400, "INVALID_REQUEST", "图纸名称不能为空");
@@ -599,7 +599,7 @@ function createBeadRouter({ pool, aiLimiter }) {
   router.get("/blueprints/:id", async (req, res, next) => {
     try {
       const blueprintId = parseRequiredInteger(parseInt(req.params.id, 10));
-      const userId = parseRequiredInteger(parseInt(req.query.userId, 10));
+      const userId = parseRequiredInteger(req.userId);
       const blueprint = await loadBlueprintForCouple(blueprintId, userId);
       if (!blueprint) {
         throw new ApiError(404, "NOT_FOUND", "图纸不存在或无权查看");
@@ -652,7 +652,7 @@ function createBeadRouter({ pool, aiLimiter }) {
 
     try {
       const blueprintId = parseRequiredInteger(parseInt(req.params.id, 10));
-      const userId = parseRequiredInteger(req.body.userId);
+      const userId = parseRequiredInteger(req.userId);
       const blueprint = await loadBlueprintForCouple(blueprintId, userId);
       if (!blueprint) {
         throw new ApiError(404, "NOT_FOUND", "图纸不存在或无权修改");
@@ -727,7 +727,7 @@ function createBeadRouter({ pool, aiLimiter }) {
   router.delete("/blueprints/:id", async (req, res, next) => {
     try {
       const blueprintId = parseRequiredInteger(parseInt(req.params.id, 10));
-      const userId = parseRequiredInteger(parseInt(req.query.userId, 10));
+      const userId = parseRequiredInteger(req.userId);
       const blueprint = await loadBlueprintForCouple(blueprintId, userId);
       if (!blueprint) {
         throw new ApiError(404, "NOT_FOUND", "图纸不存在或无权删除");
@@ -745,7 +745,7 @@ function createBeadRouter({ pool, aiLimiter }) {
   router.post("/blueprints/:id/build", async (req, res, next) => {
     try {
       const blueprintId = parseRequiredInteger(parseInt(req.params.id, 10));
-      const userId = parseRequiredInteger(req.body.userId);
+      const userId = parseRequiredInteger(req.userId);
       const count = req.body.count === undefined ? 1 : parsePositiveInteger(req.body.count, "制作次数");
       const blueprint = await loadBlueprintForCouple(blueprintId, userId);
       if (!blueprint) {

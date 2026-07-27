@@ -36,7 +36,8 @@ function createChatRouter({ pool }) {
 
   router.post("/messages", async (req, res, next) => {
     try {
-      const { relationshipId, userId, content, messageType, displayTime, isLiked } = req.body;
+      const { relationshipId, content, messageType, displayTime, isLiked } = req.body;
+      const userId = req.userId;
       if (!userId || !content) throw new ApiError(400, "INVALID_REQUEST", "参数不完整");
 
       const relationship = await loadActiveRelationship(pool, userId);
@@ -54,7 +55,7 @@ function createChatRouter({ pool }) {
 
   router.get("/messages", async (req, res, next) => {
     try {
-      const userId = parseInt(req.query.userId, 10);
+      const userId = req.userId;
       const relationshipId = parseInt(req.query.relationshipId, 10);
       const rawLimit = parseInt(req.query.limit, 10);
       const limit = Math.min(Number.isFinite(rawLimit) ? rawLimit : 50, 200);
@@ -82,7 +83,7 @@ function createChatRouter({ pool }) {
   router.put("/messages/:id/like", async (req, res, next) => {
     try {
       const messageId = parseInt(req.params.id, 10);
-      const userId = parseInt(req.body.userId, 10);
+      const userId = req.userId;
       if (!userId) throw new ApiError(400, "INVALID_REQUEST", "userId 必填");
 
       await loadUserMessage(userId, messageId);
@@ -98,7 +99,7 @@ function createChatRouter({ pool }) {
   router.delete("/messages/:id", async (req, res, next) => {
     try {
       const messageId = parseInt(req.params.id, 10);
-      const userId = parseInt(req.query.userId, 10);
+      const userId = req.userId;
       if (!userId) throw new ApiError(400, "INVALID_REQUEST", "userId 必填");
 
       await loadUserMessage(userId, messageId, true);
@@ -113,7 +114,7 @@ function createChatRouter({ pool }) {
 
   router.get("/search", async (req, res, next) => {
     try {
-      const userId = parseInt(req.query.userId, 10);
+      const userId = req.userId;
       const relationshipId = parseInt(req.query.relationshipId, 10);
       const keyword = (req.query.keyword || "").trim();
       if (!userId || !relationshipId || !keyword) throw new ApiError(400, "INVALID_REQUEST", "参数不完整");

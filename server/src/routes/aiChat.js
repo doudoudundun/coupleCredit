@@ -35,7 +35,8 @@ function createAiChatRouter({ pool }) {
 
   router.post("/analyze", async (req, res, next) => {
     try {
-      const { userId, messages } = req.body;
+      const { messages } = req.body;
+      const userId = req.userId;
       if (!userId) return res.status(400).json({ ok: false, error: { code: "MISSING_USER_ID", message: "缺少用户ID" } });
       if (!Array.isArray(messages) || messages.length === 0) {
         return res.json({ ok: true, data: { extractions: [] } });
@@ -130,7 +131,7 @@ function createAiChatRouter({ pool }) {
 
   router.get("/extractions", async (req, res, next) => {
     try {
-      const userId = parseInt(req.query.userId, 10);
+      const userId = req.userId;
       if (!userId) return res.status(400).json({ ok: false, error: { code: "MISSING_USER_ID", message: "缺少用户ID" } });
       const rel = await loadActiveRelationship(pool, userId);
       if (!rel) return res.status(403).json({ ok: false, error: { code: "NO_RELATIONSHIP", message: "未绑定情侣关系" } });
@@ -156,7 +157,8 @@ function createAiChatRouter({ pool }) {
   router.post("/extractions/:id/confirm", async (req, res, next) => {
     try {
       const extractionId = parseInt(req.params.id, 10);
-      const { userId, overrides } = req.body;
+      const { overrides } = req.body;
+      const userId = req.userId;
       if (!userId) return res.status(400).json({ ok: false, error: { code: "MISSING_USER_ID", message: "缺少用户ID" } });
       const rel = await loadActiveRelationship(pool, userId);
       if (!rel) return res.status(403).json({ ok: false, error: { code: "NO_RELATIONSHIP", message: "未绑定情侣关系" } });
@@ -222,7 +224,7 @@ function createAiChatRouter({ pool }) {
   router.post("/extractions/:id/dismiss", async (req, res, next) => {
     try {
       const extractionId = parseInt(req.params.id, 10);
-      const { userId } = req.body;
+      const userId = req.userId;
       if (!userId) return res.status(400).json({ ok: false, error: { code: "MISSING_USER_ID", message: "缺少用户ID" } });
       const rel = await loadActiveRelationship(pool, userId);
       if (!rel) return res.status(403).json({ ok: false, error: { code: "NO_RELATIONSHIP", message: "未绑定情侣关系" } });

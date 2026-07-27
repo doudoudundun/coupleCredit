@@ -133,7 +133,7 @@ function createRecipeRouter({ pool }) {
   // GET /api/recipes?userId=
   router.get("/", async (req, res, next) => {
     try {
-      const userId = parseRequiredInteger(Number(req.query.userId));
+      const userId = parseRequiredInteger(req.userId);
 
       const cached = cache.get(Keys.recipes(userId));
       if (cached) return res.json(cached);
@@ -189,7 +189,7 @@ function createRecipeRouter({ pool }) {
   // GET /api/recipes/recommend?userId=&mode=&ingredient=
   router.get("/recommend", async (req, res, next) => {
     try {
-      const userId = parseRequiredInteger(Number(req.query.userId));
+      const userId = parseRequiredInteger(req.userId);
       const mode = req.query.mode || "recommend";
       const ingredient = req.query.ingredient || null;
 
@@ -288,7 +288,7 @@ function createRecipeRouter({ pool }) {
   // GET /api/recipes/:id?userId=
   router.get("/:id", async (req, res, next) => {
     try {
-      const userId = parseRequiredInteger(Number(req.query.userId));
+      const userId = parseRequiredInteger(req.userId);
       const recipeId = parseRequiredInteger(Number(req.params.id));
 
       const [rows] = await pool.execute(
@@ -330,8 +330,8 @@ function createRecipeRouter({ pool }) {
   // POST /api/recipes
   router.post("/", async (req, res, next) => {
     try {
-      const { userId, title, description, imageUrl, steps, ingredients, categoryId } = req.body;
-      const parsedUserId = parseRequiredInteger(Number(userId));
+      const { title, description, imageUrl, steps, ingredients, categoryId } = req.body;
+      const parsedUserId = parseRequiredInteger(req.userId);
       const manualCalories = normalizeManualCalories(req.body.totalCalories);
       if (!title) throw new ApiError(400, "INVALID_REQUEST", "userId 和 title 必填");
 
@@ -358,8 +358,8 @@ function createRecipeRouter({ pool }) {
   router.put("/:id", async (req, res, next) => {
     try {
       const recipeId = parseRequiredInteger(Number(req.params.id));
-      const { userId, title, description, imageUrl, steps, ingredients, categoryId } = req.body;
-      const parsedUserId = parseRequiredInteger(Number(userId));
+      const { title, description, imageUrl, steps, ingredients, categoryId } = req.body;
+      const parsedUserId = parseRequiredInteger(req.userId);
       const manualCalories = normalizeManualCalories(req.body.totalCalories);
       const relationship = await loadActiveRelationship(pool, parsedUserId);
 
@@ -382,7 +382,7 @@ function createRecipeRouter({ pool }) {
   router.delete("/:id", async (req, res, next) => {
     try {
       const recipeId = parseRequiredInteger(Number(req.params.id));
-      const userId = parseRequiredInteger(Number(req.query.userId));
+      const userId = parseRequiredInteger(req.userId);
 
       const relationship = await loadActiveRelationship(pool, userId);
       const [result] = await pool.execute(`DELETE FROM recipes WHERE recipe_id = ? AND user_id = ?`, [recipeId, userId]);
@@ -397,7 +397,7 @@ function createRecipeRouter({ pool }) {
   router.post("/:id/cook", async (req, res, next) => {
     try {
       const recipeId = parseRequiredInteger(Number(req.params.id));
-      const userId = parseRequiredInteger(Number(req.body.userId));
+      const userId = parseRequiredInteger(req.userId);
 
       // Get recipe ingredients
       const [ingredients] = await pool.execute(

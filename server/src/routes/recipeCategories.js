@@ -16,7 +16,7 @@ function createRecipeCategoryRouter({ pool }) {
 
   router.get("/", async (req, res, next) => {
     try {
-      const userId = parseInt(req.query.userId, 10);
+      const userId = req.userId;
       if (!userId || userId <= 0) throw new ApiError(400, "INVALID_REQUEST", "userId 参数无效");
 
       const cached = cache.get(Keys.recipeCategories(userId));
@@ -53,7 +53,8 @@ function createRecipeCategoryRouter({ pool }) {
 
   router.post("/", async (req, res, next) => {
     try {
-      const { userId, name, sortOrder } = req.body;
+      const { name, sortOrder } = req.body;
+      const userId = req.userId;
       if (!userId || !name) throw new ApiError(400, "INVALID_REQUEST", "userId 和 name 必填");
 
       const relationship = await loadActiveRelationship(pool, userId);
@@ -77,7 +78,7 @@ function createRecipeCategoryRouter({ pool }) {
   router.put("/reorder/all", async (req, res, next) => {
     const connection = await pool.getConnection();
     try {
-      const userId = parseInt(req.body.userId, 10);
+      const userId = req.userId;
       const orderedCategoryIds = Array.isArray(req.body.orderedCategoryIds) ? req.body.orderedCategoryIds : [];
       if (!userId || orderedCategoryIds.length === 0) {
         throw new ApiError(400, "INVALID_REQUEST", "userId 和 orderedCategoryIds 必填");
@@ -123,7 +124,8 @@ function createRecipeCategoryRouter({ pool }) {
   router.put("/:id", async (req, res, next) => {
     try {
       const categoryId = parseInt(req.params.id, 10);
-      const { userId, name, sortOrder } = req.body;
+      const { name, sortOrder } = req.body;
+      const userId = req.userId;
       if (!categoryId || !userId) throw new ApiError(400, "INVALID_REQUEST", "参数无效");
 
       const relationship = await loadActiveRelationship(pool, userId);
@@ -149,7 +151,7 @@ function createRecipeCategoryRouter({ pool }) {
   router.delete("/:id", async (req, res, next) => {
     try {
       const categoryId = parseInt(req.params.id, 10);
-      const userId = parseInt(req.query.userId, 10);
+      const userId = req.userId;
       if (!categoryId || !userId) throw new ApiError(400, "INVALID_REQUEST", "参数无效");
 
       const relationship = await loadActiveRelationship(pool, userId);

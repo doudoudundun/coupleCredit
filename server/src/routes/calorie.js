@@ -190,7 +190,7 @@ function createCalorieRouter({ pool }) {
 
   router.get("/today", async (req, res, next) => {
     try {
-      const userId = parseRequiredInteger(Number(req.query.userId));
+      const userId = parseRequiredInteger(req.userId);
       const cached = cache.get(Keys.calorieToday(userId));
       if (cached) return res.json(cached);
       const payload = await buildCaloriePayload(pool, userId, formatDateString(new Date()));
@@ -202,7 +202,7 @@ function createCalorieRouter({ pool }) {
 
   router.get("/history", async (req, res, next) => {
     try {
-      const userId = parseRequiredInteger(Number(req.query.userId));
+      const userId = parseRequiredInteger(req.userId);
       const date = resolveDateString(req.query.date);
       const payload = await buildCaloriePayload(pool, userId, date);
       res.json(payload);
@@ -213,7 +213,7 @@ function createCalorieRouter({ pool }) {
 
   router.post("/record", async (req, res, next) => {
     try {
-      const userId = parseRequiredInteger(Number(req.body.userId));
+      const userId = parseRequiredInteger(req.userId);
       const mealType = normalizeMealType(req.body.mealType);
       const calories = parseRequiredFloat(Number(req.body.calories));
       if (!mealType) throw new ApiError(400, "INVALID_REQUEST", "mealType 参数无效");
@@ -240,7 +240,7 @@ function createCalorieRouter({ pool }) {
 
   router.delete("/record/:id", async (req, res, next) => {
     try {
-      const userId = parseRequiredInteger(Number(req.query.userId));
+      const userId = parseRequiredInteger(req.userId);
       const recordId = parseRequiredInteger(Number(req.params.id));
       const [rows] = await pool.execute(
         `SELECT record_id, user_id FROM meal_records WHERE record_id = ? LIMIT 1`,
@@ -259,7 +259,7 @@ function createCalorieRouter({ pool }) {
 
   router.get("/goal", async (req, res, next) => {
     try {
-      const userId = parseRequiredInteger(Number(req.query.userId));
+      const userId = parseRequiredInteger(req.userId);
       const [rows] = await pool.execute(
         `SELECT user_id, daily_goal, updated_at FROM user_calorie_goals WHERE user_id = ? LIMIT 1`,
         [userId]
@@ -280,7 +280,7 @@ function createCalorieRouter({ pool }) {
 
   router.put("/goal", async (req, res, next) => {
     try {
-      const userId = parseRequiredInteger(Number(req.body.userId));
+      const userId = parseRequiredInteger(req.userId);
       const dailyGoal = normalizeGoal(req.body.dailyGoal);
       if (dailyGoal == null) throw new ApiError(400, "INVALID_REQUEST", "dailyGoal 参数无效");
 
@@ -399,4 +399,4 @@ function createNutritionRouter({ pool }) {
   return router;
 }
 
-module.exports = { createCalorieRouter, createNutritionRouter };
+module.exports = { createCalorieRouter, createNutritionRouter, buildCaloriePayload };

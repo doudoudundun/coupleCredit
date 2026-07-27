@@ -13,7 +13,7 @@ function createRestaurantRouter({ pool }) {
   // GET /api/restaurants?userId=
   router.get("/", async (req, res, next) => {
     try {
-      const userId = parseRequiredInteger(Number(req.query.userId));
+      const userId = parseRequiredInteger(req.userId);
       const cached = cache.get(Keys.restaurants(userId));
       if (cached) return res.json(cached);
 
@@ -58,7 +58,7 @@ function createRestaurantRouter({ pool }) {
   // POST /api/restaurants
   router.post("/", async (req, res, next) => {
     try {
-      const userId = parseRequiredInteger(req.body.userId);
+      const userId = parseRequiredInteger(req.userId);
       const name = trimValue(req.body.name);
       if (!name) throw new ApiError(400, "INVALID_REQUEST", "商家名称不能为空");
 
@@ -95,7 +95,7 @@ function createRestaurantRouter({ pool }) {
   router.put("/:id", async (req, res, next) => {
     try {
       const restaurantId = parseRequiredInteger(Number(req.params.id));
-      const userId = parseRequiredInteger(req.body.userId);
+      const userId = parseRequiredInteger(req.userId);
       const relationship = await loadActiveRelationship(pool, userId);
       const relationshipId = relationship ? relationship.relationship_id : null;
 
@@ -138,7 +138,7 @@ function createRestaurantRouter({ pool }) {
   router.delete("/:id", async (req, res, next) => {
     try {
       const restaurantId = parseRequiredInteger(Number(req.params.id));
-      const userId = parseRequiredInteger(Number(req.query.userId));
+      const userId = parseRequiredInteger(req.userId);
       const relationship = await loadActiveRelationship(pool, userId);
       const relationshipId = relationship ? relationship.relationship_id : null;
 

@@ -7,7 +7,7 @@ function createPushRouter({ pool }) {
 
   router.post("/register", async (req, res, next) => {
     try {
-      const userId = parseRequiredInteger(req.body.userId);
+      const userId = parseRequiredInteger(req.userId);
       const token = req.body.token;
       const channel = req.body.channel || "fcm";
 

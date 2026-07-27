@@ -77,7 +77,7 @@ function createBillsRouter({ pool }) {
 
   router.post("/", async (req, res, next) => {
     try {
-      const userId = parseRequiredInteger(req.body.userId);
+      const userId = parseRequiredInteger(req.userId);
       const sharedPlanId = parseOptionalInteger(req.body.sharedPlanId);
       const { relationshipId, owner, isHelp } = await resolveBillOwnership(pool, req.body);
       const title = trimValue(req.body.title);
@@ -163,7 +163,7 @@ function createBillsRouter({ pool }) {
   // 查询账单列表
   router.get("/", async (req, res, next) => {
     try {
-      const userId = parseRequiredInteger(parseInt(req.query.userId));
+      const userId = parseRequiredInteger(req.userId);
       const year = parseInt(req.query.year);
       const month = parseInt(req.query.month);
 
@@ -224,7 +224,7 @@ function createBillsRouter({ pool }) {
   router.delete("/:id", async (req, res, next) => {
     try {
       const billId = parseRequiredInteger(parseInt(req.params.id, 10));
-      const userId = parseRequiredInteger(parseInt(req.query.userId, 10));
+      const userId = parseRequiredInteger(req.userId);
 
       const [rows] = await pool.execute(
         "SELECT shared_plan_id, income_type, amount FROM bills WHERE bill_id = ? AND user_id = ?",
@@ -261,7 +261,7 @@ function createBillsRouter({ pool }) {
   router.put("/:id", async (req, res, next) => {
     try {
       const billId = parseRequiredInteger(parseInt(req.params.id, 10));
-      const userId = parseRequiredInteger(req.body.userId);
+      const userId = parseRequiredInteger(req.userId);
       const title = trimValue(req.body.title);
       const type = trimValue(req.body.type);
       const amount = parseRequiredAmount(req.body.amount);

@@ -3,7 +3,8 @@ const bcrypt = require("bcrypt");
 const { ApiError } = require("../errors");
 const { loadActiveRelationship, trimValue } = require("../utils/queryHelpers");
 const { cache, Keys, TTL } = require("../cache");
-const { signToken, signRefreshToken } = require("../utils/jwt");
+const { signToken, signRefreshToken, verifyToken } = require("../utils/jwt");
+const { requireAuthForBusiness } = require("../middleware/auth");
 
 function createAuthRouter({ pool, config, authLimiter, strictLimiter }) {
   const router = express.Router();
@@ -110,6 +111,26 @@ function createAuthRouter({ pool, config, authLimiter, strictLimiter }) {
     }
   });
 
+  // 刷新 access token：客户端用 refresh token 换取新的 access token
+  router.post("/refresh", authLimiter, async (req, res, next) => {
+    try {
+      const refreshToken = typeof req.body.refreshToken === "string" ? req.body.refreshToken : "";
+      if (!refreshToken) throw new ApiError(400, "INVALID_REQUEST", "缺少 refreshToken");
+
+      let decoded;
+      try {
+        decoded = verifyToken(refreshToken);
+      } catch (_e) {
+        throw new ApiError(401, "UNAUTHORIZED", "refresh token 无效或已过期，请重新登录");
+      }
+
+      const accessToken = signToken({ userId: decoded.userId });
+      res.json({ ok: true, message: "刷新成功", data: { accessToken } });
+    } catch (error) {
+      next(error);
+    }
+  });
+
   // 用 wx.login 的 code 换取微信 openid
   async function exchangeOpenid(code) {
     if (!config.wechatAppId || !config.wechatSecret) {
@@ -211,12 +232,9 @@ function createAuthRouter({ pool, config, authLimiter, strictLimiter }) {
     }
   });
 
-  router.get("/couple-info", async (req, res, next) => {
+  router.get("/couple-info", requireAuthForBusiness, async (req, res, next) => {
     try {
-      const userId = parseInt(req.query.userId, 10);
-      if (!userId || userId <= 0) {
-        throw new ApiError(400, "INVALID_REQUEST", "userId 参数无效");
-      }
+      const userId = req.userId;
 
       const relationship = await loadActiveRelationship(pool, userId);
       if (!relationship) {
@@ -253,10 +271,11 @@ function createAuthRouter({ pool, config, authLimiter, strictLimiter }) {
     }
   });
 
-  router.put("/avatar", async (req, res, next) => {
+  router.put("/avatar", requireAuthForBusiness, async (req, res, next) => {
     try {
-      const { userId, avatarUrl } = req.body;
-      if (!userId || !avatarUrl) throw new ApiError(400, "INVALID_REQUEST", "userId 和 avatarUrl 必填");
+      const userId = req.userId;
+      const { avatarUrl } = req.body;
+      if (!avatarUrl) throw new ApiError(400, "INVALID_REQUEST", "avatarUrl 必填");
 
       const [rows] = await pool.execute("SELECT id FROM users WHERE id = ? LIMIT 1", [userId]);
       if (rows.length === 0) throw new ApiError(404, "NOT_FOUND", "用户不存在");
@@ -270,10 +289,9 @@ function createAuthRouter({ pool, config, authLimiter, strictLimiter }) {
     }
   });
 
-  router.get("/profile", async (req, res, next) => {
+  router.get("/profile", requireAuthForBusiness, async (req, res, next) => {
     try {
-      const userId = parseInt(req.query.userId, 10);
-      if (!userId || userId <= 0) throw new ApiError(400, "INVALID_REQUEST", "userId 参数无效");
+      const userId = req.userId;
 
       const [rows] = await pool.execute(
         "SELECT id, username, email, nickname, avatar FROM users WHERE id = ? LIMIT 1",
@@ -314,10 +332,10 @@ function createAuthRouter({ pool, config, authLimiter, strictLimiter }) {
     }
   });
 
-  router.put("/nickname", async (req, res, next) => {
+  router.put("/nickname", requireAuthForBusiness, async (req, res, next) => {
     try {
-      const { userId, nickname } = req.body;
-      if (!userId) throw new ApiError(400, "INVALID_REQUEST", "userId 必填");
+      const userId = req.userId;
+      const { nickname } = req.body;
 
       const [rows] = await pool.execute("SELECT id FROM users WHERE id = ? LIMIT 1", [userId]);
       if (rows.length === 0) throw new ApiError(404, "NOT_FOUND", "用户不存在");
@@ -331,10 +349,11 @@ function createAuthRouter({ pool, config, authLimiter, strictLimiter }) {
     }
   });
 
-  router.put("/password", strictLimiter, async (req, res, next) => {
+  router.put("/password", strictLimiter, requireAuthForBusiness, async (req, res, next) => {
     try {
-      const { userId, currentPassword, newPassword } = req.body;
-      if (!userId || !currentPassword || !newPassword) {
+      const userId = req.userId;
+      const { currentPassword, newPassword } = req.body;
+      if (!currentPassword || !newPassword) {
         throw new ApiError(400, "INVALID_REQUEST", "参数不完整");
       }
 
@@ -355,11 +374,10 @@ function createAuthRouter({ pool, config, authLimiter, strictLimiter }) {
     }
   });
 
-  router.delete("/account", strictLimiter, async (req, res, next) => {
+  router.delete("/account", strictLimiter, requireAuthForBusiness, async (req, res, next) => {
     try {
-      const userId = parseInt(req.query.userId, 10);
-      const password = req.body?.password || req.query?.password;
-      if (!userId || userId <= 0) throw new ApiError(400, "INVALID_REQUEST", "userId 参数无效");
+      const userId = req.userId;
+      const password = req.body?.password;
       if (!password) throw new ApiError(400, "INVALID_REQUEST", "需要密码确认");
 
       const [users] = await pool.execute("SELECT password FROM users WHERE id = ? LIMIT 1", [userId]);

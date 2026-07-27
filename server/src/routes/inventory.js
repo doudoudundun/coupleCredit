@@ -201,7 +201,7 @@ function createInventoryRouter({ pool }) {
 
   router.get("/", async (req, res, next) => {
     try {
-      const userId = parseRequiredInteger(parseInt(req.query.userId, 10));
+      const userId = parseRequiredInteger(req.userId);
 
       const cached = cache.get(Keys.inventory(userId));
       if (cached) return res.json(cached);
@@ -245,7 +245,7 @@ function createInventoryRouter({ pool }) {
 
   router.get("/low-stock", async (req, res, next) => {
     try {
-      const userId = parseRequiredInteger(parseInt(req.query.userId, 10));
+      const userId = parseRequiredInteger(req.userId);
 
       const cached = cache.get(Keys.inventory(userId));
       if (cached && cached.data && cached.data.items) {
@@ -299,7 +299,7 @@ function createInventoryRouter({ pool }) {
 
   router.post("/", async (req, res, next) => {
     try {
-      const userId = parseRequiredInteger(req.body.userId);
+      const userId = parseRequiredInteger(req.userId);
       const name = trimValue(req.body.name);
       const category = trimValue(req.body.category);
       const quantity = parseRequiredFloat(req.body.quantity);
@@ -454,7 +454,7 @@ function createInventoryRouter({ pool }) {
   router.put("/:id", async (req, res, next) => {
     try {
       const inventoryId = parseRequiredInteger(parseInt(req.params.id, 10));
-      const userId = parseRequiredInteger(req.body.userId);
+      const userId = parseRequiredInteger(req.userId);
       const relationship = await loadActiveRelationship(pool, userId);
       const relationshipId = relationship ? relationship.relationship_id : null;
 
@@ -580,7 +580,7 @@ function createInventoryRouter({ pool }) {
   router.post("/:id/consume", async (req, res, next) => {
     try {
       const inventoryId = parseRequiredInteger(parseInt(req.params.id, 10));
-      const userId = parseRequiredInteger(req.body.userId);
+      const userId = parseRequiredInteger(req.userId);
       const consumeAmount = parseRequiredFloat(req.body.consumeAmount);
 
       if (consumeAmount <= 0) {
@@ -637,7 +637,7 @@ function createInventoryRouter({ pool }) {
   router.post("/:id/replenish", async (req, res, next) => {
     try {
       const inventoryId = parseRequiredInteger(parseInt(req.params.id, 10));
-      const userId = parseRequiredInteger(req.body.userId);
+      const userId = parseRequiredInteger(req.userId);
       const addAmount = parseRequiredFloat(req.body.addAmount);
 
       if (addAmount <= 0) {
@@ -687,7 +687,7 @@ function createInventoryRouter({ pool }) {
   router.delete("/:id", async (req, res, next) => {
     try {
       const inventoryId = parseRequiredInteger(parseInt(req.params.id, 10));
-      const userId = parseRequiredInteger(parseInt(req.query.userId, 10));
+      const userId = parseRequiredInteger(req.userId);
       const relationship = await loadActiveRelationship(pool, userId);
       const relationshipId = relationship ? relationship.relationship_id : null;
 
