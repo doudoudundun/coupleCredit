@@ -158,6 +158,6 @@ public class ApiConfigManager {
                     }
                 }
             }
-        }.execute();
+        }.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR);
     }
 }

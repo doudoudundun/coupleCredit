@@ -15,7 +15,7 @@ import androidx.annotation.NonNull;
  */
 @Database(
     entities = {ChatMessageEntity.class},  // 数据库包含的实体类
-    version = 6,                           // 数据库版本号
+    version = 7,                           // 数据库版本号
     exportSchema = false                   // 不导出数据库架构
 )
 public abstract class ChatDatabase extends RoomDatabase {
@@ -278,7 +278,22 @@ public abstract class ChatDatabase extends RoomDatabase {
             }
         }
     };
-    
+
+    /**
+     * 数据库迁移：从版本6到版本7
+     * 为高频查询字段添加索引（纯加索引，不 DROP 表，不丢数据）
+     */
+    static final Migration MIGRATION_6_7 = new Migration(6, 7) {
+        @Override
+        public void migrate(@NonNull SupportSQLiteDatabase database) {
+            // CREATE INDEX IF NOT EXISTS：幂等，重复执行不报错
+            database.execSQL("CREATE INDEX IF NOT EXISTS `index_chat_messages_createdAt` ON `chat_messages` (`createdAt`)");
+            database.execSQL("CREATE INDEX IF NOT EXISTS `index_chat_messages_cloudMessageId` ON `chat_messages` (`cloudMessageId`)");
+            database.execSQL("CREATE INDEX IF NOT EXISTS `index_chat_messages_username` ON `chat_messages` (`username`)");
+            android.util.Log.d("ChatDatabase", "MIGRATION_6_7: 成功添加查询索引");
+        }
+    };
+
     /**
      * 获取聊天消息DAO
      * @return ChatMessageDao实例
@@ -299,9 +314,8 @@ public abstract class ChatDatabase extends RoomDatabase {
                         ChatDatabase.class,
                         DATABASE_NAME
                     )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)  // 添加数据库迁移策略
-                    .fallbackToDestructiveMigration()  // 如果迁移失败，允许破坏性迁移
-                    .allowMainThreadQueries()  // 允许在主线程执行查询（仅用于简化示例，生产环境建议使用异步）
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)  // 添加数据库迁移策略
+                    .fallbackToDestructiveMigration()  // 仅 dev 兜底：迁移失败时清库（生产环境长期应移除）
                     .build();
                 }
             }

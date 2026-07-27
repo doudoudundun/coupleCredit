@@ -39,19 +39,30 @@ import com.example.couplecredit.utils.UserInfoManager;
 import com.github.mikephil.charting.utils.Utils;
 import com.google.android.material.bottomnavigation.BottomNavigationView;
 
+import java.util.HashMap;
+import java.util.Map;
+import java.util.function.Supplier;
+
 public class MainActivity extends AppCompatActivity {
 
+    // Fragment tags —— 一切导航以 tag 为准，不再依赖实例相等
+    private static final String TAG_HEAD = "head";
+    private static final String TAG_INVENTORY = "inventory";
+    private static final String TAG_RECIPE = "recipe";
+    private static final String TAG_EATOUT = "eatOut";
+    private static final String TAG_TODO = "todo";
+    private static final String TAG_MY = "my";
+
     private FragmentManager fragmentManager;
+    // headFragment 保持饿汉式（默认落地页）
     private HeadFragment headFragment;
-    private InventoryFragment inventoryFragment;
-    private RecipeFragment recipeFragment;
-    private EatOutFragment eatOutFragment;
-    private TodoFragment todoFragment;
-    private MyFragment myFragment;
+    // 其余 5 个改为懒创建：缓存已创建的实例
+    private final Map<String, Fragment> fragmentPool = new HashMap<>();
+
     private BottomNavigationView mBottomNav;
     private Fragment currentFragment;
     private Fragment lastTabFragment;
-    private ChatRepository chatRepository;
+    private volatile ChatRepository chatRepository;
 
     private static final String KEY_CURRENT_FRAGMENT_TAG = "currentFragmentTag";
     private static final String KEY_LAST_TAB_FRAGMENT_TAG = "lastTabFragmentTag";
@@ -80,7 +91,26 @@ public class MainActivity extends AppCompatActivity {
 
         Utils.init(this);
 
-        new Thread(this::initializeChatData, "ChatRepositoryInitializer").start();
+        // ChatRepository 构造无 I/O，主线程同步创建，避免后续 getChatRepository() 竞态
+        try {
+            chatRepository = new ChatRepository(this);
+            Log.d("MainActivity", "聊天数据仓库初始化完成");
+            new Thread(() -> {
+                try {
+                    if (UserInfoManager.isUserLoggedIn(this)) {
+                        Log.d("MainActivity", "用户已登录，开始预加载聊天数据");
+                        chatRepository.loadAllMessages();
+                        Log.d("MainActivity", "聊天数据预加载完成");
+                    } else {
+                        Log.d("MainActivity", "用户未登录，跳过聊天数据预加载");
+                    }
+                } catch (Exception e) {
+                    Log.e("MainActivity", "聊天数据预加载失败", e);
+                }
+            }, "ChatDataPreloader").start();
+        } catch (Exception e) {
+            Log.e("MainActivity", "聊天数据仓库初始化失败", e);
+        }
 
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main), (v, insets) -> {
             Insets systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
@@ -106,44 +136,29 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
-        if (savedInstanceState == null) {
+        // headFragment 始终饿汉创建
+        headFragment = (HeadFragment) fragmentManager.findFragmentByTag(TAG_HEAD);
+        if (headFragment == null) {
             headFragment = new HeadFragment();
-            inventoryFragment = new InventoryFragment();
-            recipeFragment = new RecipeFragment();
-            eatOutFragment = new EatOutFragment();
-            todoFragment = new TodoFragment();
-            myFragment = new MyFragment();
+        }
 
-            if (username != null && id != null) {
-                Bundle bundle = new Bundle();
-                bundle.putString("username", username);
-                bundle.putString("id", id);
-                myFragment.setArguments(bundle);
+        // savedInstanceState != null 时，从 FragmentManager 恢复所有已存在的懒 Fragment（不需要主动创建）
+        // 未在 manager 中的 Fragment 保持 null，第一次访问时由 getOrCreate 懒创建
+        if (savedInstanceState == null) {
+            FragmentTransaction addHead = fragmentManager.beginTransaction().setReorderingAllowed(true);
+            if (!headFragment.isAdded()) {
+                addHead.add(R.id.fragment_container, headFragment, TAG_HEAD);
             }
-
-            initAllFragments();
-
-            if ("todo".equals(intent.getStringExtra("navigate_to"))) {
-                mBottomNav.post(() -> mBottomNav.setSelectedItemId(R.id.nav_todo));
-            }
+            // 用 commitNow 同步执行 add 事务，保证 headFragment 已 attached，
+            // 随后的 navigateToHome→showFragment 能正确走 show 流程。
+            // 注意：不在此处赋值 currentFragment，让 showFragment 完整执行 show/hide 逻辑，
+            // 否则 showFragment 开头的 currentFragment==fragment 判断会直接 return，导致首屏白屏。
+            addHead.commitNow();
         } else {
-            headFragment = (HeadFragment) fragmentManager.findFragmentByTag("head");
-            inventoryFragment = (InventoryFragment) fragmentManager.findFragmentByTag("inventory");
-            recipeFragment = (RecipeFragment) fragmentManager.findFragmentByTag("recipe");
-            eatOutFragment = (EatOutFragment) fragmentManager.findFragmentByTag("eatOut");
-            todoFragment = (TodoFragment) fragmentManager.findFragmentByTag("todo");
-            myFragment = (MyFragment) fragmentManager.findFragmentByTag("my");
+            String currentTag = savedInstanceState.getString(KEY_CURRENT_FRAGMENT_TAG, TAG_HEAD);
+            Fragment restored = fragmentManager.findFragmentByTag(currentTag);
+            currentFragment = restored != null ? restored : headFragment;
 
-            // Restore current fragment from saved state
-            String currentTag = savedInstanceState.getString(KEY_CURRENT_FRAGMENT_TAG, "head");
-            currentFragment = fragmentManager.findFragmentByTag(currentTag);
-
-            // If currentFragment is still null, default to headFragment
-            if (currentFragment == null) {
-                currentFragment = headFragment;
-            }
-
-            // Restore lastTabFragment
             String lastTabTag = savedInstanceState.getString(KEY_LAST_TAB_FRAGMENT_TAG, null);
             if (lastTabTag != null) {
                 lastTabFragment = fragmentManager.findFragmentByTag(lastTabTag);
@@ -151,22 +166,33 @@ public class MainActivity extends AppCompatActivity {
         }
 
         mBottomNav = findViewById(R.id.bottom_nav);
+        // 用 final 副本捕获，供 lambda 透传给 MyFragment
+        final String finalUsername = username;
+        final String finalId = id;
         mBottomNav.setOnItemSelectedListener(item -> {
             int itemId = item.getItemId();
             if (itemId == R.id.nav_head) {
                 showFragment(headFragment);
                 return true;
             } else if (itemId == R.id.nav_inventory) {
-                showFragment(inventoryFragment);
+                showFragment(getOrCreateFragment(TAG_INVENTORY, InventoryFragment::new));
                 return true;
             } else if (itemId == R.id.nav_recipe) {
-                showFragment(recipeFragment);
+                showFragment(getOrCreateFragment(TAG_RECIPE, RecipeFragment::new));
                 return true;
             } else if (itemId == R.id.nav_todo) {
-                showFragment(todoFragment);
+                showFragment(getOrCreateFragment(TAG_TODO, TodoFragment::new));
                 return true;
             } else if (itemId == R.id.nav_my) {
-                showFragment(myFragment);
+                Fragment my = getOrCreateFragment(TAG_MY, MyFragment::new);
+                // 登录用户信息透传给 MyFragment（首次创建时）
+                if (finalUsername != null && finalId != null && !my.isAdded() && my.getArguments() == null) {
+                    Bundle bundle = new Bundle();
+                    bundle.putString("username", finalUsername);
+                    bundle.putString("id", finalId);
+                    my.setArguments(bundle);
+                }
+                showFragment(my);
                 return true;
             }
             return false;
@@ -208,10 +234,30 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
+    /**
+     * 懒创建/获取顶层 Fragment。
+     * - 先从 FragmentManager 查找（恢复场景）
+     * - 再从本地缓存查找（同一会话内已创建）
+     * - 否则用 factory 创建并缓存（但不 add 到 manager，由 showFragment 负责 add）
+     */
+    private Fragment getOrCreateFragment(String tag, Supplier<Fragment> factory) {
+        Fragment existing = fragmentManager.findFragmentByTag(tag);
+        if (existing != null) {
+            fragmentPool.put(tag, existing);
+            return existing;
+        }
+        Fragment cached = fragmentPool.get(tag);
+        if (cached != null) {
+            return cached;
+        }
+        Fragment created = factory.get();
+        fragmentPool.put(tag, created);
+        return created;
+    }
+
     private boolean isOneOfTopFragments(Fragment fragment) {
-        return fragment == headFragment || fragment == inventoryFragment
-                || fragment == recipeFragment || fragment == eatOutFragment
-                || fragment == todoFragment || fragment == myFragment;
+        return fragment == headFragment
+                || fragmentPool.containsValue(fragment);
     }
 
     public void showFragment(Fragment fragment) {
@@ -231,6 +277,12 @@ public class MainActivity extends AppCompatActivity {
 
         FragmentTransaction transaction = fragmentManager.beginTransaction().setReorderingAllowed(true);
 
+        // 懒加载：尚未 add 的 Fragment 先 add
+        if (!fragment.isAdded()) {
+            String tag = getFragmentTag(fragment);
+            transaction.add(R.id.fragment_container, fragment, tag != null ? tag : TAG_HEAD);
+        }
+
         for (Fragment existingFragment : fragmentManager.getFragments()) {
             if (existingFragment != null && existingFragment.isAdded()) {
                 if (existingFragment == fragment) {
@@ -245,18 +297,18 @@ public class MainActivity extends AppCompatActivity {
         transaction.commit();
         syncBottomNavigationSelection(fragment);
 
-        if (fragment == inventoryFragment) {
-            inventoryFragment.refreshInventoryData();
-            PollingManager.getInstance().setRefreshAction(inventoryFragment::refreshInventoryData);
-        } else if (fragment == recipeFragment) {
-            recipeFragment.refreshData();
-            PollingManager.getInstance().setRefreshAction(recipeFragment::refreshData);
-        } else if (fragment == eatOutFragment) {
-            eatOutFragment.refreshData();
-            PollingManager.getInstance().setRefreshAction(eatOutFragment::refreshData);
-        } else if (fragment == todoFragment) {
-            todoFragment.refreshData();
-            PollingManager.getInstance().setRefreshAction(todoFragment::refreshData);
+        if (fragment instanceof InventoryFragment) {
+            ((InventoryFragment) fragment).refreshInventoryData();
+            PollingManager.getInstance().setRefreshAction(((InventoryFragment) fragment)::refreshInventoryData);
+        } else if (fragment instanceof RecipeFragment) {
+            ((RecipeFragment) fragment).refreshData();
+            PollingManager.getInstance().setRefreshAction(((RecipeFragment) fragment)::refreshData);
+        } else if (fragment instanceof EatOutFragment) {
+            ((EatOutFragment) fragment).refreshData();
+            PollingManager.getInstance().setRefreshAction(((EatOutFragment) fragment)::refreshData);
+        } else if (fragment instanceof TodoFragment) {
+            ((TodoFragment) fragment).refreshData();
+            PollingManager.getInstance().setRefreshAction(((TodoFragment) fragment)::refreshData);
         } else {
             PollingManager.getInstance().setRefreshAction(null);
         }
@@ -274,7 +326,7 @@ public class MainActivity extends AppCompatActivity {
         if (mBottomNav != null && mBottomNav.getSelectedItemId() != R.id.nav_inventory) {
             mBottomNav.setSelectedItemId(R.id.nav_inventory);
         } else {
-            showFragment(inventoryFragment);
+            showFragment(getOrCreateFragment(TAG_INVENTORY, InventoryFragment::new));
         }
     }
 
@@ -282,7 +334,7 @@ public class MainActivity extends AppCompatActivity {
         if (mBottomNav != null && mBottomNav.getSelectedItemId() != R.id.nav_recipe) {
             mBottomNav.setSelectedItemId(R.id.nav_recipe);
         } else {
-            showFragment(recipeFragment);
+            showFragment(getOrCreateFragment(TAG_RECIPE, RecipeFragment::new));
         }
     }
 
@@ -290,7 +342,7 @@ public class MainActivity extends AppCompatActivity {
         if (mBottomNav != null && mBottomNav.getSelectedItemId() != R.id.nav_todo) {
             mBottomNav.setSelectedItemId(R.id.nav_todo);
         } else {
-            showFragment(todoFragment);
+            showFragment(getOrCreateFragment(TAG_TODO, TodoFragment::new));
         }
     }
 
@@ -309,8 +361,8 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void showEatOutFragment() {
-        if (eatOutFragment == null) return;
-        if (eatOutFragment == currentFragment) return;
+        EatOutFragment eatOut = (EatOutFragment) getOrCreateFragment(TAG_EATOUT, EatOutFragment::new);
+        if (eatOut == currentFragment) return;
 
         // Pop back stack to clear any sub-page overlays
         if (fragmentManager.getBackStackEntryCount() > 0) {
@@ -320,15 +372,18 @@ public class MainActivity extends AppCompatActivity {
         lastTabFragment = currentFragment;
 
         FragmentTransaction transaction = fragmentManager.beginTransaction().setReorderingAllowed(true);
+        if (!eatOut.isAdded()) {
+            transaction.add(R.id.fragment_container, eatOut, TAG_EATOUT);
+        }
         for (Fragment f : fragmentManager.getFragments()) {
             if (f != null && f.isAdded()) {
                 transaction.hide(f);
             }
         }
-        transaction.show(eatOutFragment);
+        transaction.show(eatOut);
         transaction.commit();
-        currentFragment = eatOutFragment;
-        eatOutFragment.refreshData();
+        currentFragment = eatOut;
+        eatOut.refreshData();
     }
 
     public void navigateToLastTab() {
@@ -343,53 +398,8 @@ public class MainActivity extends AppCompatActivity {
         return headFragment;
     }
 
-    private void initAllFragments() {
-        FragmentTransaction transaction = fragmentManager.beginTransaction().setReorderingAllowed(true);
-        transaction.add(R.id.fragment_container, headFragment, "head");
-        transaction.add(R.id.fragment_container, inventoryFragment, "inventory");
-        transaction.add(R.id.fragment_container, recipeFragment, "recipe");
-        transaction.add(R.id.fragment_container, eatOutFragment, "eatOut");
-        transaction.add(R.id.fragment_container, todoFragment, "todo");
-        transaction.add(R.id.fragment_container, myFragment, "my");
-        transaction.hide(headFragment);
-        transaction.hide(inventoryFragment);
-        transaction.hide(recipeFragment);
-        transaction.hide(eatOutFragment);
-        transaction.hide(todoFragment);
-        transaction.hide(myFragment);
-        transaction.commitNow();
-        currentFragment = null;
-    }
-
-    private void initializeChatData() {
-        try {
-            chatRepository = new ChatRepository(this);
-            Log.d("MainActivity", "聊天数据仓库初始化完成");
-
-            new Thread(() -> {
-                try {
-                    if (UserInfoManager.isUserLoggedIn(this)) {
-                        Log.d("MainActivity", "用户已登录，开始预加载聊天数据");
-                        chatRepository.loadAllMessages();
-                        Log.d("MainActivity", "聊天数据预加载完成");
-                    } else {
-                        Log.d("MainActivity", "用户未登录，跳过聊天数据预加载");
-                    }
-                } catch (Exception e) {
-                    Log.e("MainActivity", "聊天数据预加载失败", e);
-                }
-            }, "ChatDataPreloader").start();
-        } catch (Exception e) {
-            Log.e("MainActivity", "聊天数据仓库初始化失败", e);
-        }
-    }
-
-    public ChatRepository getChatRepository() {
-        return chatRepository;
-    }
-
     @Override
-    protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
+    public void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
 
         if (resultCode == RESULT_OK && data != null) {
@@ -405,22 +415,24 @@ public class MainActivity extends AppCompatActivity {
             headFragment.refreshCurrentFragmentData();
         }
 
-        if (inventoryFragment != null) {
-            inventoryFragment.refreshInventoryData();
+        Fragment inventory = fragmentPool.get(TAG_INVENTORY);
+        if (inventory instanceof InventoryFragment) {
+            ((InventoryFragment) inventory).refreshInventoryData();
         }
 
-        if (recipeFragment != null) {
-            recipeFragment.refreshData();
+        Fragment recipe = fragmentPool.get(TAG_RECIPE);
+        if (recipe instanceof RecipeFragment) {
+            ((RecipeFragment) recipe).refreshData();
         }
 
-        if (todoFragment != null) {
-            todoFragment.refreshData();
+        Fragment todo = fragmentPool.get(TAG_TODO);
+        if (todo instanceof TodoFragment) {
+            ((TodoFragment) todo).refreshData();
         }
-
     }
 
     private void refreshAllFragmentsLoginState() {
-        if (myFragment != null) {
+        if (fragmentPool.get(TAG_MY) instanceof MyFragment) {
             Log.d("MainActivity", "MyFragment 将通过广播更新状态");
         }
 
@@ -446,13 +458,13 @@ public class MainActivity extends AppCompatActivity {
     private int getBottomNavigationItemId(Fragment fragment) {
         if (fragment == headFragment) {
             return R.id.nav_head;
-        } else if (fragment == inventoryFragment) {
+        } else if (fragment instanceof InventoryFragment) {
             return R.id.nav_inventory;
-        } else if (fragment == recipeFragment) {
+        } else if (fragment instanceof RecipeFragment) {
             return R.id.nav_recipe;
-        } else if (fragment == todoFragment) {
+        } else if (fragment instanceof TodoFragment) {
             return R.id.nav_todo;
-        } else if (fragment == myFragment) {
+        } else if (fragment instanceof MyFragment) {
             return R.id.nav_my;
         }
         return 0;
@@ -460,7 +472,7 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     public void onBackPressed() {
-        if (currentFragment == eatOutFragment) {
+        if (currentFragment instanceof EatOutFragment) {
             navigateToLastTab();
         } else {
             super.onBackPressed();
@@ -476,9 +488,18 @@ public class MainActivity extends AppCompatActivity {
         }
         if (intent != null && intent.getStringExtra("username") != null) {
             DataRefreshBus.refreshAll();
-            if (inventoryFragment != null) inventoryFragment.refreshInventoryData();
-            if (recipeFragment != null) recipeFragment.refreshData();
-            if (todoFragment != null) todoFragment.refreshData();
+            Fragment inventory = fragmentPool.get(TAG_INVENTORY);
+            if (inventory instanceof InventoryFragment) {
+                ((InventoryFragment) inventory).refreshInventoryData();
+            }
+            Fragment recipe = fragmentPool.get(TAG_RECIPE);
+            if (recipe instanceof RecipeFragment) {
+                ((RecipeFragment) recipe).refreshData();
+            }
+            Fragment todo = fragmentPool.get(TAG_TODO);
+            if (todo instanceof TodoFragment) {
+                ((TodoFragment) todo).refreshData();
+            }
         }
     }
 
@@ -514,18 +535,31 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private String getFragmentTag(Fragment fragment) {
-        if (fragment == headFragment) return "head";
-        if (fragment == inventoryFragment) return "inventory";
-        if (fragment == recipeFragment) return "recipe";
-        if (fragment == eatOutFragment) return "eatOut";
-        if (fragment == todoFragment) return "todo";
-        if (fragment == myFragment) return "my";
+        if (fragment == headFragment) return TAG_HEAD;
+        if (fragment instanceof InventoryFragment) return TAG_INVENTORY;
+        if (fragment instanceof RecipeFragment) return TAG_RECIPE;
+        if (fragment instanceof EatOutFragment) return TAG_EATOUT;
+        if (fragment instanceof TodoFragment) return TAG_TODO;
+        if (fragment instanceof MyFragment) return TAG_MY;
         return null;
     }
 
     @Override
     protected void onDestroy() {
         LocalBroadcastManager.getInstance(this).unregisterReceiver(loginStateReceiver);
+        // 接管 ChatRepository 生命周期：共享实例随 Activity 销毁时清理
+        if (chatRepository != null) {
+            try {
+                chatRepository.cleanup();
+            } catch (Exception e) {
+                Log.e("MainActivity", "ChatRepository cleanup failed", e);
+            }
+            chatRepository = null;
+        }
         super.onDestroy();
+    }
+
+    public ChatRepository getChatRepository() {
+        return chatRepository;
     }
 }

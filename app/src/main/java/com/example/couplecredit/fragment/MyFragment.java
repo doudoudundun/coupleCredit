@@ -36,6 +36,7 @@ import com.bumptech.glide.Glide;
 import com.bumptech.glide.load.resource.bitmap.CircleCrop;
 import com.example.couplecredit.R;
 import com.example.couplecredit.activity.AssetsActivity;
+import com.example.couplecredit.activity.AccountsActivity;
 import com.example.couplecredit.activity.CalorieActivity;
 import com.example.couplecredit.activity.ChatBackgroundActivity;
 import com.example.couplecredit.activity.LoginActivity;
@@ -75,6 +76,7 @@ public class MyFragment extends Fragment {
     private LinearLayout llOverviewInventory;
     private LinearLayout llOverviewCouple;
     private LinearLayout llOverviewAsset;
+    private LinearLayout llVaultEntry;
     private LinearLayout llUserSettings;
     private LinearLayout llInventory;
     private LinearLayout llCoupleInfo;
@@ -167,6 +169,7 @@ public class MyFragment extends Fragment {
         llOverviewInventory = view.findViewById(R.id.ll_overview_inventory);
         llOverviewCouple = view.findViewById(R.id.ll_overview_couple);
         llOverviewAsset = view.findViewById(R.id.ll_overview_asset);
+        llVaultEntry = view.findViewById(R.id.ll_vault_entry);
         llUserSettings = view.findViewById(R.id.ll_user_settings);
         llInventory = view.findViewById(R.id.ll_inventory);
         llCoupleInfo = view.findViewById(R.id.ll_couple_info);
@@ -277,6 +280,15 @@ public class MyFragment extends Fragment {
                 return;
             }
             startActivity(new Intent(getActivity(), AssetsActivity.class));
+        });
+
+        llVaultEntry.setOnClickListener(v -> {
+            if (!isLoggedIn) {
+                Intent intent = new Intent(getActivity(), LoginActivity.class);
+                loginLauncher.launch(intent);
+                return;
+            }
+            startActivity(new Intent(getActivity(), AccountsActivity.class));
         });
 
         llLogin.setOnClickListener(v -> {
@@ -487,9 +499,167 @@ public class MyFragment extends Fragment {
         updateLoginUI();
         loadSavedAvatar();
         loadSummaryFromCache();
-        loadCalorieSummary();
-        loadPeriodSummary();
-        loadOverviewSummary();
+        // 7 个分散请求合并为 1 个聚合请求；15s 节流避免 onResume 高频重发
+        loadOverviewAggregated();
+    }
+
+    private static final long OVERVIEW_FETCH_MIN_INTERVAL_MS = 15_000L;
+    private static final String KEY_OVERVIEW_FETCH_TS = "last_overview_fetch_ts";
+
+    /**
+     * 调用聚合接口 /api/me/overview 一次性获取热量/经期/账单/Todo/库存/资产/情侣信息。
+     * 15s 内重复调用直接跳过，避免 onResume 高频重发；强制刷新请用 force=true。
+     */
+    private void loadOverviewAggregated() {
+        loadOverviewAggregated(false);
+    }
+
+    private void loadOverviewAggregated(boolean force) {
+        if (!isLoggedIn || getContext() == null) {
+            resetOverviewSummary();
+            return;
+        }
+        SharedPreferences prefs = requireContext().getSharedPreferences("my_fragment_cache", Context.MODE_PRIVATE);
+        if (!force) {
+            long lastTs = prefs.getLong(KEY_OVERVIEW_FETCH_TS, 0);
+            if (lastTs > 0 && System.currentTimeMillis() - lastTs < OVERVIEW_FETCH_MIN_INTERVAL_MS) {
+                return; // 节流：15s 内不重复请求
+            }
+        }
+        prefs.edit().putLong(KEY_OVERVIEW_FETCH_TS, System.currentTimeMillis()).apply();
+
+        int currentUserId = UserInfoManager.getCurrentUserId(getContext());
+        Calendar calendar = Calendar.getInstance();
+        int year = calendar.get(Calendar.YEAR);
+        int month = calendar.get(Calendar.MONTH) + 1;
+        AuthApiClient.getMyOverview(getContext(), currentUserId, year, month, new AuthApiClient.OverviewCallback() {
+            @Override
+            public void onSuccess(AuthApiModels.OverviewResponse response) {
+                if (getActivity() == null || response == null || response.data == null) return;
+                getActivity().runOnUiThread(() -> applyOverviewData(response.data));
+            }
+
+            @Override
+            public void onError(String message) {
+                // 聚合失败：回退到旧的独立接口（保证功能可用）
+                if (getActivity() == null) return;
+                getActivity().runOnUiThread(() -> {
+                    loadCalorieSummary();
+                    loadPeriodSummary();
+                    loadOverviewSummary();
+                });
+            }
+        });
+    }
+
+    /**
+     * 把聚合数据分发到各个 UI 控件，复用各 load* 方法内的渲染逻辑。
+     */
+    private void applyOverviewData(AuthApiModels.OverviewData data) {
+        // 1. 热量
+        if (data.calorie != null && data.calorie.data != null) {
+            String text = "今日 " + CalorieFormatUtils.formatNumber(data.calorie.data.totalCalories) + " / " + CalorieFormatUtils.formatNumber(data.calorie.data.dailyGoal) + " kcal";
+            tvCalorieEntrySummary.setText(text);
+            saveCache("calorie", text);
+        }
+
+        // 2. 经期
+        if (data.period != null && data.period.data != null) {
+            String text;
+            if (data.period.data.predictedNextStart != null) {
+                text = "预计下次: " + data.period.data.predictedNextStart;
+            } else if (data.period.data.records != null && !data.period.data.records.isEmpty()) {
+                text = "记录更多经期来预测下次日期";
+            } else {
+                text = "点击开始记录经期";
+            }
+            tvPeriodEntrySummary.setText(text);
+            saveCache("period", text);
+        }
+
+        // 3. 账单
+        if (data.bills != null && data.bills.data != null && data.bills.data.bills != null) {
+            List<AuthApiModels.BillData> bills = data.bills.data.bills;
+            if (bills.isEmpty()) {
+                tvOverviewBillSummary.setText("本月暂无账单");
+            } else {
+                double expense = 0;
+                double income = 0;
+                for (AuthApiModels.BillData bill : bills) {
+                    if (bill.incomeType == 1) income += bill.amount;
+                    else expense += bill.amount;
+                }
+                String text = "支出 ¥" + CalorieFormatUtils.formatNumber(expense) + " · 收入 ¥" + CalorieFormatUtils.formatNumber(income);
+                tvOverviewBillSummary.setText(text);
+                saveCache("bill", text);
+            }
+        }
+
+        // 4. Todo
+        if (data.todos != null && data.todos.data != null && data.todos.data.items != null) {
+            List<AuthApiModels.TodoItemData> items = data.todos.data.items;
+            if (items.isEmpty()) {
+                tvOverviewTodoSummary.setText("暂无待办事项");
+            } else {
+                int openCount = 0, doneCount = 0, missedCount = 0;
+                for (AuthApiModels.TodoItemData item : items) {
+                    if ("done".equals(item.status)) doneCount++;
+                    else if ("missed".equals(item.status)) missedCount++;
+                    else openCount++;
+                }
+                String suffix = missedCount > 0 ? " · 逾期 " + missedCount : "";
+                String text = "待处理 " + openCount + " · 已完成 " + doneCount + suffix;
+                tvOverviewTodoSummary.setText(text);
+                saveCache("todo", text);
+            }
+        }
+
+        // 5. 库存
+        if (data.inventory != null && data.inventory.data != null && data.inventory.data.items != null) {
+            List<AuthApiModels.InventoryItemData> items = data.inventory.data.items;
+            if (items.isEmpty()) {
+                tvOverviewInventorySummary.setText("家里还没有库存记录");
+            } else {
+                int lowStockCount = 0, expiringCount = 0;
+                for (AuthApiModels.InventoryItemData item : items) {
+                    if (item.isLowStock) lowStockCount++;
+                    if (item.isExpired || item.isExpiring) expiringCount++;
+                }
+                StringBuilder summary = new StringBuilder();
+                summary.append(items.size()).append(" 项物资");
+                if (lowStockCount > 0) summary.append(" · ").append(lowStockCount).append(" 项偏低");
+                if (expiringCount > 0) summary.append(" · ").append(expiringCount).append(" 项临期");
+                String text = summary.toString();
+                tvOverviewInventorySummary.setText(text);
+                saveCache("inventory", text);
+            }
+        }
+
+        // 6. 资产
+        if (data.assetStats != null && data.assetStats.data != null) {
+            String text = "总资产 ¥" + String.format("%.0f", data.assetStats.data.totalValue) +
+                    " · " + data.assetStats.data.totalCount + " 件物品";
+            tvAssetOverviewSummary.setText(text);
+            saveCache("asset", text);
+        }
+
+        // 7. 情侣信息
+        if (data.coupleInfo != null && data.coupleInfo.data != null) {
+            AuthApiModels.CoupleInfoData ci = data.coupleInfo.data;
+            if (ci.hasCouple) {
+                String display = (ci.partnerNickname != null && !ci.partnerNickname.isEmpty())
+                        ? ci.partnerNickname : ci.partnerName;
+                tvCoupleInfo.setText("已绑定: " + display);
+                String overview = "已与 " + display + " 绑定";
+                tvOverviewCoupleSummary.setText(overview);
+                saveCache("couple", overview);
+                llCoupleInfo.setVisibility(View.VISIBLE);
+            } else {
+                tvCoupleInfo.setText("未绑定情侣");
+                tvOverviewCoupleSummary.setText("还没有绑定情侣关系");
+                llCoupleInfo.setVisibility(View.VISIBLE);
+            }
+        }
     }
 
     private void loadSummaryFromCache() {

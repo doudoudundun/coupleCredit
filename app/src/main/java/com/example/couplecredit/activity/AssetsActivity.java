@@ -11,8 +11,8 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
-import androidx.recyclerview.widget.StaggeredGridLayoutManager;
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
 import com.example.couplecredit.R;
@@ -38,6 +38,10 @@ public class AssetsActivity extends AppCompatActivity implements AssetAdapter.On
     private int currentUserId;
     private String selectedCategory = null;
     private String selectedStatus = null;
+    // 节流：防止 onResume / 筛选 chip 重建连锁触发导致 assets/stats 接口被反复请求
+    private long lastLoadAssetsTs = 0;
+    private long lastLoadStatsTs = 0;
+    private static final long LOAD_THROTTLE_MS = 2000; // 2 秒内不重复请求同一接口
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -76,8 +80,11 @@ public class AssetsActivity extends AppCompatActivity implements AssetAdapter.On
 
     private void setupRecyclerView() {
         adapter = new AssetAdapter(new ArrayList<>(), this);
-        StaggeredGridLayoutManager layoutManager = new StaggeredGridLayoutManager(2, StaggeredGridLayoutManager.VERTICAL);
-        layoutManager.setGapStrategy(StaggeredGridLayoutManager.GAP_HANDLING_MOVE_ITEMS_BETWEEN_SPANS);
+        // 使用 GridLayoutManager 而非 StaggeredGridLayoutManager:
+        // 瀑布流在 wrap_content + ScrollView 场景下只会测量首屏可见的 item,
+        // 导致超出首屏(2 列 × 2 行 = 4 个)的资产永远显示不出来。
+        // 3 列布局:提高单屏信息密度。
+        GridLayoutManager layoutManager = new GridLayoutManager(this, 3);
         rvAssets.setLayoutManager(layoutManager);
         rvAssets.setAdapter(adapter);
     }
@@ -138,6 +145,9 @@ public class AssetsActivity extends AppCompatActivity implements AssetAdapter.On
 
     private void refreshData() {
         swipeRefresh.setRefreshing(true);
+        // 用户下拉刷新：强制重置节流时间戳，确保请求发出
+        lastLoadAssetsTs = 0;
+        lastLoadStatsTs = 0;
         loadCategories();
         loadStats();
         loadAssets();
@@ -263,6 +273,12 @@ public class AssetsActivity extends AppCompatActivity implements AssetAdapter.On
     }
 
     private void loadStats() {
+        // 节流：2 秒内不重复请求
+        long now = System.currentTimeMillis();
+        if (now - lastLoadStatsTs < LOAD_THROTTLE_MS) {
+            return;
+        }
+        lastLoadStatsTs = now;
         AuthApiClient.getAssetStats(this, currentUserId, new AuthApiClient.AssetStatsCallback() {
             @Override
             public void onSuccess(AuthApiModels.AssetStatsResponse response) {
@@ -288,6 +304,12 @@ public class AssetsActivity extends AppCompatActivity implements AssetAdapter.On
     }
 
     private void loadAssets() {
+        // 节流：2 秒内不重复请求（防止 onResume/筛选重建连锁触发）
+        long now = System.currentTimeMillis();
+        if (now - lastLoadAssetsTs < LOAD_THROTTLE_MS) {
+            return;
+        }
+        lastLoadAssetsTs = now;
         AuthApiClient.getAssetsByFilter(this, currentUserId, selectedCategory, selectedStatus,
                 new AuthApiClient.AssetListCallback() {
                     @Override

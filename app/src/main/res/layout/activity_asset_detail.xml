@@ -44,9 +44,7 @@
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="删除"
             android:padding="6dp"
-            android:src="@drawable/ic_delete"
-            android:tint="#FFFFFF"
-            app:tint="#FFFFFF" />
+            android:src="@drawable/ic_delete_white" />
     </LinearLayout>
 
     <ScrollView
@@ -285,7 +283,7 @@
                 android:layout_margin="16dp"
                 android:orientation="horizontal">
 
-                <Button
+                <androidx.appcompat.widget.AppCompatButton
                     android:id="@+id/btn_edit"
                     android:layout_width="0dp"
                     android:layout_height="44dp"
@@ -297,7 +295,7 @@
                     android:textColor="@color/text_muted"
                     android:textSize="14sp" />
 
-                <Button
+                <androidx.appcompat.widget.AppCompatButton
                     android:id="@+id/btn_status"
                     android:layout_width="0dp"
                     android:layout_height="44dp"

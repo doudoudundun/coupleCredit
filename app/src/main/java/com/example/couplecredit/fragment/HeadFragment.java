@@ -19,6 +19,7 @@ import com.google.android.material.tabs.TabLayout;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Supplier;
 
 public class HeadFragment extends Fragment {
 
@@ -28,8 +29,17 @@ public class HeadFragment extends Fragment {
     private static final int TAB_SHARED_PLANS = 3;
     private static final int TAB_REPORT = 4;
 
+    // 子 Fragment tags
+    private static final String TAG_CLASSIC = "classic";
+    private static final String TAG_ADD_BILL = "addBill";
+    private static final String TAG_CHAT = "chat";
+    private static final String TAG_SHARED_PLANS = "sharedPlans";
+    private static final String TAG_REPORT = "report";
+
     private FragmentManager fragmentManager;
+    // Classic（首页）保持饿汉创建，作为默认落地 tab
     private Fragment ClassicFragment;
+    // 其余子 Fragment 改为懒创建
     private Fragment ChatFragment;
     private Fragment ReportFragment;
     private Fragment SharedPlansFragment;
@@ -89,84 +99,150 @@ public class HeadFragment extends Fragment {
         showChildFragment(currentTabPosition);
     }
 
+    /**
+     * 懒加载策略：
+     * - Classic（默认落地 tab）总是饿汉创建并显示
+     * - 持久化的当前 tab 也饿汉创建（确保恢复用户上次位置）
+     * - 其余子 Fragment 留待 showChildFragment 时懒创建
+     */
     private void restoreOrCreateChildFragments() {
-        // Try to restore existing fragments from FragmentManager
-        Fragment existingClassic = fragmentManager.findFragmentByTag("classic");
-        Fragment existingChat = fragmentManager.findFragmentByTag("chat");
-        Fragment existingSharedPlans = fragmentManager.findFragmentByTag("sharedPlans");
-        Fragment existingReport = fragmentManager.findFragmentByTag("report");
-        Fragment existingAddBill = fragmentManager.findFragmentByTag("addBill");
+        // 先尝试从 FragmentManager 恢复
+        ClassicFragment = fragmentManager.findFragmentByTag(TAG_CLASSIC);
+        ChatFragment = fragmentManager.findFragmentByTag(TAG_CHAT);
+        SharedPlansFragment = fragmentManager.findFragmentByTag(TAG_SHARED_PLANS);
+        ReportFragment = fragmentManager.findFragmentByTag(TAG_REPORT);
+        AddBillFragment = fragmentManager.findFragmentByTag(TAG_ADD_BILL);
 
-        // Use existing fragments if found, otherwise create new ones
-        ClassicFragment = existingClassic != null ? existingClassic : new ClassicModelFragment();
-        ChatFragment = existingChat != null ? existingChat : new ChatModelFragment();
-        SharedPlansFragment = existingSharedPlans != null ? existingSharedPlans : new com.example.couplecredit.fragment.SharedPlansFragment();
-        ReportFragment = existingReport != null ? existingReport : new com.example.couplecredit.fragment.ReportFragment();
-        AddBillFragment = existingAddBill != null ? existingAddBill : new com.example.couplecredit.fragment.AddBillFragment();
+        if (ClassicFragment == null) ClassicFragment = new ClassicModelFragment();
 
-        // Restore current child fragment from saved state
-        String currentChildTag = sharedPreferences.getString(KEY_CURRENT_CHILD_TAG, "classic");
-        if ("chat".equals(currentChildTag)) {
-            currentChildFragment = ChatFragment;
-        } else if ("sharedPlans".equals(currentChildTag)) {
-            currentChildFragment = SharedPlansFragment;
-        } else if ("report".equals(currentChildTag)) {
-            currentChildFragment = ReportFragment;
-        } else if ("addBill".equals(currentChildTag)) {
-            currentChildFragment = AddBillFragment;
-        } else {
+        // 解析持久化的当前 child tag
+        String currentChildTag = sharedPreferences.getString(KEY_CURRENT_CHILD_TAG, TAG_CLASSIC);
+        // Classic 始终创建；其他 tab 仅在持久化等于该 tab 时才饿汉创建
+        boolean needReportEager = TAG_REPORT.equals(currentChildTag);
+        boolean needChatEager = TAG_CHAT.equals(currentChildTag);
+        boolean needSharedPlansEager = TAG_SHARED_PLANS.equals(currentChildTag);
+        boolean needAddBillEager = TAG_ADD_BILL.equals(currentChildTag);
+
+        if (needChatEager && ChatFragment == null) ChatFragment = new ChatModelFragment();
+        if (needSharedPlansEager && SharedPlansFragment == null) SharedPlansFragment = new com.example.couplecredit.fragment.SharedPlansFragment();
+        if (needReportEager && ReportFragment == null) ReportFragment = new com.example.couplecredit.fragment.ReportFragment();
+        if (needAddBillEager && AddBillFragment == null) AddBillFragment = new com.example.couplecredit.fragment.AddBillFragment();
+
+        // 解析 currentChildFragment
+        switch (currentChildTag) {
+            case TAG_CHAT:
+                currentChildFragment = ChatFragment;
+                break;
+            case TAG_SHARED_PLANS:
+                currentChildFragment = SharedPlansFragment;
+                break;
+            case TAG_REPORT:
+                currentChildFragment = ReportFragment;
+                break;
+            case TAG_ADD_BILL:
+                currentChildFragment = AddBillFragment;
+                break;
+            default:
+                currentChildFragment = ClassicFragment;
+                break;
+        }
+        // 若 tag 指向的子 Fragment 因某种原因未创建，回退到 Classic
+        if (currentChildFragment == null) {
             currentChildFragment = ClassicFragment;
         }
 
-        // Add fragments to container if not already added
         FragmentTransaction transaction = fragmentManager.beginTransaction().setReorderingAllowed(true);
-        if (!ClassicFragment.isAdded()) {
-            transaction.add(R.id.fg_change, ClassicFragment, "classic");
+
+        // 非当前的子 Fragment：add + hide（不可见）
+        // 当前的子 Fragment（currentChildFragment）：只 add（默认可见），不能 hide 后再 show
+        // —— 因为 FragmentTransaction 是批处理延迟执行的，commit() 前 isAdded() 始终为 false，
+        //    若先 hide 再判断 isAdded() 决定是否 show，show 会被错误跳过，导致当前 fragment 永远 hidden（白屏）。
+
+        if (ClassicFragment != null && ClassicFragment != currentChildFragment) {
+            if (!ClassicFragment.isAdded()) transaction.add(R.id.fg_change, ClassicFragment, TAG_CLASSIC);
+            transaction.hide(ClassicFragment);
         }
-        if (!ChatFragment.isAdded()) {
-            transaction.add(R.id.fg_change, ChatFragment, "chat");
+        if (ChatFragment != null && ChatFragment != currentChildFragment) {
+            if (!ChatFragment.isAdded()) transaction.add(R.id.fg_change, ChatFragment, TAG_CHAT);
+            transaction.hide(ChatFragment);
         }
-        if (!SharedPlansFragment.isAdded()) {
-            transaction.add(R.id.fg_change, SharedPlansFragment, "sharedPlans");
+        if (SharedPlansFragment != null && SharedPlansFragment != currentChildFragment) {
+            if (!SharedPlansFragment.isAdded()) transaction.add(R.id.fg_change, SharedPlansFragment, TAG_SHARED_PLANS);
+            transaction.hide(SharedPlansFragment);
         }
-        if (!ReportFragment.isAdded()) {
-            transaction.add(R.id.fg_change, ReportFragment, "report");
+        if (ReportFragment != null && ReportFragment != currentChildFragment) {
+            if (!ReportFragment.isAdded()) transaction.add(R.id.fg_change, ReportFragment, TAG_REPORT);
+            transaction.hide(ReportFragment);
         }
-        if (!AddBillFragment.isAdded()) {
-            transaction.add(R.id.fg_change, AddBillFragment, "addBill");
+        if (AddBillFragment != null && AddBillFragment != currentChildFragment) {
+            if (!AddBillFragment.isAdded()) transaction.add(R.id.fg_change, AddBillFragment, TAG_ADD_BILL);
+            transaction.hide(AddBillFragment);
         }
 
-        // Hide all except current
-        transaction.hide(ClassicFragment);
-        transaction.hide(ChatFragment);
-        transaction.hide(SharedPlansFragment);
-        transaction.hide(ReportFragment);
-        transaction.hide(AddBillFragment);
-
-        // Show the current one
+        // 当前的子 Fragment：add（默认 visible）；若之前是 hidden 则 show
         if (currentChildFragment != null) {
+            if (!currentChildFragment.isAdded()) {
+                String tag = getChildTag(currentChildFragment);
+                transaction.add(R.id.fg_change, currentChildFragment, tag);
+            }
             transaction.show(currentChildFragment);
         }
 
-        transaction.commitNow();
+        transaction.commit();
+    }
+
+    private String getChildTag(Fragment fragment) {
+        if (fragment instanceof ClassicModelFragment) return TAG_CLASSIC;
+        if (fragment instanceof ChatModelFragment) return TAG_CHAT;
+        if (fragment instanceof com.example.couplecredit.fragment.SharedPlansFragment) return TAG_SHARED_PLANS;
+        if (fragment instanceof com.example.couplecredit.fragment.ReportFragment) return TAG_REPORT;
+        if (fragment instanceof com.example.couplecredit.fragment.AddBillFragment) return TAG_ADD_BILL;
+        return TAG_CLASSIC;
+    }
+
+    /**
+     * 懒创建/获取子 Fragment（按 tag）。仅创建实例并缓存，add 操作由 showChildFragment 负责。
+     */
+    private Fragment getOrCreateChild(String tag, Supplier<Fragment> factory) {
+        Fragment existing = fragmentManager.findFragmentByTag(tag);
+        if (existing != null) return existing;
+        // 找缓存的字段
+        switch (tag) {
+            case TAG_CLASSIC: return ClassicFragment != null ? ClassicFragment : (ClassicFragment = new ClassicModelFragment());
+            case TAG_CHAT: return ChatFragment != null ? ChatFragment : (ChatFragment = new ChatModelFragment());
+            case TAG_SHARED_PLANS: return SharedPlansFragment != null ? SharedPlansFragment : (SharedPlansFragment = new com.example.couplecredit.fragment.SharedPlansFragment());
+            case TAG_REPORT: return ReportFragment != null ? ReportFragment : (ReportFragment = new com.example.couplecredit.fragment.ReportFragment());
+            case TAG_ADD_BILL: return AddBillFragment != null ? AddBillFragment : (AddBillFragment = new com.example.couplecredit.fragment.AddBillFragment());
+        }
+        return factory.get();
     }
 
     private void showChildFragment(int position) {
         Fragment target;
+        String tag;
         switch (position) {
             case TAB_ADD_BILL:
-                target = AddBillFragment;
+                tag = TAG_ADD_BILL;
+                target = getOrCreateChild(tag, com.example.couplecredit.fragment.AddBillFragment::new);
+                AddBillFragment = target;
                 break;
             case TAB_CHAT:
-                target = ChatFragment;
+                tag = TAG_CHAT;
+                target = getOrCreateChild(tag, ChatModelFragment::new);
+                ChatFragment = target;
                 break;
             case TAB_SHARED_PLANS:
-                target = SharedPlansFragment;
+                tag = TAG_SHARED_PLANS;
+                target = getOrCreateChild(tag, com.example.couplecredit.fragment.SharedPlansFragment::new);
+                SharedPlansFragment = target;
                 break;
             case TAB_REPORT:
-                target = ReportFragment;
+                tag = TAG_REPORT;
+                target = getOrCreateChild(tag, com.example.couplecredit.fragment.ReportFragment::new);
+                ReportFragment = target;
                 break;
             default:
+                tag = TAG_CLASSIC;
                 target = ClassicFragment;
                 break;
         }
@@ -179,9 +255,10 @@ public class HeadFragment extends Fragment {
         if (currentChildFragment != null && currentChildFragment.isAdded()) {
             transaction.hide(currentChildFragment);
         }
-        if (target.isAdded()) {
-            transaction.show(target);
+        if (!target.isAdded()) {
+            transaction.add(R.id.fg_change, target, tag);
         }
+        transaction.show(target);
         transaction.commit();
         currentChildFragment = target;
     }
@@ -208,19 +285,19 @@ public class HeadFragment extends Fragment {
         String childTag;
         switch (position) {
             case TAB_ADD_BILL:
-                childTag = "addBill";
+                childTag = TAG_ADD_BILL;
                 break;
             case TAB_CHAT:
-                childTag = "chat";
+                childTag = TAG_CHAT;
                 break;
             case TAB_SHARED_PLANS:
-                childTag = "sharedPlans";
+                childTag = TAG_SHARED_PLANS;
                 break;
             case TAB_REPORT:
-                childTag = "report";
+                childTag = TAG_REPORT;
                 break;
             default:
-                childTag = "classic";
+                childTag = TAG_CLASSIC;
                 break;
         }
         editor.putString(KEY_CURRENT_CHILD_TAG, childTag);
@@ -239,7 +316,16 @@ public class HeadFragment extends Fragment {
         }
     }
 
+    /**
+     * 获取 ReportFragment；若从未创建则同步懒创建。
+     * ClassicModelFragment 在切到 report tab 后会立即调用此方法。
+     */
     public com.example.couplecredit.fragment.ReportFragment getReportFragment() {
+        if (ReportFragment == null) {
+            // 同步懒创建并 add 到容器（隐藏），保证调用方拿到的实例已被 attach
+            ReportFragment = getOrCreateChild(TAG_REPORT, com.example.couplecredit.fragment.ReportFragment::new);
+            ensureChildAddedHidden(ReportFragment, TAG_REPORT);
+        }
         if (ReportFragment instanceof com.example.couplecredit.fragment.ReportFragment) {
             return (com.example.couplecredit.fragment.ReportFragment) ReportFragment;
         }
@@ -247,10 +333,28 @@ public class HeadFragment extends Fragment {
     }
 
     public com.example.couplecredit.fragment.SharedPlansFragment getSharedPlansFragment() {
+        if (SharedPlansFragment == null) {
+            SharedPlansFragment = getOrCreateChild(TAG_SHARED_PLANS, com.example.couplecredit.fragment.SharedPlansFragment::new);
+            ensureChildAddedHidden(SharedPlansFragment, TAG_SHARED_PLANS);
+        }
         if (SharedPlansFragment instanceof com.example.couplecredit.fragment.SharedPlansFragment) {
             return (com.example.couplecredit.fragment.SharedPlansFragment) SharedPlansFragment;
         }
         return null;
+    }
+
+    /**
+     * 若 Fragment 未 attach，用 commitNow 同步 add 并 hide（确保 getReportFragment() 之后的同步调用安全）。
+     */
+    private void ensureChildAddedHidden(Fragment fragment, String tag) {
+        if (fragment == null || fragment.isAdded()) return;
+        FragmentTransaction t = fragmentManager.beginTransaction().setReorderingAllowed(true);
+        t.add(R.id.fg_change, fragment, tag);
+        t.hide(fragment);
+        if (currentChildFragment != null && currentChildFragment.isAdded()) {
+            t.show(currentChildFragment);
+        }
+        t.commitNow();
     }
 
     public void switchToAddBillTab() {
@@ -264,6 +368,11 @@ public class HeadFragment extends Fragment {
 
     public void switchToReportTab() {
         if (segmentedTab != null) {
+            // 预先同步懒创建 ReportFragment，避免 listener 异步创建导致 getReportFragment() 返回 null
+            if (ReportFragment == null) {
+                ReportFragment = getOrCreateChild(TAG_REPORT, com.example.couplecredit.fragment.ReportFragment::new);
+                ensureChildAddedHidden(ReportFragment, TAG_REPORT);
+            }
             TabLayout.Tab reportTab = segmentedTab.getTabAt(TAB_REPORT);
             if (reportTab != null) {
                 reportTab.select();

@@ -2,6 +2,7 @@ package com.example.couplecredit.database;
 
 import androidx.room.Entity;
 import androidx.room.Ignore;
+import androidx.room.Index;
 import androidx.room.PrimaryKey;
 
 /**
@@ -9,7 +10,14 @@ import androidx.room.PrimaryKey;
  * 用于Room数据库存储聊天消息数据
  * 同时支持与云端MySQL数据库的字段映射
  */
-@Entity(tableName = "chat_messages")
+@Entity(
+    tableName = "chat_messages",
+    indices = {
+        @Index("createdAt"),         // 排序用，几乎所有查询都 ORDER BY createdAt
+        @Index("cloudMessageId"),    // 云端消息去重/查询
+        @Index("username")           // 按用户筛选消息
+    }
+)
 public class ChatMessageEntity {
     
     /**

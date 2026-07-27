@@ -124,10 +124,10 @@ public class AssetDetailActivity extends AppCompatActivity {
         if (currentAsset == null) return;
 
         ImageView ivImage = findViewById(R.id.iv_asset_image);
-        if (currentAsset.imageUrl != null && !currentAsset.imageUrl.isEmpty()) {
+        if (currentAsset.imageUrl != null && currentAsset.imageUrl.isEmpty() == false) {
             String baseUrl = ApiConfigManager.getBaseUrl(this);
             Glide.with(this)
-                    .load(baseUrl + currentAsset.imageUrl)
+                    .load(baseUrl + currentAsset.imageUrl + "?w=800")
                     .placeholder(R.drawable.ic_asset_placeholder)
                     .centerCrop()
                     .into(ivImage);
@@ -211,12 +211,19 @@ public class AssetDetailActivity extends AppCompatActivity {
     }
 
     private void confirmDelete() {
-        new AlertDialog.Builder(this, R.style.CustomDialogStyle)
-                .setTitle("删除资产")
-                .setMessage("确定要删除这个资产吗？")
-                .setPositiveButton("删除", (dialog, which) -> deleteAsset())
-                .setNegativeButton("取消", null)
-                .show();
+        View view = getLayoutInflater().inflate(R.layout.dialog_confirm_delete, null);
+        ((TextView) view.findViewById(R.id.tv_confirm_title)).setText("删除资产");
+        ((TextView) view.findViewById(R.id.tv_confirm_message)).setText("确定要删除这个资产吗？");
+
+        AlertDialog dialog = new AlertDialog.Builder(this, R.style.CustomDialogStyle)
+                .setView(view)
+                .create();
+        view.findViewById(R.id.btn_confirm_cancel).setOnClickListener(v -> dialog.dismiss());
+        view.findViewById(R.id.btn_confirm_delete).setOnClickListener(v -> {
+            dialog.dismiss();
+            deleteAsset();
+        });
+        dialog.show();
     }
 
     private void deleteAsset() {

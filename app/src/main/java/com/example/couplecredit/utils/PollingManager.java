@@ -70,6 +70,8 @@ public class PollingManager {
     public void stop() {
         running = false;
         handler.removeCallbacks(pollRunnable);
+        // 释放注入的 refresh action（它捕获了 Activity 引用，不释放会泄漏 Activity）
+        currentRefresh = null;
     }
 
     private void pollNotifications() {
@@ -83,6 +85,10 @@ public class PollingManager {
                 URL url = new URL(baseUrl + "/api/notifications?userId=" + userId + "&limit=5");
                 HttpURLConnection conn = (HttpURLConnection) url.openConnection();
                 conn.setRequestMethod("GET");
+                String token = UserInfoManager.getAccessToken(appContext);
+                if (token != null) {
+                    conn.setRequestProperty("Authorization", "Bearer " + token);
+                }
                 conn.setConnectTimeout(3000);
                 conn.setReadTimeout(3000);
 

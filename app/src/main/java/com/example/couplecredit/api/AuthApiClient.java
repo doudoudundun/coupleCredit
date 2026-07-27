@@ -5,6 +5,7 @@ import android.os.AsyncTask;
 import android.util.Log;
 
 import com.example.couplecredit.config.ApiConfigManager;
+import com.example.couplecredit.utils.UserInfoManager;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
@@ -230,6 +231,27 @@ public class AuthApiClient {
 
     public interface RemoveBgCallback {
         void onSuccess(AuthApiModels.RemoveBgResponse response);
+        void onError(String message);
+    }
+
+    // Password account (账号保险箱) callbacks
+    public interface PasswordAccountListCallback {
+        void onSuccess(AuthApiModels.PasswordAccountListResponse response);
+        void onError(String message);
+    }
+
+    public interface PasswordAccountDetailCallback {
+        void onSuccess(AuthApiModels.PasswordAccountItemData account);
+        void onError(String message);
+    }
+
+    public interface PasswordAccountCategoryListCallback {
+        void onSuccess(AuthApiModels.PasswordAccountCategoryListResponse response);
+        void onError(String message);
+    }
+
+    public interface PasswordAccountMutationCallback {
+        void onSuccess(AuthApiModels.PasswordAccountMutationResponse response);
         void onError(String message);
     }
 
@@ -668,6 +690,10 @@ public class AuthApiClient {
                     connection.setDoOutput(true);
                     connection.setRequestProperty("Content-Type", "multipart/form-data; boundary=" + boundary);
                     connection.setRequestProperty("Connection", "keep-alive");
+                    String token = UserInfoManager.getAccessToken(context);
+                    if (token != null) {
+                        connection.setRequestProperty("Authorization", "Bearer " + token);
+                    }
                     connection.setConnectTimeout(CONNECT_TIMEOUT_MS);
                     connection.setReadTimeout(AI_REQUEST_TIMEOUT_MS);
 
@@ -724,7 +750,7 @@ public class AuthApiClient {
                     callback.onError(result[1]);
                 }
             }
-        }.execute();
+        }.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR);
     }
 
     public static void generateInventoryImage(Context context, String prompt, String category, String name, GenerateImageCallback callback) {
@@ -1727,48 +1753,21 @@ public class AuthApiClient {
         new AsyncTask<Void, Void, RequestResult>() {
             @Override
             protected RequestResult doInBackground(Void... voids) {
-                HttpURLConnection connection = null;
-                try {
-                    URL url = new URL(ApiConfigManager.getBaseUrl(context) + path);
-                    long startMs = System.currentTimeMillis();
-                    Log.d(TAG, "发起请求: " + method + " " + path);
-                    connection = (HttpURLConnection) url.openConnection();
-                    connection.setRequestMethod(method);
-                    connection.setRequestProperty("Content-Type", "application/json; charset=UTF-8");
-                    connection.setRequestProperty("Connection", "keep-alive");
-                    connection.setConnectTimeout(CONNECT_TIMEOUT_MS);
-                    connection.setReadTimeout(readTimeout);
-
-                    if (bodyJson != null && !bodyJson.trim().equals("null") && !bodyJson.contains(":null") && !bodyJson.equals("{}")) {
-                        connection.setDoOutput(true);
-                        try (OutputStream os = connection.getOutputStream();
-                             BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(os, StandardCharsets.UTF_8))) {
-                            writer.write(bodyJson);
-                            writer.flush();
-                        }
-                    }
-
-                    int status = connection.getResponseCode();
-                    InputStream stream = status >= 400 ? connection.getErrorStream() : connection.getInputStream();
-                    String responseText = readText(stream);
-                    long elapsed = System.currentTimeMillis() - startMs;
-                    Log.d(TAG, "请求完成: " + method + " " + path + " " + elapsed + "ms status=" + status);
-                    if (status >= 200 && status < 300) {
-                        return new RequestResult(true, responseText, status);
-                    }
-                    return new RequestResult(false, responseText.isEmpty() ? ("HTTP " + status) : responseText, status);
-                } catch (Exception e) {
-                    Log.e(TAG, "请求失败: " + method + " " + path, e);
-                    String error = e.getMessage();
-                    if (error == null || error.trim().isEmpty()) {
-                        error = DEFAULT_ERROR;
-                    }
-                    return new RequestResult(false, error, -1);
-                } finally {
-                    if (connection != null) {
-                        connection.disconnect();
+                // 第一次请求
+                RequestResult result = executeOnce(context, method, path, bodyJson, readTimeout);
+                // 401 且持有 token：尝试用 refresh token 换新 access token，换成功则重试一次
+                if (result.statusCode == 401 && !path.equals("/api/auth/refresh")
+                        && UserInfoManager.getRefreshToken(context) != null) {
+                    Log.d(TAG, "收到 401，尝试刷新 token: " + method + " " + path);
+                    if (refreshAccessTokenSync(context)) {
+                        result = executeOnce(context, method, path, bodyJson, readTimeout);
+                    } else {
+                        // refresh 失败：清掉本地登录态，上层会据此跳登录
+                        Log.w(TAG, "token 刷新失败，需重新登录");
+                        UserInfoManager.clearUserInfo(context);
                     }
                 }
+                return result;
             }
 
             @Override
@@ -1780,7 +1779,103 @@ public class AuthApiClient {
                     callback.onError(normalizeErrorMessage(result.text));
                 }
             }
-        }.execute();
+        }.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR);
+    }
+
+    /**
+     * 执行一次 HTTP 请求（带 Authorization header）。在后台线程调用。
+     */
+    private static RequestResult executeOnce(Context context, String method, String path, String bodyJson, int readTimeout) {
+        HttpURLConnection connection = null;
+        try {
+            URL url = new URL(ApiConfigManager.getBaseUrl(context) + path);
+            long startMs = System.currentTimeMillis();
+            Log.d(TAG, "发起请求: " + method + " " + path);
+            connection = (HttpURLConnection) url.openConnection();
+            connection.setRequestMethod(method);
+            connection.setRequestProperty("Content-Type", "application/json; charset=UTF-8");
+            connection.setRequestProperty("Connection", "keep-alive");
+            // 统一注入 JWT access token（登录/注册/refresh 自身不带）
+            String token = UserInfoManager.getAccessToken(context);
+            if (token != null) {
+                connection.setRequestProperty("Authorization", "Bearer " + token);
+            }
+            connection.setConnectTimeout(CONNECT_TIMEOUT_MS);
+            connection.setReadTimeout(readTimeout);
+
+            if (bodyJson != null && !bodyJson.trim().equals("null") && !bodyJson.contains(":null") && !bodyJson.equals("{}")) {
+                connection.setDoOutput(true);
+                try (OutputStream os = connection.getOutputStream();
+                     BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(os, StandardCharsets.UTF_8))) {
+                    writer.write(bodyJson);
+                    writer.flush();
+                }
+            }
+
+            int status = connection.getResponseCode();
+            InputStream stream = status >= 400 ? connection.getErrorStream() : connection.getInputStream();
+            String responseText = readText(stream);
+            long elapsed = System.currentTimeMillis() - startMs;
+            Log.d(TAG, "请求完成: " + method + " " + path + " " + elapsed + "ms status=" + status);
+            if (status >= 200 && status < 300) {
+                return new RequestResult(true, responseText, status);
+            }
+            return new RequestResult(false, responseText.isEmpty() ? ("HTTP " + status) : responseText, status);
+        } catch (Exception e) {
+            Log.e(TAG, "请求失败: " + method + " " + path, e);
+            String error = e.getMessage();
+            if (error == null || error.trim().isEmpty()) {
+                error = DEFAULT_ERROR;
+            }
+            return new RequestResult(false, error, -1);
+        } finally {
+            if (connection != null) {
+                connection.disconnect();
+            }
+        }
+    }
+
+    /**
+     * 用 refresh token 同步换取新的 access token。在后台线程调用。
+     * @return true 表示刷新成功并已更新本地 access token
+     */
+    private static boolean refreshAccessTokenSync(Context context) {
+        String refreshToken = UserInfoManager.getRefreshToken(context);
+        if (refreshToken == null) return false;
+        HttpURLConnection connection = null;
+        try {
+            URL url = new URL(ApiConfigManager.getBaseUrl(context) + "/api/auth/refresh");
+            connection = (HttpURLConnection) url.openConnection();
+            connection.setRequestMethod("POST");
+            connection.setRequestProperty("Content-Type", "application/json; charset=UTF-8");
+            connection.setConnectTimeout(CONNECT_TIMEOUT_MS);
+            connection.setReadTimeout(READ_TIMEOUT_MS);
+            String body = GSON.toJson(java.util.Collections.singletonMap("refreshToken", refreshToken));
+            connection.setDoOutput(true);
+            try (OutputStream os = connection.getOutputStream();
+                 BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(os, StandardCharsets.UTF_8))) {
+                writer.write(body);
+                writer.flush();
+            }
+            int status = connection.getResponseCode();
+            if (status >= 200 && status < 300) {
+                String resp = readText(connection.getInputStream());
+                JsonObject obj = JsonParser.parseString(resp).getAsJsonObject();
+                if (obj != null && obj.has("data")) {
+                    String newAccessToken = obj.getAsJsonObject("data").get("accessToken").getAsString();
+                    UserInfoManager.saveAccessToken(context, newAccessToken);
+                    Log.d(TAG, "token 刷新成功");
+                    return true;
+                }
+            }
+            Log.w(TAG, "token 刷新失败: HTTP " + status);
+            return false;
+        } catch (Exception e) {
+            Log.e(TAG, "token 刷新异常", e);
+            return false;
+        } finally {
+            if (connection != null) connection.disconnect();
+        }
     }
 
     private static String readText(InputStream stream) throws Exception {
@@ -2069,6 +2164,29 @@ public class AuthApiClient {
         void onError(String message);
     }
 
+    public interface OverviewCallback {
+        void onSuccess(AuthApiModels.OverviewResponse response);
+        void onError(String message);
+    }
+
+    public static void getMyOverview(Context context, int userId, int year, int month, OverviewCallback callback) {
+        doRequest(context, "GET", "/api/me/overview?userId=" + userId + "&year=" + year + "&month=" + month,
+                null, new RawCallback() {
+            @Override public void onSuccess(String json) {
+                if (callback == null) return;
+                try {
+                    AuthApiModels.OverviewResponse r = GSON.fromJson(normalizeJsonPayload(json), AuthApiModels.OverviewResponse.class);
+                    if (r != null && r.ok) callback.onSuccess(r);
+                    else callback.onError(extractError(r != null ? r.error : null, json));
+                } catch (Exception e) {
+                    Log.e(TAG, "getMyOverview 响应解析失败: " + json, e);
+                    callback.onError(buildParseError("概要聚合", json));
+                }
+            }
+            @Override public void onError(String m) { if (callback != null) callback.onError(m); }
+        });
+    }
+
     public static void getPeriodRecords(Context context, int userId, PeriodListCallback callback) {
         doRequest(context, "GET", "/api/period?userId=" + userId, null,
                 new RawCallback() {
@@ -2102,5 +2220,156 @@ public class AuthApiClient {
 
     public static void deletePeriodRecord(Context context, int recordId, int userId, MutationCallback callback) {
         doRequest(context, "DELETE", "/api/period/" + recordId + "?userId=" + userId, null, simpleMutationCallback("删除经期", callback));
+    }
+
+    // --- Password account (账号保险箱) API methods ---
+
+    public static void getPasswordAccounts(Context context, int userId, String category, PasswordAccountListCallback callback) {
+        StringBuilder url = new StringBuilder("/api/password-accounts?userId=").append(userId);
+        if (category != null && !category.isEmpty()) url.append("&category=").append(category);
+        doRequest(context, "GET", url.toString(), null,
+                new RawCallback() {
+                    @Override
+                    public void onSuccess(String json) {
+                        if (callback == null) return;
+                        try {
+                            AuthApiModels.PasswordAccountListResponse response = GSON.fromJson(normalizeJsonPayload(json), AuthApiModels.PasswordAccountListResponse.class);
+                            if (response != null && response.ok) callback.onSuccess(response);
+                            else callback.onError(extractError(response != null ? response.error : null, json));
+                        } catch (Exception e) {
+                            Log.e(TAG, "getPasswordAccounts 响应解析失败: " + json, e);
+                            callback.onError(buildParseError("账号列表", json));
+                        }
+                    }
+
+                    @Override
+                    public void onError(String message) {
+                        if (callback != null) callback.onError(message);
+                    }
+                });
+    }
+
+    public static void getPasswordAccountById(Context context, int accountId, int userId, PasswordAccountDetailCallback callback) {
+        doRequest(context, "GET", "/api/password-accounts/" + accountId + "?userId=" + userId, null,
+                new RawCallback() {
+                    @Override
+                    public void onSuccess(String json) {
+                        if (callback == null) return;
+                        try {
+                            JsonObject obj = GSON.fromJson(json, JsonObject.class);
+                            if (obj != null && obj.has("ok") && obj.get("ok").getAsBoolean()) {
+                                AuthApiModels.PasswordAccountItemData account = GSON.fromJson(obj.get("data"), AuthApiModels.PasswordAccountItemData.class);
+                                callback.onSuccess(account);
+                            } else {
+                                String error = json;
+                                if (obj != null && obj.has("error")) {
+                                    JsonObject err = obj.getAsJsonObject("error");
+                                    error = err.has("message") ? err.get("message").getAsString() : json;
+                                }
+                                callback.onError(error);
+                            }
+                        } catch (Exception e) {
+                            Log.e(TAG, "getPasswordAccountById 响应解析失败: " + json, e);
+                            callback.onError(buildParseError("账号详情", json));
+                        }
+                    }
+
+                    @Override
+                    public void onError(String message) {
+                        if (callback != null) callback.onError(message);
+                    }
+                });
+    }
+
+    public static void getPasswordAccountCategories(Context context, int userId, PasswordAccountCategoryListCallback callback) {
+        doRequest(context, "GET", "/api/password-accounts/categories?userId=" + userId, null,
+                new RawCallback() {
+                    @Override
+                    public void onSuccess(String json) {
+                        if (callback == null) return;
+                        try {
+                            AuthApiModels.PasswordAccountCategoryListResponse response = GSON.fromJson(normalizeJsonPayload(json), AuthApiModels.PasswordAccountCategoryListResponse.class);
+                            if (response != null && response.ok) callback.onSuccess(response);
+                            else callback.onError(extractError(response != null ? response.error : null, json));
+                        } catch (Exception e) {
+                            Log.e(TAG, "getPasswordAccountCategories 响应解析失败: " + json, e);
+                            callback.onError(buildParseError("账号分类", json));
+                        }
+                    }
+
+                    @Override
+                    public void onError(String message) {
+                        if (callback != null) callback.onError(message);
+                    }
+                });
+    }
+
+    public static void createPasswordAccount(Context context, AuthApiModels.CreatePasswordAccountRequest request, PasswordAccountMutationCallback callback) {
+        doRequest(context, "POST", "/api/password-accounts", GSON.toJson(request),
+                new RawCallback() {
+                    @Override
+                    public void onSuccess(String json) {
+                        if (callback == null) return;
+                        try {
+                            AuthApiModels.PasswordAccountMutationResponse response = GSON.fromJson(normalizeJsonPayload(json), AuthApiModels.PasswordAccountMutationResponse.class);
+                            if (response != null && response.ok) callback.onSuccess(response);
+                            else callback.onError(extractError(response != null ? response.error : null, json));
+                        } catch (Exception e) {
+                            Log.e(TAG, "createPasswordAccount 响应解析失败: " + json, e);
+                            callback.onError(buildParseError("创建账号", json));
+                        }
+                    }
+
+                    @Override
+                    public void onError(String message) {
+                        if (callback != null) callback.onError(message);
+                    }
+                });
+    }
+
+    public static void updatePasswordAccount(Context context, int accountId, AuthApiModels.UpdatePasswordAccountRequest request, SimpleCallback callback) {
+        doRequest(context, "PUT", "/api/password-accounts/" + accountId, GSON.toJson(request),
+                new RawCallback() {
+                    @Override
+                    public void onSuccess(String json) {
+                        if (callback == null) return;
+                        try {
+                            AuthApiModels.SimpleResponse response = GSON.fromJson(normalizeJsonPayload(json), AuthApiModels.SimpleResponse.class);
+                            if (response != null && response.ok) callback.onSuccess();
+                            else callback.onError(extractError(response != null ? response.error : null, json));
+                        } catch (Exception e) {
+                            Log.e(TAG, "updatePasswordAccount 响应解析失败: " + json, e);
+                            callback.onError(buildParseError("更新账号", json));
+                        }
+                    }
+
+                    @Override
+                    public void onError(String message) {
+                        if (callback != null) callback.onError(message);
+                    }
+                });
+    }
+
+    public static void deletePasswordAccount(Context context, int accountId, int userId, SimpleCallback callback) {
+        doRequest(context, "DELETE", "/api/password-accounts/" + accountId + "?userId=" + userId, null,
+                new RawCallback() {
+                    @Override
+                    public void onSuccess(String json) {
+                        if (callback == null) return;
+                        try {
+                            AuthApiModels.SimpleResponse response = GSON.fromJson(normalizeJsonPayload(json), AuthApiModels.SimpleResponse.class);
+                            if (response != null && response.ok) callback.onSuccess();
+                            else callback.onError(extractError(response != null ? response.error : null, json));
+                        } catch (Exception e) {
+                            Log.e(TAG, "deletePasswordAccount 响应解析失败: " + json, e);
+                            callback.onError(buildParseError("删除账号", json));
+                        }
+                    }
+
+                    @Override
+                    public void onError(String message) {
+                        if (callback != null) callback.onError(message);
+                    }
+                });
     }
 }

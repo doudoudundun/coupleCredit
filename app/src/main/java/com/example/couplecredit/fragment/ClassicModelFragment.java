@@ -150,12 +150,15 @@ public class ClassicModelFragment extends Fragment implements BillAdapter.OnItem
             return;
         }
         HeadFragment headFragment = mainActivity.getHeadFragment();
-        com.example.couplecredit.fragment.ReportFragment reportFragment = headFragment != null ? headFragment.getReportFragment() : null;
-        if (reportFragment == null) {
-            reportFragment = new com.example.couplecredit.fragment.ReportFragment();
+        if (headFragment == null) {
+            return;
         }
+        // switchToReportTab 内部会同步懒创建 ReportFragment，确保 getReportFragment() 非 null
         headFragment.switchToReportTab();
-        reportFragment.updateDisplay(currentYear, currentMonth, type);
+        com.example.couplecredit.fragment.ReportFragment reportFragment = headFragment.getReportFragment();
+        if (reportFragment != null) {
+            reportFragment.updateDisplay(currentYear, currentMonth, type);
+        }
     }
 
     public void refreshBillData() {

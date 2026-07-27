@@ -7,6 +7,7 @@ import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.graphics.Rect;
 import android.graphics.drawable.Drawable;
+import java.io.InputStream;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
@@ -114,6 +115,7 @@ public class ChatModelFragment extends Fragment {
     private View rootView;                   // 根视图引用
     private ViewTreeObserver.OnGlobalLayoutListener keyboardLayoutListener; // 键盘监听器
     private Handler searchHandler = new Handler(Looper.getMainLooper()); // 搜索延迟处理器
+    private final Handler uiHandler = new Handler(Looper.getMainLooper()); // 通用 UI 延迟任务（刷新/加载动画）
     private Runnable searchRunnable; // 搜索任务
     private View inputSection;               // 输入区域引用
     private int bottomNavHeight = 0;         // 底部导航栏高度
@@ -175,8 +177,13 @@ public class ChatModelFragment extends Fragment {
     @Override
     public void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        // 初始化ViewModel
-        ChatRepository repository = new ChatRepository(requireContext());
+        // 复用 activity 级 ChatRepository（避免重复初始化 Room DB + 重复线程池）
+        com.example.couplecredit.activity.MainActivity activity = (com.example.couplecredit.activity.MainActivity) requireActivity();
+        ChatRepository repository = activity.getChatRepository();
+        if (repository == null) {
+            // 极端兜底：activity 尚未完成初始化
+            repository = new ChatRepository(requireContext());
+        }
         ChatViewModel.Factory factory = new ChatViewModel.Factory(requireActivity().getApplication(), repository);
         viewModel = new ViewModelProvider(this, factory).get(ChatViewModel.class);
         
@@ -301,6 +308,8 @@ public class ChatModelFragment extends Fragment {
         if (searchHandler != null && searchRunnable != null) {
             searchHandler.removeCallbacks(searchRunnable);
         }
+        // 清理所有 UI 延迟任务（刷新动画/加载指示器），避免销毁后访问 detached View
+        uiHandler.removeCallbacksAndMessages(null);
         
         // 清理键盘监听器
         if (rootView != null && keyboardLayoutListener != null) {
@@ -455,7 +464,7 @@ public class ChatModelFragment extends Fragment {
             viewModel.refreshMessages();
             
             // 延迟停止刷新动画，确保用户能看到刷新效果
-            new Handler(Looper.getMainLooper()).postDelayed(() -> {
+            uiHandler.postDelayed(() -> {
                 if (swipeRefreshLayout != null) {
                     swipeRefreshLayout.setRefreshing(false);
                     android.util.Log.d(TAG, "刷新完成，停止刷新动画");
@@ -484,7 +493,7 @@ public class ChatModelFragment extends Fragment {
         viewModel.loadNewerMessages();
         
         // 延迟重置加载状态和隐藏指示器
-        new Handler(Looper.getMainLooper()).postDelayed(() -> {
+        uiHandler.postDelayed(() -> {
             isLoadingNewer = false;
             if (loadingNewerIndicator != null) {
                 loadingNewerIndicator.setVisibility(View.GONE);
@@ -513,7 +522,7 @@ public class ChatModelFragment extends Fragment {
         viewModel.loadOlderMessages();
         
         // 延迟重置加载状态和隐藏指示器
-        new Handler(Looper.getMainLooper()).postDelayed(() -> {
+        uiHandler.postDelayed(() -> {
             isLoadingOlder = false;
             if (loadingOlderIndicator != null) {
                 loadingOlderIndicator.setVisibility(View.GONE);
@@ -1099,52 +1108,51 @@ public class ChatModelFragment extends Fragment {
      * @param rootView 根视图
      */
     private void loadChatBackground(View rootView) {
-        android.util.Log.d("ChatModelFragment", "开始加载聊天背景");
         SharedPreferences prefs = requireActivity().getSharedPreferences("chat_settings", Context.MODE_PRIVATE);
-        
-        // 检查是否有自定义背景URI
+
+        // 检查是否有自定义背景URI（图片解码移到后台线程，避免阻塞 UI）
         String backgroundUri = prefs.getString("chat_background_uri", null);
-        android.util.Log.d("ChatModelFragment", "自定义背景URI: " + backgroundUri);
         if (backgroundUri != null) {
-            try {
-                // 应用自定义背景图片
-                Uri uri = Uri.parse(backgroundUri);
-                Drawable drawable = Drawable.createFromStream(
-                    requireActivity().getContentResolver().openInputStream(uri), null);
-                if (drawable != null) {
-                    android.util.Log.d("ChatModelFragment", "成功加载自定义背景");
-                    rootView.setBackground(drawable);
-                    return;
+            final Uri uri = Uri.parse(backgroundUri);
+            final android.content.res.Resources res = requireActivity().getResources();
+            // 先用临时纯色背景避免闪烁，后台解码完成后替换
+            rootView.setBackgroundColor(prefs.getInt("chat_background_color", 0xFF000000));
+            new Thread(() -> {
+                Drawable drawable = null;
+                try (InputStream is = requireActivity().getContentResolver().openInputStream(uri)) {
+                    if (is != null) {
+                        drawable = Drawable.createFromResourceStream(res, null, is, null);
+                    }
+                } catch (Exception e) {
+                    android.util.Log.e("ChatModelFragment", "后台加载自定义背景失败", e);
                 }
-            } catch (Exception e) {
-                android.util.Log.e("ChatModelFragment", "加载自定义背景失败", e);
-                // 如果加载自定义背景失败，继续尝试预设背景
-            }
+                final Drawable result = drawable;
+                if (getActivity() != null) {
+                    getActivity().runOnUiThread(() -> {
+                        if (result != null) {
+                            rootView.setBackground(result);
+                        }
+                    });
+                }
+            }, "ChatBgLoader").start();
+            return;
         }
-        
+
         // 检查是否有预设背景
         int backgroundResId = prefs.getInt("chat_background", -1);
-        android.util.Log.d("ChatModelFragment", "预设背景资源ID: " + backgroundResId);
         if (backgroundResId != -1) {
             try {
-                android.util.Log.d("ChatModelFragment", "开始设置预设背景: " + backgroundResId);
                 rootView.setBackgroundResource(backgroundResId);
-                android.util.Log.d("ChatModelFragment", "预设背景设置成功");
                 return;
             } catch (Exception e) {
                 android.util.Log.e("ChatModelFragment", "设置预设背景失败", e);
-                // 如果加载预设背景失败，使用默认背景
             }
         }
-        
+
         // 检查是否有纯色背景
         int backgroundColor = prefs.getInt("chat_background_color", -1);
-        android.util.Log.d("ChatModelFragment", "纯色背景: " + backgroundColor);
         if (backgroundColor != -1) {
             rootView.setBackgroundColor(backgroundColor);
-            android.util.Log.d("ChatModelFragment", "纯色背景设置成功");
-        } else {
-            android.util.Log.d("ChatModelFragment", "没有任何背景设置，保持默认背景");
         }
     }
     

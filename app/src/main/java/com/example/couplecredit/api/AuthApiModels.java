@@ -18,6 +18,12 @@ public class AuthApiModels {
         @SerializedName(value = "username", alternate = {"userName", "name"})
         public String username;
         public String email;
+        // JWT 鉴权 token（登录/刷新/微信登录成功时返回）
+        public String accessToken;
+        public String refreshToken;
+        // 微信登录未绑定时返回 bound=false + openid
+        public Boolean bound;
+        public String openid;
     }
 
     public static class BillData {
@@ -1403,6 +1409,165 @@ public class AuthApiModels {
             this.userId = userId;
             this.startDate = startDate;
             this.endDate = endDate;
+            this.note = note;
+        }
+    }
+
+    /**
+     * /api/me/overview 聚合响应。
+     * 每个子字段复用对应接口的 response 类型；后端某子查询失败时该字段为 null。
+     */
+    public static class OverviewResponse {
+        public boolean ok;
+        public OverviewData data;
+        public ErrorBody error;
+    }
+
+    public static class OverviewData {
+        public int year;
+        public int month;
+        public BillsQueryResponse bills;
+        public TodoListResponse todos;
+        public InventoryListResponse inventory;
+        public AssetStatsResponse assetStats;
+        public PeriodListResponse period;
+        public CoupleInfoResponse coupleInfo;
+        public CalorieSummaryResponse calorie;
+    }
+
+    /**
+     * coupleInfo 子响应：与 /api/auth/couple-info 的响应形状一致。
+     */
+    public static class CoupleInfoResponse {
+        public boolean ok;
+        public CoupleInfoData data;
+    }
+
+    public static class CoupleInfoData {
+        public boolean hasCouple;
+        public int partnerId;
+        public String partnerName;
+        public String partnerNickname;
+        public String partnerAvatarUrl;
+        public int relationshipId;
+    }
+
+    // --- Password account (账号保险箱) models ---
+
+    public static class PasswordAccountItemData {
+        public int accountId;
+        public int userId;
+        public String platformName;
+        public String accountIdentifier;
+        public String phone;
+        public String email;
+        public String websiteUrl;
+        public String password;
+        public String securityQuestion;
+        public String securityAnswer;
+        public String category;
+        public String note;
+        public int sortOrder;
+        public String createdAt;
+        public String updatedAt;
+    }
+
+    public static class PasswordAccountListData {
+        public List<PasswordAccountItemData> items;
+    }
+
+    public static class PasswordAccountListResponse {
+        public boolean ok;
+        public String message;
+        public PasswordAccountListData data;
+        public ErrorBody error;
+    }
+
+    public static class PasswordAccountDetailResponse {
+        public boolean ok;
+        public String message;
+        public PasswordAccountItemData data;
+        public ErrorBody error;
+    }
+
+    public static class PasswordAccountMutationResponse {
+        public boolean ok;
+        public String message;
+        public PasswordAccountMutationData data;
+        public ErrorBody error;
+    }
+
+    public static class PasswordAccountMutationData {
+        public int accountId;
+    }
+
+    public static class PasswordAccountCategoryData {
+        public List<String> categories;
+    }
+
+    public static class PasswordAccountCategoryListResponse {
+        public boolean ok;
+        public String message;
+        public PasswordAccountCategoryData data;
+        public ErrorBody error;
+    }
+
+    public static class CreatePasswordAccountRequest {
+        public final int userId;
+        public final String platformName;
+        public final String accountIdentifier;
+        public final String phone;
+        public final String email;
+        public final String websiteUrl;
+        public final String password;
+        public final String securityQuestion;
+        public final String securityAnswer;
+        public final String category;
+        public final String note;
+
+        public CreatePasswordAccountRequest(int userId, String platformName, String accountIdentifier,
+                                            String phone, String email, String websiteUrl, String password,
+                                            String securityQuestion, String securityAnswer, String category, String note) {
+            this.userId = userId;
+            this.platformName = platformName;
+            this.accountIdentifier = accountIdentifier;
+            this.phone = phone;
+            this.email = email;
+            this.websiteUrl = websiteUrl;
+            this.password = password;
+            this.securityQuestion = securityQuestion;
+            this.securityAnswer = securityAnswer;
+            this.category = category;
+            this.note = note;
+        }
+    }
+
+    public static class UpdatePasswordAccountRequest {
+        public final int userId;
+        public final String platformName;
+        public final String accountIdentifier;
+        public final String phone;
+        public final String email;
+        public final String websiteUrl;
+        public final String password;
+        public final String securityQuestion;
+        public final String securityAnswer;
+        public final String category;
+        public final String note;
+
+        public UpdatePasswordAccountRequest(int userId, String platformName, String accountIdentifier,
+                                            String phone, String email, String websiteUrl, String password,
+                                            String securityQuestion, String securityAnswer, String category, String note) {
+            this.userId = userId;
+            this.platformName = platformName;
+            this.accountIdentifier = accountIdentifier;
+            this.phone = phone;
+            this.email = email;
+            this.websiteUrl = websiteUrl;
+            this.password = password;
+            this.securityQuestion = securityQuestion;
+            this.securityAnswer = securityAnswer;
+            this.category = category;
             this.note = note;
         }
     }

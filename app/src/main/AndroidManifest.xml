@@ -94,6 +94,22 @@
             android:label="编辑资产"
             android:parentActivityName=".activity.AssetDetailActivity" />
         <activity
+            android:name=".activity.AccountsActivity"
+            android:label="账号保险箱"
+            android:parentActivityName=".activity.MainActivity" />
+        <activity
+            android:name=".activity.AddAccountActivity"
+            android:label="添加账号"
+            android:parentActivityName=".activity.AccountsActivity" />
+        <activity
+            android:name=".activity.AccountDetailActivity"
+            android:label="账号详情"
+            android:parentActivityName=".activity.AccountsActivity" />
+        <activity
+            android:name=".activity.EditAccountActivity"
+            android:label="编辑账号"
+            android:parentActivityName=".activity.AccountDetailActivity" />
+        <activity
             android:name=".activity.PeriodActivity"
             android:label="经期管理"
             android:parentActivityName=".activity.MainActivity"

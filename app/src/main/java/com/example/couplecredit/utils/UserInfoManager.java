@@ -18,6 +18,9 @@ public class UserInfoManager {
     private static final String KEY_USER_ID_INT = "userId";
     private static final String KEY_IS_LOGGED_IN = "isLoggedIn";
     private static final String KEY_RELATIONSHIP_ID = "relationshipId";
+    // JWT 鉴权 token
+    private static final String KEY_ACCESS_TOKEN = "accessToken";
+    private static final String KEY_REFRESH_TOKEN = "refreshToken";
     private static final long CACHE_TTL_MS = 300_000; // 5分钟
 
     /**
@@ -191,6 +194,51 @@ public class UserInfoManager {
         if (cachedUserInfo != null) {
             cachedUserInfo.relationshipId = relationshipId;
         }
+    }
+
+    /**
+     * 保存 JWT token（登录或刷新成功后调用）
+     */
+    public static void saveTokens(Context context, String accessToken, String refreshToken) {
+        if (context == null) return;
+        SharedPreferences.Editor editor = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit();
+        if (accessToken != null) editor.putString(KEY_ACCESS_TOKEN, accessToken);
+        if (refreshToken != null) editor.putString(KEY_REFRESH_TOKEN, refreshToken);
+        editor.apply();
+    }
+
+    /**
+     * 仅更新 access token（refresh 接口返回时调用）
+     */
+    public static void saveAccessToken(Context context, String accessToken) {
+        if (context == null || accessToken == null) return;
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .edit().putString(KEY_ACCESS_TOKEN, accessToken).apply();
+    }
+
+    /**
+     * 获取 access token（不存在返回 null）
+     */
+    public static String getAccessToken(Context context) {
+        if (context == null) return null;
+        return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .getString(KEY_ACCESS_TOKEN, null);
+    }
+
+    /**
+     * 获取 refresh token（不存在返回 null）
+     */
+    public static String getRefreshToken(Context context) {
+        if (context == null) return null;
+        return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .getString(KEY_REFRESH_TOKEN, null);
+    }
+
+    /**
+     * 是否持有 token（用于判断是否需要走 refresh 流程）
+     */
+    public static boolean hasToken(Context context) {
+        return getAccessToken(context) != null;
     }
 
     /**

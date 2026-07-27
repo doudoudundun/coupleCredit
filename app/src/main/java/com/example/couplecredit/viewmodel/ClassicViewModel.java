@@ -211,7 +211,7 @@ public class ClassicViewModel extends AndroidViewModel {
 
     // 与原Fragment一致的分组与展示结构，生成 List<Map<String, List<BillBean>>> 供BillAdapter使用
     private void processAndDisplayData() {
-        // 按日期yyyy-MM-dd分组（保持查询结果的倒序顺序）
+        // 按日期yyyy-MM-dd分组
         Map<String, List<BillBean>> grouped = new LinkedHashMap<>();
         for (BillBean bill : billItems) {
             String key = String.format(Locale.getDefault(), "%04d-%02d-%02d", bill.getYear(), bill.getMonth(), bill.getDay());
@@ -228,10 +228,14 @@ public class ClassicViewModel extends AndroidViewModel {
             });
         }
 
+        // 显式按日期降序排列分组（最近的日期在前），不依赖后端返回顺序或 LinkedHashMap 插入顺序
+        List<String> sortedDates = new ArrayList<>(grouped.keySet());
+        Collections.sort(sortedDates, Collections.reverseOrder());
+
         displayItems.clear();
-        for (Map.Entry<String, List<BillBean>> entry : grouped.entrySet()) {
+        for (String date : sortedDates) {
             Map<String, List<BillBean>> dateGroup = new LinkedHashMap<>();
-            dateGroup.put(entry.getKey(), entry.getValue());
+            dateGroup.put(date, grouped.get(date));
             displayItems.add(dateGroup);
         }
     }

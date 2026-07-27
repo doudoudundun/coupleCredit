@@ -111,6 +111,9 @@ public class LoginActivity extends AppCompatActivity {
                     return;
                 }
 
+                // 持久化 JWT token，后续所有请求自动携带
+                UserInfoManager.saveTokens(LoginActivity.this, userData.accessToken, userData.refreshToken);
+
                 String savedUsername = UserInfoManager.getCurrentUsername(LoginActivity.this);
                 int savedUserId = UserInfoManager.getCurrentUserId(LoginActivity.this);
                 boolean loggedIn = UserInfoManager.isUserLoggedIn(LoginActivity.this);

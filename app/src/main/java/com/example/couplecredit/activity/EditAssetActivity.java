@@ -9,6 +9,7 @@ import android.view.View;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.Spinner;
@@ -90,7 +91,12 @@ public class EditAssetActivity extends AppCompatActivity {
         spinnerCategory = findViewById(R.id.spinner_category);
         btnSave = findViewById(R.id.btn_save);
 
+        ((TextView) findViewById(R.id.tv_title)).setText("编辑资产");
+        ImageButton ivSave = findViewById(R.id.iv_save);
+        ivSave.setVisibility(View.VISIBLE);
+
         findViewById(R.id.iv_back).setOnClickListener(v -> finish());
+        ivSave.setOnClickListener(v -> updateAsset());
     }
 
     private void setupListeners() {
@@ -357,7 +363,6 @@ public class EditAssetActivity extends AppCompatActivity {
             public void onSuccess() {
                 runOnUiThread(() -> {
                     Toast.makeText(EditAssetActivity.this, "更新成功", Toast.LENGTH_SHORT).show();
-                    setResult(RESULT_OK);
                     finish();
                 });
             }
