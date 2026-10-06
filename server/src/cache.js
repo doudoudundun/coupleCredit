@@ -7,6 +7,8 @@ class MemoryCache {
     this.store = new Map();
     this.maxSize = maxSize;
     this._sweepInterval = setInterval(() => this._sweep(), 60000);
+    // 缓存清理不应阻止 CLI 测试或优雅退出结束进程。
+    this._sweepInterval.unref?.();
   }
 
   get(key) {
@@ -56,6 +58,9 @@ const Keys = {
   relationship: (userId) => `couple:rel:${userId}`,
   profile: (userId) => `user:profile:${userId}`,
   bills: (userId, year, month) => `bills:${userId}:${year}-${month}`,
+  // 月报历史基线聚合（RETENTION_MONTHLY_SPEC_20261003 §6.2）。key 必须落在 `bills:${userId}:`
+  // 前缀下，账单写路径（invalidateBillCaches 等）统一 delPrefix 该前缀，monthly 缓存随之失效。
+  billsMonthly: (userId, months, endYm, scope = "shared") => `bills:${userId}:monthly:${scope}:${months}${endYm ? `:${endYm}` : ""}`,
   inventory: (userId) => `inventory:${userId}`,
   beads: (userId) => `beads:${userId}`,
   beadBlueprints: (userId) => `bead-blueprints:${userId}`,
@@ -83,6 +88,7 @@ const TTL = {
   ROLE: 300,
   PROFILE: 60,
   BILLS: 15,
+  BILLS_MONTHLY: 15,
   REL: 300,
   INVENTORY: 15,
   BEADS: 15,

@@ -39,9 +39,10 @@ function createChatRouter({ pool }) {
       const { relationshipId, content, messageType, displayTime, isLiked } = req.body;
       const userId = req.userId;
       if (!userId || !content) throw new ApiError(400, "INVALID_REQUEST", "参数不完整");
-
-      const relationship = await loadActiveRelationship(pool, userId);
-      if (!relationship) throw new ApiError(403, "FORBIDDEN", "无权操作");
+      if (!Number.isSafeInteger(relationshipId) || relationshipId <= 0) {
+        throw new ApiError(400, "INVALID_REQUEST", "缺少有效的会话关系");
+      }
+      const relationship = await requireRelationshipAccess(userId, relationshipId);
 
       const [result] = await pool.execute(
         "INSERT INTO chat_messages (relationship_id, user_id, content, message_type, display_time, created_at, is_liked, is_deleted) VALUES (?, ?, ?, ?, ?, ?, ?, 0)",
@@ -58,7 +59,7 @@ function createChatRouter({ pool }) {
       const userId = req.userId;
       const relationshipId = parseInt(req.query.relationshipId, 10);
       const rawLimit = parseInt(req.query.limit, 10);
-      const limit = Math.min(Number.isFinite(rawLimit) ? rawLimit : 50, 200);
+      const limit = Math.max(1, Math.min(Number.isFinite(rawLimit) ? rawLimit : 50, 200));
       const before = req.query.before ? parseInt(req.query.before, 10) : null;
 
       if (!userId || !relationshipId) throw new ApiError(400, "INVALID_REQUEST", "参数不完整");
@@ -74,7 +75,7 @@ function createChatRouter({ pool }) {
 
       const [rows] = await pool.execute(sql, params);
       rows.reverse();
-      res.json({ ok: true, data: { messages: rows } });
+      res.json({ ok: true, data: { messages: rows.map(serializeMessage) } });
     } catch (error) {
       next(error);
     }
@@ -125,7 +126,7 @@ function createChatRouter({ pool }) {
         "SELECT id, relationship_id, user_id, content, message_type, display_time, created_at, is_liked FROM chat_messages WHERE relationship_id = ? AND is_deleted = 0 AND content LIKE ? ORDER BY created_at DESC LIMIT 50",
         [relationshipId, `%${keyword}%`]
       );
-      res.json({ ok: true, data: { messages: rows } });
+      res.json({ ok: true, data: { messages: rows.map(serializeMessage) } });
     } catch (error) {
       next(error);
     }
@@ -135,3 +136,9 @@ function createChatRouter({ pool }) {
 }
 
 module.exports = { createChatRouter };
+
+function serializeMessage(row) {
+  const message = { ...row, is_liked: Boolean(Number(row.is_liked)) };
+  if (row.is_deleted !== undefined) message.is_deleted = Boolean(Number(row.is_deleted));
+  return message;
+}

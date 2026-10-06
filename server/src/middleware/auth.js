@@ -1,4 +1,4 @@
-const { verifyToken } = require("../utils/jwt");
+const { verifyAccessToken } = require("../utils/jwt");
 const { ApiError } = require("../errors");
 
 function extractBearerToken(req) {
@@ -6,69 +6,133 @@ function extractBearerToken(req) {
   return header.startsWith("Bearer ") ? header.slice(7) : null;
 }
 
-function requireAuth(req, _res, next) {
+function decodeAccessToken(req) {
   const token = extractBearerToken(req);
   if (!token) {
-    return next(new ApiError(401, "UNAUTHORIZED", "缺少认证令牌"));
+    throw new ApiError(401, "UNAUTHORIZED", "缺少认证令牌");
   }
   try {
-    const decoded = verifyToken(token);
-    req.userId = decoded.userId;
-    next();
-  } catch (_e) {
-    next(new ApiError(401, "UNAUTHORIZED", "认证令牌无效或已过期"));
+    return verifyAccessToken(token);
+  } catch (_error) {
+    // Keep token parsing failures indistinguishable to callers.  In
+    // particular, an old untyped token and a refresh token cannot enter a
+    // business route as an access token.
+    throw new ApiError(401, "UNAUTHORIZED", "认证令牌无效或已过期");
   }
+}
+
+function isAuthSchemaError(error) {
+  return error
+    && (error.code === "ER_BAD_FIELD_ERROR" || error.code === "ER_NO_SUCH_TABLE")
+    && /users|auth_token_version/i.test(String(error.sqlMessage || error.message || ""));
+}
+
+function authSchemaError() {
+  return new ApiError(503, "AUTH_SCHEMA_MIGRATION_REQUIRED", "认证服务尚未完成会话版本迁移");
+}
+
+async function loadActiveUserSession(pool, decoded) {
+  let rows;
+  try {
+    [rows] = await pool.execute(
+      "SELECT id, status, auth_token_version FROM users WHERE id = ? LIMIT 1",
+      [decoded.userId]
+    );
+  } catch (error) {
+    if (isAuthSchemaError(error)) throw authSchemaError();
+    throw error;
+  }
+
+  const user = rows[0];
+  if (!user || user.status !== "active") return null;
+
+  const currentVersion = Number(user.auth_token_version);
+  if (!Number.isSafeInteger(currentVersion) || currentVersion < 0) return null;
+  if (currentVersion !== decoded.sessionVersion) return null;
+  return {
+    id: Number(user.id),
+    status: user.status,
+    sessionVersion: currentVersion,
+  };
+}
+
+function authenticate(req, next, pool) {
+  let decoded;
+  try {
+    decoded = decodeAccessToken(req);
+  } catch (error) {
+    return next(error);
+  }
+
+  if (!pool) {
+    return next(new ApiError(503, "AUTH_MISCONFIGURED", "认证中间件未绑定数据库"));
+  }
+
+  return loadActiveUserSession(pool, decoded)
+    .then((session) => {
+      if (!session) {
+        throw new ApiError(401, "UNAUTHORIZED", "用户不存在、已停用或会话已撤销");
+      }
+      req.userId = session.id;
+      req.auth = { ...decoded, sessionVersion: session.sessionVersion };
+      next();
+    })
+    .catch((error) => next(error));
+}
+
+function createRequireAuth(pool) {
+  if (!pool || typeof pool.execute !== "function") {
+    throw new TypeError("createRequireAuth requires a database pool");
+  }
+  return (req, _res, next) => authenticate(req, next, pool);
+}
+
+function requireAuth(req, _res, next) {
+  // app.locals.authPool is set before routes are mounted in index.js.  A
+  // middleware call without that binding fails closed instead of trusting the
+  // token without checking the current user/session row.
+  const pool = req.app && req.app.locals ? req.app.locals.authPool : null;
+  return authenticate(req, next, pool);
 }
 
 function optionalAuth(req, _res, next) {
   const token = extractBearerToken(req);
-  if (token) {
-    try {
-      const decoded = verifyToken(token);
-      req.userId = decoded.userId;
-    } catch (_e) {
-      // ignore invalid token, fall through
-    }
-  }
-  if (req.userId === undefined) {
-    const raw = req.query?.userId ?? req.body?.userId;
-    if (raw !== undefined) {
-      req.userId = Number(raw);
-    }
-  }
-  next();
-}
+  if (!token) return next();
 
-/**
- * 鉴权切换的过渡中间件（当前全局挂载）。
- *
- * 行为：
- *  - 有效 token：从 JWT 解出 userId，正常放行。
- *  - 无 token / token 无效：降级读 query/body.userId（兼容旧 App），但打 warn 日志。
- *
- * 兼容期结束后（App 全部带 token），本函数会简化为纯 requireAuth，
- * 删除 query/body fallback。
- */
-function requireAuthForBusiness(req, _res, next) {
-  const token = extractBearerToken(req);
-  if (token) {
-    try {
-      const decoded = verifyToken(token);
-      req.userId = decoded.userId;
-      return next();
-    } catch (_e) {
-      // token 存在但无效，不降级，直接拒（防止用废 token 探测）
-      return next(new ApiError(401, "UNAUTHORIZED", "认证令牌无效或已过期"));
-    }
-  }
-  // 兼容期：无 token 时降级读 query/body.userId，但记 warn
-  const raw = req.query?.userId ?? req.body?.userId;
-  if (raw !== undefined) {
-    req.userId = Number(raw);
-    console.warn(`[AUTH_FALLBACK] ${req.method} ${req.originalUrl} 无 token，降级使用 userId=${req.userId}`);
+  const pool = req.app && req.app.locals ? req.app.locals.authPool : null;
+  if (!pool) return next();
+
+  let decoded;
+  try {
+    decoded = verifyAccessToken(token);
+  } catch (_error) {
+    // Invalid, expired, refresh, or legacy untyped tokens are ignored.
     return next();
   }
-  return next(new ApiError(401, "UNAUTHORIZED", "缺少认证令牌"));
+
+  return loadActiveUserSession(pool, decoded)
+    .then((session) => {
+      if (session) {
+        req.userId = session.id;
+        req.auth = { ...decoded, sessionVersion: session.sessionVersion };
+      }
+      next();
+    })
+    .catch((error) => next(error));
 }
 
-module.exports = { requireAuth, optionalAuth, requireAuthForBusiness };
+// Transitional export kept for callers outside this repository.  It fails
+// closed when no app pool is configured; real traffic is mounted with
+// createRequireAuth(pool), so every request is checked against the current
+// user row and auth_token_version.
+const requireAuthForBusiness = requireAuth;
+
+module.exports = {
+  requireAuth,
+  optionalAuth,
+  requireAuthForBusiness,
+  createRequireAuth,
+  loadActiveUserSession,
+  isAuthSchemaError,
+  authSchemaError,
+};

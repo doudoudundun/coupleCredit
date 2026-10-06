@@ -2,6 +2,7 @@ const express = require("express");
 const { ApiError } = require("../errors");
 const { cache, Keys, TTL } = require("../cache");
 const {
+  buildSubjectOrCurrentRelationshipScope,
   loadActiveRelationship,
   normalizeNullableText,
   parseRequiredFloat,
@@ -75,6 +76,7 @@ function mapMealRecord(row, userNameMap) {
   return {
     id: row.record_id,
     userId: row.user_id,
+    relationshipId: row.relationship_id,
     userName: userNameMap[row.user_id] || `用户${row.user_id}`,
     mealType: row.meal_type,
     recipeId: row.recipe_id,
@@ -121,14 +123,15 @@ async function buildCaloriePayload(pool, userId, dateString) {
 
   const { start, end } = createDateRange(dateString);
   const placeholders = ids.map(() => "?").join(",");
+  const recordScope = buildSubjectOrCurrentRelationshipScope(userId, relationship);
 
   const [recordRows, goalRows, userNameMap] = await Promise.all([
     pool.execute(
-      `SELECT record_id, user_id, meal_type, recipe_id, restaurant_id, title, calories, calorie_source, note, eaten_at, created_at
+      `SELECT record_id, user_id, relationship_id, meal_type, recipe_id, restaurant_id, title, calories, calorie_source, note, eaten_at, created_at
        FROM meal_records
-       WHERE user_id IN (${placeholders}) AND eaten_at >= ? AND eaten_at < ?
+       WHERE ${recordScope.clause} AND eaten_at >= ? AND eaten_at < ?
        ORDER BY eaten_at DESC, record_id DESC`,
-      [...ids, start, end]
+      [...recordScope.params, start, end]
     ),
     pool.execute(
       `SELECT user_id, daily_goal FROM user_calorie_goals WHERE user_id IN (${placeholders})`,
@@ -224,11 +227,13 @@ function createCalorieRouter({ pool }) {
       const restaurantId = req.body.restaurantId != null ? parseRequiredInteger(Number(req.body.restaurantId)) : null;
       const note = normalizeNullableText(req.body.note);
       const eatenAt = normalizeNullableText(req.body.eatenAt) || null;
+      const relationship = await loadActiveRelationship(pool, userId);
+      const relationshipId = relationship ? relationship.relationship_id : null;
 
       const [result] = await pool.execute(
-        `INSERT INTO meal_records (user_id, meal_type, recipe_id, restaurant_id, title, calories, calorie_source, note, eaten_at, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, NOW()), NOW())`,
-        [userId, mealType, recipeId, restaurantId, title, calories, calorieSource, note, eatenAt]
+        `INSERT INTO meal_records (user_id, relationship_id, meal_type, recipe_id, restaurant_id, title, calories, calorie_source, note, eaten_at, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, NOW()), NOW())`,
+        [userId, relationshipId, mealType, recipeId, restaurantId, title, calories, calorieSource, note, eatenAt]
       );
 
       await invalidateCalorieCache(userId);

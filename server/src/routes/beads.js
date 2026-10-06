@@ -1,6 +1,4 @@
 const express = require("express");
-const https = require("https");
-const http = require("http");
 const { BEAD_COLORS, CODE_TO_HEX } = require("../constants/beadColors");
 const sharp = require("sharp");
 const fs = require("fs");
@@ -9,14 +7,19 @@ const path = require("path");
 const { ApiError } = require("../errors");
 const { withTransaction } = require("../utils/transactions");
 const { cache, Keys, TTL } = require("../cache");
-const { trimValue, parseRequiredInteger, loadActiveRelationship } = require("../utils/queryHelpers");
+const {
+  buildCoupleOrPrivateScope,
+  trimValue,
+  parseRequiredInteger,
+  loadActiveRelationship,
+} = require("../utils/queryHelpers");
 const { processBeadImage } = require("../utils/beadImageProcessor");
 const { convertToBeadImage } = require("../utils/beadConverter");
 const { buildAiProviderConfig, callAiWithFallback, callAiApi, extractAiResponseText, extractContentPartText } = require("../utils/aiClient");
+const { downloadImageAsBuffer } = require("../utils/safeUrl");
 
 const BEAD_COLOR_CODES = new Set(BEAD_COLORS.map(color => color.colorCode));
 const DEFAULT_THRESHOLD = 200;
-const MAX_DOWNLOAD_BYTES = 10 * 1024 * 1024;
 
 const aiProviders = {
   primary: buildAiProviderConfig("AI", "https://open.bigmodel.cn/api/paas/v4", "glm-4v-flash"),
@@ -159,24 +162,83 @@ function createBeadRouter({ pool, aiLimiter }) {
        FROM bead_colors bc`,
       [userId]
     );
-    initializedUsers.set(userId, Date.now());
   }
 
-  async function ensureBeadData(userId) {
-    if (isUserInitialized(userId)) return;
-    await ensureBeadSettings(userId);
-    await ensureBeadInventory(userId);
+  function getBeadInitializationKey(userId, relationship) {
+    return relationship ? `relationship:${relationship.relationship_id}` : `user:${userId}`;
+  }
+
+  function getSharedInventoryUserId(userId, relationship) {
+    // The second relationship member is the canonical owner for legacy bead
+    // inventory rows. This preserves the requested user 4 -> user 5 sync while
+    // keeping the behavior generic for other couples.
+    return relationship ? relationship.user_id_2 : userId;
+  }
+
+  function getRelationshipMemberIds(userId, relationship) {
+    return relationship
+      ? [relationship.user_id_1, relationship.user_id_2]
+      : [userId];
+  }
+
+  async function ensureBeadData(userId, relationship) {
+    const initializationKey = getBeadInitializationKey(userId, relationship);
+    if (isUserInitialized(initializationKey)) return;
+
+    const sharedUserId = getSharedInventoryUserId(userId, relationship);
+    const memberIds = getRelationshipMemberIds(userId, relationship);
+    const relationshipId = relationship ? relationship.relationship_id : null;
+
+    await ensureBeadSettings(sharedUserId);
+    for (const memberId of memberIds) {
+      await ensureBeadInventory(memberId);
+    }
+
+    if (relationship) {
+      const partnerIds = memberIds.filter(memberId => memberId !== sharedUserId);
+      for (const partnerId of partnerIds) {
+        // Migrate legacy per-user rows to the relationship scope and make the
+        // canonical user's values authoritative for the first synchronization.
+        await pool.execute(
+          `UPDATE bead_inventory target
+           INNER JOIN bead_inventory source
+             ON source.color_code = target.color_code AND source.user_id = ?
+           SET target.quantity = source.quantity,
+               target.threshold_override = source.threshold_override,
+               target.relationship_id = ?,
+               target.updated_at = source.updated_at
+           WHERE target.user_id = ?`,
+          [sharedUserId, relationshipId, partnerId]
+        );
+      }
+      await pool.execute(
+        `UPDATE bead_inventory
+            SET relationship_id = ?
+          WHERE user_id IN (?, ?)`,
+        [relationshipId, relationship.user_id_1, relationship.user_id_2]
+      );
+
+      for (const memberId of memberIds) {
+        cache.del(Keys.beads(memberId));
+        cache.del(Keys.beadBlueprints(memberId));
+      }
+    }
+
+    initializedUsers.set(initializationKey, Date.now());
   }
 
   async function loadBeadScope(userId) {
     const relationship = await loadActiveRelationship(pool, userId);
     return {
+      relationship,
+      inventoryUserId: getSharedInventoryUserId(userId, relationship),
       relationshipId: relationship ? relationship.relationship_id : null
     };
   }
 
-  async function loadInventoryRows(userId) {
-    await ensureBeadData(userId);
+  async function loadInventoryRows(userId, scope) {
+    await ensureBeadData(userId, scope.relationship);
+    const blueprintScope = buildCoupleOrPrivateScope(userId, scope.relationship, "bb");
 
     const [rows] = await pool.execute(
       `SELECT bc.color_code, bc.hex_color, bc.color_group, bc.is_transparent,
@@ -193,48 +255,38 @@ function createBeadRouter({ pool, aiLimiter }) {
          SELECT bbc.color_code, COALESCE(SUM(bbc.quantity * bb.build_count), 0) AS total_consumed
          FROM bead_blueprint_colors bbc
          INNER JOIN bead_blueprints bb ON bb.blueprint_id = bbc.blueprint_id
-         WHERE bb.user_id = ?
+         WHERE ${blueprintScope.clause}
          GROUP BY bbc.color_code
        ) consumption ON consumption.color_code = bc.color_code
        ORDER BY bc.color_code ASC`,
-      [userId, userId, userId]
+      [scope.inventoryUserId, scope.inventoryUserId, ...blueprintScope.params]
     );
 
     return rows.map(mapBeadInventoryItem);
   }
 
-  async function loadBlueprintForUser(blueprintId, userId) {
-    const [rows] = await pool.execute(
-      `SELECT blueprint_id, user_id, relationship_id, name, image_url, build_count, created_at, updated_at
-       FROM bead_blueprints
-       WHERE blueprint_id = ? AND user_id = ?
-       LIMIT 1`,
-      [blueprintId, userId]
-    );
-    return rows[0] || null;
-  }
-
   async function loadBlueprintForCouple(blueprintId, userId) {
     const relationship = await loadActiveRelationship(pool, userId);
-    if (!relationship) {
-      return loadBlueprintForUser(blueprintId, userId);
-    }
-    const partnerId = relationship.user_id_1 === userId ? relationship.user_id_2 : relationship.user_id_1;
+    const scope = buildCoupleOrPrivateScope(userId, relationship);
     const [rows] = await pool.execute(
       `SELECT blueprint_id, user_id, relationship_id, name, image_url, build_count, created_at, updated_at
        FROM bead_blueprints
-       WHERE blueprint_id = ? AND user_id IN (?, ?)
+       WHERE blueprint_id = ? AND ${scope.clause}
        LIMIT 1`,
-      [blueprintId, userId, partnerId]
+      [blueprintId, ...scope.params]
     );
     return rows[0] || null;
   }
 
-  async function invalidateBeadCacheForCouple(userId) {
+  async function invalidateBeadCacheForCouple(userId, relationship) {
     invalidateBeadCache(userId);
-    const relationship = await loadActiveRelationship(pool, userId);
-    if (relationship) {
-      const partnerId = relationship.user_id_1 === userId ? relationship.user_id_2 : relationship.user_id_1;
+    const resolvedRelationship = relationship === undefined
+      ? await loadActiveRelationship(pool, userId)
+      : relationship;
+    if (resolvedRelationship) {
+      const partnerId = resolvedRelationship.user_id_1 === userId
+        ? resolvedRelationship.user_id_2
+        : resolvedRelationship.user_id_1;
       cache.del(Keys.beads(partnerId));
       cache.del(Keys.beadBlueprints(partnerId));
     }
@@ -273,8 +325,8 @@ function createBeadRouter({ pool, aiLimiter }) {
       return cached;
     }
 
-    const items = await loadInventoryRows(userId);
     const scope = await loadBeadScope(userId);
+    const items = await loadInventoryRows(userId, scope);
     const response = {
       ok: true,
       data: {
@@ -331,7 +383,8 @@ function createBeadRouter({ pool, aiLimiter }) {
       const updates = [];
       const params = [];
 
-      await ensureBeadData(userId);
+      const scope = await loadBeadScope(userId);
+      await ensureBeadData(userId, scope.relationship);
 
       if (req.body.quantity !== undefined) {
         const q = typeof req.body.quantity === "number" ? req.body.quantity : Number(req.body.quantity);
@@ -350,13 +403,13 @@ function createBeadRouter({ pool, aiLimiter }) {
         throw new ApiError(400, "INVALID_REQUEST", "无更新内容");
       }
 
-      params.push(colorCode, userId);
+      params.push(colorCode, scope.inventoryUserId);
       await pool.execute(
         `UPDATE bead_inventory SET ${updates.join(", ")}, updated_at = NOW() WHERE color_code = ? AND user_id = ?`,
         params
       );
 
-      invalidateBeadCache(userId);
+      await invalidateBeadCacheForCouple(userId, scope.relationship);
       res.json({ ok: true, message: "库存更新成功" });
     } catch (error) {
       next(error);
@@ -369,20 +422,21 @@ function createBeadRouter({ pool, aiLimiter }) {
       const colorCode = normalizeColorCode(req.params.colorCode);
       const consumeAmount = parsePositiveInteger(req.body.consumeAmount, "消耗数量");
 
-      await ensureBeadData(userId);
+      const scope = await loadBeadScope(userId);
+      await ensureBeadData(userId, scope.relationship);
 
       const [updateResult] = await pool.execute(
         `UPDATE bead_inventory
          SET quantity = GREATEST(0, quantity - ?), updated_at = NOW()
          WHERE color_code = ? AND user_id = ? AND quantity >= ?`,
-        [consumeAmount, colorCode, userId, consumeAmount]
+        [consumeAmount, colorCode, scope.inventoryUserId, consumeAmount]
       );
 
       if (updateResult.affectedRows === 0) {
         throw new ApiError(400, "INSUFFICIENT_STOCK", "库存不足或颜色不存在");
       }
 
-      invalidateBeadCache(userId);
+      await invalidateBeadCacheForCouple(userId, scope.relationship);
       res.json({
         ok: true,
         message: "消耗记录成功",
@@ -402,20 +456,21 @@ function createBeadRouter({ pool, aiLimiter }) {
       const colorCode = normalizeColorCode(req.params.colorCode);
       const addAmount = parsePositiveInteger(req.body.addAmount, "补货数量");
 
-      await ensureBeadData(userId);
+      const scope = await loadBeadScope(userId);
+      await ensureBeadData(userId, scope.relationship);
 
       const [rows] = await pool.execute(
         `SELECT quantity FROM bead_inventory WHERE color_code = ? AND user_id = ? LIMIT 1`,
-        [colorCode, userId]
+        [colorCode, scope.inventoryUserId]
       );
       const currentQuantity = rows.length > 0 ? Number(rows[0].quantity || 0) : 0;
 
       await pool.execute(
         `UPDATE bead_inventory SET quantity = quantity + ?, updated_at = NOW() WHERE color_code = ? AND user_id = ?`,
-        [addAmount, colorCode, userId]
+        [addAmount, colorCode, scope.inventoryUserId]
       );
 
-      invalidateBeadCache(userId);
+      await invalidateBeadCacheForCouple(userId, scope.relationship);
       res.json({
         ok: true,
         message: "补货成功",
@@ -438,7 +493,8 @@ function createBeadRouter({ pool, aiLimiter }) {
         throw new ApiError(400, "INVALID_REQUEST", "需要提供消耗列表");
       }
 
-      await ensureBeadData(userId);
+      const scope = await loadBeadScope(userId);
+      await ensureBeadData(userId, scope.relationship);
 
       const updated = await withTransaction(pool, async (conn) => {
         const results = [];
@@ -448,7 +504,7 @@ function createBeadRouter({ pool, aiLimiter }) {
 
           const [updateResult] = await conn.execute(
             `UPDATE bead_inventory SET quantity = GREATEST(0, quantity - ?), updated_at = NOW() WHERE color_code = ? AND user_id = ? AND quantity >= ?`,
-            [quantity, colorCode, userId, quantity]
+            [quantity, colorCode, scope.inventoryUserId, quantity]
           );
 
           if (updateResult.affectedRows === 0) {
@@ -457,14 +513,14 @@ function createBeadRouter({ pool, aiLimiter }) {
 
           const [rows] = await conn.execute(
             `SELECT quantity FROM bead_inventory WHERE color_code = ? AND user_id = ? LIMIT 1`,
-            [colorCode, userId]
+            [colorCode, scope.inventoryUserId]
           );
           results.push({ colorCode, newQuantity: rows.length > 0 ? Number(rows[0].quantity) : 0 });
         }
         return results;
       });
 
-      invalidateBeadCache(userId);
+      await invalidateBeadCacheForCouple(userId, scope.relationship);
       res.json({ ok: true, message: "批量扣减成功", data: { updated } });
     } catch (error) {
       next(error);
@@ -474,10 +530,11 @@ function createBeadRouter({ pool, aiLimiter }) {
   router.get("/settings", async (req, res, next) => {
     try {
       const userId = parseRequiredInteger(req.userId);
-      await ensureBeadSettings(userId);
+      const scope = await loadBeadScope(userId);
+      await ensureBeadData(userId, scope.relationship);
       const [rows] = await pool.execute(
         `SELECT default_threshold FROM bead_settings WHERE user_id = ? LIMIT 1`,
-        [userId]
+        [scope.inventoryUserId]
       );
       res.json({
         ok: true,
@@ -494,13 +551,15 @@ function createBeadRouter({ pool, aiLimiter }) {
     try {
       const userId = parseRequiredInteger(req.userId);
       const defaultThreshold = parsePositiveInteger(req.body.defaultThreshold, "默认阈值");
+      const scope = await loadBeadScope(userId);
+      await ensureBeadData(userId, scope.relationship);
       await pool.execute(
         `INSERT INTO bead_settings (user_id, default_threshold)
          VALUES (?, ?)
          ON DUPLICATE KEY UPDATE default_threshold = VALUES(default_threshold), updated_at = NOW()`,
-        [userId, defaultThreshold]
+        [scope.inventoryUserId, defaultThreshold]
       );
-      invalidateBeadCache(userId);
+      await invalidateBeadCacheForCouple(userId, scope.relationship);
       res.json({ ok: true, message: "默认阈值更新成功" });
     } catch (error) {
       next(error);
@@ -516,25 +575,18 @@ function createBeadRouter({ pool, aiLimiter }) {
         return res.json(cached);
       }
 
-      // 查找情侣关系，获取对方的userId
       const relationship = await loadActiveRelationship(pool, userId);
-      let partnerId = null;
-      if (relationship) {
-        partnerId = relationship.user_id_1 === userId ? relationship.user_id_2 : relationship.user_id_1;
-      }
-
-      // 查询自己的图纸 + 情侣的图纸
-      const queryParams = partnerId ? [userId, partnerId] : [userId];
+      const scope = buildCoupleOrPrivateScope(userId, relationship, "bb");
       const [rows] = await pool.execute(
         `SELECT bb.blueprint_id, bb.user_id, bb.relationship_id, bb.name, bb.image_url, bb.build_count, bb.created_at, bb.updated_at,
                 COUNT(bbc.id) AS color_count,
                 COALESCE(SUM(bbc.quantity), 0) AS total_beads_per_build
          FROM bead_blueprints bb
          LEFT JOIN bead_blueprint_colors bbc ON bbc.blueprint_id = bb.blueprint_id
-         WHERE bb.user_id IN (${queryParams.map(() => '?').join(',')})
-         GROUP BY bb.blueprint_id, bb.user_id, bb.relationship_id, bb.name, bb.build_count, bb.created_at, bb.updated_at
+         WHERE ${scope.clause}
+      GROUP BY bb.blueprint_id, bb.user_id, bb.relationship_id, bb.name, bb.image_url, bb.build_count, bb.created_at, bb.updated_at
          ORDER BY bb.updated_at DESC, bb.blueprint_id DESC`,
-        queryParams
+        scope.params
       );
 
       const response = {
@@ -803,26 +855,17 @@ function createBeadRouter({ pool, aiLimiter }) {
       const primaryProvider = aiProviders.primary;
       const fallbackProvider = aiProviders.fallback;
 
-      const serverBaseUrl = process.env.PUBLIC_SERVER_URL || `${req.protocol}://${req.get("host")}`;
-      const resolvedUrl = imageUrl.startsWith("/") ? `${serverBaseUrl}${imageUrl}` : imageUrl;
-
       // Step 1: 读取图片 buffer
       let imageBuffer;
       try {
         if (imageUrl.startsWith("/uploads/")) {
           const localPath = path.join(__dirname, "../../uploads", path.basename(imageUrl));
-          try {
-            imageBuffer = await fs.promises.readFile(localPath);
-          } catch (localReadError) {
-            if (localReadError && localReadError.code !== "ENOENT") {
-              throw localReadError;
-            }
-            imageBuffer = await downloadImageAsBuffer(resolvedUrl);
-          }
+          imageBuffer = await fs.promises.readFile(localPath);
         } else {
-          imageBuffer = await downloadImageAsBuffer(resolvedUrl);
+          imageBuffer = await downloadImageAsBuffer(imageUrl);
         }
       } catch (readError) {
+        if (readError instanceof ApiError) throw readError;
         throw new ApiError(502, "IMAGE_READ_FAILED", `图片读取失败: ${readError.message}`);
       }
 
@@ -957,24 +1000,17 @@ M03 15`;
       const matchThreshold = req.body.matchThreshold ? Math.min(Math.max(parseInt(req.body.matchThreshold, 10) || 2500, 1000), 5000) : undefined;
       const smoothExtra = req.body.smoothExtra ? Math.min(Math.max(parseInt(req.body.smoothExtra, 10) || 0, 0), 3) : undefined;
 
-      const serverBaseUrl = process.env.PUBLIC_SERVER_URL || `${req.protocol}://${req.get("host")}`;
-      const resolvedUrl = imageUrl.startsWith("/") ? `${serverBaseUrl}${imageUrl}` : imageUrl;
-
       // 读取图片 buffer
       let imageBuffer;
       try {
         if (imageUrl.startsWith("/uploads/")) {
           const localPath = path.join(__dirname, "../../uploads", path.basename(imageUrl));
-          try {
-            imageBuffer = await fs.promises.readFile(localPath);
-          } catch (localReadError) {
-            if (localReadError && localReadError.code !== "ENOENT") throw localReadError;
-            imageBuffer = await downloadImageAsBuffer(resolvedUrl);
-          }
+          imageBuffer = await fs.promises.readFile(localPath);
         } else {
-          imageBuffer = await downloadImageAsBuffer(resolvedUrl);
+          imageBuffer = await downloadImageAsBuffer(imageUrl);
         }
       } catch (readError) {
+        if (readError instanceof ApiError) throw readError;
         throw new ApiError(502, "IMAGE_READ_FAILED", `图片读取失败: ${readError.message}`);
       }
 
@@ -1012,48 +1048,6 @@ async function compressToBase64(buffer) {
     .jpeg({ quality: 85, mozjpeg: true })
     .toBuffer();
   return `data:image/jpeg;base64,${compressed.toString("base64")}`;
-}
-
-function downloadImageAsBuffer(imageUrl) {
-  return new Promise((resolve, reject) => {
-    const url = new URL(imageUrl);
-    const isHttps = url.protocol === "https:";
-    const requester = isHttps ? https : http;
-    const options = {
-      hostname: url.hostname,
-      port: url.port || (isHttps ? 443 : 80),
-      path: url.pathname + url.search,
-      method: "GET",
-      timeout: 15000,
-      headers: { "User-Agent": "Mozilla/5.0 (compatible; ImageDownloader/1.0)" }
-    };
-    const req = requester.request(options, (res) => {
-      if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
-        downloadImageAsBuffer(res.headers.location).then(resolve).catch(reject);
-        return;
-      }
-      if (res.statusCode >= 400) {
-        reject(new ApiError(502, "IMAGE_DOWNLOAD_ERROR", `无法下载图片，HTTP ${res.statusCode}`));
-        return;
-      }
-      const chunks = [];
-      let totalBytes = 0;
-      res.on("data", (chunk) => {
-        totalBytes += chunk.length;
-        if (totalBytes > MAX_DOWNLOAD_BYTES) {
-          req.destroy();
-          reject(new ApiError(413, "IMAGE_TOO_LARGE", "下载图片超过大小限制"));
-          return;
-        }
-        chunks.push(chunk);
-      });
-      res.on("end", () => resolve(Buffer.concat(chunks)));
-      res.on("error", reject);
-    });
-    req.on("error", (e) => reject(new ApiError(502, "IMAGE_DOWNLOAD_ERROR", `下载图片失败: ${e.message}`)));
-    req.on("timeout", () => { req.destroy(); reject(new ApiError(504, "IMAGE_DOWNLOAD_TIMEOUT", "下载图片超时")); });
-    req.end();
-  });
 }
 
 function parseRecognizedColors(text) {

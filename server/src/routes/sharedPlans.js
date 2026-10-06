@@ -1,7 +1,14 @@
 const express = require("express");
 const { ApiError } = require("../errors");
 const { cache, Keys, TTL } = require("../cache");
-const { loadActiveRelationship, trimValue, parseRequiredInteger, parseRequiredFloat, invalidateForUser } = require("../utils/queryHelpers");
+const {
+  buildSharedPlanScope,
+  loadActiveRelationship,
+  trimValue,
+  parseRequiredInteger,
+  parseRequiredFloat,
+  invalidateForUser
+} = require("../utils/queryHelpers");
 
 function createSharedPlansRouter({ pool }) {
   const router = express.Router();
@@ -12,15 +19,12 @@ function createSharedPlansRouter({ pool }) {
 
   async function loadAccessiblePlan(pool, planId, userId) {
     const relationship = await loadActiveRelationship(pool, userId);
-    const relationshipId = relationship ? relationship.relationship_id : null;
-    let sql = "SELECT plan_id, relationship_id, created_by, name, initial_amount, current_balance, visibility, created_at, updated_at FROM shared_plans WHERE plan_id = ? AND (created_by = ?";
-    const params = [planId, userId];
-    if (relationshipId) {
-      sql += " OR (relationship_id = ? AND visibility = 'both')";
-      params.push(relationshipId);
-    }
-    sql += ") LIMIT 1";
-    const [rows] = await pool.execute(sql, params);
+    const scope = buildSharedPlanScope(userId, relationship);
+    const [rows] = await pool.execute(
+      `SELECT plan_id, relationship_id, created_by, name, initial_amount, current_balance, visibility, created_at, updated_at
+       FROM shared_plans WHERE plan_id = ? AND ${scope.clause} LIMIT 1`,
+      [planId, ...scope.params]
+    );
     return { plan: rows[0] || null, relationship };
   }
 
@@ -32,16 +36,13 @@ function createSharedPlansRouter({ pool }) {
 
       const relationship = await loadActiveRelationship(pool, userId);
       const relationshipId = relationship ? relationship.relationship_id : null;
-
-      let sql = "SELECT plan_id, relationship_id, created_by, name, initial_amount, current_balance, visibility, created_at, updated_at FROM shared_plans WHERE created_by = ?";
-      const params = [userId];
-      if (relationshipId) {
-        sql += " OR (relationship_id = ? AND visibility = 'both')";
-        params.push(relationshipId);
-      }
-      sql += " ORDER BY updated_at DESC, plan_id DESC";
-
-      const [rows] = await pool.execute(sql, params);
+      const scope = buildSharedPlanScope(userId, relationship);
+      const [rows] = await pool.execute(
+        `SELECT plan_id, relationship_id, created_by, name, initial_amount, current_balance, visibility, created_at, updated_at
+         FROM shared_plans WHERE ${scope.clause}
+         ORDER BY updated_at DESC, plan_id DESC`,
+        scope.params
+      );
       const items = rows.map(row => ({
         planId: row.plan_id,
         relationshipId: row.relationship_id,
@@ -75,9 +76,10 @@ function createSharedPlansRouter({ pool }) {
         throw new ApiError(400, "NO_RELATIONSHIP", "共同可见计划需要先绑定情侣");
       }
 
+      const storedRelationshipId = visibility === "both" ? relationshipId : null;
       const [result] = await pool.execute(
         "INSERT INTO shared_plans (relationship_id, created_by, name, initial_amount, current_balance, visibility) VALUES (?, ?, ?, ?, ?, ?)",
-        [relationshipId, userId, name, initialAmount, initialAmount, visibility]
+        [storedRelationshipId, userId, name, initialAmount, initialAmount, visibility]
       );
       invalidateSharedPlans(userId, relationship);
       res.status(201).json({ ok: true, data: { planId: result.insertId } });
@@ -122,7 +124,7 @@ function createSharedPlansRouter({ pool }) {
       const planId = parseRequiredInteger(parseInt(req.params.id, 10));
       const userId = parseRequiredInteger(req.userId);
       const { plan, relationship } = await loadAccessiblePlan(pool, planId, userId);
-      if (!plan || plan.created_by !== userId) throw new ApiError(404, "NOT_FOUND", "计划不存在或无权删除");
+      if (!plan) throw new ApiError(404, "NOT_FOUND", "计划不存在或无权删除");
       await pool.execute("DELETE FROM shared_plans WHERE plan_id = ?", [planId]);
       invalidateSharedPlans(userId, relationship);
       res.json({ ok: true, message: "计划已删除" });

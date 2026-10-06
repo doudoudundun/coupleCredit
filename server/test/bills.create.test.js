@@ -16,22 +16,39 @@ async function readJsonOrText(response) {
 }
 
 async function registerUser(suffix) {
+  const username = `api_bill_${suffix}`;
+  const password = "secret123";
   const registerResponse = await fetch(`${baseUrl}/api/auth/register`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json"
     },
     body: JSON.stringify({
-      username: `api_bill_${suffix}`,
+      username,
       email: `api_bill_${suffix}@example.com`,
-      password: "secret123",
+      password,
       inviteCode
     })
   });
 
   const registerBody = await readJsonOrText(registerResponse);
   assert.equal(registerResponse.status, 201, JSON.stringify(registerBody));
-  return registerBody.data;
+
+  const loginResponse = await fetch(`${baseUrl}/api/auth/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username, password })
+  });
+  const loginBody = await readJsonOrText(loginResponse);
+  assert.equal(loginResponse.status, 200, JSON.stringify(loginBody));
+  return loginBody.data;
+}
+
+function authHeaders(user) {
+  return {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${user.accessToken}`
+  };
 }
 
 async function createRelationship(userId1, userId2) {
@@ -59,9 +76,7 @@ test("create bill accepts minimal bill payload", async () => {
 
   const createResponse = await fetch(`${baseUrl}/api/bills`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
+    headers: authHeaders(user),
     body: JSON.stringify({
       userId: user.userId,
       relationshipId: null,
@@ -90,9 +105,7 @@ test("create bill resolves self owner without relationship lookup in client", as
 
   const createResponse = await fetch(`${baseUrl}/api/bills`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
+    headers: authHeaders(user),
     body: JSON.stringify({
       userId: user.userId,
       billOwner: "自己",
@@ -120,9 +133,7 @@ test("create bill accepts partner owner without relationship", async () => {
 
   const createResponse = await fetch(`${baseUrl}/api/bills`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
+    headers: authHeaders(user),
     body: JSON.stringify({
       userId: user.userId,
       billOwner: "对方",
@@ -149,9 +160,7 @@ test("create bill accepts shared owner without relationship", async () => {
 
   const createResponse = await fetch(`${baseUrl}/api/bills`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
+    headers: authHeaders(user),
     body: JSON.stringify({
       userId: user.userId,
       billOwner: "共同",
@@ -180,9 +189,7 @@ test("create bill resolves owner and relationship for coupled users", async () =
 
   const selfResponse = await fetch(`${baseUrl}/api/bills`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
+    headers: authHeaders(inviter),
     body: JSON.stringify({
       userId: inviter.userId,
       billOwner: "自己",
@@ -203,9 +210,7 @@ test("create bill resolves owner and relationship for coupled users", async () =
 
   const partnerResponse = await fetch(`${baseUrl}/api/bills`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
+    headers: authHeaders(inviter),
     body: JSON.stringify({
       userId: inviter.userId,
       billOwner: "对方",
@@ -226,9 +231,7 @@ test("create bill resolves owner and relationship for coupled users", async () =
 
   const inviteeSelfResponse = await fetch(`${baseUrl}/api/bills`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
+    headers: authHeaders(invitee),
     body: JSON.stringify({
       userId: invitee.userId,
       billOwner: "自己",
@@ -255,9 +258,7 @@ test("create bill resolves shared owner for coupled users", async () => {
 
   const createResponse = await fetch(`${baseUrl}/api/bills`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
+    headers: authHeaders(inviter),
     body: JSON.stringify({
       userId: inviter.userId,
       billOwner: "共同",
@@ -276,4 +277,40 @@ test("create bill resolves shared owner for coupled users", async () => {
   assert.equal(createBody.data.relationshipId, relationshipId);
   assert.equal(createBody.data.owner, 3);
   assert.equal(createBody.data.isHelp, 0);
+});
+
+test("coupled bill subject can update fields without resending amount", async () => {
+  const inviter = await registerUser(`${uniqueSuffix}_partial_update_a`);
+  const invitee = await registerUser(`${uniqueSuffix}_partial_update_b`);
+  await createRelationship(inviter.userId, invitee.userId);
+
+  const createResponse = await fetch(`${baseUrl}/api/bills`, {
+    method: "POST",
+    headers: authHeaders(inviter),
+    body: JSON.stringify({
+      billOwner: "对方",
+      title: "待修改账单",
+      type: "测试",
+      amount: 12.34,
+      date: "2026-04-12",
+      time: "12:00:00",
+      incomeType: 0
+    })
+  });
+  const createBody = await readJsonOrText(createResponse);
+  assert.equal(createResponse.status, 201, JSON.stringify(createBody));
+
+  const updateResponse = await fetch(`${baseUrl}/api/bills/${createBody.data.billId}`, {
+    method: "PUT",
+    headers: authHeaders(invitee),
+    body: JSON.stringify({
+      title: "已修改账单",
+      date: "2026-04-12",
+      time: "12:01:00"
+    })
+  });
+  const updateBody = await readJsonOrText(updateResponse);
+
+  assert.equal(updateResponse.status, 200, JSON.stringify(updateBody));
+  assert.equal(updateBody.ok, true);
 });

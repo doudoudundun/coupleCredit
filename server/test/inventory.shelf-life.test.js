@@ -18,6 +18,13 @@ function createPoolMock(responses) {
 
   return {
     calls,
+    async getConnection() {
+      return this;
+    },
+    async beginTransaction() {},
+    async commit() {},
+    async rollback() {},
+    release() {},
     async execute(query, params) {
       calls.push({ query, params });
       if (responses.length === 0) {
@@ -37,12 +44,13 @@ function getRouteHandler(router, path, method) {
   return layer && layer.route.stack[0] && layer.route.stack[0].handle;
 }
 
-async function invokeHandler(handler, { params = {}, body = {}, query = {} } = {}) {
+async function invokeHandler(handler, { userId, params = {}, body = {}, query = {} } = {}) {
   let statusCode = 200;
   let jsonPayload;
   let nextError;
 
-  const req = { params, body, query };
+  const authenticatedUserId = userId ?? body.userId ?? Number(query.userId);
+  const req = { userId: authenticatedUserId, params, body, query };
   const res = {
     status(code) {
       statusCode = code;
@@ -210,7 +218,8 @@ test("consume route subtracts quantity and updates last consumed timestamp", asy
   const pool = createPoolMock([
     [[]],
     [[{ quantity: 10 }]],
-    [{ affectedRows: 1 }]
+    [{ affectedRows: 1 }],
+    [[{ quantity: 7 }]]
   ]);
   const router = createInventoryRouter({ pool });
   const consumeHandler = getRouteHandler(router, "/:id/consume", "post");
@@ -227,19 +236,19 @@ test("consume route subtracts quantity and updates last consumed timestamp", asy
   assert.equal(result.jsonPayload.ok, true);
   assert.equal(result.jsonPayload.message, "消耗记录成功");
   assert.deepEqual(result.jsonPayload.data, {
-    previousQuantity: 10,
     consumed: 3,
     remainingQuantity: 7
   });
   assert.match(pool.calls[2].query, /quantity = quantity - \?, last_consumed_at = NOW\(\), updated_at = NOW\(\)/);
-  assert.deepEqual(pool.calls[2].params, [3, 42]);
+  assert.deepEqual(pool.calls[2].params, [3, 42, 3]);
 });
 
 test("consume route rejects insufficient stock before updating", async () => {
   clearCache();
   const pool = createPoolMock([
     [[]],
-    [[{ quantity: 2 }]]
+    [[{ quantity: 2 }]],
+    [{ affectedRows: 0 }]
   ]);
   const router = createInventoryRouter({ pool });
   const consumeHandler = getRouteHandler(router, "/:id/consume", "post");
@@ -253,7 +262,7 @@ test("consume route rejects insufficient stock before updating", async () => {
   assert.equal(result.nextError.status, 400);
   assert.equal(result.nextError.code, "INSUFFICIENT_STOCK");
   assert.match(result.nextError.message, /存量不足/);
-  assert.equal(pool.calls.length, 2);
+  assert.equal(pool.calls.length, 3);
 });
 
 test("replenish route exists and adds quantity", async () => {

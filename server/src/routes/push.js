@@ -34,16 +34,21 @@ function createPushRouter({ pool }) {
 
   router.delete("/token", async (req, res, next) => {
     try {
+      const userId = parseRequiredInteger(req.userId);
       const token = req.body.token || req.query.token;
       const channel = req.body.channel || req.query.channel;
       if (!token || typeof token !== "string") {
         throw new ApiError(400, "INVALID_REQUEST", "缺少 token");
       }
 
+      let result;
       if (channel) {
-        await pool.execute("DELETE FROM push_tokens WHERE token = ? AND channel = ?", [token.trim(), channel]);
+        result = await pool.execute("DELETE FROM push_tokens WHERE token = ? AND channel = ? AND user_id = ?", [token.trim(), channel, userId]);
       } else {
-        await pool.execute("DELETE FROM push_tokens WHERE token = ?", [token.trim()]);
+        result = await pool.execute("DELETE FROM push_tokens WHERE token = ? AND user_id = ?", [token.trim(), userId]);
+      }
+      if (result[0].affectedRows === 0) {
+        throw new ApiError(404, "NOT_FOUND", "推送 token 不存在或无权删除");
       }
       res.json({ ok: true });
     } catch (error) {

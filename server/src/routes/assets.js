@@ -87,7 +87,11 @@ function createAssetsRouter({ pool }) {
         message: "查询成功",
         data: { items, relationshipId }
       };
-      cache.set(Keys.assets(userId), responseData, TTL.ASSETS);
+      // The unfiltered list is the only response stored under the canonical
+      // key. Filtered queries must never replace the "all" result.
+      if (!category && !status) {
+        cache.set(Keys.assets(userId), responseData, TTL.ASSETS);
+      }
       res.json(responseData);
     } catch (error) {
       next(error);

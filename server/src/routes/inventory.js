@@ -6,16 +6,46 @@ const { cache, Keys, TTL } = require("../cache");
 const { loadActiveRelationship, trimValue, parseRequiredInteger, parseRequiredFloat, normalizeNullableText, invalidateForUser } = require("../utils/queryHelpers");
 const { withTransaction } = require("../utils/transactions");
 const { callImageApi } = require("../utils/imageApi");
+const { resolveWritableCategory } = require("../utils/categoryScope");
 
 const EXPIRING_WINDOW_DAYS = 3;
-const INVENTORY_SELECT_FIELDS = `inventory_id as inventoryId, user_id as userId, relationship_id as relationshipId,
-                 name, category, image_url as imageUrl, quantity, unit, threshold,
-                 created_at as createdAt, updated_at as updatedAt, last_consumed_at as lastConsumedAt,
-                 note, ai_image_prompt as aiImagePrompt,
-                 expiration_mode as expirationMode,
-                 DATE_FORMAT(expiration_date, '%Y-%m-%d') as expirationDate,
-                 DATE_FORMAT(production_date, '%Y-%m-%d') as productionDate,
-                 shelf_life_days as shelfLifeDays`;
+const INVENTORY_SELECT_FIELDS = `inventory.inventory_id as inventoryId, inventory.user_id as userId, inventory.relationship_id as relationshipId,
+                 inventory.name, inventory.category, inventory.image_url as imageUrl, inventory.quantity, inventory.unit, inventory.threshold,
+                 inventory.created_at as createdAt, inventory.updated_at as updatedAt, inventory.last_consumed_at as lastConsumedAt,
+                 inventory.note, inventory.ai_image_prompt as aiImagePrompt,
+                 inventory.expiration_mode as expirationMode,
+                 DATE_FORMAT(inventory.expiration_date, '%Y-%m-%d') as expirationDate,
+                 DATE_FORMAT(inventory.production_date, '%Y-%m-%d') as productionDate,
+                 inventory.shelf_life_days as shelfLifeDays`;
+// 分类读路径（spec 9）：category_id + 分类当前信息；历史 NULL 行 category 为 null，
+// 归档分类仍随引用可读（status: "archived"）。
+const INVENTORY_CATEGORY_SELECT = `inventory.category_id as categoryId,
+                 ic.name as categoryName, ic.icon_type as categoryIconType, ic.icon_value as categoryIconValue,
+                 ic.color as categoryColor, ic.status as categoryStatus`;
+const INVENTORY_CATEGORY_JOIN = "LEFT JOIN item_categories ic ON ic.id = inventory.category_id";
+
+/** 把 JOIN 出的分类列折叠成 categoryInfo 对象；categoryId 为 NULL 的历史行返回 null。 */
+function withCategoryInfo(row) {
+  const {
+    categoryName, categoryIconType, categoryIconValue, categoryColor, categoryStatus,
+    ...rest
+  } = row;
+  return {
+    ...rest,
+    categoryId: row.categoryId || null,
+    // legacy `category` 字符串列保持不变（spec 9：继续返回 legacy category），
+    // 分类当前信息放在 categoryInfo，避免覆盖旧客户端依赖的字符串字段
+    categoryInfo: row.categoryId
+      ? {
+          categoryId: row.categoryId,
+          name: categoryName || null,
+          icon: categoryIconType ? { type: categoryIconType, value: categoryIconValue } : null,
+          color: categoryColor || null,
+          status: categoryStatus || null
+        }
+      : null
+  };
+}
 
 function normalizeExpirationMode(value) {
   if (value === undefined || value === null) {
@@ -213,20 +243,20 @@ function createInventoryRouter({ pool }) {
       let params;
 
       if (relationshipId) {
-        query = `SELECT ${INVENTORY_SELECT_FIELDS}
-                 FROM inventory WHERE relationship_id = ? OR (user_id = ? AND relationship_id IS NULL) ORDER BY updated_at DESC`;
+        query = `SELECT ${INVENTORY_SELECT_FIELDS}, ${INVENTORY_CATEGORY_SELECT}
+                 FROM inventory ${INVENTORY_CATEGORY_JOIN} WHERE inventory.relationship_id = ? OR (inventory.user_id = ? AND inventory.relationship_id IS NULL) ORDER BY inventory.updated_at DESC`;
         params = [relationshipId, userId];
       } else {
-        query = `SELECT ${INVENTORY_SELECT_FIELDS}
-                 FROM inventory WHERE user_id = ? AND relationship_id IS NULL ORDER BY updated_at DESC`;
+        query = `SELECT ${INVENTORY_SELECT_FIELDS}, ${INVENTORY_CATEGORY_SELECT}
+                 FROM inventory ${INVENTORY_CATEGORY_JOIN} WHERE inventory.user_id = ? AND inventory.relationship_id IS NULL ORDER BY inventory.updated_at DESC`;
         params = [userId];
       }
 
       const [rows] = await pool.execute(query, params);
-      const items = rows.map(row => addExpirationFlags({
+      const items = rows.map(row => addExpirationFlags(withCategoryInfo({
         ...row,
         isLowStock: Number(row.quantity) <= Number(row.threshold)
-      }));
+      })));
 
       const responseData = {
         ok: true,
@@ -268,20 +298,20 @@ function createInventoryRouter({ pool }) {
       let params;
 
       if (relationshipId) {
-        query = `SELECT ${INVENTORY_SELECT_FIELDS}
-                 FROM inventory WHERE (relationship_id = ? OR (user_id = ? AND relationship_id IS NULL)) AND quantity <= threshold ORDER BY quantity ASC`;
+        query = `SELECT ${INVENTORY_SELECT_FIELDS}, ${INVENTORY_CATEGORY_SELECT}
+                 FROM inventory ${INVENTORY_CATEGORY_JOIN} WHERE (inventory.relationship_id = ? OR (inventory.user_id = ? AND inventory.relationship_id IS NULL)) AND inventory.quantity <= inventory.threshold ORDER BY inventory.quantity ASC`;
         params = [relationshipId, userId];
       } else {
-        query = `SELECT ${INVENTORY_SELECT_FIELDS}
-                 FROM inventory WHERE user_id = ? AND relationship_id IS NULL AND quantity <= threshold ORDER BY quantity ASC`;
+        query = `SELECT ${INVENTORY_SELECT_FIELDS}, ${INVENTORY_CATEGORY_SELECT}
+                 FROM inventory ${INVENTORY_CATEGORY_JOIN} WHERE inventory.user_id = ? AND inventory.relationship_id IS NULL AND inventory.quantity <= inventory.threshold ORDER BY inventory.quantity ASC`;
         params = [userId];
       }
 
       const [rows] = await pool.execute(query, params);
-      const items = rows.map(row => addExpirationFlags({
+      const items = rows.map(row => addExpirationFlags(withCategoryInfo({
         ...row,
         isLowStock: Number(row.quantity) <= Number(row.threshold)
-      }));
+      })));
 
       res.json({
         ok: true,
@@ -301,37 +331,62 @@ function createInventoryRouter({ pool }) {
     try {
       const userId = parseRequiredInteger(req.userId);
       const name = trimValue(req.body.name);
-      const category = trimValue(req.body.category);
+      const legacyCategory = trimValue(req.body.category);
       const quantity = parseRequiredFloat(req.body.quantity);
       const unit = trimValue(req.body.unit);
       const threshold = parseRequiredFloat(req.body.threshold ?? 1);
+
+      const relationship = await loadActiveRelationship(pool, userId);
+      const relationshipId = relationship ? relationship.relationship_id : null;
+
+      // categoryId（spec 第 9 节）：显式提供时优先于 legacy 字符串 category，
+      // 服务端按分类解析显示名称；未提供时走旧字符串路径，行为不变。
+      let categoryEntity = null;
+      if (req.body.categoryId !== undefined && req.body.categoryId !== null) {
+        categoryEntity = await resolveWritableCategory(pool, {
+          userId,
+          relationshipId,
+          domain: "inventory",
+          direction: null,
+          categoryId: req.body.categoryId
+        });
+      }
+      const category = categoryEntity ? categoryEntity.name : legacyCategory;
 
       if (!name || !category || !unit) {
         throw new ApiError(400, "INVALID_REQUEST", "存货名称、类别和单位不能为空");
       }
 
-      const relationship = await loadActiveRelationship(pool, userId);
-      const relationshipId = relationship ? relationship.relationship_id : null;
       const imageUrl = normalizeNullableText(req.body.imageUrl);
       const note = normalizeNullableText(req.body.note);
       const aiImagePrompt = normalizeNullableText(req.body.aiImagePrompt);
       const shelfLife = deriveShelfLifeFields(req.body);
       const includesShelfLifeFields = hasShelfLifeFields(req.body);
 
+      // 同名合并策略（spec 第 9 节物资模板兼容）：默认 'merge' 保持旧行为；
+      // 模板流程用户显式选择「作为新物资保存」时传 'create'，跳过合并强制新建，
+      // 避免不同单位的数量被相加。旧客户端不传此字段，行为完全不变。
+      const duplicateStrategy = trimValue(req.body.duplicateStrategy) || "merge";
+      if (duplicateStrategy !== "merge" && duplicateStrategy !== "create") {
+        throw new ApiError(400, "INVALID_REQUEST", "duplicateStrategy 只支持 merge 或 create");
+      }
+
       let findQuery;
       let findParams;
       if (relationshipId) {
-        findQuery = "SELECT inventory_id, category, quantity, unit, threshold, image_url, note, ai_image_prompt, expiration_mode, DATE_FORMAT(expiration_date, '%Y-%m-%d') as expiration_date, DATE_FORMAT(production_date, '%Y-%m-%d') as production_date, shelf_life_days FROM inventory WHERE name = ? AND (relationship_id = ? OR (user_id = ? AND relationship_id IS NULL)) LIMIT 1 FOR UPDATE";
+        findQuery = "SELECT inventory_id, category, category_id, quantity, unit, threshold, image_url, note, ai_image_prompt, expiration_mode, DATE_FORMAT(expiration_date, '%Y-%m-%d') as expiration_date, DATE_FORMAT(production_date, '%Y-%m-%d') as production_date, shelf_life_days FROM inventory WHERE name = ? AND (relationship_id = ? OR (user_id = ? AND relationship_id IS NULL)) LIMIT 1 FOR UPDATE";
         findParams = [name, relationshipId, userId];
       } else {
-        findQuery = "SELECT inventory_id, category, quantity, unit, threshold, image_url, note, ai_image_prompt, expiration_mode, DATE_FORMAT(expiration_date, '%Y-%m-%d') as expiration_date, DATE_FORMAT(production_date, '%Y-%m-%d') as production_date, shelf_life_days FROM inventory WHERE name = ? AND user_id = ? AND relationship_id IS NULL LIMIT 1 FOR UPDATE";
+        findQuery = "SELECT inventory_id, category, category_id, quantity, unit, threshold, image_url, note, ai_image_prompt, expiration_mode, DATE_FORMAT(expiration_date, '%Y-%m-%d') as expiration_date, DATE_FORMAT(production_date, '%Y-%m-%d') as production_date, shelf_life_days FROM inventory WHERE name = ? AND user_id = ? AND relationship_id IS NULL LIMIT 1 FOR UPDATE";
         findParams = [name, userId];
       }
 
+      let responsePayload;
+      let responseStatus = 200;
       await withTransaction(pool, async (conn) => {
         const [existing] = await conn.execute(findQuery, findParams);
 
-        if (existing.length > 0) {
+        if (existing.length > 0 && duplicateStrategy !== "create") {
           const existingItem = existing[0];
           const newQuantity = Number(existingItem.quantity) + quantity;
           const updates = ["quantity = ?", "updated_at = NOW()"];
@@ -378,6 +433,8 @@ function createInventoryRouter({ pool }) {
             relationshipId,
             name,
             category: existingItem.category,
+            // 同名合并保持既有分类语义（spec 9：合并不改变既有条目的分类归属）
+            categoryId: existingItem.category_id || null,
             imageUrl: imageUrl || existingItem.image_url,
             quantity: newQuantity,
             unit: existingItem.unit,
@@ -391,21 +448,21 @@ function createInventoryRouter({ pool }) {
             isLowStock: newQuantity <= Number(existingItem.threshold)
           });
 
-          invalidateInventoryCache(userId, relationship);
-          res.json({
+          responsePayload = {
             ok: true,
             message: "已合并到同名物资",
             data: mergedItem
-          });
+          };
         } else {
           const [result] = await conn.execute(
-            `INSERT INTO inventory (user_id, relationship_id, name, category, image_url, quantity, unit, threshold, note, ai_image_prompt, expiration_mode, expiration_date, production_date, shelf_life_days, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+            `INSERT INTO inventory (user_id, relationship_id, name, category, category_id, image_url, quantity, unit, threshold, note, ai_image_prompt, expiration_mode, expiration_date, production_date, shelf_life_days, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
             [
               userId,
               relationshipId,
               name,
               category,
+              categoryEntity ? categoryEntity.id : null,
               imageUrl,
               quantity,
               unit,
@@ -425,6 +482,7 @@ function createInventoryRouter({ pool }) {
             relationshipId,
             name,
             category,
+            categoryId: categoryEntity ? categoryEntity.id : null,
             imageUrl,
             quantity,
             unit,
@@ -438,14 +496,18 @@ function createInventoryRouter({ pool }) {
             isLowStock: quantity <= threshold
           });
 
-          invalidateInventoryCache(userId, relationship);
-          res.status(201).json({
+          responseStatus = 201;
+          responsePayload = {
             ok: true,
             message: "存货添加成功",
             data: createdItem
-          });
+          };
         }
       });
+      // withTransaction resolves only after COMMIT. Do cache invalidation and
+      // send the success response afterwards so commit failures remain errors.
+      invalidateInventoryCache(userId, relationship);
+      res.status(responseStatus).json(responsePayload);
     } catch (error) {
       next(error);
     }
@@ -481,10 +543,10 @@ function createInventoryRouter({ pool }) {
       let existingFieldsParams;
 
       if (relationshipId) {
-        existingFieldsQuery = "SELECT expiration_mode as expirationMode, DATE_FORMAT(expiration_date, '%Y-%m-%d') as expirationDate, DATE_FORMAT(production_date, '%Y-%m-%d') as productionDate, shelf_life_days as shelfLifeDays FROM inventory WHERE inventory_id = ? AND (relationship_id = ? OR (user_id = ? AND relationship_id IS NULL))";
+        existingFieldsQuery = "SELECT expiration_mode as expirationMode, DATE_FORMAT(expiration_date, '%Y-%m-%d') as expirationDate, DATE_FORMAT(production_date, '%Y-%m-%d') as productionDate, shelf_life_days as shelfLifeDays, relationship_id as relationshipId FROM inventory WHERE inventory_id = ? AND (relationship_id = ? OR (user_id = ? AND relationship_id IS NULL))";
         existingFieldsParams = [inventoryId, relationshipId, userId];
       } else {
-        existingFieldsQuery = "SELECT expiration_mode as expirationMode, DATE_FORMAT(expiration_date, '%Y-%m-%d') as expirationDate, DATE_FORMAT(production_date, '%Y-%m-%d') as productionDate, shelf_life_days as shelfLifeDays FROM inventory WHERE inventory_id = ? AND user_id = ? AND relationship_id IS NULL";
+        existingFieldsQuery = "SELECT expiration_mode as expirationMode, DATE_FORMAT(expiration_date, '%Y-%m-%d') as expirationDate, DATE_FORMAT(production_date, '%Y-%m-%d') as productionDate, shelf_life_days as shelfLifeDays, relationship_id as relationshipId FROM inventory WHERE inventory_id = ? AND user_id = ? AND relationship_id IS NULL";
         existingFieldsParams = [inventoryId, userId];
       }
 
@@ -495,6 +557,30 @@ function createInventoryRouter({ pool }) {
         productionDate: null,
         shelfLifeDays: null
       };
+
+      // categoryId（spec 第 9 节）：显式提供时优先于 legacy 字符串 category，
+      // 服务端按分类解析显示名称；null 表示显式清除分类关联。
+      const categoryIdProvided = Object.prototype.hasOwnProperty.call(req.body, "categoryId");
+      if (categoryIdProvided) {
+        const rawCategoryId = req.body.categoryId;
+        if (rawCategoryId === null) {
+          updates.push("category_id = ?");
+          params.push(null);
+        } else {
+          const itemRelationshipId = existingShelfLifeRows[0] ? existingShelfLifeRows[0].relationshipId : null;
+          const categoryEntity = await resolveWritableCategory(pool, {
+            userId,
+            relationshipId: itemRelationshipId === undefined ? null : itemRelationshipId,
+            domain: "inventory",
+            direction: null,
+            categoryId: rawCategoryId
+          });
+          updates.push("category_id = ?");
+          params.push(categoryEntity.id);
+          updates.push("category = ?");
+          params.push(categoryEntity.name);
+        }
+      }
 
       if (hasShelfLifeFields(req.body)) {
         const shelfLife = resolveShelfLifeUpdate(existingShelfLife, req.body);
@@ -518,7 +604,7 @@ function createInventoryRouter({ pool }) {
         params.push(name);
       }
 
-      if (req.body.category !== undefined) {
+      if (req.body.category !== undefined && !(categoryIdProvided && req.body.categoryId !== null)) {
         const category = trimValue(req.body.category);
         if (!category) {
           throw new ApiError(400, "INVALID_REQUEST", "类别不能为空");
@@ -779,5 +865,6 @@ module.exports = {
   createInventoryRouter,
   deriveShelfLifeFields,
   addExpirationFlags,
-  EXPIRING_WINDOW_DAYS
+  EXPIRING_WINDOW_DAYS,
+  INVENTORY_SELECT_FIELDS
 };

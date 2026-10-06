@@ -1,0 +1,49 @@
+{
+  "date": "2026-10-01T07:51:04.752Z",
+  "baseUrl": "http://127.0.0.1:18099",
+  "spaceId": "1bcc38e6-e576-4201-a241-5e695ba4f0b6",
+  "scale": {
+    "categories": 50,
+    "userCategories": 49,
+    "templates": 200,
+    "records": 10000,
+    "recordsIn366d": 9150
+  },
+  "samples": 30,
+  "environment": {
+    "node": "v24.14.0",
+    "device": "macOS 本地 (Apple Silicon)",
+    "network": "127.0.0.1 回环，RTT≈0，响应时间≈服务端处理耗时"
+  },
+  "thresholds": {
+    "p95Ms": 1000,
+    "homepageOperableMs": 2000
+  },
+  "results": [
+    {
+      "endpoint": "GET records（366 天范围, limit 20）",
+      "samples": 30,
+      "p50": 39.9,
+      "p95": 69.3,
+      "max": 78.4,
+      "avg": 44.2
+    },
+    {
+      "endpoint": "GET statistics（同一完整范围聚合）",
+      "samples": 30,
+      "p50": 78,
+      "p95": 133.1,
+      "max": 136.1,
+      "avg": 85
+    },
+    {
+      "endpoint": "POST records（提交）",
+      "samples": 30,
+      "p50": 4.6,
+      "p95": 8.8,
+      "max": 10.6,
+      "avg": 5
+    }
+  ],
+  "pass": true
+}

@@ -1,6 +1,9 @@
 const express = require("express");
 const { ApiError } = require("../errors");
+const { cache } = require("../cache");
 const {
+  buildSubjectOrCurrentRelationshipScope,
+  invalidateOverviewForUser,
   loadActiveRelationship,
   normalizeNullableText,
   parseRequiredInteger,
@@ -79,14 +82,13 @@ function createPeriodRouter({ pool }) {
         if (relationship.user_id_2 !== userId) userIds.push(relationship.user_id_2);
       }
 
-      const placeholders = userIds.map(() => "?").join(",");
+      const scope = buildSubjectOrCurrentRelationshipScope(userId, relationship);
       const [rows] = await pool.execute(
         `SELECT id, user_id, start_date, end_date, note, created_at
          FROM period_records
-         WHERE user_id IN (${placeholders})
-         ORDER BY start_date DESC
-         LIMIT 24`,
-        userIds
+         WHERE ${scope.clause}
+         ORDER BY start_date DESC`,
+        scope.params
       );
 
       const userNameMap = await getUserDisplayMap(pool, userIds);
@@ -144,6 +146,8 @@ function createPeriodRouter({ pool }) {
         [userId, relationshipId, startDate, note]
       );
 
+      invalidateOverviewForUser(cache, userId, relationship);
+
       res.status(201).json({ ok: true, data: { id: result.insertId } });
     } catch (error) {
       next(error);
@@ -180,6 +184,9 @@ function createPeriodRouter({ pool }) {
         );
       }
 
+      const relationship = await loadActiveRelationship(pool, userId);
+      invalidateOverviewForUser(cache, userId, relationship);
+
       res.json({ ok: true, message: "更新成功" });
     } catch (error) {
       next(error);
@@ -199,6 +206,8 @@ function createPeriodRouter({ pool }) {
       if (rows[0].user_id !== userId) throw new ApiError(403, "FORBIDDEN", "只能删除自己的记录");
 
       await pool.execute(`DELETE FROM period_records WHERE id = ?`, [recordId]);
+      const relationship = await loadActiveRelationship(pool, userId);
+      invalidateOverviewForUser(cache, userId, relationship);
       res.json({ ok: true, message: "删除成功" });
     } catch (error) {
       next(error);

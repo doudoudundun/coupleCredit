@@ -32,12 +32,13 @@ function getRouteHandler(router, path, method) {
   return layer && layer.route.stack[0] && layer.route.stack[0].handle;
 }
 
-async function invokeHandler(handler, { params = {}, body = {}, query = {} } = {}) {
+async function invokeHandler(handler, { userId, params = {}, body = {}, query = {} } = {}) {
   let statusCode = 200;
   let jsonPayload;
   let nextError;
 
-  const req = { params, body, query };
+  const authenticatedUserId = userId ?? body.userId ?? Number(query.userId);
+  const req = { userId: authenticatedUserId, params, body, query };
   const res = {
     status(code) {
       statusCode = code;

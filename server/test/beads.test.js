@@ -11,6 +11,7 @@ const {
   createBeadRouter
 } = require("../src/routes/beads");
 const { cache, Keys, TTL } = require("../src/cache");
+const passthroughLimiter = (_req, _res, next) => next();
 
 function clearCache() {
   cache.store.clear();
@@ -99,12 +100,13 @@ function getRouteHandler(router, routePath, method) {
   return layer && layer.route.stack[0] && layer.route.stack[0].handle;
 }
 
-async function invokeHandler(handler, { params = {}, body = {}, query = {} } = {}) {
+async function invokeHandler(handler, { userId, params = {}, body = {}, query = {} } = {}) {
   let statusCode = 200;
   let jsonPayload;
   let nextError;
 
-  const req = { params, body, query };
+  const authenticatedUserId = userId ?? body.userId ?? Number(query.userId);
+  const req = { userId: authenticatedUserId, params, body, query };
   const res = {
     status(code) {
       statusCode = code;
@@ -237,11 +239,11 @@ test("server index registers the bead router", () => {
   );
 
   assert.match(source, /const\s+\{\s*createBeadRouter\s*\}\s*=\s*require\("\.\/routes\/beads"\);/);
-  assert.match(source, /app\.use\("\/api\/beads",\s*createBeadRouter\(\{\s*pool\s*\}\)\);/);
+  assert.match(source, /app\.use\("\/api\/beads",\s*createBeadRouter\(\{\s*pool,\s*aiLimiter\s*\}\)\);/);
 });
 
 test("bead router exposes all required endpoints", () => {
-  const router = createBeadRouter({ pool: createPoolMock([]) });
+  const router = createBeadRouter({ pool: createPoolMock([]), aiLimiter: passthroughLimiter });
 
   assert.equal(typeof getRouteHandler(router, "/colors", "get"), "function");
   assert.equal(typeof getRouteHandler(router, "/inventory", "get"), "function");
@@ -260,19 +262,22 @@ test("bead router exposes all required endpoints", () => {
   assert.equal(typeof getRouteHandler(router, "/blueprints/:id/build", "post"), "function");
 });
 
-test("get inventory seeds missing rows, returns summary, and exposes relationship metadata while staying user-scoped", async () => {
+test("get inventory seeds shared rows, uses the relationship owner, and exposes relationship metadata", async () => {
   clearCache();
   const pool = createPoolMock([
+    [[{ relationship_id: 9, user_id_1: 7, user_id_2: 8 }]],
     [{ affectedRows: 1 }],
     [{ affectedRows: 221 }],
+    [{ affectedRows: 221 }],
+    [{ affectedRows: 221 }],
+    [{ affectedRows: 442 }],
     [buildInventoryRows({
       quantities: { A01: 5, A02: 320 },
       thresholdOverrides: { A02: 350 },
       totalConsumed: { A01: 12, A02: 40 }
-    })],
-    [[{ relationship_id: 9, user_id_1: 7, user_id_2: 8 }]]
+    })]
   ]);
-  const router = createBeadRouter({ pool });
+  const router = createBeadRouter({ pool, aiLimiter: passthroughLimiter });
   const handler = getRouteHandler(router, "/inventory", "get");
 
   assert.equal(typeof handler, "function");
@@ -291,11 +296,13 @@ test("get inventory seeds missing rows, returns summary, and exposes relationshi
     totalConsumptionReference: 52
   });
   assert.equal(result.jsonPayload.data.items.length, 221);
-  assert.match(pool.calls[0].query, /INSERT INTO bead_settings/i);
-  assert.match(pool.calls[1].query, /INSERT IGNORE INTO bead_inventory/i);
-  assert.match(pool.calls[1].query, /FROM bead_colors/i);
-  assert.match(pool.calls[1].query, /NULL/);
-  assert.match(pool.calls[2].query, /FROM bead_colors bc/i);
+  assert.match(pool.calls[1].query, /INSERT INTO bead_settings/i);
+  assert.match(pool.calls[2].query, /INSERT IGNORE INTO bead_inventory/i);
+  assert.match(pool.calls[2].query, /FROM bead_colors/i);
+  assert.match(pool.calls[3].query, /INSERT IGNORE INTO bead_inventory/i);
+  assert.match(pool.calls[4].query, /UPDATE bead_inventory target/i);
+  assert.match(pool.calls[6].query, /FROM bead_colors bc/i);
+  assert.deepEqual(pool.calls[6].params, [8, 8, 9, 7]);
 
   const firstItem = result.jsonPayload.data.items.find(item => item.colorCode === "A01");
   assert.deepEqual(firstItem, {
@@ -311,17 +318,48 @@ test("get inventory seeds missing rows, returns summary, and exposes relationshi
   });
 });
 
+test("coupled inventory mutations write through to the relationship owner", async () => {
+  clearCache();
+  cache.set(Keys.beads(7), { ok: true }, TTL.BEADS);
+  cache.set(Keys.beads(8), { ok: true }, TTL.BEADS);
+
+  const pool = createPoolMock([
+    [[{ relationship_id: 9, user_id_1: 7, user_id_2: 8 }]],
+    [{ affectedRows: 1 }],
+    [{ affectedRows: 221 }],
+    [{ affectedRows: 221 }],
+    [{ affectedRows: 221 }],
+    [{ affectedRows: 442 }],
+    [{ affectedRows: 1 }]
+  ]);
+  const router = createBeadRouter({ pool, aiLimiter: passthroughLimiter });
+  const handler = getRouteHandler(router, "/inventory/:colorCode", "put");
+
+  const result = await invokeHandler(handler, {
+    userId: 7,
+    params: { colorCode: "A01" },
+    body: { quantity: 88, thresholdOverride: 250 }
+  });
+
+  assert.equal(result.nextError, undefined);
+  assert.equal(result.statusCode, 200);
+  assert.deepEqual(pool.calls[6].params, [88, 250, "A01", 8]);
+  assert.equal(cache.get(Keys.beads(7)), null);
+  assert.equal(cache.get(Keys.beads(8)), null);
+});
+
 test("put inventory updates quantity and threshold override and invalidates bead cache", async () => {
   clearCache();
   cache.set(Keys.beads(7), { ok: true }, TTL.BEADS);
   cache.set(Keys.beadBlueprints(7), { ok: true }, TTL.BEADS);
 
   const pool = createPoolMock([
+    [[]],
     [{ affectedRows: 1 }],
     [{ affectedRows: 221 }],
     [{ affectedRows: 1 }]
   ]);
-  const router = createBeadRouter({ pool });
+  const router = createBeadRouter({ pool, aiLimiter: passthroughLimiter });
   const handler = getRouteHandler(router, "/inventory/:colorCode", "put");
 
   const result = await invokeHandler(handler, {
@@ -336,8 +374,8 @@ test("put inventory updates quantity and threshold override and invalidates bead
   assert.equal(result.nextError, undefined);
   assert.equal(result.statusCode, 200);
   assert.equal(result.jsonPayload.message, "库存更新成功");
-  assert.match(pool.calls[2].query, /UPDATE bead_inventory SET quantity = \?, threshold_override = \?, updated_at = NOW\(\) WHERE color_code = \? AND user_id = \?/i);
-  assert.deepEqual(pool.calls[2].params, [88, 250, "A01", 7]);
+  assert.match(pool.calls[3].query, /UPDATE bead_inventory SET quantity = \?, threshold_override = \?, updated_at = NOW\(\) WHERE color_code = \? AND user_id = \?/i);
+  assert.deepEqual(pool.calls[3].params, [88, 250, "A01", 7]);
   assert.equal(cache.get(Keys.beads(7)), null);
   assert.equal(cache.get(Keys.beadBlueprints(7)), null);
 });
@@ -345,11 +383,12 @@ test("put inventory updates quantity and threshold override and invalidates bead
 test("consume route uses an atomic conditional update and reports insufficient stock when nothing is updated", async () => {
   clearCache();
   const pool = createPoolMock([
+    [[]],
     [{ affectedRows: 1 }],
     [{ affectedRows: 221 }],
     [{ affectedRows: 0 }]
   ]);
-  const router = createBeadRouter({ pool });
+  const router = createBeadRouter({ pool, aiLimiter: passthroughLimiter });
   const handler = getRouteHandler(router, "/inventory/:colorCode/consume", "post");
 
   const result = await invokeHandler(handler, {
@@ -364,10 +403,10 @@ test("consume route uses an atomic conditional update and reports insufficient s
   assert.equal(result.jsonPayload, undefined);
   assert.equal(result.nextError.status, 400);
   assert.equal(result.nextError.code, "INSUFFICIENT_STOCK");
-  assert.equal(result.nextError.message, "库存不足");
-  assert.equal(pool.calls.length, 3);
-  assert.match(pool.calls[2].query, /UPDATE bead_inventory[\s\S]*quantity = quantity - \?[\s\S]*quantity >= \?/i);
-  assert.deepEqual(pool.calls[2].params, [3, "A01", 7, 3]);
+  assert.equal(result.nextError.message, "库存不足或颜色不存在");
+  assert.equal(pool.calls.length, 4);
+  assert.match(pool.calls[3].query, /UPDATE bead_inventory[\s\S]*quantity = GREATEST\(0, quantity - \?\)[\s\S]*quantity >= \?/i);
+  assert.deepEqual(pool.calls[3].params, [3, "A01", 7, 3]);
 });
 
 test("consume route returns consumed color code after atomic success", async () => {
@@ -376,11 +415,12 @@ test("consume route returns consumed color code after atomic success", async () 
   cache.set(Keys.beadBlueprints(7), { ok: true }, TTL.BEADS);
 
   const pool = createPoolMock([
+    [[]],
     [{ affectedRows: 1 }],
     [{ affectedRows: 221 }],
     [{ affectedRows: 1 }]
   ]);
-  const router = createBeadRouter({ pool });
+  const router = createBeadRouter({ pool, aiLimiter: passthroughLimiter });
   const handler = getRouteHandler(router, "/inventory/:colorCode/consume", "post");
 
   const result = await invokeHandler(handler, {
@@ -408,16 +448,16 @@ test("consume route returns consumed color code after atomic success", async () 
 test("get low-stock returns only colors at or below the effective threshold", async () => {
   clearCache();
   const pool = createPoolMock([
+    [[]],
     [{ affectedRows: 1 }],
     [{ affectedRows: 3 }],
     [[
       { color_code: "A01", hex_color: "#faf5cd", color_group: "A", is_transparent: 0, quantity: 150, threshold_override: null, default_threshold: 200, total_consumed: 4 },
       { color_code: "A02", hex_color: "#f6d7d2", color_group: "A", is_transparent: 0, quantity: 310, threshold_override: 320, default_threshold: 200, total_consumed: 8 },
       { color_code: "A03", hex_color: "#f7efe3", color_group: "A", is_transparent: 0, quantity: 500, threshold_override: null, default_threshold: 200, total_consumed: 1 }
-    ]],
-    [[]]
+    ]]
   ]);
-  const router = createBeadRouter({ pool });
+  const router = createBeadRouter({ pool, aiLimiter: passthroughLimiter });
   const handler = getRouteHandler(router, "/inventory/low-stock", "get");
 
   const result = await invokeHandler(handler, {
@@ -433,16 +473,16 @@ test("get low-stock returns only colors at or below the effective threshold", as
 test("get inventory summary reports low-stock count and total blueprint consumption reference", async () => {
   clearCache();
   const pool = createPoolMock([
+    [[]],
     [{ affectedRows: 1 }],
     [{ affectedRows: 3 }],
     [[
       { color_code: "A01", hex_color: "#faf5cd", color_group: "A", is_transparent: 0, quantity: 150, threshold_override: null, default_threshold: 200, total_consumed: 10 },
       { color_code: "A02", hex_color: "#f6d7d2", color_group: "A", is_transparent: 0, quantity: 310, threshold_override: 320, default_threshold: 200, total_consumed: 30 },
       { color_code: "A03", hex_color: "#f7efe3", color_group: "A", is_transparent: 0, quantity: 500, threshold_override: null, default_threshold: 200, total_consumed: 5 }
-    ]],
-    [[]]
+    ]]
   ]);
-  const router = createBeadRouter({ pool });
+  const router = createBeadRouter({ pool, aiLimiter: passthroughLimiter });
   const handler = getRouteHandler(router, "/inventory/summary", "get");
 
   const result = await invokeHandler(handler, {
@@ -461,10 +501,12 @@ test("get inventory summary reports low-stock count and total blueprint consumpt
 test("get settings ensures default row exists and returns the stored threshold", async () => {
   clearCache();
   const pool = createPoolMock([
+    [[]],
     [{ affectedRows: 1 }],
+    [{ affectedRows: 221 }],
     [[{ default_threshold: 260 }]]
   ]);
-  const router = createBeadRouter({ pool });
+  const router = createBeadRouter({ pool, aiLimiter: passthroughLimiter });
   const handler = getRouteHandler(router, "/settings", "get");
 
   const result = await invokeHandler(handler, {
@@ -474,8 +516,8 @@ test("get settings ensures default row exists and returns the stored threshold",
   assert.equal(result.nextError, undefined);
   assert.equal(result.statusCode, 200);
   assert.equal(result.jsonPayload.data.defaultThreshold, 260);
-  assert.match(pool.calls[0].query, /INSERT INTO bead_settings/i);
-  assert.match(pool.calls[1].query, /SELECT default_threshold FROM bead_settings/i);
+  assert.match(pool.calls[1].query, /INSERT INTO bead_settings/i);
+  assert.match(pool.calls[3].query, /SELECT default_threshold FROM bead_settings/i);
 });
 
 test("put settings updates the default threshold and invalidates bead cache", async () => {
@@ -484,9 +526,12 @@ test("put settings updates the default threshold and invalidates bead cache", as
   cache.set(Keys.beadBlueprints(7), { ok: true }, TTL.BEADS);
 
   const pool = createPoolMock([
+    [[]],
+    [{ affectedRows: 1 }],
+    [{ affectedRows: 221 }],
     [{ affectedRows: 1 }]
   ]);
-  const router = createBeadRouter({ pool });
+  const router = createBeadRouter({ pool, aiLimiter: passthroughLimiter });
   const handler = getRouteHandler(router, "/settings", "put");
 
   const result = await invokeHandler(handler, {
@@ -496,7 +541,7 @@ test("put settings updates the default threshold and invalidates bead cache", as
   assert.equal(result.nextError, undefined);
   assert.equal(result.statusCode, 200);
   assert.equal(result.jsonPayload.message, "默认阈值更新成功");
-  assert.match(pool.calls[0].query, /INSERT INTO bead_settings/i);
+  assert.match(pool.calls[3].query, /INSERT INTO bead_settings/i);
   assert.equal(cache.get(Keys.beads(7)), null);
   assert.equal(cache.get(Keys.beadBlueprints(7)), null);
 });
@@ -504,6 +549,7 @@ test("put settings updates the default threshold and invalidates bead cache", as
 test("list blueprints returns aggregate counts per blueprint", async () => {
   clearCache();
   const pool = createPoolMock([
+    [[]],
     [[{
       blueprint_id: 8,
       user_id: 7,
@@ -515,7 +561,7 @@ test("list blueprints returns aggregate counts per blueprint", async () => {
       total_beads_per_build: 7
     }]]
   ]);
-  const router = createBeadRouter({ pool });
+  const router = createBeadRouter({ pool, aiLimiter: passthroughLimiter });
   const handler = getRouteHandler(router, "/blueprints", "get");
 
   const result = await invokeHandler(handler, {
@@ -533,19 +579,24 @@ test("list blueprints returns aggregate counts per blueprint", async () => {
     colorCount: 2,
     totalBeadsPerBuild: 7,
     createdAt: "2026-04-23 00:00:00",
-    updatedAt: "2026-04-23 00:00:00"
+    updatedAt: "2026-04-23 00:00:00",
+    isPartner: false
   }]);
 });
 
 test("create blueprint accepts planned quantityPerBuild payload while preserving stored quantity semantics", async () => {
   clearCache();
   const pool = createTransactionalPoolMock({
+    poolResponses: [
+      [[]],
+      [[]]
+    ],
     connectionResponses: [
       [{ insertId: 12 }],
       [{ affectedRows: 1 }]
     ]
   });
-  const router = createBeadRouter({ pool });
+  const router = createBeadRouter({ pool, aiLimiter: passthroughLimiter });
   const handler = getRouteHandler(router, "/blueprints", "post");
 
   const result = await invokeHandler(handler, {
@@ -568,6 +619,9 @@ test("create blueprint accepts planned quantityPerBuild payload while preserving
 test("create blueprint rolls back the transaction when color insert fails", async () => {
   clearCache();
   const pool = createTransactionalPoolMock({
+    poolResponses: [
+      [[]]
+    ],
     connectionResponses: [
       [{ insertId: 12 }],
       () => {
@@ -575,7 +629,7 @@ test("create blueprint rolls back the transaction when color insert fails", asyn
       }
     ]
   });
-  const router = createBeadRouter({ pool });
+  const router = createBeadRouter({ pool, aiLimiter: passthroughLimiter });
   const handler = getRouteHandler(router, "/blueprints", "post");
 
   const result = await invokeHandler(handler, {
@@ -600,6 +654,7 @@ test("create blueprint rolls back the transaction when color insert fails", asyn
 test("get blueprint detail computes totalConsumed from quantityPerBuild and buildCount", async () => {
   clearCache();
   const pool = createPoolMock([
+    [[]],
     [[{
       blueprint_id: 8,
       user_id: 7,
@@ -613,7 +668,7 @@ test("get blueprint detail computes totalConsumed from quantityPerBuild and buil
       { color_code: "A02", hex_color: "#f6d7d2", color_group: "A", is_transparent: 0, quantity: 5 }
     ]]
   ]);
-  const router = createBeadRouter({ pool });
+  const router = createBeadRouter({ pool, aiLimiter: passthroughLimiter });
   const handler = getRouteHandler(router, "/blueprints/:id", "get");
 
   const result = await invokeHandler(handler, {
@@ -650,6 +705,7 @@ test("update blueprint replaces its name and color rows inside a transaction", a
   clearCache();
   const pool = createTransactionalPoolMock({
     poolResponses: [
+      [[]],
       [[{
         blueprint_id: 8,
         user_id: 7,
@@ -657,7 +713,8 @@ test("update blueprint replaces its name and color rows inside a transaction", a
         build_count: 1,
         created_at: "2026-04-23 00:00:00",
         updated_at: "2026-04-23 00:00:00"
-      }]]
+      }]],
+      [[]]
     ],
     connectionResponses: [
       [{ affectedRows: 1 }],
@@ -665,7 +722,7 @@ test("update blueprint replaces its name and color rows inside a transaction", a
       [{ affectedRows: 2 }]
     ]
   });
-  const router = createBeadRouter({ pool });
+  const router = createBeadRouter({ pool, aiLimiter: passthroughLimiter });
   const handler = getRouteHandler(router, "/blueprints/:id", "put");
 
   const result = await invokeHandler(handler, {
@@ -687,8 +744,8 @@ test("update blueprint replaces its name and color rows inside a transaction", a
   assert.equal(pool.connection.commitCount, 1);
   assert.equal(pool.connection.rollbackCount, 0);
   assert.equal(pool.connection.releaseCount, 1);
-  assert.match(pool.connection.calls[0].query, /UPDATE bead_blueprints SET name = \?, updated_at = NOW\(\) WHERE blueprint_id = \? AND user_id = \?/i);
-  assert.deepEqual(pool.connection.calls[0].params, ["New Name", 8, 7]);
+  assert.match(pool.connection.calls[0].query, /UPDATE bead_blueprints SET name = \?, updated_at = NOW\(\) WHERE blueprint_id = \?/i);
+  assert.deepEqual(pool.connection.calls[0].params, ["New Name", 8]);
   assert.match(pool.connection.calls[1].query, /DELETE FROM bead_blueprint_colors WHERE blueprint_id = \?/i);
   assert.deepEqual(pool.connection.calls[1].params, [8]);
   assert.match(pool.connection.calls[2].query, /INSERT INTO bead_blueprint_colors/i);
@@ -698,6 +755,7 @@ test("update blueprint accepts planned quantityPerBuild payload while preserving
   clearCache();
   const pool = createTransactionalPoolMock({
     poolResponses: [
+      [[]],
       [[{
         blueprint_id: 8,
         user_id: 7,
@@ -705,7 +763,8 @@ test("update blueprint accepts planned quantityPerBuild payload while preserving
         build_count: 1,
         created_at: "2026-04-23 00:00:00",
         updated_at: "2026-04-23 00:00:00"
-      }]]
+      }]],
+      [[]]
     ],
     connectionResponses: [
       [{ affectedRows: 1 }],
@@ -713,7 +772,7 @@ test("update blueprint accepts planned quantityPerBuild payload while preserving
       [{ affectedRows: 1 }]
     ]
   });
-  const router = createBeadRouter({ pool });
+  const router = createBeadRouter({ pool, aiLimiter: passthroughLimiter });
   const handler = getRouteHandler(router, "/blueprints/:id", "put");
 
   const result = await invokeHandler(handler, {
@@ -735,9 +794,21 @@ test("update blueprint accepts planned quantityPerBuild payload while preserving
 test("delete blueprint removes the user-owned blueprint", async () => {
   clearCache();
   const pool = createPoolMock([
-    [{ affectedRows: 1 }]
+    [[]],
+    [[{
+      blueprint_id: 8,
+      user_id: 7,
+      relationship_id: null,
+      name: "Flower",
+      image_url: null,
+      build_count: 1,
+      created_at: "2026-04-23 00:00:00",
+      updated_at: "2026-04-23 00:00:00"
+    }]],
+    [{ affectedRows: 1 }],
+    [[]]
   ]);
-  const router = createBeadRouter({ pool });
+  const router = createBeadRouter({ pool, aiLimiter: passthroughLimiter });
   const handler = getRouteHandler(router, "/blueprints/:id", "delete");
 
   const result = await invokeHandler(handler, {
@@ -748,13 +819,14 @@ test("delete blueprint removes the user-owned blueprint", async () => {
   assert.equal(result.nextError, undefined);
   assert.equal(result.statusCode, 200);
   assert.equal(result.jsonPayload.message, "图纸删除成功");
-  assert.match(pool.calls[0].query, /DELETE FROM bead_blueprints WHERE blueprint_id = \? AND user_id = \?/i);
-  assert.deepEqual(pool.calls[0].params, [8, 7]);
+  assert.match(pool.calls[2].query, /DELETE FROM bead_blueprints WHERE blueprint_id = \?/i);
+  assert.deepEqual(pool.calls[2].params, [8]);
 });
 
 test("build route returns planned buildCount alongside legacy counters", async () => {
   clearCache();
   const pool = createPoolMock([
+    [[]],
     [[{
       blueprint_id: 8,
       user_id: 7,
@@ -763,9 +835,11 @@ test("build route returns planned buildCount alongside legacy counters", async (
       created_at: "2026-04-23 00:00:00",
       updated_at: "2026-04-23 00:00:00"
     }]],
-    [{ affectedRows: 1 }]
+    [{ affectedRows: 1 }],
+    [[{ color_code: "A01", hex_color: "#faf5cd", quantity: 2 }]],
+    [[]]
   ]);
-  const router = createBeadRouter({ pool });
+  const router = createBeadRouter({ pool, aiLimiter: passthroughLimiter });
   const handler = getRouteHandler(router, "/blueprints/:id/build", "post");
 
   const result = await invokeHandler(handler, {
@@ -782,7 +856,7 @@ test("build route returns planned buildCount alongside legacy counters", async (
     buildCount: 4,
     previousBuildCount: 2,
     addedCount: 2,
-    currentBuildCount: 4
+    currentBuildCount: 4,
+    consumedColors: [{ colorCode: "A01", hexColor: "#faf5cd", quantity: 4 }]
   });
 });
-

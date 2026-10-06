@@ -1,42 +1,13 @@
 const express = require("express");
 const { cache, Keys, TTL } = require("../cache");
-const { loadActiveRelationship, parseRequiredInteger } = require("../utils/queryHelpers");
+const {
+  buildCoupleOrPrivateScope,
+  buildSubjectOrCurrentRelationshipScope,
+  loadActiveRelationship,
+  loadPartnerProfile,
+  parseRequiredInteger,
+} = require("../utils/queryHelpers");
 const { buildCaloriePayload } = require("./calorie");
-const { addExpirationFlags } = require("./inventory");
-
-// 镜像自 bills.js:189（仅 SELECT + WHERE 部分，不含 ORDER BY）
-const TODO_SELECT_FIELDS = `todo_id, user_id, relationship_id, title, content, priority, fuzzy_date_text, image_url, status,
-                 is_repeatable, series_id, completed_count, created_at, updated_at`;
-
-// 镜像自 inventory.js:11-18
-const INVENTORY_SELECT_FIELDS = `inventory_id as inventoryId, user_id as userId, relationship_id as relationshipId,
-                 name, category, image_url as imageUrl, quantity, unit, threshold,
-                 created_at as createdAt, updated_at as updatedAt, last_consumed_at as lastConsumedAt,
-                 note, ai_image_prompt as aiImagePrompt,
-                 expiration_mode as expirationMode,
-                 DATE_FORMAT(expiration_date, '%Y-%m-%d') as expirationDate,
-                 DATE_FORMAT(production_date, '%Y-%m-%d') as productionDate,
-                 shelf_life_days as shelfLifeDays`;
-
-// 镜像自 todos.js 内的 mapTodo
-function mapTodo(row) {
-  return {
-    todoId: row.todo_id,
-    userId: row.user_id,
-    relationshipId: row.relationship_id,
-    title: row.title,
-    content: row.content,
-    priority: row.priority,
-    fuzzyDateText: row.fuzzy_date_text,
-    imageUrl: row.image_url,
-    status: row.status,
-    isRepeatable: !!row.is_repeatable,
-    seriesId: row.series_id,
-    completedCount: row.completed_count,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
-  };
-}
 
 function pad2(n) {
   return String(n).padStart(2, "0");
@@ -47,98 +18,131 @@ function todayString() {
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
 }
 
-// 子查询：账单 —— 镜像自 bills.js GET / (line 164-222)
-async function fetchBills(pool, userId, year, month) {
-  const cached = cache.get(Keys.bills(userId, year, month));
-  if (cached) return cached;
+function buildBillsSummary(rows) {
+  const summary = { billCount: 0, income: 0, expense: 0 };
+  for (const row of rows || []) {
+    if (row.billCount !== undefined || row.income !== undefined || row.expense !== undefined) {
+      summary.billCount += Number(row.billCount) || 0;
+      summary.income += Number(row.income) || 0;
+      summary.expense += Number(row.expense) || 0;
+      continue;
+    }
+    const amount = Number(row.amount) || 0;
+    if (Number(row.incomeType) === 1) summary.income += amount;
+    else summary.expense += amount;
+    summary.billCount += 1;
+  }
+  summary.income = Number(summary.income.toFixed(2));
+  summary.expense = Number(summary.expense.toFixed(2));
+  return summary;
+}
+
+function buildTodosSummary(rows) {
+  const summary = { openCount: 0, doneCount: 0, missedCount: 0 };
+  for (const row of rows || []) {
+    if (row.openCount !== undefined || row.doneCount !== undefined || row.missedCount !== undefined) {
+      summary.openCount += Number(row.openCount) || 0;
+      summary.doneCount += Number(row.doneCount) || 0;
+      summary.missedCount += Number(row.missedCount) || 0;
+      continue;
+    }
+    if (row.status === "done") summary.doneCount += 1;
+    else if (row.status === "missed") summary.missedCount += 1;
+    else summary.openCount += 1;
+  }
+  return summary;
+}
+
+function buildInventorySummary(rows) {
+  const summary = { itemCount: 0, lowStockCount: 0, expiringCount: 0 };
+  for (const row of rows || []) {
+    if (row.itemCount !== undefined || row.lowStockCount !== undefined || row.expiringCount !== undefined) {
+      summary.itemCount += Number(row.itemCount) || 0;
+      summary.lowStockCount += Number(row.lowStockCount) || 0;
+      summary.expiringCount += Number(row.expiringCount) || 0;
+      continue;
+    }
+    summary.itemCount += 1;
+    if (Number(row.quantity) <= Number(row.threshold)) summary.lowStockCount += 1;
+    if (row.isExpired || row.isExpiring) summary.expiringCount += 1;
+  }
+  return summary;
+}
+
+async function fetchBillsSummary(pool, userId, year, month) {
   const monthStr = pad2(month);
   const dateStart = `${year}-${monthStr}-01`;
   const dateEnd = month === 12 ? `${Number(year) + 1}-01-01` : `${year}-${pad2(Number(month) + 1)}-01`;
   const relationship = await loadActiveRelationship(pool, userId);
   const relationshipId = relationship ? relationship.relationship_id : null;
-
-  let query;
-  let params;
-  if (relationshipId) {
-    query = `SELECT b.bill_id as billId, b.user_id as userId, b.shared_plan_id as sharedPlanId, sp.name as sharedPlanName, b.title, b.type, b.amount, DATE_FORMAT(b.date, '%Y-%m-%d') as date, b.time, b.income_type as incomeType, b.owner, b.is_help as isHelp, b.relationship_id as relationshipId
-             FROM bills b
-             LEFT JOIN shared_plans sp ON sp.plan_id = b.shared_plan_id
-             WHERE (b.user_id = ? OR b.relationship_id = ?)
-             AND b.date >= ? AND b.date < ?`;
-    params = [userId, relationshipId, dateStart, dateEnd];
-  } else {
-    query = `SELECT b.bill_id as billId, b.user_id as userId, b.shared_plan_id as sharedPlanId, sp.name as sharedPlanName, b.title, b.type, b.amount, DATE_FORMAT(b.date, '%Y-%m-%d') as date, b.time, b.income_type as incomeType, b.owner, b.is_help as isHelp, b.relationship_id as relationshipId
-             FROM bills b
-             LEFT JOIN shared_plans sp ON sp.plan_id = b.shared_plan_id
-             WHERE b.user_id = ? AND b.date >= ? AND b.date < ?`;
-    params = [userId, dateStart, dateEnd];
-  }
+  const scope = buildCoupleOrPrivateScope(userId, relationship, "b");
+  const query = `SELECT COUNT(*) AS billCount,
+                        COALESCE(SUM(CASE WHEN b.income_type = 1 THEN b.amount ELSE 0 END), 0) AS income,
+                        COALESCE(SUM(CASE WHEN b.income_type = 0 THEN b.amount ELSE 0 END), 0) AS expense
+                 FROM bills b
+                 WHERE ${scope.clause}
+                 AND b.date >= ? AND b.date < ?`;
+  const params = [...scope.params, dateStart, dateEnd];
   const [rows] = await pool.execute(query, params);
   const payload = {
     ok: true,
     message: "查询成功",
-    data: { bills: rows, relationshipId, year, month },
+    data: { ...buildBillsSummary(rows), relationshipId, year, month },
   };
-  cache.set(Keys.bills(userId, year, month), payload, TTL.BILLS);
   return payload;
 }
 
-// 子查询：Todo —— 镜像自 todos.js GET / (line 122-153)
-async function fetchTodos(pool, userId) {
-  const cached = cache.get(Keys.todos(userId));
-  if (cached) return cached;
+async function fetchTodosSummary(pool, userId) {
   const relationship = await loadActiveRelationship(pool, userId);
   const relationshipId = relationship ? relationship.relationship_id : null;
 
-  let sql = `SELECT ${TODO_SELECT_FIELDS}
+  let sql = `SELECT
+               SUM(CASE WHEN status NOT IN ('done', 'missed') THEN 1 ELSE 0 END) AS openCount,
+               SUM(CASE WHEN status = 'done' THEN 1 ELSE 0 END) AS doneCount,
+               SUM(CASE WHEN status = 'missed' THEN 1 ELSE 0 END) AS missedCount
              FROM todo_items
              WHERE user_id = ? AND relationship_id IS NULL`;
   const params = [userId];
   if (relationshipId) {
-    sql = `SELECT ${TODO_SELECT_FIELDS}
+    sql = `SELECT
+             SUM(CASE WHEN status NOT IN ('done', 'missed') THEN 1 ELSE 0 END) AS openCount,
+             SUM(CASE WHEN status = 'done' THEN 1 ELSE 0 END) AS doneCount,
+             SUM(CASE WHEN status = 'missed' THEN 1 ELSE 0 END) AS missedCount
            FROM todo_items
            WHERE relationship_id = ? OR (user_id = ? AND relationship_id IS NULL)`;
     params.unshift(relationshipId);
   }
-  sql += ` ORDER BY CASE status WHEN 'open' THEN 0 WHEN 'missed' THEN 1 ELSE 2 END ASC,
-                  FIELD(priority, 'high', 'medium', 'low') ASC,
-                  updated_at DESC,
-                  todo_id DESC`;
   const [rows] = await pool.execute(sql, params);
-  const payload = { ok: true, data: { items: rows.map(mapTodo), relationshipId } };
-  cache.set(Keys.todos(userId), payload, TTL.TODOS);
-  return payload;
+  return { ok: true, data: { ...buildTodosSummary(rows), relationshipId } };
 }
 
-// 子查询：库存 —— 镜像自 inventory.js GET / (line 202-244)
-async function fetchInventory(pool, userId) {
-  const cached = cache.get(Keys.inventory(userId));
-  if (cached) return cached;
+async function fetchInventorySummary(pool, userId) {
   const relationship = await loadActiveRelationship(pool, userId);
   const relationshipId = relationship ? relationship.relationship_id : null;
 
   let query;
   let params;
   if (relationshipId) {
-    query = `SELECT ${INVENTORY_SELECT_FIELDS}
-             FROM inventory WHERE relationship_id = ? OR (user_id = ? AND relationship_id IS NULL)`;
+    query = `SELECT COUNT(*) AS itemCount,
+                    SUM(CASE WHEN quantity <= threshold THEN 1 ELSE 0 END) AS lowStockCount,
+                    SUM(CASE WHEN expiration_date IS NOT NULL
+                              AND expiration_date <= DATE_ADD(UTC_DATE(), INTERVAL 3 DAY)
+                             THEN 1 ELSE 0 END) AS expiringCount
+             FROM inventory
+             WHERE relationship_id = ? OR (user_id = ? AND relationship_id IS NULL)`;
     params = [relationshipId, userId];
   } else {
-    query = `SELECT ${INVENTORY_SELECT_FIELDS}
-             FROM inventory WHERE user_id = ? AND relationship_id IS NULL`;
+    query = `SELECT COUNT(*) AS itemCount,
+                    SUM(CASE WHEN quantity <= threshold THEN 1 ELSE 0 END) AS lowStockCount,
+                    SUM(CASE WHEN expiration_date IS NOT NULL
+                              AND expiration_date <= DATE_ADD(UTC_DATE(), INTERVAL 3 DAY)
+                             THEN 1 ELSE 0 END) AS expiringCount
+             FROM inventory
+             WHERE user_id = ? AND relationship_id IS NULL`;
     params = [userId];
   }
   const [rows] = await pool.execute(query, params);
-  const items = rows.map((row) =>
-    addExpirationFlags({ ...row, isLowStock: Number(row.quantity) <= Number(row.threshold) })
-  );
-  const payload = {
-    ok: true,
-    message: "查询成功",
-    data: { items, relationshipId },
-  };
-  cache.set(Keys.inventory(userId), payload, TTL.INVENTORY);
-  return payload;
+  return { ok: true, data: { ...buildInventorySummary(rows), relationshipId } };
 }
 
 // 子查询：资产概要 —— 轻量版（仅 totalValue/totalCount，不做 dailyAvgCost/categoryBreakdown）
@@ -187,14 +191,13 @@ async function fetchPeriodPrediction(pool, userId) {
     if (relationship.user_id_1 !== userId) userIds.push(relationship.user_id_1);
     if (relationship.user_id_2 !== userId) userIds.push(relationship.user_id_2);
   }
-  const placeholders = userIds.map(() => "?").join(",");
+  const scope = buildSubjectOrCurrentRelationshipScope(userId, relationship);
   const [rows] = await pool.execute(
     `SELECT id, user_id, start_date, end_date
      FROM period_records
-     WHERE user_id IN (${placeholders})
-     ORDER BY start_date DESC
-     LIMIT 24`,
-    userIds
+     WHERE ${scope.clause}
+     ORDER BY start_date DESC`,
+    scope.params
   );
 
   const completed = rows.filter((r) => r.user_id === userId && r.end_date !== null);
@@ -237,26 +240,24 @@ function computePrediction(records) {
   return { averageCycleDays: avg, predictedNextStart: predictedStr };
 }
 
-// 子查询：情侣信息 —— 镜像自 auth.js GET /couple-info (line 214-254)
+// 子查询：情侣信息 —— 与 auth.js GET /couple-info 共用 loadPartnerProfile，
+// 保证两处对「头像是否已过审」的判断口径一致
 async function fetchCoupleInfo(pool, userId) {
   const relationship = await loadActiveRelationship(pool, userId);
   if (!relationship) return { ok: true, data: { hasCouple: false } };
   const partnerId =
     relationship.user_id_1 === userId ? relationship.user_id_2 : relationship.user_id_1;
-  const [partners] = await pool.execute(
-    "SELECT id, username, nickname, avatar FROM users WHERE id = ? LIMIT 1",
-    [partnerId]
-  );
-  if (partners.length === 0) return { ok: true, data: { hasCouple: false } };
-  const partner = partners[0];
+  const partner = await loadPartnerProfile(pool, partnerId);
+  if (!partner) return { ok: true, data: { hasCouple: false } };
   return {
     ok: true,
     data: {
       hasCouple: true,
       partnerId: partner.id,
       partnerName: partner.username,
-      partnerNickname: partner.nickname || null,
-      partnerAvatarUrl: partner.avatar || null,
+      partnerNickname: partner.nickname,
+      partnerAvatarUrl: partner.avatarUrl,
+      partnerAvatarPending: partner.avatarPending,
       relationshipId: relationship.relationship_id,
     },
   };
@@ -292,10 +293,10 @@ function createMeRouter({ pool }) {
       const cached = cache.get(cacheKey);
       if (cached) return res.json(cached);
 
-      const [bills, todos, inventory, assetStats, period, coupleInfo, calorie] = await Promise.all([
-        safe("bills", fetchBills(pool, userId, year, month)),
-        safe("todos", fetchTodos(pool, userId)),
-        safe("inventory", fetchInventory(pool, userId)),
+      const [billSummary, todoSummary, inventorySummary, assetStats, period, coupleInfo, calorie] = await Promise.all([
+        safe("bills", fetchBillsSummary(pool, userId, year, month)),
+        safe("todos", fetchTodosSummary(pool, userId)),
+        safe("inventory", fetchInventorySummary(pool, userId)),
         safe("assetStats", fetchAssetStats(pool, userId)),
         safe("period", fetchPeriodPrediction(pool, userId)),
         safe("coupleInfo", fetchCoupleInfo(pool, userId)),
@@ -307,9 +308,9 @@ function createMeRouter({ pool }) {
         data: {
           year,
           month,
-          bills,
-          todos,
-          inventory,
+          billSummary,
+          todoSummary,
+          inventorySummary,
           assetStats,
           period,
           coupleInfo,
@@ -326,4 +327,11 @@ function createMeRouter({ pool }) {
   return router;
 }
 
-module.exports = { createMeRouter };
+module.exports = {
+  createMeRouter,
+  fetchBillsSummary,
+  fetchPeriodPrediction,
+  buildBillsSummary,
+  buildTodosSummary,
+  buildInventorySummary,
+};

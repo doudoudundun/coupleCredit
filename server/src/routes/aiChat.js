@@ -1,5 +1,28 @@
 const { Router } = require("express");
-const { loadActiveRelationship } = require("../utils/queryHelpers");
+const { ApiError } = require("../errors");
+const { cache, Keys } = require("../cache");
+const { loadActiveRelationship, parseRequiredAmount, parseRequiredInteger } = require("../utils/queryHelpers");
+const { parseIncomeType } = require("../utils/dataValidation");
+const { withTransaction } = require("../utils/transactions");
+
+function invalidateAiConfirmCaches(userId, relationship, resultType) {
+  const ids = new Set([userId]);
+  if (relationship) {
+    ids.add(relationship.user_id_1);
+    ids.add(relationship.user_id_2);
+  }
+
+  for (const id of ids) {
+    if (resultType === "bill") {
+      cache.delPrefix(`bills:${id}:`);
+    } else if (resultType === "inventory") {
+      cache.del(Keys.inventory(id));
+    } else if (resultType === "todo") {
+      cache.del(Keys.todos(id));
+    }
+    cache.delPrefix(`overview:${id}:`);
+  }
+}
 
 const SYSTEM_PROMPT = `你是一个信息提取助手。分析以下情侣聊天记录，从中提取可以自动记录的账单、物资或待办信息。
 
@@ -156,66 +179,94 @@ function createAiChatRouter({ pool }) {
 
   router.post("/extractions/:id/confirm", async (req, res, next) => {
     try {
-      const extractionId = parseInt(req.params.id, 10);
+      const extractionId = parseRequiredInteger(parseInt(req.params.id, 10));
       const { overrides } = req.body;
       const userId = req.userId;
       if (!userId) return res.status(400).json({ ok: false, error: { code: "MISSING_USER_ID", message: "缺少用户ID" } });
       const rel = await loadActiveRelationship(pool, userId);
       if (!rel) return res.status(403).json({ ok: false, error: { code: "NO_RELATIONSHIP", message: "未绑定情侣关系" } });
 
-      const [rows] = await pool.execute(
-        `SELECT * FROM ai_extraction_results WHERE id = ? AND relationship_id = ? AND status = 'pending'`,
-        [extractionId, rel.relationship_id]
-      );
-      if (rows.length === 0) return res.status(404).json({ ok: false, error: { code: "NOT_FOUND", message: "提取记录不存在" } });
-
-      const extraction = rows[0];
-      const data = overrides || (typeof extraction.raw_data === "string" ? JSON.parse(extraction.raw_data) : extraction.raw_data);
-      let targetId = null;
-
-      const isUser1 = rel.user_id_1 === userId;
-
-      if (extraction.result_type === "bill") {
-        let owner = 3;
-        if (data.owner === "自己") owner = isUser1 ? 1 : 2;
-        else if (data.owner === "对方") owner = isUser1 ? 2 : 1;
-        const [result] = await pool.execute(
-          `INSERT INTO bills (relationship_id, user_id, owner, title, type, amount, date, time, income_type) VALUES (?, ?, ?, ?, ?, ?, ?, CURTIME(), ?)`,
-          [rel.relationship_id, userId, owner, data.title || "未命名", data.type || "其他", data.amount || 0, data.date || new Date().toISOString().split("T")[0], data.incomeType || 0]
+      let responseData;
+      await withTransaction(pool, async (conn) => {
+        // Lock the extraction row so concurrent requests serialize in the database,
+        // including requests handled by different Node processes.
+        const [rows] = await conn.execute(
+          `SELECT * FROM ai_extraction_results WHERE id = ? AND relationship_id = ? LIMIT 1 FOR UPDATE`,
+          [extractionId, rel.relationship_id]
         );
-        targetId = result.insertId;
-      } else if (extraction.result_type === "inventory") {
-        const [existing] = await pool.execute(
-          `SELECT inventory_id, quantity FROM inventory WHERE user_id = ? AND name = ? LIMIT 1`,
-          [userId, data.name]
-        );
-        if (existing.length > 0) {
-          await pool.execute(
-            `UPDATE inventory SET quantity = quantity + ?, updated_at = NOW() WHERE inventory_id = ?`,
-            [data.quantity || 1, existing[0].inventory_id]
+        if (rows.length === 0) {
+          throw new ApiError(404, "NOT_FOUND", "提取记录不存在");
+        }
+
+        const extraction = rows[0];
+        if (extraction.status === "confirmed") {
+          responseData = { targetId: extraction.target_id, type: extraction.result_type };
+          return;
+        }
+        if (extraction.status !== "pending") {
+          throw new ApiError(409, "EXTRACTION_ALREADY_HANDLED", "提取记录已处理");
+        }
+
+        const data = overrides || (typeof extraction.raw_data === "string" ? JSON.parse(extraction.raw_data) : extraction.raw_data);
+        if (!data || typeof data !== "object" || Array.isArray(data)) {
+          throw new ApiError(400, "INVALID_REQUEST", "提取数据格式不正确");
+        }
+        let targetId = null;
+
+        const isUser1 = rel.user_id_1 === userId;
+
+        if (extraction.result_type === "bill") {
+          const amount = parseRequiredAmount(data.amount);
+          const incomeType = parseIncomeType(data.incomeType);
+          let owner = 3;
+          if (data.owner === "自己") owner = isUser1 ? 1 : 2;
+          else if (data.owner === "对方") owner = isUser1 ? 2 : 1;
+          const [result] = await conn.execute(
+            `INSERT INTO bills (relationship_id, user_id, owner, title, type, amount, date, time, income_type) VALUES (?, ?, ?, ?, ?, ?, ?, CURTIME(), ?)`,
+            [rel.relationship_id, userId, owner, data.title || "未命名", data.type || "其他", amount, data.date || new Date().toISOString().split("T")[0], incomeType]
           );
-          targetId = existing[0].inventory_id;
-        } else {
-          const [result] = await pool.execute(
-            `INSERT INTO inventory (user_id, relationship_id, name, category, quantity, unit) VALUES (?, ?, ?, ?, ?, ?)`,
-            [userId, rel.relationship_id, data.name, data.category || "其他", data.quantity || 1, data.unit || "个"]
+          targetId = result.insertId;
+        } else if (extraction.result_type === "inventory") {
+          const [existing] = await conn.execute(
+            `SELECT inventory_id, quantity FROM inventory WHERE user_id = ? AND name = ? LIMIT 1 FOR UPDATE`,
+            [userId, data.name]
+          );
+          if (existing.length > 0) {
+            await conn.execute(
+              `UPDATE inventory SET quantity = quantity + ?, updated_at = NOW() WHERE inventory_id = ?`,
+              [data.quantity || 1, existing[0].inventory_id]
+            );
+            targetId = existing[0].inventory_id;
+          } else {
+            const [result] = await conn.execute(
+              `INSERT INTO inventory (user_id, relationship_id, name, category, quantity, unit) VALUES (?, ?, ?, ?, ?, ?)`,
+              [userId, rel.relationship_id, data.name, data.category || "其他", data.quantity || 1, data.unit || "个"]
+            );
+            targetId = result.insertId;
+          }
+        } else if (extraction.result_type === "todo") {
+          const [result] = await conn.execute(
+            `INSERT INTO todo_items (user_id, relationship_id, title, priority, fuzzy_date_text) VALUES (?, ?, ?, ?, ?)`,
+            [userId, rel.relationship_id, data.title || "新待办", data.priority || "medium", data.fuzzyDateText || null]
           );
           targetId = result.insertId;
         }
-      } else if (extraction.result_type === "todo") {
-        const [result] = await pool.execute(
-          `INSERT INTO todo_items (user_id, relationship_id, title, priority, fuzzy_date_text) VALUES (?, ?, ?, ?, ?)`,
-          [userId, rel.relationship_id, data.title || "新待办", data.priority || "medium", data.fuzzyDateText || null]
+
+        const [updateResult] = await conn.execute(
+          `UPDATE ai_extraction_results SET status = 'confirmed', target_id = ?, updated_at = NOW() WHERE id = ? AND relationship_id = ? AND status = 'pending'`,
+          [targetId, extractionId, rel.relationship_id]
         );
-        targetId = result.insertId;
-      }
+        if (updateResult.affectedRows === 0) {
+          throw new ApiError(409, "EXTRACTION_ALREADY_HANDLED", "提取记录已处理");
+        }
+        responseData = { targetId, type: extraction.result_type };
+      });
 
-      await pool.execute(
-        `UPDATE ai_extraction_results SET status = 'confirmed', target_id = ?, updated_at = NOW() WHERE id = ?`,
-        [targetId, extractionId]
-      );
-
-      res.json({ ok: true, data: { targetId, type: extraction.result_type } });
+      // The transaction has committed before this point. A repeated
+      // confirmation also invalidates the relevant caches so a retry after a
+      // lost response cannot leave stale list or overview data behind.
+      invalidateAiConfirmCaches(userId, rel, responseData.type);
+      res.json({ ok: true, data: responseData });
     } catch (error) {
       next(error);
     }

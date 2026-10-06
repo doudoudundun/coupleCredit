@@ -45,7 +45,15 @@ function readConfig() {
     allowedOrigins,
     // 微信小程序登录配置（可选，未配置则微信登录接口返回未启用）
     wechatAppId: process.env.WECHAT_APPID || "",
-    wechatSecret: process.env.WECHAT_SECRET || ""
+    wechatSecret: process.env.WECHAT_SECRET || "",
+    // 微信「消息推送」安全模式配置（内容安全异步回调必需）：
+    //   WECHAT_MSG_TOKEN      后台「消息推送」页填的 Token，用于校验 msg_signature
+    //   WECHAT_ENCODING_AES_KEY  同页的 EncodingAESKey（43 位），用于解密回调报文
+    wechatMsgToken: process.env.WECHAT_MSG_TOKEN || "",
+    wechatEncodingAESKey: process.env.WECHAT_ENCODING_AES_KEY || "",
+    // 公网基址：media_check_async 的 media_url 必须能被微信检测服务器下载，
+    // 所以要把 /uploads/xxx 拼成绝对地址。未配则跳过图片审核（见 contentSecurity）。
+    publicBaseUrl: process.env.PUBLIC_BASE_URL || "https://api.couplecredit.top"
   };
 }
 
