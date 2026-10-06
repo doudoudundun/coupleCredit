@@ -329,7 +329,7 @@ function createGoalsRouter({ pool }) {
         const outcome = await withIdempotency(
           pool,
           { userId, scope: "goal.create", key, payload: body },
-          () => withTransaction(pool, async (conn) => {
+          async (conn) => {
             const ctx = await resolveGoalSpace(conn, userId);
             if (targetDate && targetDate < todayInTimezone(ctx.timezone)) {
               throw validationError({ targetDate: "目标日期不能早于今天" });
@@ -353,7 +353,7 @@ function createGoalsRouter({ pool }) {
               [goalId, ctx.spaceId, userId]
             );
             return serializeGoal(await selectGoalById(conn, goalId));
-          })
+          }
         );
         goal = outcome.result;
       } catch (error) {
@@ -526,7 +526,7 @@ function createGoalsRouter({ pool }) {
         pool,
         // payload 附上 URL 中的 goalId：同键不同目标的请求不能互相重放
         { userId, scope: "entry.create", key, payload: { ...body, goalId } },
-        () => withTransaction(pool, async (conn) => {
+        async (conn) => {
           const goal = await lockGoalById(conn, goalId);
           if (!goal || !(await isGoalSpaceMember(conn, goal.space_id, userId))) throw goalNotFound();
           if (goal.status !== "active") {
@@ -565,7 +565,7 @@ function createGoalsRouter({ pool }) {
             currentAmountFen: current + delta,
             version: Number(goal.version) + 1
           };
-        })
+        }
       );
       res.json({ ok: true, data: data.result });
     } catch (error) {
@@ -585,7 +585,7 @@ function createGoalsRouter({ pool }) {
         pool,
         // payload 附上 URL 中的 entryId：同键不同流水的请求不能互相重放
         { userId, scope: "entry.reverse", key, payload: { ...body, entryId } },
-        () => withTransaction(pool, async (conn) => {
+        async (conn) => {
           const [entryRows] = await conn.execute(
             `${ENTRY_SELECT} WHERE entry_id = ? LIMIT 1 FOR UPDATE`,
             [entryId]
@@ -605,9 +605,10 @@ function createGoalsRouter({ pool }) {
 
           const amount = Number(entry.amount_fen);
           const current = Number(goal.current_amount_fen);
-          // 反向调整余额；increase 冲正在脏数据下防御性 clamp 到 0
+          // 反向调整余额：冲正 increase 后余额可以合法变负（后续 decrease 仍受
+          // 记账时「超出当前净额」校验约束），绝不能 clamp 到 0——否则与有效流水合计不一致。
           const nextAmount = entry.type === "increase"
-            ? Math.max(0, current - amount)
+            ? current - amount
             : current + amount;
           await conn.execute(
             "UPDATE couple_goal_entries SET status = 'reversed' WHERE entry_id = ?",
@@ -635,7 +636,7 @@ function createGoalsRouter({ pool }) {
             currentAmountFen: nextAmount,
             version: Number(goal.version) + 1
           };
-        })
+        }
       );
       res.json({ ok: true, data: data.result });
     } catch (error) {

@@ -252,7 +252,44 @@ function createCoupleRouter({ pool }) {
           [rel.relationship_id]
         );
 
+        // 与新版 POST /api/relationships/:id/unbind 同口径（v0.2 补漏）：
+        // 冻结进行中目标、撤销活跃邀请、共享空间媒体签名 URL 立即失效。
+        const [spaceRows] = await conn.execute(
+          `SELECT s.space_id
+             FROM housework_relationship_cycles c
+             JOIN housework_spaces s ON s.cycle_id = c.cycle_id
+            WHERE c.relationship_id = ? AND c.ended_at IS NULL AND s.status = 'active'
+            LIMIT 1`,
+          [rel.relationship_id]
+        );
+        const sharedSpaceId = spaceRows.length > 0 ? spaceRows[0].space_id : null;
+
         await closeCurrentCycleAndSpace(conn, rel.relationship_id, rel);
+
+        if (sharedSpaceId) {
+          const [activeGoals] = await conn.execute(
+            "SELECT goal_id FROM couple_goals WHERE space_id = ? AND status = 'active'",
+            [sharedSpaceId]
+          );
+          for (const { goal_id: goalId } of activeGoals) {
+            await conn.execute(
+              "UPDATE couple_goals SET status = 'frozen', version = version + 1 WHERE goal_id = ?",
+              [goalId]
+            );
+            await conn.execute(
+              "INSERT INTO couple_goal_events (goal_id, space_id, actor_id, type) VALUES (?, ?, ?, 'freeze')",
+              [goalId, sharedSpaceId, userId]
+            );
+          }
+          await conn.execute(
+            "UPDATE goal_invitations SET status = 'revoked' WHERE inviter_id IN (?, ?) AND status = 'active'",
+            [rel.user_id_1, rel.user_id_2]
+          );
+          await conn.execute(
+            "UPDATE diary_media SET auth_version = auth_version + 1 WHERE space_id = ?",
+            [sharedSpaceId]
+          );
+        }
 
         await conn.execute(
           "UPDATE users SET couple_status = 'single' WHERE id IN (?, ?)",

@@ -146,7 +146,7 @@ function createInvitationsRouter({ pool, requireAuth }) {
         const outcome = await withIdempotency(
           pool,
           { userId, scope: "invite.accept", key, payload: body },
-          () => withTransaction(pool, async (conn) => {
+          async (conn) => {
             // 锁顺序与 couple.js bind 一致：邀请行 → 双方 users 行（升序）→
             // 关系行 → cycle/space → 目标行。
             const [inviteRows] = await conn.execute(
@@ -263,7 +263,7 @@ function createInvitationsRouter({ pool, requireAuth }) {
               goal: serializeGoal(transferredRows[0]),
               relationship: { id: Number(relationshipId), version: Number(relationshipId) }
             };
-          })
+          }
         );
         data = outcome.result;
       } catch (error) {

@@ -517,7 +517,7 @@ function createDiaryRouter({ pool, config }) {
             ? Number(payload.relationshipVersion)
             : null
         }
-      }, async () => withTransaction(pool, async (conn) => {
+      }, async (conn) => {
         const txCtx = await loadCoupleSpaceContext(conn, userId, { forUpdate: true });
         if (!txCtx) {
           throw new ApiError(409, "NO_RELATIONSHIP", "绑定伴侣后才能发布小记");
@@ -548,7 +548,7 @@ function createDiaryRouter({ pool, config }) {
         }
 
         return serializePost(conn, mediaSecret, diaryId);
-      }));
+      });
 
       res.json({ ok: true, data: result });
     } catch (error) {
@@ -670,7 +670,7 @@ function createDiaryRouter({ pool, config }) {
       const expectedVersion = optionalExpectedVersion(payload.expectedVersion);
       const key = optionalIdempotencyKey(payload.idempotencyKey);
 
-      const run = () => withTransaction(pool, async (conn) => {
+      const runTx = async (conn) => {
         const post = await lockPostForWrite(conn, userId, req.params.id);
         if (!post || !post.visible) throw diaryNotFound();
         if (!post.isAuthor) {
@@ -690,13 +690,13 @@ function createDiaryRouter({ pool, config }) {
           [post.diary_id]
         );
         return {};
-      });
+      };
 
       const result = key
         ? (await withIdempotency(pool, {
           userId, scope: "diary.delete", key, payload: { diaryId: req.params.id, expectedVersion }
-        }, run)).result
-        : await run();
+        }, runTx)).result
+        : await withTransaction(pool, runTx);
 
       res.json({ ok: true, data: result });
     } catch (error) {
@@ -712,7 +712,7 @@ function createDiaryRouter({ pool, config }) {
       const payload = req.body || {};
       const key = optionalIdempotencyKey(payload.idempotencyKey);
 
-      const run = () => withTransaction(pool, async (conn) => {
+      const runTx = async (conn) => {
         const post = await lockPostForWrite(conn, userId, req.params.id);
         // 已删除帖子对任何人不可见，非作者一律 404（不枚举）
         if (!post || !post.isAuthor) throw diaryNotFound();
@@ -727,13 +727,13 @@ function createDiaryRouter({ pool, config }) {
           [post.diary_id]
         );
         return serializePost(conn, mediaSecret, post.diary_id);
-      });
+      };
 
       const result = key
         ? (await withIdempotency(pool, {
           userId, scope: "diary.restore", key, payload: { diaryId: req.params.id }
-        }, run)).result
-        : await run();
+        }, runTx)).result
+        : await withTransaction(pool, runTx);
 
       res.json({ ok: true, data: result });
     } catch (error) {
@@ -902,7 +902,7 @@ function createDiaryRouter({ pool, config }) {
         scope: "comment.create",
         key,
         payload: { diaryId, body: bodyText, rootCommentId: rootCommentIdRaw, replyToCommentId: replyToCommentIdRaw }
-      }, async () => withTransaction(pool, async (conn) => {
+      }, async (conn) => {
         const ctx = await loadCoupleSpaceContext(conn, userId, { forUpdate: true });
         const post = ctx ? await loadPostRow(conn, diaryId, { forUpdate: true }) : null;
         if (!ctx || !post || post.space_id !== ctx.spaceId || post.status !== "visible") {
@@ -967,7 +967,7 @@ function createDiaryRouter({ pool, config }) {
           summary.replies = [];
         }
         return summary;
-      }));
+      });
 
       res.json({ ok: true, data: result });
     } catch (error) {
@@ -1026,7 +1026,7 @@ function createDiaryRouter({ pool, config }) {
       const expectedVersion = optionalExpectedVersion(payload.expectedVersion);
       const key = optionalIdempotencyKey(payload.idempotencyKey);
 
-      const run = () => withTransaction(pool, async (conn) => {
+      const runTx = async (conn) => {
         // 先读后按 帖子行 → 评论行 的顺序加锁（与发表评论的锁序一致，避免交叉死锁）
         const [previewRows] = await conn.execute(
           `SELECT ${COMMENT_FIELDS} FROM diary_comments c WHERE c.comment_id = ? LIMIT 1`,
@@ -1071,13 +1071,13 @@ function createDiaryRouter({ pool, config }) {
           [comment.diary_id]
         );
         return {};
-      });
+      };
 
       const result = key
         ? (await withIdempotency(pool, {
           userId, scope: "comment.delete", key, payload: { commentId: req.params.id, expectedVersion }
-        }, run)).result
-        : await run();
+        }, runTx)).result
+        : await withTransaction(pool, runTx);
 
       res.json({ ok: true, data: result });
     } catch (error) {
@@ -1114,6 +1114,59 @@ function createDiaryRouter({ pool, config }) {
       const items = page.map((post) => serializeDiarySummary(
         mediaSecret, post, mediaByPost.get(post.diary_id) || [], authors
       ));
+      const last = page[page.length - 1];
+      const nextCursor = hasMore && last
+        ? encodeCursor([last.occurred_on, dateTimeToMs(last.created_at), last.diary_id])
+        : "";
+
+      res.json({
+        ok: true,
+        data: { items, nextCursor, hasMore, serverTime: new Date().toISOString() }
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // ===== 回收站（本人已删除的小记；restorable 标记恢复期内且原空间仍活跃） =====
+
+  router.get("/me/diary-trash", async (req, res, next) => {
+    try {
+      const userId = ensureUserId(req.userId);
+      const limit = parseLimitParam(req.query.limit, { def: TIMELINE_DEFAULT_LIMIT, max: TIMELINE_MAX_LIMIT });
+
+      const where = ["p.author_id = ?", "p.status = 'deleted'", "p.deleted_at IS NOT NULL"];
+      const params = [userId];
+      if (req.query.cursor) {
+        timelineCursorCondition(where, params, req.query.cursor);
+      }
+      const [rows] = await pool.execute(
+        `SELECT ${POST_FIELDS}, s.status AS space_status,
+                (SELECT COUNT(*) FROM couple_relationships r
+                  WHERE r.relationship_id = p.relationship_id AND (r.user_id_1 = ? OR r.user_id_2 = ?)) AS member_flag
+           FROM diary_posts p
+           LEFT JOIN housework_spaces s ON s.space_id = p.space_id
+          WHERE ${where.join(" AND ")}
+          ORDER BY p.occurred_on DESC, p.created_at DESC, p.diary_id DESC
+          LIMIT ${limit + 1}`,
+        [userId, userId, ...params]
+      );
+
+      const hasMore = rows.length > limit;
+      const page = hasMore ? rows.slice(0, limit) : rows;
+      const postIds = page.map((row) => row.diary_id);
+      const mediaByPost = await loadReadyMedia(pool, postIds);
+      const authors = await loadAuthors(pool, [userId]);
+      const nowMs = Date.now();
+      const items = page.map((post) => {
+        const summary = serializeDiarySummary(mediaSecret, post, mediaByPost.get(post.diary_id) || [], authors);
+        const deletedAtMs = dateTimeToMs(post.deleted_at);
+        const spaceActive = post.space_status === "active" && Number(post.member_flag) > 0;
+        return Object.assign(summary, {
+          deletedAt: post.deleted_at,
+          restorable: spaceActive && deletedAtMs > 0 && (nowMs - deletedAtMs) <= RESTORE_WINDOW_MS
+        });
+      });
       const last = page[page.length - 1];
       const nextCursor = hasMore && last
         ? encodeCursor([last.occurred_on, dateTimeToMs(last.created_at), last.diary_id])
@@ -1280,6 +1333,21 @@ function createDiaryRouter({ pool, config }) {
           [ctx.spaceId, kind, templateId, mediaId, cropJson, focusJson, effectiveOverlay, userId]
         );
 
+        // 背景媒体挂上 space_id：解绑时的批量撤权（auth_version 递增按空间圈定）必须覆盖它
+        if (mediaId) {
+          await conn.execute(
+            "UPDATE diary_media SET space_id = ? WHERE media_id = ?",
+            [ctx.spaceId, mediaId]
+          );
+        }
+        // 被替换/移除的旧背景媒体：授权版本递增，已外发的签名 URL 立即失效
+        if (existing && existing.media_id && existing.media_id !== mediaId) {
+          await conn.execute(
+            "UPDATE diary_media SET auth_version = auth_version + 1 WHERE media_id = ?",
+            [existing.media_id]
+          );
+        }
+
         return themePayload(
           { kind, template_id: templateId, media_id: mediaId, overlay: effectiveOverlay, version: (existing ? Number(existing.version) : 0) + 1 },
           mediaRow
@@ -1304,7 +1372,8 @@ async function loadReadyMediaCount(executor, diaryId) {
   return Number(rows[0].total);
 }
 
-// 编辑帖子的媒体重绑：移除的解绑（auth_version 不变），新绑定按数组序，已绑定的只调 sort_order
+// 编辑帖子的媒体重绑：移除的解绑并递增授权版本（已外发的签名 URL 立即失效，
+// 否则伴侣在 12h 签名有效期内仍能读到被移除的图）；新绑定按数组序，已绑定的只调 sort_order
 async function rebindPostMedia(conn, userId, diaryId, spaceId, nextMediaIds) {
   const [currentRows] = await conn.execute(
     "SELECT media_id, status FROM diary_media WHERE diary_id = ? FOR UPDATE",
@@ -1320,7 +1389,7 @@ async function rebindPostMedia(conn, userId, diaryId, spaceId, nextMediaIds) {
   for (const mediaId of currentIds) {
     if (!nextMediaIds.includes(mediaId)) {
       await conn.execute(
-        "UPDATE diary_media SET diary_id = NULL, space_id = NULL WHERE media_id = ?",
+        "UPDATE diary_media SET diary_id = NULL, space_id = NULL, auth_version = auth_version + 1 WHERE media_id = ?",
         [mediaId]
       );
     }

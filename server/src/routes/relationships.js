@@ -9,7 +9,6 @@ const express = require("express");
 const { ApiError } = require("../errors");
 const { cache } = require("../cache");
 const { invalidateRelationshipScopedCaches } = require("../utils/queryHelpers");
-const { withTransaction } = require("../utils/transactions");
 const { requireIdempotencyKey, withIdempotency } = require("../utils/idempotency");
 const { closeCurrentCycleAndSpace } = require("../utils/houseworkLifecycle");
 
@@ -41,7 +40,7 @@ function createRelationshipsRouter({ pool }) {
       const outcome = await withIdempotency(
         pool,
         { userId, scope: "relationship.unbind", key, payload: body },
-        () => withTransaction(pool, async (conn) => {
+        async (conn) => {
           // 不用缓存版关系查询：解绑必须在事务内复核当前状态
           const [foundRows] = await conn.execute(
             `SELECT relationship_id, user_id_1, user_id_2 FROM couple_relationships
@@ -132,7 +131,7 @@ function createRelationshipsRouter({ pool }) {
             frozenSpaceId: spaceId,
             historyPolicy: "each-keeps-own-private-archive"
           };
-        })
+        }
       );
 
       invalidateRelationshipScopedCaches(cache, affectedUserIds);
