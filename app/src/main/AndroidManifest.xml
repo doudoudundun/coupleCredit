@@ -115,6 +115,34 @@
             android:parentActivityName=".activity.MainActivity"
             android:screenOrientation="portrait" />
 
+        <!-- v0.2 共同空间（空壳骨架：功能开发中，暂不接入任何页面入口） -->
+        <activity
+            android:name=".activity.SpaceHomeActivity"
+            android:label="共同空间"
+            android:parentActivityName=".activity.MainActivity" />
+        <activity
+            android:name=".activity.GoalEditActivity"
+            android:label="共同目标"
+            android:parentActivityName=".activity.SpaceHomeActivity" />
+        <activity
+            android:name=".activity.GoalInviteActivity"
+            android:label="共同空间邀请"
+            android:parentActivityName=".activity.MainActivity" />
+        <activity
+            android:name=".activity.DiaryEditActivity"
+            android:label="写小记"
+            android:parentActivityName=".activity.SpaceHomeActivity"
+            android:windowSoftInputMode="adjustResize" />
+        <activity
+            android:name=".activity.DiaryDetailActivity"
+            android:label="小记详情"
+            android:parentActivityName=".activity.SpaceHomeActivity"
+            android:windowSoftInputMode="adjustResize" />
+        <activity
+            android:name=".activity.DiaryThemeActivity"
+            android:label="空间背景"
+            android:parentActivityName=".activity.SpaceHomeActivity" />
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="com.example.couplecredit.fileprovider"

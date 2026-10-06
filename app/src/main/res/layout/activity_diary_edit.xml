@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/bg_page">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="24dp">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="写小记"
+            android:textSize="24sp"
+            android:textStyle="bold"
+            android:textColor="@color/text_body"
+            android:gravity="center"
+            android:layout_marginBottom="24dp" />
+
+        <Button
+            android:id="@+id/btn_pick_occurred_date"
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:text="经历日期"
+            android:textSize="15sp"
+            android:textColor="@color/text_body"
+            android:background="@color/white"
+            android:layout_marginBottom="12dp" />
+
+        <Button
+            android:id="@+id/btn_pick_mood"
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:text="此刻心情"
+            android:textSize="15sp"
+            android:textColor="@color/text_body"
+            android:background="@color/white"
+            android:layout_marginBottom="12dp" />
+
+        <EditText
+            android:id="@+id/et_diary_body"
+            android:layout_width="match_parent"
+            android:layout_height="180dp"
+            android:hint="想把这样的普通日子，多存一点。"
+            android:textSize="16sp"
+            android:textColor="@color/text_body"
+            android:gravity="top"
+            android:background="@color/white"
+            android:padding="12dp"
+            android:maxLength="5000"
+            android:layout_marginBottom="12dp" />
+
+        <Button
+            android:id="@+id/btn_add_photo"
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:text="添加照片（最多 9 张）"
+            android:textSize="15sp"
+            android:textColor="@color/text_body"
+            android:background="@color/border_light"
+            android:layout_marginBottom="24dp" />
+
+        <Button
+            android:id="@+id/btn_publish_diary"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:text="发布小记"
+            android:textSize="16sp"
+            android:textColor="@color/white"
+            android:background="@color/couple_pink" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="发布后仅两人可见"
+            android:textSize="12sp"
+            android:textColor="@color/text_disabled"
+            android:gravity="center"
+            android:layout_marginTop="16dp" />
+    </LinearLayout>
+</ScrollView>

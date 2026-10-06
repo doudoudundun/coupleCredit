@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="24dp"
+    android:background="@color/bg_page">
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="共同目标"
+        android:textSize="24sp"
+        android:textStyle="bold"
+        android:textColor="@color/text_body"
+        android:gravity="center"
+        android:layout_marginBottom="32dp" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="目标名"
+        android:textSize="14sp"
+        android:textColor="@color/text_muted"
+        android:layout_marginBottom="8dp" />
+
+    <EditText
+        android:id="@+id/et_goal_title"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:hint="比如：北海道旅行基金"
+        android:textSize="16sp"
+        android:textColor="@color/text_body"
+        android:background="@color/white"
+        android:padding="12dp"
+        android:layout_marginBottom="20dp" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="目标金额（元）"
+        android:textSize="14sp"
+        android:textColor="@color/text_muted"
+        android:layout_marginBottom="8dp" />
+
+    <EditText
+        android:id="@+id/et_goal_amount"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:hint="0.00"
+        android:inputType="numberDecimal"
+        android:textSize="16sp"
+        android:textColor="@color/text_body"
+        android:background="@color/white"
+        android:padding="12dp"
+        android:layout_marginBottom="20dp" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="目标日期（可选）"
+        android:textSize="14sp"
+        android:textColor="@color/text_muted"
+        android:layout_marginBottom="8dp" />
+
+    <Button
+        android:id="@+id/btn_pick_target_date"
+        android:layout_width="match_parent"
+        android:layout_height="44dp"
+        android:text="选择日期"
+        android:textSize="15sp"
+        android:textColor="@color/text_body"
+        android:background="@color/border_light"
+        android:layout_marginBottom="32dp" />
+
+    <Button
+        android:id="@+id/btn_save_goal"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:text="保存目标"
+        android:textSize="16sp"
+        android:textColor="@color/white"
+        android:background="@color/nav_selected" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="创建后可生成邀请，对方接受即建立共同空间"
+        android:textSize="12sp"
+        android:textColor="@color/text_disabled"
+        android:gravity="center"
+        android:layout_marginTop="24dp" />
+</LinearLayout>

@@ -12,6 +12,7 @@ import com.google.gson.JsonParser;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
+import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -26,6 +27,7 @@ import java.util.Map;
 
 public class AuthApiClient {
     private static final String TAG = "AuthApiClient";
+    private static final SessionRefreshCoordinator TOKEN_REFRESH = new SessionRefreshCoordinator();
     public static final Gson GSON = new Gson();
     private static final int CONNECT_TIMEOUT_MS = 5000;
     private static final int READ_TIMEOUT_MS = 8000;
@@ -154,6 +156,21 @@ public class AuthApiClient {
         void onError(String message);
     }
 
+    public interface SecurityCheckCallback {
+        void onResult(boolean pass, boolean degraded, String message);
+        void onError(String message);
+    }
+
+    public interface AvatarStatusCallback {
+        void onLoaded(String avatarStatus, boolean shouldNotify);
+        void onError(String message);
+    }
+
+    public interface AvatarUpdateCallback {
+        void onSuccess(String avatarStatus, String message);
+        void onError(String message);
+    }
+
     public interface RecipeCategoryListCallback {
         void onSuccess(AuthApiModels.RecipeCategoryListResponse response);
         void onError(String message);
@@ -257,7 +274,8 @@ public class AuthApiClient {
 
     // AssetStatusCallback and AssetDeleteCallback replaced by SimpleCallback
 
-    private interface RawCallback {
+    // 包级可见：同包的新 API 客户端（如 SpaceApiClient）复用同一套带 JWT 续期的请求通道
+    interface RawCallback {
         void onSuccess(String json);
         void onError(String message);
     }
@@ -335,8 +353,13 @@ public class AuthApiClient {
     }
 
     public static void createBill(Context context, int userId, String billOwner, Integer sharedPlanId, String title, String type, double amount, String date, String time, int incomeType, BillCallback callback) {
+        createBill(context, userId, billOwner, sharedPlanId, title, type, amount, date, time, incomeType, null, null, callback);
+    }
+
+    /** photos/receipts：账单图片地址列表（/uploads/... 相对路径或 https 绝对地址），null = 不传 */
+    public static void createBill(Context context, int userId, String billOwner, Integer sharedPlanId, String title, String type, double amount, String date, String time, int incomeType, List<String> photos, List<String> receipts, BillCallback callback) {
         doRequest(context, "POST", "/api/bills",
-                GSON.toJson(new AuthApiModels.CreateBillRequest(userId, billOwner, sharedPlanId, title, type, amount, date, time, incomeType)),
+                GSON.toJson(new AuthApiModels.CreateBillRequest(userId, billOwner, sharedPlanId, title, type, amount, date, time, incomeType, photos, receipts)),
                 new RawCallback() {
                     @Override
                     public void onSuccess(String json) {
@@ -681,51 +704,25 @@ public class AuthApiClient {
         new AsyncTask<Void, Void, String[]>() {
             @Override
             protected String[] doInBackground(Void... voids) {
-                HttpURLConnection connection = null;
-                try {
-                    String boundary = "----UploadBoundary" + System.currentTimeMillis();
-                    URL url = new URL(ApiConfigManager.getBaseUrl(context) + "/api/upload/image");
-                    connection = (HttpURLConnection) url.openConnection();
-                    connection.setRequestMethod("POST");
-                    connection.setDoOutput(true);
-                    connection.setRequestProperty("Content-Type", "multipart/form-data; boundary=" + boundary);
-                    connection.setRequestProperty("Connection", "keep-alive");
-                    String token = UserInfoManager.getAccessToken(context);
-                    if (token != null) {
-                        connection.setRequestProperty("Authorization", "Bearer " + token);
+                try (InputStream source = imageStream; ByteArrayOutputStream bytes = new ByteArrayOutputStream()) {
+                    byte[] buffer = new byte[8192];
+                    int read;
+                    while ((read = source.read(buffer)) != -1) {
+                        if (bytes.size() + read > 5 * 1024 * 1024) return new String[]{"error", "图片不能超过 5 MB"};
+                        bytes.write(buffer, 0, read);
                     }
-                    connection.setConnectTimeout(CONNECT_TIMEOUT_MS);
-                    connection.setReadTimeout(AI_REQUEST_TIMEOUT_MS);
-
-                    try (DataOutputStream dos = new DataOutputStream(connection.getOutputStream())) {
-                        dos.writeBytes("--" + boundary + "\r\n");
-                        dos.writeBytes("Content-Disposition: form-data; name=\"image\"; filename=\"" + fileName + "\"\r\n");
-                        dos.writeBytes("Content-Type: image/jpeg\r\n\r\n");
-
-                        byte[] buffer = new byte[4096];
-                        int bytesRead;
-                        while ((bytesRead = imageStream.read(buffer)) != -1) {
-                            dos.write(buffer, 0, bytesRead);
-                        }
-                        dos.writeBytes("\r\n--" + boundary + "--\r\n");
-                        dos.flush();
+                    byte[] payload = bytes.toByteArray();
+                    SessionRefreshCoordinator.Session session = UserInfoManager.authSession(context);
+                    RequestResult result = uploadImageOnce(payload, fileName, session);
+                    if (result.statusCode == 401) {
+                        SessionRefreshCoordinator.Result refresh = refreshSession(context, session);
+                        result = refresh.state == SessionRefreshCoordinator.State.READY
+                                ? uploadImageOnce(payload, fileName, refresh.session) : refreshFailure(refresh.state);
                     }
-
-                    int status = connection.getResponseCode();
-                    InputStream responseStream = status >= 400 ? connection.getErrorStream() : connection.getInputStream();
-                    String responseText = readText(responseStream);
-
-                    if (status >= 200 && status < 300) {
-                        return new String[]{"ok", responseText};
-                    } else {
-                        return new String[]{"error", "上传失败: HTTP " + status};
-                    }
+                    return new String[]{result.success ? "ok" : "error", result.success ? result.text : normalizeErrorMessage(result.text)};
                 } catch (Exception e) {
                     Log.e(TAG, "图片上传失败", e);
-                    return new String[]{"error", "图片上传失败: " + (e.getMessage() != null ? e.getMessage() : "未知错误")};
-                } finally {
-                    if (connection != null) connection.disconnect();
-                    try { imageStream.close(); } catch (Exception ignored) {}
+                    return new String[]{"error", "图片上传失败，请重试"};
                 }
             }
 
@@ -751,6 +748,35 @@ public class AuthApiClient {
                 }
             }
         }.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR);
+    }
+
+    private static RequestResult uploadImageOnce(byte[] image, String fileName, SessionRefreshCoordinator.Session session) {
+        HttpURLConnection connection = null;
+        try {
+            String boundary = "----UploadBoundary" + java.util.UUID.randomUUID();
+            connection = (HttpURLConnection) new URL(session.baseUrl + "/api/upload/image").openConnection();
+            connection.setRequestMethod("POST");
+            connection.setDoOutput(true);
+            connection.setRequestProperty("Content-Type", "multipart/form-data; boundary=" + boundary);
+            if (session.accessToken != null) connection.setRequestProperty("Authorization", "Bearer " + session.accessToken);
+            connection.setConnectTimeout(CONNECT_TIMEOUT_MS);
+            connection.setReadTimeout(AI_REQUEST_TIMEOUT_MS);
+            String safeName = fileName == null ? "image.jpg" : fileName.replaceAll("[^a-zA-Z0-9._-]", "_");
+            try (DataOutputStream output = new DataOutputStream(connection.getOutputStream())) {
+                output.writeBytes("--" + boundary + "\r\n");
+                output.writeBytes("Content-Disposition: form-data; name=\"image\"; filename=\"" + safeName + "\"\r\n");
+                output.writeBytes("Content-Type: image/jpeg\r\n\r\n");
+                output.write(image);
+                output.writeBytes("\r\n--" + boundary + "--\r\n");
+            }
+            int status = connection.getResponseCode();
+            String response = readText(status >= 400 ? connection.getErrorStream() : connection.getInputStream());
+            return new RequestResult(status >= 200 && status < 300, response.isEmpty() ? "HTTP " + status : response, status);
+        } catch (Exception e) {
+            return new RequestResult(false, "图片上传连接失败，请重试", -1);
+        } finally {
+            if (connection != null) connection.disconnect();
+        }
     }
 
     public static void generateInventoryImage(Context context, String prompt, String category, String name, GenerateImageCallback callback) {
@@ -811,7 +837,7 @@ public class AuthApiClient {
     public static void getRecipeRecommendations(Context context, int userId, String mode, String ingredient, RecipeRecommendCallback callback) {
         String url = "/api/recipes/recommend?userId=" + userId + "&mode=" + (mode != null ? mode : "recommend");
         if (ingredient != null && !ingredient.isEmpty()) {
-            url += "&ingredient=" + java.net.URLEncoder.encode(ingredient, java.nio.charset.StandardCharsets.UTF_8);
+            url += "&ingredient=" + ApiEncoding.query(ingredient);
         }
         doRequest(context, "GET", url, null, new RawCallback() {
             @Override public void onSuccess(String json) {
@@ -949,7 +975,7 @@ public class AuthApiClient {
     }
 
     public static void getCalorieHistory(Context context, int userId, String date, CalorieSummaryCallback callback) {
-        String path = "/api/calorie/history?userId=" + userId + "&date=" + java.net.URLEncoder.encode(date, java.nio.charset.StandardCharsets.UTF_8);
+        String path = "/api/calorie/history?userId=" + userId + "&date=" + ApiEncoding.query(date);
         doRequest(context, "GET", path, null, new RawCallback() {
             @Override public void onSuccess(String json) {
                 if (callback == null) return;
@@ -990,7 +1016,7 @@ public class AuthApiClient {
     }
 
     public static void searchNutrition(Context context, String query, NutritionSearchCallback callback) {
-        String path = "/api/nutrition/search?q=" + java.net.URLEncoder.encode(query != null ? query : "", java.nio.charset.StandardCharsets.UTF_8);
+        String path = "/api/nutrition/search?q=" + ApiEncoding.query(query != null ? query : "");
         doRequest(context, "GET", path, null, new RawCallback() {
             @Override public void onSuccess(String json) {
                 if (callback == null) return;
@@ -1005,7 +1031,7 @@ public class AuthApiClient {
     }
 
     public static void getNutrition(Context context, String name, NutritionCallback callback) {
-        String path = "/api/nutrition?name=" + java.net.URLEncoder.encode(name != null ? name : "", java.nio.charset.StandardCharsets.UTF_8);
+        String path = "/api/nutrition?name=" + ApiEncoding.query(name != null ? name : "");
         doRequest(context, "GET", path, null, new RawCallback() {
             @Override public void onSuccess(String json) {
                 if (callback == null) return;
@@ -1037,24 +1063,6 @@ public class AuthApiClient {
                     if (r != null && r.ok && r.data != null) callback.onSuccess(r.data);
                     else callback.onError(extractError(r != null ? r.error : null, json));
                 } catch (Exception e) { callback.onError(buildParseError("用户信息", json)); }
-            }
-            @Override public void onError(String m) { if (callback != null) callback.onError(m); }
-        });
-    }
-
-    public static void resolveUsername(Context context, String username, SimpleIdCallback callback) {
-        doRequest(context, "GET", "/api/auth/resolve?username=" + username, null, new RawCallback() {
-            @Override public void onSuccess(String json) {
-                if (callback == null) return;
-                try {
-                    com.google.gson.JsonObject obj = GSON.fromJson(normalizeJsonPayload(json), com.google.gson.JsonObject.class);
-                    if (obj != null && obj.has("ok") && obj.get("ok").getAsBoolean()) {
-                        int userId = obj.getAsJsonObject("data").get("userId").getAsInt();
-                        callback.onSuccess(userId);
-                    } else {
-                        callback.onError("用户不存在");
-                    }
-                } catch (Exception e) { callback.onError(buildParseError("解析用户名", json)); }
             }
             @Override public void onError(String m) { if (callback != null) callback.onError(m); }
         });
@@ -1177,9 +1185,9 @@ public class AuthApiClient {
         });
     }
 
-    public static void bindCouple(Context context, int inviterId, int inviteeId, SimpleIdCallback callback) {
+    public static void bindCouple(Context context, String inviteCode, SimpleIdCallback callback) {
         doRequest(context, "POST", "/api/couple/bind",
-                "{\"inviterId\":" + inviterId + ",\"inviteeId\":" + inviteeId + "}", new RawCallback() {
+                GSON.toJson(java.util.Collections.singletonMap("inviteCode", inviteCode)), new RawCallback() {
             @Override public void onSuccess(String json) {
                 if (callback == null) return;
                 try {
@@ -1259,7 +1267,7 @@ public class AuthApiClient {
     }
 
     public static void searchChatMessages(Context context, int userId, int relationshipId, String keyword, ChatMessageListCallback callback) {
-        String encoded = java.net.URLEncoder.encode(keyword != null ? keyword : "", java.nio.charset.StandardCharsets.UTF_8);
+        String encoded = ApiEncoding.query(keyword != null ? keyword : "");
         doRequest(context, "GET", "/api/chat/search?userId=" + userId + "&relationshipId=" + relationshipId + "&keyword=" + encoded, null, new RawCallback() {
             @Override public void onSuccess(String json) {
                 if (callback == null) return;
@@ -1327,7 +1335,7 @@ public class AuthApiClient {
                             else callback.onError(extractError(response != null ? response.error : null, json));
                         } catch (Exception e) {
                             Log.e(TAG, "queryTodos 响应解析失败: " + json, e);
-                            callback.onError(buildParseError("代办查询", json));
+                            callback.onError(buildParseError("待办查询", json));
                         }
                     }
 
@@ -1362,9 +1370,60 @@ public class AuthApiClient {
                 fireAndForgetCallback(callback));
     }
 
-    public static void updateAvatar(Context context, int userId, String avatarUrl, SimpleCallback callback) {
+    public static void updateAvatar(Context context, int userId, String avatarUrl, AvatarUpdateCallback callback) {
         String body = "{\"userId\":" + userId + ",\"avatarUrl\":" + GSON.toJson(avatarUrl) + "}";
-        doRequest(context, "PUT", "/api/auth/avatar", body, fireAndForgetCallback(callback));
+        doRequest(context, "PUT", "/api/auth/avatar", body, new RawCallback() {
+            @Override public void onSuccess(String json) {
+                if (callback == null) return;
+                try {
+                    AuthApiModels.AvatarUpdateResponse r = GSON.fromJson(normalizeJsonPayload(json), AuthApiModels.AvatarUpdateResponse.class);
+                    if (r != null && r.ok) {
+                        String status = (r.data != null && r.data.avatarStatus != null) ? r.data.avatarStatus : "approved";
+                        callback.onSuccess(status, r.message);
+                    } else {
+                        callback.onError(extractError(r != null ? r.error : null, json));
+                    }
+                } catch (Exception e) { callback.onError(buildParseError("头像更新", json)); }
+            }
+            @Override public void onError(String m) { if (callback != null) callback.onError(m); }
+        });
+    }
+
+    /** 资料类 UGC 文本审核（scene: 1=资料，对应服务端 SCENE.PROFILE） */
+    public static void checkTextContent(Context context, String text, int scene, SecurityCheckCallback callback) {
+        String body = "{\"text\":" + GSON.toJson(text) + ",\"scene\":" + scene + "}";
+        doRequest(context, "POST", "/api/security/check-text", body, new RawCallback() {
+            @Override public void onSuccess(String json) {
+                if (callback == null) return;
+                try {
+                    AuthApiModels.SecurityCheckResponse r = GSON.fromJson(normalizeJsonPayload(json), AuthApiModels.SecurityCheckResponse.class);
+                    if (r != null && r.ok && r.data != null) {
+                        callback.onResult(r.data.pass, r.data.degraded, r.message);
+                    } else {
+                        callback.onError(extractError(r != null ? r.error : null, json));
+                    }
+                } catch (Exception e) { callback.onError(buildParseError("内容安全检查", json)); }
+            }
+            @Override public void onError(String m) { if (callback != null) callback.onError(m); }
+        });
+    }
+
+    /** 头像审核状态：pending=审核中，rejected=已驳回，approved=正常 */
+    public static void getAvatarSecurityStatus(Context context, AvatarStatusCallback callback) {
+        doRequest(context, "GET", "/api/security/avatar-status", null, new RawCallback() {
+            @Override public void onSuccess(String json) {
+                if (callback == null) return;
+                try {
+                    AuthApiModels.AvatarStatusResponse r = GSON.fromJson(normalizeJsonPayload(json), AuthApiModels.AvatarStatusResponse.class);
+                    if (r != null && r.ok && r.data != null) {
+                        callback.onLoaded(r.data.avatarStatus, r.data.shouldNotify);
+                    } else {
+                        callback.onError(extractError(r != null ? r.error : null, json));
+                    }
+                } catch (Exception e) { callback.onError(buildParseError("头像审核状态", json)); }
+            }
+            @Override public void onError(String m) { if (callback != null) callback.onError(m); }
+        });
     }
 
     public static void deleteBill(Context context, int billId, int userId, DeleteBillCallback callback) {
@@ -1396,7 +1455,15 @@ public class AuthApiClient {
     }
 
     public static void updateBill(Context context, int billId, int userId, String title, String type, double amount, String date, String time, Integer incomeType, UpdateBillCallback callback) {
-        AuthApiModels.UpdateBillRequest req = new AuthApiModels.UpdateBillRequest(userId, title, type, amount, date, time, incomeType);
+        updateBill(context, billId, userId, title, type, amount, date, time, incomeType, null, null, callback);
+    }
+
+    /**
+     * photos/receipts 语义与服务端一致：null = 不传（保留原图），空数组 = 明确清空，
+     * 非空列表 = 整体替换。
+     */
+    public static void updateBill(Context context, int billId, int userId, String title, String type, double amount, String date, String time, Integer incomeType, List<String> photos, List<String> receipts, UpdateBillCallback callback) {
+        AuthApiModels.UpdateBillRequest req = new AuthApiModels.UpdateBillRequest(userId, title, type, amount, date, time, incomeType, photos, receipts);
         doRequest(context, "PUT", "/api/bills/" + billId,
                 GSON.toJson(req),
                 new RawCallback() {
@@ -1745,26 +1812,23 @@ public class AuthApiClient {
         }
     }
 
-    private static void doRequest(Context context, String method, String path, String bodyJson, RawCallback callback) {
+    static void doRequest(Context context, String method, String path, String bodyJson, RawCallback callback) {
         doRequest(context, method, path, bodyJson, READ_TIMEOUT_MS, callback);
     }
 
-    private static void doRequest(Context context, String method, String path, String bodyJson, int readTimeout, RawCallback callback) {
+    static void doRequest(Context context, String method, String path, String bodyJson, int readTimeout, RawCallback callback) {
         new AsyncTask<Void, Void, RequestResult>() {
             @Override
             protected RequestResult doInBackground(Void... voids) {
-                // 第一次请求
-                RequestResult result = executeOnce(context, method, path, bodyJson, readTimeout);
-                // 401 且持有 token：尝试用 refresh token 换新 access token，换成功则重试一次
-                if (result.statusCode == 401 && !path.equals("/api/auth/refresh")
-                        && UserInfoManager.getRefreshToken(context) != null) {
-                    Log.d(TAG, "收到 401，尝试刷新 token: " + method + " " + path);
-                    if (refreshAccessTokenSync(context)) {
-                        result = executeOnce(context, method, path, bodyJson, readTimeout);
+                SessionRefreshCoordinator.Session session = UserInfoManager.authSession(context);
+                RequestResult result = executeOnce(method, path, bodyJson, readTimeout, session);
+                if (result.statusCode == 401 && !path.equals("/api/auth/login")
+                        && !path.equals("/api/auth/register") && !path.equals("/api/auth/refresh")) {
+                    SessionRefreshCoordinator.Result refresh = refreshSession(context, session);
+                    if (refresh.state == SessionRefreshCoordinator.State.READY) {
+                        result = executeOnce(method, path, bodyJson, readTimeout, refresh.session);
                     } else {
-                        // refresh 失败：清掉本地登录态，上层会据此跳登录
-                        Log.w(TAG, "token 刷新失败，需重新登录");
-                        UserInfoManager.clearUserInfo(context);
+                        result = refreshFailure(refresh.state);
                     }
                 }
                 return result;
@@ -1785,10 +1849,10 @@ public class AuthApiClient {
     /**
      * 执行一次 HTTP 请求（带 Authorization header）。在后台线程调用。
      */
-    private static RequestResult executeOnce(Context context, String method, String path, String bodyJson, int readTimeout) {
+    private static RequestResult executeOnce(String method, String path, String bodyJson, int readTimeout, SessionRefreshCoordinator.Session session) {
         HttpURLConnection connection = null;
         try {
-            URL url = new URL(ApiConfigManager.getBaseUrl(context) + path);
+            URL url = new URL(session.baseUrl + path);
             long startMs = System.currentTimeMillis();
             Log.d(TAG, "发起请求: " + method + " " + path);
             connection = (HttpURLConnection) url.openConnection();
@@ -1796,7 +1860,7 @@ public class AuthApiClient {
             connection.setRequestProperty("Content-Type", "application/json; charset=UTF-8");
             connection.setRequestProperty("Connection", "keep-alive");
             // 统一注入 JWT access token（登录/注册/refresh 自身不带）
-            String token = UserInfoManager.getAccessToken(context);
+            String token = session.accessToken;
             if (token != null) {
                 connection.setRequestProperty("Authorization", "Bearer " + token);
             }
@@ -1835,44 +1899,52 @@ public class AuthApiClient {
         }
     }
 
-    /**
-     * 用 refresh token 同步换取新的 access token。在后台线程调用。
-     * @return true 表示刷新成功并已更新本地 access token
-     */
-    private static boolean refreshAccessTokenSync(Context context) {
-        String refreshToken = UserInfoManager.getRefreshToken(context);
-        if (refreshToken == null) return false;
+    private static SessionRefreshCoordinator.Result refreshSession(Context context, SessionRefreshCoordinator.Session failed) {
+        return TOKEN_REFRESH.afterUnauthorized(failed, new SessionRefreshCoordinator.Store() {
+            public SessionRefreshCoordinator.Session current() { return UserInfoManager.authSession(context); }
+            public boolean replace(SessionRefreshCoordinator.Session expected, String access, String refresh) {
+                return UserInfoManager.replaceSessionTokens(context, expected, access, refresh);
+            }
+            public boolean clear(SessionRefreshCoordinator.Session expected) {
+                return UserInfoManager.clearSessionIfCurrent(context, expected);
+            }
+        }, AuthApiClient::exchangeRefreshToken);
+    }
+
+    private static RequestResult refreshFailure(SessionRefreshCoordinator.State state) {
+        if (state == SessionRefreshCoordinator.State.UNAUTHORIZED) {
+            return new RequestResult(false, "登录已失效，请重新登录", 401);
+        }
+        if (state == SessionRefreshCoordinator.State.SESSION_CHANGED) {
+            return new RequestResult(false, "登录状态已变化，请重试", -1);
+        }
+        return new RequestResult(false, "暂时无法更新登录状态，请稍后重试", -1);
+    }
+
+    private static SessionRefreshCoordinator.Response exchangeRefreshToken(SessionRefreshCoordinator.Session session) throws Exception {
         HttpURLConnection connection = null;
         try {
-            URL url = new URL(ApiConfigManager.getBaseUrl(context) + "/api/auth/refresh");
-            connection = (HttpURLConnection) url.openConnection();
+            connection = (HttpURLConnection) new URL(session.baseUrl + "/api/auth/refresh").openConnection();
             connection.setRequestMethod("POST");
             connection.setRequestProperty("Content-Type", "application/json; charset=UTF-8");
             connection.setConnectTimeout(CONNECT_TIMEOUT_MS);
             connection.setReadTimeout(READ_TIMEOUT_MS);
-            String body = GSON.toJson(java.util.Collections.singletonMap("refreshToken", refreshToken));
             connection.setDoOutput(true);
-            try (OutputStream os = connection.getOutputStream();
-                 BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(os, StandardCharsets.UTF_8))) {
-                writer.write(body);
-                writer.flush();
-            }
+            byte[] payload = GSON.toJson(java.util.Collections.singletonMap("refreshToken", session.refreshToken))
+                    .getBytes(StandardCharsets.UTF_8);
+            try (OutputStream output = connection.getOutputStream()) { output.write(payload); }
             int status = connection.getResponseCode();
+            String text = readText(status >= 400 ? connection.getErrorStream() : connection.getInputStream());
+            String access = null, refresh = null;
             if (status >= 200 && status < 300) {
-                String resp = readText(connection.getInputStream());
-                JsonObject obj = JsonParser.parseString(resp).getAsJsonObject();
-                if (obj != null && obj.has("data")) {
-                    String newAccessToken = obj.getAsJsonObject("data").get("accessToken").getAsString();
-                    UserInfoManager.saveAccessToken(context, newAccessToken);
-                    Log.d(TAG, "token 刷新成功");
-                    return true;
+                JsonObject object = JsonParser.parseString(text).getAsJsonObject();
+                if (object.has("data") && object.get("data").isJsonObject()) {
+                    JsonObject data = object.getAsJsonObject("data");
+                    if (data.has("accessToken") && !data.get("accessToken").isJsonNull()) access = data.get("accessToken").getAsString();
+                    if (data.has("refreshToken") && !data.get("refreshToken").isJsonNull()) refresh = data.get("refreshToken").getAsString();
                 }
             }
-            Log.w(TAG, "token 刷新失败: HTTP " + status);
-            return false;
-        } catch (Exception e) {
-            Log.e(TAG, "token 刷新异常", e);
-            return false;
+            return new SessionRefreshCoordinator.Response(status, access, refresh);
         } finally {
             if (connection != null) connection.disconnect();
         }
@@ -1898,8 +1970,8 @@ public class AuthApiClient {
 
     public static void getAssetsByFilter(Context context, int userId, String category, String status, AssetListCallback callback) {
         StringBuilder url = new StringBuilder("/api/assets?userId=").append(userId);
-        if (category != null && !category.isEmpty()) url.append("&category=").append(category);
-        if (status != null && !status.isEmpty()) url.append("&status=").append(status);
+        if (category != null && !category.isEmpty()) url.append("&category=").append(ApiEncoding.query(category));
+        if (status != null && !status.isEmpty()) url.append("&status=").append(ApiEncoding.query(status));
 
         doRequest(context, "GET", url.toString(), null,
                 new RawCallback() {
@@ -2176,8 +2248,10 @@ public class AuthApiClient {
                 if (callback == null) return;
                 try {
                     AuthApiModels.OverviewResponse r = GSON.fromJson(normalizeJsonPayload(json), AuthApiModels.OverviewResponse.class);
-                    if (r != null && r.ok) callback.onSuccess(r);
-                    else callback.onError(extractError(r != null ? r.error : null, json));
+                    if (r != null && r.ok) {
+                        if (r.data != null && r.data.hasCompleteSummaries()) callback.onSuccess(r);
+                        else callback.onError("概览数据不完整，正在重新获取统计");
+                    } else callback.onError(extractError(r != null ? r.error : null, json));
                 } catch (Exception e) {
                     Log.e(TAG, "getMyOverview 响应解析失败: " + json, e);
                     callback.onError(buildParseError("概要聚合", json));
@@ -2226,7 +2300,7 @@ public class AuthApiClient {
 
     public static void getPasswordAccounts(Context context, int userId, String category, PasswordAccountListCallback callback) {
         StringBuilder url = new StringBuilder("/api/password-accounts?userId=").append(userId);
-        if (category != null && !category.isEmpty()) url.append("&category=").append(category);
+        if (category != null && !category.isEmpty()) url.append("&category=").append(ApiEncoding.query(category));
         doRequest(context, "GET", url.toString(), null,
                 new RawCallback() {
                     @Override

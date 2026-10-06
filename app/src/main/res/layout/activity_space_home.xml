@@ -1,0 +1,147 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/bg_page">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="24dp">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="共同空间"
+            android:textSize="24sp"
+            android:textStyle="bold"
+            android:textColor="@color/text_body"
+            android:gravity="center" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="把今天，留给以后的我们。仅两人可见。"
+            android:textSize="14sp"
+            android:textColor="@color/text_muted"
+            android:gravity="center"
+            android:layout_marginTop="8dp"
+            android:layout_marginBottom="24dp" />
+
+        <!-- 共同目标卡片 -->
+        <androidx.cardview.widget.CardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            app:cardCornerRadius="12dp"
+            android:elevation="4dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="20dp">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="共同目标"
+                    android:textSize="16sp"
+                    android:textStyle="bold"
+                    android:textColor="@color/text_body"
+                    android:layout_marginBottom="8dp" />
+
+                <TextView
+                    android:id="@+id/tv_goal_placeholder"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="还没有共同目标，和对方一起立一个吧"
+                    android:textSize="14sp"
+                    android:textColor="@color/text_muted"
+                    android:layout_marginBottom="12dp" />
+
+                <ProgressBar
+                    android:id="@+id/progress_goal"
+                    style="?android:attr/progressBarStyleHorizontal"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:progress="0"
+                    android:max="100"
+                    android:layout_marginBottom="12dp" />
+
+                <Button
+                    android:id="@+id/btn_goal_action"
+                    android:layout_width="match_parent"
+                    android:layout_height="44dp"
+                    android:text="创建共同目标"
+                    android:textSize="15sp"
+                    android:textColor="@color/white"
+                    android:background="@color/nav_selected" />
+            </LinearLayout>
+        </androidx.cardview.widget.CardView>
+
+        <!-- 共同小记卡片 -->
+        <androidx.cardview.widget.CardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            app:cardCornerRadius="12dp"
+            android:elevation="4dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="20dp">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="共同小记"
+                    android:textSize="16sp"
+                    android:textStyle="bold"
+                    android:textColor="@color/text_body"
+                    android:layout_marginBottom="8dp" />
+
+                <TextView
+                    android:id="@+id/tv_diary_placeholder"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="平凡日子，也值得记住。第一篇小记等你来写。"
+                    android:textSize="14sp"
+                    android:textColor="@color/text_muted"
+                    android:layout_marginBottom="12dp" />
+
+                <Button
+                    android:id="@+id/btn_write_diary"
+                    android:layout_width="match_parent"
+                    android:layout_height="44dp"
+                    android:text="写小记"
+                    android:textSize="15sp"
+                    android:textColor="@color/white"
+                    android:background="@color/couple_pink" />
+            </LinearLayout>
+        </androidx.cardview.widget.CardView>
+
+        <!-- 空间背景入口 -->
+        <Button
+            android:id="@+id/btn_space_theme"
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:text="空间背景"
+            android:textSize="15sp"
+            android:textColor="@color/text_body"
+            android:background="@color/border_light" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="v0.2 页面骨架 · 功能开发中"
+            android:textSize="12sp"
+            android:textColor="@color/text_disabled"
+            android:gravity="center"
+            android:layout_marginTop="24dp" />
+    </LinearLayout>
+</ScrollView>

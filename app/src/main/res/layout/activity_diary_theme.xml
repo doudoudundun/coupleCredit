@@ -1,0 +1,156 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/bg_page">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="24dp">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="空间背景"
+            android:textSize="24sp"
+            android:textStyle="bold"
+            android:textColor="@color/text_body"
+            android:gravity="center"
+            android:layout_marginBottom="8dp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="更换后双方可见"
+            android:textSize="12sp"
+            android:textColor="@color/couple_pink"
+            android:gravity="center"
+            android:layout_marginBottom="24dp" />
+
+        <!-- 当前预览 -->
+        <androidx.cardview.widget.CardView
+            android:layout_width="match_parent"
+            android:layout_height="160dp"
+            android:layout_marginBottom="24dp"
+            app:cardCornerRadius="12dp"
+            android:elevation="4dp">
+
+            <TextView
+                android:id="@+id/tv_theme_preview"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:text="当前预览"
+                android:textSize="14sp"
+                android:textColor="@color/text_muted"
+                android:gravity="center"
+                android:background="@color/border_light" />
+        </androidx.cardview.widget.CardView>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="选择模板"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:textColor="@color/text_body"
+            android:layout_marginBottom="12dp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginBottom="24dp">
+
+            <TextView
+                android:id="@+id/tv_template_sunset"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="72dp"
+                android:text="落日山野"
+                android:textSize="13sp"
+                android:textColor="@color/white"
+                android:gravity="center"
+                android:background="#C08552"
+                android:layout_marginEnd="8dp" />
+
+            <TextView
+                android:id="@+id/tv_template_breeze"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="72dp"
+                android:text="微风花园"
+                android:textSize="13sp"
+                android:textColor="@color/white"
+                android:gravity="center"
+                android:background="#7A9E7E"
+                android:layout_marginEnd="8dp" />
+
+            <TextView
+                android:id="@+id/tv_template_mist"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="72dp"
+                android:text="雾蓝远山"
+                android:textSize="13sp"
+                android:textColor="@color/white"
+                android:gravity="center"
+                android:background="#6E8CA0" />
+        </LinearLayout>
+
+        <Button
+            android:id="@+id/btn_upload_custom_bg"
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:text="上传自己的背景"
+            android:textSize="15sp"
+            android:textColor="@color/text_body"
+            android:background="@color/white"
+            android:layout_marginBottom="24dp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="背景柔化"
+            android:textSize="14sp"
+            android:textColor="@color/text_muted"
+            android:layout_marginBottom="8dp" />
+
+        <SeekBar
+            android:id="@+id/seek_overlay"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:max="100"
+            android:progress="45"
+            android:layout_marginBottom="32dp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/btn_preview_theme"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="48dp"
+                android:text="预览"
+                android:textSize="16sp"
+                android:textColor="@color/text_body"
+                android:background="@color/border_light"
+                android:layout_marginEnd="12dp" />
+
+            <Button
+                android:id="@+id/btn_save_theme"
+                android:layout_width="0dp"
+                android:layout_weight="2"
+                android:layout_height="48dp"
+                android:text="保存背景"
+                android:textSize="16sp"
+                android:textColor="@color/white"
+                android:background="@color/couple_pink" />
+        </LinearLayout>
+    </LinearLayout>
+</ScrollView>
