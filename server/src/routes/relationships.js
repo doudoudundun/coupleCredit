@@ -6,6 +6,7 @@
 // 与 couple.js 旧 DELETE /api/couple/unbind 的差别：补齐目标冻结、
 // 邀请失效、媒体授权失效与新版历史政策返回值。
 const express = require("express");
+const { revokeDiaryUpdates } = require("../utils/diaryUpdates");
 const { ApiError } = require("../errors");
 const { cache } = require("../cache");
 const { invalidateRelationshipScopedCaches } = require("../utils/queryHelpers");
@@ -26,20 +27,13 @@ function createRelationshipsRouter({ pool }) {
       const userId = req.userId;
       const body = req.body || {};
       const key = requireIdempotencyKey(body.idempotencyKey);
-      let expectedVersion = null;
-      if (body.expectedVersion !== undefined && body.expectedVersion !== null) {
-        expectedVersion = parseExpectedVersion(body.expectedVersion);
-        if (expectedVersion === null || expectedVersion < 0) {
-          throw new ApiError(422, "VALIDATION_FAILED", "字段校验失败", {
-            fieldErrors: { expectedVersion: "expectedVersion 必须为非负整数" }
-          });
-        }
-      }
+      const expectedVersion = String(body.expectedVersion || "");
+      if (!expectedVersion) throw new ApiError(422, "VALIDATION_FAILED", "请刷新共同空间后重试");
 
       let affectedUserIds = [];
       const outcome = await withIdempotency(
         pool,
-        { userId, scope: "relationship.unbind", key, payload: body },
+        { userId, scope: "relationship.unbind", key, payload: { ...body, relationshipId: req.params.id } },
         async (conn) => {
           // 不用缓存版关系查询：解绑必须在事务内复核当前状态
           const [foundRows] = await conn.execute(
@@ -55,12 +49,7 @@ function createRelationshipsRouter({ pool }) {
           if (Number(req.params.id) !== relationshipId) {
             throw new ApiError(404, "NOT_FOUND", "没有找到活跃的情侣关系");
           }
-          // 契约口径：关系 version 即 relationshipId
-          if (expectedVersion !== null && expectedVersion !== relationshipId) {
-            throw new ApiError(409, "VERSION_CONFLICT", "关系已发生变化，请刷新后重试", {
-              currentVersion: relationshipId
-            });
-          }
+
 
           const u1 = Number(rel.user_id_1);
           const u2 = Number(rel.user_id_2);
@@ -78,7 +67,7 @@ function createRelationshipsRouter({ pool }) {
 
           // 先锁定当前 open cycle 对应的共享空间：后续目标冻结与媒体授权失效都以它为准
           const [spaceRows] = await conn.execute(
-            `SELECT s.space_id
+            `SELECT s.space_id, c.cycle_id
                FROM housework_relationship_cycles c
                JOIN housework_spaces s ON s.cycle_id = c.cycle_id
               WHERE c.relationship_id = ? AND c.ended_at IS NULL AND s.status = 'active'
@@ -89,6 +78,7 @@ function createRelationshipsRouter({ pool }) {
             throw new ApiError(409, "SPACE_STATE_INVALID", "活跃关系缺少当前共享空间");
           }
           const spaceId = spaceRows[0].space_id;
+          if (expectedVersion !== String(spaceRows[0].cycle_id)) throw new ApiError(409, "RELATIONSHIP_CHANGED", "关系已变化，请刷新后重试");
 
           await conn.execute(
             "UPDATE couple_relationships SET status = 'dissolved' WHERE relationship_id = ?",
@@ -117,6 +107,7 @@ function createRelationshipsRouter({ pool }) {
             [u1, u2]
           );
           // 授权版本递增：冻结空间里所有已签名媒体 URL 立即失效
+          await revokeDiaryUpdates(conn, "space_id", spaceId);
           await conn.execute(
             "UPDATE diary_media SET auth_version = auth_version + 1 WHERE space_id = ?",
             [spaceId]

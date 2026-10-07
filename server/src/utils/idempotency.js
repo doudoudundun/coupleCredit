@@ -83,7 +83,7 @@ async function withIdempotency(pool, { userId, scope, key, payload }, executor) 
   return resolveDuplicate(pool, { userId, scope, key, payload, requestHash }, executor);
 }
 
-/** 撞键后的裁决（事务外读已提交数据）：重放 / 载荷冲突 / 回收遗留死占位后接管。 */
+/** 撞键后的裁决（事务外读已提交数据）：重放 / 载荷冲突 / 遗留未知结果保持阻断。 */
 async function resolveDuplicate(pool, { userId, scope, key, payload, requestHash }, executor) {
   const [rows] = await pool.execute(
     "SELECT request_hash, response_json, status, created_at FROM idempotency_records WHERE user_id = ? AND scope = ? AND idem_key = ? LIMIT 1",
@@ -91,20 +91,13 @@ async function resolveDuplicate(pool, { userId, scope, key, payload, requestHash
   );
   const existing = rows[0];
   if (existing && existing.request_hash === requestHash) {
-    if (existing.status === "completed" && existing.response_json) {
+    if (existing.status === "completed") {
       const response = typeof existing.response_json === "string"
         ? JSON.parse(existing.response_json)
         : existing.response_json;
       return { replayed: true, result: response };
     }
-    // 遗留 processing 占位（仅可能来自旧版非原子实现或异常残留）：超过 2 分钟回收后重试
-    if (Date.now() - new Date(existing.created_at).getTime() > 2 * 60 * 1000) {
-      await pool.execute(
-        "DELETE FROM idempotency_records WHERE user_id = ? AND scope = ? AND idem_key = ? AND status = 'processing'",
-        [userId, scope, key]
-      );
-      return withIdempotency(pool, { userId, scope, key, payload }, executor);
-    }
+    // 旧实现的占位可能对应已提交业务；无法证明未提交时禁止自动回收/重执行。
     throw new ApiError(409, "IDEMPOTENCY_IN_PROGRESS", "相同请求正在处理中，请稍后重试");
   }
   throw new ApiError(409, "IDEMPOTENCY_CONFLICT", "同一幂等键提交了不同的请求内容");

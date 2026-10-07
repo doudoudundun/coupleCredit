@@ -20,7 +20,10 @@ const { createRequireAuth, loadActiveUserSession } = require("../middleware/auth
 const { verifyAccessToken } = require("../utils/jwt");
 const { buildMediaUrl, verifyMediaToken } = require("../utils/mediaToken");
 
-const MEDIA_DIR = path.resolve(__dirname, "../../media/diary");
+const { withTransaction } = require("../utils/transactions");
+const { loadCoupleSpaceContext } = require("../utils/spaceContext");
+
+const MEDIA_DIR = path.resolve(process.env.DIARY_MEDIA_DIR || path.resolve(__dirname, "../../media/diary"));
 
 if (!fs.existsSync(MEDIA_DIR)) {
   fs.mkdirSync(MEDIA_DIR, { recursive: true });
@@ -89,30 +92,45 @@ function mediaAbsolutePath(relativePath) {
 }
 
 // 懒清理：本人名下超过 24h 仍未 complete 的会话行，尽力删对应文件（失败忽略）。
+// Retention policy is not approved: report candidates only, never delete existing bytes/rows.
 async function cleanupStaleMedia(pool, userId) {
-  const cutoff = new Date(Date.now() - STALE_AFTER_MS);
-  const [staleRows] = await pool.execute(
-    "SELECT media_id, storage_path, thumb_path FROM diary_media " +
-      "WHERE owner_id = ? AND status IN ('pending','transcoded') AND created_at < ?",
-    [userId, cutoff]
-  );
-  if (staleRows.length === 0) return;
-  await pool.execute(
-    "DELETE FROM diary_media " +
-      "WHERE owner_id = ? AND status IN ('pending','transcoded') AND created_at < ?",
-    [userId, cutoff]
-  );
-  for (const row of staleRows) {
-    for (const relativePath of [row.storage_path, row.thumb_path]) {
-      if (!relativePath) continue;
-      fs.promises.unlink(mediaAbsolutePath(relativePath)).catch(() => {});
-    }
+  const [rows] = await pool.execute(
+    "SELECT m.media_id FROM diary_media m WHERE m.owner_id = ? AND m.created_at < ? " +
+    "AND m.diary_id IS NULL AND m.status IN ('pending','transcoded','ready') " +
+    "AND NOT EXISTS (SELECT 1 FROM space_diary_theme t WHERE t.media_id = m.media_id) LIMIT 100",
+    [userId, new Date(Date.now() - STALE_AFTER_MS)]);
+  return rows;
+}
+
+async function canReadMedia(pool, media, viewerId) {
+  const owner = Number(media.owner_id) === Number(viewerId);
+  if (media.diary_id) {
+    const [posts] = await pool.execute("SELECT author_id, status FROM diary_posts WHERE diary_id = ? AND space_id = ? LIMIT 1", [media.diary_id, media.space_id]);
+    if (!posts[0] || posts[0].status !== "visible") return false;
+    if (owner && Number(posts[0].author_id) === Number(viewerId)) return true;
   }
+  const [members] = await pool.execute(
+    "SELECT 1 FROM housework_spaces s JOIN housework_space_members m ON m.space_id = s.space_id " +
+    "WHERE s.space_id = ? AND s.status = 'active' AND m.user_id = ? LIMIT 1", [media.space_id, viewerId]);
+  if (!members.length) return false;
+  if (owner) return true;
+  if (media.diary_id) return true;
+  if (media.purpose === "background") {
+    const [themes] = await pool.execute("SELECT 1 FROM space_diary_theme WHERE space_id = ? AND media_id = ? AND kind = 'media' LIMIT 1", [media.space_id, media.media_id]);
+    return themes.length > 0;
+  }
+  return false;
 }
 
 function createDiaryMediaRouter({ pool, config, requireAuth: suppliedRequireAuth }) {
   const requireAuth = suppliedRequireAuth || createRequireAuth(pool);
   const router = express.Router();
+  router.use((req, res, next) => {
+    if (process.env.DIARY_WRITES_ENABLED === "false" && !["GET", "HEAD", "DELETE"].includes(req.method)) {
+      return next(new ApiError(503, "DIARY_WRITES_DISABLED", "小记暂时停止新写入，已有内容仍可查看"));
+    }
+    next();
+  });
 
   /* ---------------------------------------------------------------- *
    * POST /uploads —— 签发受限上传会话（pending 行）
@@ -138,11 +156,16 @@ function createDiaryMediaRouter({ pool, config, requireAuth: suppliedRequireAuth
       await cleanupStaleMedia(pool, req.userId);
 
       const mediaId = crypto.randomUUID();
-      await pool.execute(
-        "INSERT INTO diary_media (media_id, owner_id, purpose, status, mime, size_bytes) " +
-          "VALUES (?, ?, ?, 'pending', ?, ?)",
-        [mediaId, req.userId, body.purpose, body.mime, body.size]
-      );
+      await withTransaction(pool, async conn => {
+        const ctx = await loadCoupleSpaceContext(conn, req.userId, { forUpdate: true });
+        if (!ctx || String(body.relationshipVersion || "") !== String(ctx.cycleId)) {
+          throw new ApiError(409, "RELATIONSHIP_CHANGED", "关系已变化，请重新打开编辑器");
+        }
+        await conn.execute(
+          "INSERT INTO diary_media (media_id, owner_id, space_id, purpose, status, mime, size_bytes) VALUES (?, ?, ?, ?, 'pending', ?, ?)",
+          [mediaId, req.userId, ctx.spaceId, body.purpose, body.mime, body.size]
+        );
+      });
 
       res.status(201).json({
         ok: true,
@@ -172,13 +195,19 @@ function createDiaryMediaRouter({ pool, config, requireAuth: suppliedRequireAuth
     async (req, res, next) => {
       try {
         const mediaId = req.params.id;
-        const [rows] = await pool.execute(
-          "SELECT media_id, owner_id, status FROM diary_media WHERE media_id = ? LIMIT 1",
+        const result = await withTransaction(pool, async conn => {
+        const ctx = await loadCoupleSpaceContext(conn, req.userId, { forUpdate: true });
+        const [rows] = await conn.execute(
+          "SELECT media_id, owner_id, space_id, status, created_at FROM diary_media WHERE media_id = ? LIMIT 1 FOR UPDATE",
           [mediaId]
         );
         const media = rows[0];
         if (!media || Number(media.owner_id) !== Number(req.userId)) {
           throw notFoundMedia();
+        }
+        if (!ctx || ctx.spaceId !== media.space_id) throw new ApiError(409, "RELATIONSHIP_CHANGED", "上传所属空间已关闭");
+        if (Date.now() - new Date(media.created_at).getTime() > SESSION_TTL_MS) {
+          throw new ApiError(410, "UPLOAD_EXPIRED", "上传会话已过期，请重新选择图片");
         }
         if (media.status !== "pending") {
           throw new ApiError(409, "MEDIA_STATE_CONFLICT", "媒体当前状态不允许重复上传原图");
@@ -192,8 +221,13 @@ function createDiaryMediaRouter({ pool, config, requireAuth: suppliedRequireAuth
         try {
           // 无参 rotate() = 按 EXIF 方向纠正像素；toBuffer 输出不带元数据，
           // EXIF/GPS/设备信息/拍摄时间/嵌入缩略图随之剥离。
-          rotated = await sharp(req.file.buffer).rotate().toBuffer();
-          meta = await sharp(rotated).metadata();
+          const input = sharp(req.file.buffer, { limitInputPixels: MAX_PIXELS, animated: false });
+          meta = await input.metadata();
+          if (!["jpeg", "png", "webp"].includes(meta.format) || (meta.pages || 1) > 1 ||
+              !meta.width || !meta.height || meta.width * meta.height > MAX_PIXELS) {
+            throw new Error("UNSUPPORTED_IMAGE");
+          }
+          rotated = await input.rotate().toBuffer();
         } catch (_error) {
           throw validationFailed("无法解析上传的图片", { file: "无法解析图片" });
         }
@@ -217,7 +251,7 @@ function createDiaryMediaRouter({ pool, config, requireAuth: suppliedRequireAuth
         await fs.promises.writeFile(path.join(MEDIA_DIR, `${mediaId}_full.webp`), full.data);
         await fs.promises.writeFile(path.join(MEDIA_DIR, `${mediaId}_thumb.webp`), thumb.data);
 
-        await pool.execute(
+        await conn.execute(
           "UPDATE diary_media SET status = 'transcoded', width = ?, height = ?, size_bytes = ?, " +
             "storage_path = ?, thumb_path = ? WHERE media_id = ?",
           [
@@ -230,15 +264,14 @@ function createDiaryMediaRouter({ pool, config, requireAuth: suppliedRequireAuth
           ]
         );
 
-        res.json({
-          ok: true,
-          data: {
+        return {
             mediaId,
             status: "transcoded",
             width: full.info.width,
             height: full.info.height
-          }
+        };
         });
+        res.json({ ok: true, data: result });
       } catch (error) {
         next(error);
       }
@@ -253,7 +286,7 @@ function createDiaryMediaRouter({ pool, config, requireAuth: suppliedRequireAuth
     try {
       const mediaId = req.params.id;
       const [rows] = await pool.execute(
-        "SELECT media_id, owner_id, status, width, height, auth_version FROM diary_media WHERE media_id = ? LIMIT 1",
+        "SELECT media_id, owner_id, space_id, diary_id, purpose, status, width, height, auth_version FROM diary_media WHERE media_id = ? LIMIT 1",
         [mediaId]
       );
       const media = rows[0];
@@ -269,6 +302,7 @@ function createDiaryMediaRouter({ pool, config, requireAuth: suppliedRequireAuth
           [mediaId]
         );
       }
+      if (!(await canReadMedia(pool, { ...media, status: "ready" }, req.userId))) throw notFoundMedia();
       // status 已是 ready → 幂等直接返回
 
       const authVersion = Number(media.auth_version);
@@ -276,7 +310,7 @@ function createDiaryMediaRouter({ pool, config, requireAuth: suppliedRequireAuth
         secret: config.jwtSecret,
         mediaId,
         variant: "full",
-        authVersion
+        authVersion, viewerId: req.userId
       });
       res.json({
         ok: true,
@@ -288,7 +322,7 @@ function createDiaryMediaRouter({ pool, config, requireAuth: suppliedRequireAuth
             secret: config.jwtSecret,
             mediaId,
             variant: "thumb",
-            authVersion
+            authVersion, viewerId: req.userId
           }),
           width: media.width,
           height: media.height
@@ -313,62 +347,27 @@ function createDiaryMediaRouter({ pool, config, requireAuth: suppliedRequireAuth
       const variant = req.query.variant === "thumb" ? "thumb" : "full";
 
       const [rows] = await pool.execute(
-        "SELECT media_id, owner_id, space_id, storage_path, thumb_path, auth_version " +
+        "SELECT media_id, owner_id, space_id, diary_id, purpose, status, storage_path, thumb_path, auth_version " +
           "FROM diary_media WHERE media_id = ? LIMIT 1",
         [mediaId]
       );
       const media = rows[0];
       if (!media) throw notFoundMedia();
 
-      const authVersion = Number(media.auth_version);
-      let authorized = false;
-
-      const st = typeof req.query.st === "string" ? req.query.st : null;
-      if (
-        st &&
-        verifyMediaToken({
-          secret: config.jwtSecret,
-          mediaId,
-          variant,
-          authVersion,
-          token: st
-        })
-      ) {
-        authorized = true;
+      if (media.status !== "ready") throw notFoundMedia();
+      const signed = verifyMediaToken({ secret: config.jwtSecret, mediaId, variant,
+        authVersion: Number(media.auth_version), token: req.query.st });
+      let viewerId = signed && signed.viewerId;
+      const header = req.headers.authorization || "";
+      if (header.startsWith("Bearer ")) {
+        let session = null;
+        try { session = await loadActiveUserSession(pool, verifyAccessToken(header.slice(7))); } catch (_) {}
+        // A supplied Bearer session must match the URL audience; never bypass it with a signature.
+        if (!session || (viewerId && Number(session.id) !== viewerId)) throw notFoundMedia();
+        viewerId = Number(session.id);
       }
-
-      if (!authorized) {
-        const header = req.headers.authorization || "";
-        const token = header.startsWith("Bearer ") ? header.slice(7) : null;
-        if (token) {
-          let decoded = null;
-          try {
-            decoded = verifyAccessToken(token);
-          } catch (_error) {
-            decoded = null;
-          }
-          if (decoded) {
-            const session = await loadActiveUserSession(pool, decoded);
-            if (session) {
-              if (Number(media.owner_id) === session.id) {
-                authorized = true;
-              } else if (media.space_id) {
-                const [memberRows] = await pool.execute(
-                  "SELECT 1 FROM housework_spaces s " +
-                    "JOIN housework_space_members m ON m.space_id = s.space_id " +
-                    "WHERE s.space_id = ? AND s.status = 'active' AND m.user_id = ? LIMIT 1",
-                  [media.space_id, session.id]
-                );
-                if (memberRows.length > 0) authorized = true;
-              }
-            }
-          }
-        }
-      }
-
-      if (!authorized) {
-        throw new ApiError(403, "FORBIDDEN", "无权访问该媒体");
-      }
+      if (!header.startsWith("Bearer ")) throw new ApiError(401, "UNAUTHORIZED", "媒体读取需要当前会话");
+      if (!viewerId || !(await canReadMedia(pool, media, viewerId))) throw notFoundMedia();
 
       const relativePath = variant === "thumb" ? media.thumb_path : media.storage_path;
       if (!relativePath) throw notFoundMedia();
@@ -379,7 +378,7 @@ function createDiaryMediaRouter({ pool, config, requireAuth: suppliedRequireAuth
         throw notFoundMedia();
       }
 
-      res.set("Cache-Control", "private, max-age=300");
+      res.set("Cache-Control", "private, no-store");
       res.type("image/webp");
       res.sendFile(absolutePath);
     } catch (error) {
@@ -390,4 +389,4 @@ function createDiaryMediaRouter({ pool, config, requireAuth: suppliedRequireAuth
   return router;
 }
 
-module.exports = { createDiaryMediaRouter, MAX_UPLOAD_BYTES };
+module.exports = { createDiaryMediaRouter, MAX_UPLOAD_BYTES, canReadMedia, cleanupStaleMedia };

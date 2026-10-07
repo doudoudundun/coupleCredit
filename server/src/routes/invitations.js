@@ -5,6 +5,7 @@
 // 的失效路径统一 404 INVITATION_INVALID，不泄露具体原因与任何身份信息。
 const express = require("express");
 const crypto = require("crypto");
+const { optionalAuth } = require("../middleware/auth");
 const { ApiError } = require("../errors");
 const { cache } = require("../cache");
 const { invalidateRelationshipScopedCaches } = require("../utils/queryHelpers");
@@ -14,6 +15,14 @@ const { loadDisplayNames, ensureCycleForBind } = require("../utils/houseworkLife
 const { GOAL_SELECT, serializeGoal, isGoalSpaceMember } = require("./goals");
 
 const INVITATION_TTL_HOURS = 72;
+// InnoDB may choose this fully rolled-back transaction as a deadlock victim.
+// Retry only that error, never an unknown commit result.
+async function retryDeadlock(run) {
+  for (let attempt = 0; ; attempt++) {
+    try { return await run(); }
+    catch (error) { if (error.code !== "ER_LOCK_DEADLOCK" || attempt >= 2) throw error; }
+  }
+}
 
 function sha256Hex(value) {
   return crypto.createHash("sha256").update(value).digest("hex");
@@ -42,7 +51,7 @@ function createInvitationsRouter({ pool, requireAuth }) {
   const router = express.Router();
 
   // 匿名可访问：只暴露发起人昵称与目标标题，绝不返回金额、成员 ID、历史
-  router.get("/preview", async (req, res, next) => {
+  router.get("/preview", optionalAuth, async (req, res, next) => {
     try {
       const token = typeof req.query.token === "string" ? req.query.token.trim() : "";
       if (!token) throw invitationInvalid();
@@ -59,6 +68,7 @@ function createInvitationsRouter({ pool, requireAuth }) {
         if (invitation && invitation.status === "active") await markExpired(pool, invitation.invitation_id);
         throw invitationInvalid();
       }
+      if (!req.userId) return res.json({ ok: true, data: { status: "active", requiresLogin: true } });
       res.json({
         ok: true,
         data: {
@@ -76,7 +86,8 @@ function createInvitationsRouter({ pool, requireAuth }) {
     try {
       const userId = req.userId;
       const goalId = typeof req.body?.goalId === "string" ? req.body.goalId.trim() : "";
-      const data = await withTransaction(pool, async (conn) => {
+      const data = await retryDeadlock(() => withTransaction(pool, async (conn) => {
+        await conn.execute("SELECT id FROM users WHERE id = ? FOR UPDATE", [userId]);
         const [goalRows] = await conn.execute(
           `${GOAL_SELECT} WHERE goal_id = ? LIMIT 1 FOR UPDATE`,
           [goalId]
@@ -126,7 +137,7 @@ function createInvitationsRouter({ pool, requireAuth }) {
           expiresAt: freshRows[0].expires_at,
           sharePath: `/pages/invite/index?token=${token}`
         };
-      });
+      }));
       res.json({ ok: true, data });
     } catch (error) {
       next(error);
@@ -143,18 +154,18 @@ function createInvitationsRouter({ pool, requireAuth }) {
 
       let data;
       try {
-        const outcome = await withIdempotency(
+        const outcome = await retryDeadlock(() => withIdempotency(
           pool,
           { userId, scope: "invite.accept", key, payload: body },
           async (conn) => {
-            // 锁顺序与 couple.js bind 一致：邀请行 → 双方 users 行（升序）→
-            // 关系行 → cycle/space → 目标行。
+            // Preview only to discover immutable inviter; lock users before invitation
+            // to match create/unbind and avoid cross-invitation lock inversion.
             const [inviteRows] = await conn.execute(
               `SELECT invitation_id, goal_id, inviter_id, status, expires_at
-                 FROM goal_invitations WHERE token_hash = ? LIMIT 1 FOR UPDATE`,
+                 FROM goal_invitations WHERE token_hash = ? LIMIT 1`,
               [sha256Hex(token)]
             );
-            const invitation = inviteRows[0];
+            let invitation = inviteRows[0];
             if (!invitation || invitation.status !== "active") throw invitationInvalid();
             if (isExpired(invitation.expires_at)) {
               await conn.execute(
@@ -171,6 +182,11 @@ function createInvitationsRouter({ pool, requireAuth }) {
             const [lockFirst, lockSecond] = inviterId < userId ? [inviterId, userId] : [userId, inviterId];
             await conn.execute("SELECT id FROM users WHERE id = ? FOR UPDATE", [lockFirst]);
             await conn.execute("SELECT id FROM users WHERE id = ? FOR UPDATE", [lockSecond]);
+
+            const [lockedInvites] = await conn.execute(
+              "SELECT invitation_id, goal_id, inviter_id, status, expires_at FROM goal_invitations WHERE token_hash = ? LIMIT 1 FOR UPDATE", [sha256Hex(token)]);
+            invitation = lockedInvites[0];
+            if (!invitation || invitation.status !== "active" || isExpired(invitation.expires_at)) throw invitationInvalid();
 
             const [existing1] = await conn.execute(
               "SELECT relationship_id FROM couple_relationships WHERE status = 'active' AND (user_id_1 = ? OR user_id_2 = ?) LIMIT 1 FOR UPDATE",
@@ -234,7 +250,7 @@ function createInvitationsRouter({ pool, requireAuth }) {
               [invitation.goal_id]
             );
             const goal = goalRows[0];
-            if (!goal || !(await isGoalSpaceMember(conn, goal.space_id, inviterId))) {
+            if (!goal || goal.status !== "active" || !(await isGoalSpaceMember(conn, goal.space_id, inviterId, { requireActiveSpace: true }))) {
               throw invitationInvalid();
             }
             const fromSpaceId = goal.space_id;
@@ -261,10 +277,10 @@ function createInvitationsRouter({ pool, requireAuth }) {
             );
             return {
               goal: serializeGoal(transferredRows[0]),
-              relationship: { id: Number(relationshipId), version: Number(relationshipId) }
+              relationship: { id: Number(relationshipId), version: bound.cycleId }
             };
           }
-        );
+        ));
         data = outcome.result;
       } catch (error) {
         if (error.code === "ER_DUP_ENTRY" || error.sqlState === "23000") {

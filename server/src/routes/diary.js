@@ -9,6 +9,7 @@
 //   * 评论计数以 diary_posts.comment_count 为权威（仅统计可见未删除）。
 const express = require("express");
 const crypto = require("crypto");
+const { enqueueDiaryUpdate, revokeDiaryUpdates } = require("../utils/diaryUpdates");
 const { ApiError } = require("../errors");
 const { withTransaction } = require("../utils/transactions");
 const {
@@ -25,8 +26,8 @@ const TEMPLATE_IDS = new Set(["sunset", "breeze", "mist"]);
 const TIMELINE_DEFAULT_LIMIT = 20;
 const TIMELINE_MAX_LIMIT = 20;
 const MAIN_COMMENT_DEFAULT_LIMIT = 20;
-const REPLY_DEFAULT_LIMIT = 50;
-const COMMENT_MAX_LIMIT = 100;
+const REPLY_DEFAULT_LIMIT = 20;
+const COMMENT_MAX_LIMIT = 20;
 
 const DIARY_BODY_MAX = 5000;
 const MOOD_TEXT_MAX = 20;
@@ -63,6 +64,12 @@ function diaryNotFound() {
   return new ApiError(404, "NOT_FOUND", "小记不存在或不可见");
 }
 
+function rejectForgedAuthority(payload) {
+  for (const field of ["userId", "authorId", "author_id", "spaceId", "space_id", "relationshipId", "rootId", "replyTo"]) {
+    if (Object.prototype.hasOwnProperty.call(payload, field)) throw invalidField(field, "该字段由服务端确定");
+  }
+}
+
 function unicodeLength(value) {
   return [...value].length;
 }
@@ -97,6 +104,43 @@ function decodeTimelineCursor(raw) {
     && typeof value[0] === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value[0])
     && Number.isSafeInteger(value[1])
     && typeof value[2] === "string" && value[2].length > 0);
+}
+
+// Signed snapshot cursor for the current shared timeline. A changed snapshot is
+// rejected explicitly instead of silently skipping entries moved across a page.
+function signTimelineSnapshot(secret, payload) {
+  const encoded = encodeCursor(payload);
+  const sig = crypto.createHmac("sha256", secret).update("diary-timeline:" + encoded).digest("base64url");
+  return encoded + "." + sig;
+}
+function readTimelineSnapshot(secret, raw, scope) {
+  if (typeof raw !== "string" || raw.length > 2048) throw invalidField("cursor", "cursor 无效");
+  const parts = raw.split(".");
+  if (parts.length !== 2) throw invalidField("cursor", "cursor 无效，请刷新列表");
+  const expected = crypto.createHmac("sha256", secret).update("diary-timeline:" + parts[0]).digest("base64url");
+  if (parts[1].length !== expected.length || !crypto.timingSafeEqual(Buffer.from(parts[1]), Buffer.from(expected))) {
+    throw invalidField("cursor", "cursor 无效");
+  }
+  const value = decodeCursor(parts[0], v => v && v.v === 1 && v.scope === scope
+    && typeof v.revision === "string" && Number.isSafeInteger(v.expiresAt) && typeof v.key === "string");
+  decodeTimelineCursor(value.key);
+  if (value.expiresAt <= Date.now()) throw new ApiError(409, "SNAPSHOT_CHANGED", "列表快照已过期，请刷新");
+  return value;
+}
+
+// Every page uses one repeatable-read transaction for the revision and rows.
+// Revision is conservative: any post mutation in this space expires the cursor.
+// No retention policy or persistent snapshot table is introduced.
+async function withTimelineSnapshot(pool, fn) {
+  const conn = await pool.getConnection();
+  try {
+    await conn.query("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ");
+    await conn.beginTransaction();
+    const result = await fn(conn);
+    await conn.commit();
+    return result;
+  } catch (error) { await conn.rollback(); throw error; }
+  finally { conn.release(); }
 }
 
 // 评论游标：[created_at_ms, comment_id]
@@ -191,18 +235,18 @@ async function loadReadyMedia(executor, diaryIds, ownerId = null) {
   return mediaByPost;
 }
 
-function serializeMediaRef(secret, media) {
+function serializeMediaRef(secret, media, viewerId) {
   return {
     mediaId: media.media_id,
     id: media.media_id,
-    url: buildMediaUrl({ secret, mediaId: media.media_id, variant: "full", authVersion: Number(media.auth_version) }),
-    thumbnailUrl: buildMediaUrl({ secret, mediaId: media.media_id, variant: "thumb", authVersion: Number(media.auth_version) }),
+    url: buildMediaUrl({ secret, mediaId: media.media_id, variant: "full", authVersion: Number(media.auth_version), viewerId }),
+    thumbnailUrl: buildMediaUrl({ secret, mediaId: media.media_id, variant: "thumb", authVersion: Number(media.auth_version), viewerId }),
     width: media.width != null ? Number(media.width) : null,
     height: media.height != null ? Number(media.height) : null
   };
 }
 
-function serializeDiarySummary(secret, post, mediaRows, authors) {
+function serializeDiarySummary(secret, post, mediaRows, authors, viewerId) {
   return {
     id: post.diary_id,
     author: authors.get(Number(post.author_id)) || unknownAuthor(post.author_id),
@@ -210,7 +254,7 @@ function serializeDiarySummary(secret, post, mediaRows, authors) {
     occurredOn: post.occurred_on,
     moodCode: post.mood_code != null ? post.mood_code : null,
     moodText: post.mood_text != null ? post.mood_text : null,
-    media: (mediaRows || []).map((media) => serializeMediaRef(secret, media)),
+    media: (mediaRows || []).map((media) => serializeMediaRef(secret, media, viewerId)),
     commentCount: Number(post.comment_count || 0),
     createdAt: post.created_at,
     updatedAt: post.updated_at,
@@ -295,12 +339,12 @@ async function lockPostForWrite(conn, userId, diaryId) {
   return post;
 }
 
-async function serializePost(executor, secret, diaryId, ownerId = null) {
+async function serializePost(executor, secret, diaryId, viewerId, ownerId = null) {
   const post = await loadPostRow(executor, diaryId);
   if (!post) throw diaryNotFound();
   const mediaByPost = await loadReadyMedia(executor, [diaryId], ownerId);
   const authors = await loadAuthors(executor, [post.author_id]);
-  return serializeDiarySummary(secret, post, mediaByPost.get(diaryId) || [], authors);
+  return serializeDiarySummary(secret, post, mediaByPost.get(diaryId) || [], authors, viewerId);
 }
 
 // ---------- 字段校验 ----------
@@ -381,15 +425,16 @@ function optionalIdempotencyKey(value) {
 }
 
 // 发布/编辑共用的媒体可用性校验：存在、本人上传、用途匹配、已就绪、（未绑定 或 已绑定本帖）
-async function assertMediaBindable(conn, userId, mediaId, currentDiaryId) {
+async function assertMediaBindable(conn, userId, mediaId, currentDiaryId, spaceId) {
   const [rows] = await conn.execute(
-    `SELECT media_id, owner_id, purpose, status, diary_id, width, height, auth_version
+    `SELECT media_id, owner_id, purpose, status, diary_id, space_id, width, height, auth_version
        FROM diary_media WHERE media_id = ? LIMIT 1 FOR UPDATE`,
     [mediaId]
   );
   const media = rows[0];
   if (!media
     || Number(media.owner_id) !== Number(userId)
+    || media.space_id !== spaceId
     || media.purpose !== "diary"
     || media.status !== "ready"
     || (media.diary_id != null && media.diary_id !== currentDiaryId)) {
@@ -402,19 +447,58 @@ async function assertMediaBindable(conn, userId, mediaId, currentDiaryId) {
 
 function createDiaryRouter({ pool, config }) {
   const router = express.Router();
+  router.use((req, res, next) => {
+    if (process.env.DIARY_WRITES_ENABLED === "false" && !["GET", "HEAD", "DELETE"].includes(req.method)) {
+      return next(new ApiError(503, "DIARY_WRITES_DISABLED", "小记暂时停止新写入，已有内容仍可查看"));
+    }
+    next();
+  });
   const mediaSecret = (config && config.jwtSecret) || process.env.JWT_SECRET || "diary-media-dev-secret";
+
+  // Durable, privacy-minimal in-app updates. Every read rechecks current space
+  // and resource visibility; an old event is never a substitute for authorization.
+  router.get("/spaces/current/diary-updates", async (req, res, next) => {
+    try {
+      const ctx = await loadCoupleSpaceContext(pool, req.userId);
+      if (!ctx) return res.json({ ok: true, data: { items: [], hasUnread: false } });
+      const [rows] = await pool.execute(
+        `SELECT e.event_id,e.diary_id,e.comment_id FROM diary_update_events e
+         JOIN diary_posts p ON p.diary_id=e.diary_id AND p.space_id=e.space_id AND p.status='visible'
+         LEFT JOIN diary_comments c ON c.comment_id=e.comment_id
+         WHERE e.recipient_id=? AND e.space_id=? AND e.state='unread'
+           ${req.query.diaryId ? 'AND e.diary_id=?' : ''}
+           AND (e.comment_id IS NULL OR c.status='visible')
+         ORDER BY e.created_at DESC,e.event_id DESC LIMIT 100`, req.query.diaryId ? [req.userId,ctx.spaceId,String(req.query.diaryId)] : [req.userId,ctx.spaceId]);
+      res.json({ ok: true, data: { hasUnread: rows.length > 0,
+        items: rows.map(r => ({ eventId:r.event_id, diaryId:r.diary_id, commentId:r.comment_id })) } });
+    } catch (error) { next(error); }
+  });
+  router.patch("/spaces/current/diary-updates/seen", async (req, res, next) => {
+    try {
+      const ids = req.body && req.body.eventIds;
+      if (!Array.isArray(ids) || ids.length > 100 || ids.some(id => typeof id!=="string" || id.length!==36)) {
+        throw invalidField("eventIds", "请选择本次已展示的更新");
+      }
+      await withTransaction(pool, async conn => {
+        const ctx = await loadCoupleSpaceContext(conn, req.userId, {forUpdate:true});
+        if (!ctx || !ids.length) return;
+        await conn.execute(`UPDATE diary_update_events SET state='seen'
+          WHERE recipient_id=? AND space_id=? AND state='unread' AND event_id IN (${ids.map(()=>"?").join(",")})`,
+          [req.userId,ctx.spaceId,...ids]);
+      });
+      res.json({ok:true,data:{}});
+    } catch(error) {next(error);}
+  });
 
   // ===== 时间线 =====
 
   router.get("/diary", async (req, res, next) => {
     try {
       const userId = ensureUserId(req.userId);
-      const ctx = await loadCoupleSpaceContext(pool, userId);
+      const data = await withTimelineSnapshot(pool, async conn => {
+      const ctx = await loadCoupleSpaceContext(conn, userId);
       if (!ctx) {
-        return res.json({
-          ok: true,
-          data: { items: [], nextCursor: "", hasMore: false, serverTime: new Date().toISOString() }
-        });
+        return { items: [], nextCursor: "", hasMore: false, serverTime: new Date().toISOString() };
       }
 
       const limit = parseLimitParam(req.query.limit, { def: TIMELINE_DEFAULT_LIMIT, max: TIMELINE_MAX_LIMIT });
@@ -435,6 +519,18 @@ function createDiaryRouter({ pool, config }) {
         }
       }
 
+      const scope = JSON.stringify([ctx.spaceId, ctx.cycleId, userId, month, authorScope]);
+      const cursor = req.query.cursor ? readTimelineSnapshot(mediaSecret, req.query.cursor, scope) : null;
+      const [[state]] = await conn.execute(
+        `SELECT COUNT(*) AS n, COALESCE(SUM(version), 0) AS versions,
+                COALESCE(SUM(status = 'deleted'), 0) AS deleted
+           FROM diary_posts WHERE space_id = ?`, [ctx.spaceId]
+      );
+      const revision = JSON.stringify([String(state.n), String(state.versions), String(state.deleted)]);
+      if (cursor && cursor.revision !== revision) {
+        throw new ApiError(409, "SNAPSHOT_CHANGED", "列表已变化，请刷新后继续");
+      }
+      const expiresAt = cursor ? cursor.expiresAt : Date.now() + 30 * 60 * 1000;
       const where = ["p.space_id = ?", "p.status = 'visible'"];
       const params = [ctx.spaceId];
       if (month) {
@@ -445,11 +541,11 @@ function createDiaryRouter({ pool, config }) {
         where.push("p.author_id = ?");
         params.push(userId);
       }
-      if (req.query.cursor) {
-        timelineCursorCondition(where, params, req.query.cursor);
+      if (cursor) {
+        timelineCursorCondition(where, params, cursor.key);
       }
 
-      const [rows] = await pool.execute(
+      const [rows] = await conn.execute(
         `SELECT ${POST_FIELDS} FROM diary_posts p
           WHERE ${where.join(" AND ")}
           ORDER BY p.occurred_on DESC, p.created_at DESC, p.diary_id DESC
@@ -460,20 +556,20 @@ function createDiaryRouter({ pool, config }) {
       const hasMore = rows.length > limit;
       const page = hasMore ? rows.slice(0, limit) : rows;
       const postIds = page.map((row) => row.diary_id);
-      const mediaByPost = await loadReadyMedia(pool, postIds);
-      const authors = await loadAuthors(pool, page.map((row) => row.author_id));
+      const mediaByPost = await loadReadyMedia(conn, postIds);
+      const authors = await loadAuthors(conn, page.map((row) => row.author_id));
       const items = page.map((post) => serializeDiarySummary(
-        mediaSecret, post, mediaByPost.get(post.diary_id) || [], authors
+        mediaSecret, post, mediaByPost.get(post.diary_id) || [], authors, userId
       ));
       const last = page[page.length - 1];
       const nextCursor = hasMore && last
-        ? encodeCursor([last.occurred_on, dateTimeToMs(last.created_at), last.diary_id])
+        ? signTimelineSnapshot(mediaSecret, { v: 1, scope, revision, expiresAt,
+            key: encodeCursor([last.occurred_on, dateTimeToMs(last.created_at), last.diary_id]) })
         : "";
 
-      res.json({
-        ok: true,
-        data: { items, nextCursor, hasMore, serverTime: new Date().toISOString() }
+      return { items, nextCursor, hasMore, serverTime: new Date().toISOString() };
       });
+      res.json({ ok: true, data });
     } catch (error) {
       next(error);
     }
@@ -485,6 +581,7 @@ function createDiaryRouter({ pool, config }) {
     try {
       const userId = ensureUserId(req.userId);
       const payload = req.body || {};
+      rejectForgedAuthority(payload);
 
       const bodyText = validateDiaryBody(payload.body);
       const occurredOn = parseDateOnly(payload.occurredOn, "occurredOn");
@@ -514,7 +611,7 @@ function createDiaryRouter({ pool, config }) {
           moodText,
           mediaIds,
           relationshipVersion: payload.relationshipVersion !== undefined && payload.relationshipVersion !== null
-            ? Number(payload.relationshipVersion)
+            ? String(payload.relationshipVersion)
             : null
         }
       }, async (conn) => {
@@ -525,14 +622,13 @@ function createDiaryRouter({ pool, config }) {
         if (occurredOn > todayInTimezone(txCtx.timezone)) {
           throw invalidField("occurredOn", "日期不能晚于今天");
         }
-        if (payload.relationshipVersion !== undefined && payload.relationshipVersion !== null
-          && Number(payload.relationshipVersion) !== txCtx.relationshipId) {
+        if (String(payload.relationshipVersion || "") !== String(txCtx.cycleId)) {
           throw new ApiError(409, "RELATIONSHIP_CHANGED", "关系状态已变化，请刷新后重试");
         }
 
         const diaryId = crypto.randomUUID();
         for (const mediaId of mediaIds) {
-          await assertMediaBindable(conn, userId, mediaId, diaryId);
+          await assertMediaBindable(conn, userId, mediaId, diaryId, txCtx.spaceId);
         }
 
         await conn.execute(
@@ -547,7 +643,8 @@ function createDiaryRouter({ pool, config }) {
           );
         }
 
-        return serializePost(conn, mediaSecret, diaryId);
+        await enqueueDiaryUpdate(conn, { spaceId: txCtx.spaceId, recipientId: txCtx.partnerId, diaryId });
+        return serializePost(conn, mediaSecret, diaryId, userId);
       });
 
       res.json({ ok: true, data: result });
@@ -570,9 +667,10 @@ function createDiaryRouter({ pool, config }) {
       res.json({
         ok: true,
         data: {
-          ...serializeDiarySummary(mediaSecret, post, mediaByPost.get(post.diary_id) || [], authors),
+          ...serializeDiarySummary(mediaSecret, post, mediaByPost.get(post.diary_id) || [], authors, userId),
           canEdit,
-          canDelete: canEdit,
+          canDelete: post.isAuthor,
+          commentCount: post.spaceActive ? Number(post.comment_count || 0) : 0,
           canComment: post.spaceActive
         }
       });
@@ -587,6 +685,7 @@ function createDiaryRouter({ pool, config }) {
     try {
       const userId = ensureUserId(req.userId);
       const payload = req.body || {};
+      rejectForgedAuthority(payload);
       const expectedVersion = parseExpectedVersion(payload.expectedVersion);
 
       const bodyText = payload.body !== undefined ? validateDiaryBody(payload.body) : null;
@@ -652,7 +751,7 @@ function createDiaryRouter({ pool, config }) {
           await rebindPostMedia(conn, userId, post.diary_id, post.space_id, nextMediaIds);
         }
 
-        return serializePost(conn, mediaSecret, post.diary_id);
+        return serializePost(conn, mediaSecret, post.diary_id, userId);
       });
 
       res.json({ ok: true, data: result });
@@ -667,6 +766,7 @@ function createDiaryRouter({ pool, config }) {
     try {
       const userId = ensureUserId(req.userId);
       const payload = req.body || {};
+      rejectForgedAuthority(payload);
       const expectedVersion = optionalExpectedVersion(payload.expectedVersion);
       const key = optionalIdempotencyKey(payload.idempotencyKey);
 
@@ -684,6 +784,7 @@ function createDiaryRouter({ pool, config }) {
           "UPDATE diary_posts SET status = 'deleted', deleted_at = NOW(3) WHERE diary_id = ?",
           [post.diary_id]
         );
+        await revokeDiaryUpdates(conn, "diary_id", post.diary_id);
         // 绑定媒体授权版本递增：已外发的签名 URL 立即失效（撤销对方访问）
         await conn.execute(
           "UPDATE diary_media SET auth_version = auth_version + 1 WHERE diary_id = ?",
@@ -710,6 +811,7 @@ function createDiaryRouter({ pool, config }) {
     try {
       const userId = ensureUserId(req.userId);
       const payload = req.body || {};
+      rejectForgedAuthority(payload);
       const key = optionalIdempotencyKey(payload.idempotencyKey);
 
       const runTx = async (conn) => {
@@ -726,7 +828,7 @@ function createDiaryRouter({ pool, config }) {
           "UPDATE diary_posts SET status = 'visible', deleted_at = NULL, version = version + 1 WHERE diary_id = ?",
           [post.diary_id]
         );
-        return serializePost(conn, mediaSecret, post.diary_id);
+        return serializePost(conn, mediaSecret, post.diary_id, userId);
       };
 
       const result = key
@@ -799,12 +901,16 @@ function createDiaryRouter({ pool, config }) {
           for (const row of countRows) {
             countByRoot.set(row.root_comment_id, Number(row.reply_count));
           }
-          const [replyRows] = await pool.execute(
-            `SELECT ${COMMENT_FIELDS} FROM diary_comments c
-              WHERE c.root_comment_id IN (${placeholders}) AND c.status = 'visible'
-              ORDER BY c.created_at ASC, c.comment_id ASC`,
-            rootIds
-          );
+          const replyRows = [];
+          for (const rootId of rootIds) {
+            const [preview] = await pool.execute(
+              `SELECT ${COMMENT_FIELDS} FROM diary_comments c
+                WHERE c.root_comment_id = ? AND c.status = 'visible'
+                ORDER BY c.created_at ASC, c.comment_id ASC LIMIT ${REPLY_PREVIEW_COUNT}`,
+              [rootId]
+            );
+            replyRows.push(...preview);
+          }
           for (const row of replyRows) {
             const list = repliesByRoot.get(row.root_comment_id) || [];
             list.push(row);
@@ -887,6 +993,7 @@ function createDiaryRouter({ pool, config }) {
       const userId = ensureUserId(req.userId);
       const diaryId = req.params.id;
       const payload = req.body || {};
+      rejectForgedAuthority(payload);
       const bodyText = validateCommentBody(payload.body);
 
       const rootCommentIdRaw = payload.rootCommentId !== undefined && payload.rootCommentId !== null
@@ -901,7 +1008,7 @@ function createDiaryRouter({ pool, config }) {
         userId,
         scope: "comment.create",
         key,
-        payload: { diaryId, body: bodyText, rootCommentId: rootCommentIdRaw, replyToCommentId: replyToCommentIdRaw }
+        payload: { diaryId, body: bodyText, rootCommentId: rootCommentIdRaw, replyToCommentId: replyToCommentIdRaw, replyToUserId: payload.replyToUserId == null ? null : String(payload.replyToUserId) }
       }, async (conn) => {
         const ctx = await loadCoupleSpaceContext(conn, userId, { forUpdate: true });
         const post = ctx ? await loadPostRow(conn, diaryId, { forUpdate: true }) : null;
@@ -945,6 +1052,9 @@ function createDiaryRouter({ pool, config }) {
           }
         }
 
+        if (payload.replyToUserId != null && Number(payload.replyToUserId) !== replyToUserId) {
+          throw invalidField("replyToUserId", "回复对象不匹配");
+        }
         const commentId = crypto.randomUUID();
         await conn.execute(
           `INSERT INTO diary_comments (comment_id, diary_id, space_id, author_id, body, root_comment_id, reply_to_comment_id, reply_to_user_id)
@@ -956,6 +1066,16 @@ function createDiaryRouter({ pool, config }) {
           [diaryId]
         );
 
+        const recipientId = replyToUserId || (rootId ? null : Number(post.author_id));
+        // Root-only replies notify the root author; reply-to replies use the resolved target.
+        let notifyUserId = recipientId;
+        if (!notifyUserId && rootId) {
+          const [[rootAuthor]] = await conn.execute("SELECT author_id FROM diary_comments WHERE comment_id=?", [rootId]);
+          notifyUserId = rootAuthor && Number(rootAuthor.author_id);
+        }
+        if (notifyUserId && notifyUserId !== userId) await enqueueDiaryUpdate(conn, {
+          spaceId: post.space_id, recipientId: notifyUserId, diaryId, commentId
+        });
         const [commentRows] = await conn.execute(
           `SELECT ${COMMENT_FIELDS} FROM diary_comments c WHERE c.comment_id = ? LIMIT 1`,
           [commentId]
@@ -981,10 +1101,16 @@ function createDiaryRouter({ pool, config }) {
     try {
       const userId = ensureUserId(req.userId);
       const payload = req.body || {};
+      rejectForgedAuthority(payload);
       const expectedVersion = parseExpectedVersion(payload.expectedVersion);
       const bodyText = validateCommentBody(payload.body);
 
       const result = await withTransaction(pool, async (conn) => {
+        const [previewRows] = await conn.execute("SELECT diary_id FROM diary_comments WHERE comment_id = ? LIMIT 1", [req.params.id]);
+        if (!previewRows[0]) throw diaryNotFound();
+        const parent = await lockPostForWrite(conn, userId, previewRows[0].diary_id);
+        if (!parent || !parent.visible) throw diaryNotFound();
+        if (!parent.spaceActive) throw new ApiError(409, "SPACE_FROZEN", "空间已关闭，无法编辑评论");
         const [rows] = await conn.execute(
           `SELECT ${COMMENT_FIELDS} FROM diary_comments c WHERE c.comment_id = ? LIMIT 1 FOR UPDATE`,
           [req.params.id]
@@ -1023,6 +1149,7 @@ function createDiaryRouter({ pool, config }) {
     try {
       const userId = ensureUserId(req.userId);
       const payload = req.body || {};
+      rejectForgedAuthority(payload);
       const expectedVersion = optionalExpectedVersion(payload.expectedVersion);
       const key = optionalIdempotencyKey(payload.idempotencyKey);
 
@@ -1053,6 +1180,7 @@ function createDiaryRouter({ pool, config }) {
           throw versionConflict(comment.version);
         }
 
+        await revokeDiaryUpdates(conn, "comment_id", comment.comment_id);
         const isMain = comment.root_comment_id == null;
         if (isMain) {
           // 有可见回复 → 保留无正文占位；无回复 → 同样软删（列表口径自然不显示）
@@ -1112,7 +1240,7 @@ function createDiaryRouter({ pool, config }) {
       const mediaByPost = await loadReadyMedia(pool, postIds, userId);
       const authors = await loadAuthors(pool, [userId]);
       const items = page.map((post) => serializeDiarySummary(
-        mediaSecret, post, mediaByPost.get(post.diary_id) || [], authors
+        mediaSecret, { ...post, comment_count: 0 }, mediaByPost.get(post.diary_id) || [], authors, userId
       ));
       const last = page[page.length - 1];
       const nextCursor = hasMore && last
@@ -1159,7 +1287,7 @@ function createDiaryRouter({ pool, config }) {
       const authors = await loadAuthors(pool, [userId]);
       const nowMs = Date.now();
       const items = page.map((post) => {
-        const summary = serializeDiarySummary(mediaSecret, post, mediaByPost.get(post.diary_id) || [], authors);
+        const summary = serializeDiarySummary(mediaSecret, post, mediaByPost.get(post.diary_id) || [], authors, userId);
         const deletedAtMs = dateTimeToMs(post.deleted_at);
         const spaceActive = post.space_status === "active" && Number(post.member_flag) > 0;
         return Object.assign(summary, {
@@ -1181,13 +1309,20 @@ function createDiaryRouter({ pool, config }) {
     }
   });
 
+  router.get("/spaces/current/diary-context", async (req, res, next) => {
+    try {
+      const ctx = await loadCoupleSpaceContext(pool, ensureUserId(req.userId));
+      res.json({ ok: true, data: ctx ? { spaceId: ctx.spaceId, cycleId: ctx.cycleId, relationshipVersion: ctx.cycleId } : null });
+    } catch (error) { next(error); }
+  });
+
   // ===== 空间小记背景 =====
 
   function noneTheme(version = 0, overlay = 45) {
     return { kind: "none", templateId: null, mediaId: null, mediaUrl: "", thumbnailUrl: "", overlay, version };
   }
 
-  function themePayload(row, mediaRow) {
+  function themePayload(row, mediaRow, viewerId) {
     if (row && row.kind === "template") {
       return {
         kind: "template",
@@ -1204,8 +1339,8 @@ function createDiaryRouter({ pool, config }) {
         kind: "media",
         templateId: null,
         mediaId: mediaRow.media_id,
-        mediaUrl: buildMediaUrl({ secret: mediaSecret, mediaId: mediaRow.media_id, variant: "full", authVersion: Number(mediaRow.auth_version) }),
-        thumbnailUrl: buildMediaUrl({ secret: mediaSecret, mediaId: mediaRow.media_id, variant: "thumb", authVersion: Number(mediaRow.auth_version) }),
+        mediaUrl: buildMediaUrl({ secret: mediaSecret, mediaId: mediaRow.media_id, variant: "full", authVersion: Number(mediaRow.auth_version), viewerId }),
+        thumbnailUrl: buildMediaUrl({ secret: mediaSecret, mediaId: mediaRow.media_id, variant: "thumb", authVersion: Number(mediaRow.auth_version), viewerId }),
         overlay: Number(row.overlay),
         version: Number(row.version)
       };
@@ -1235,7 +1370,7 @@ function createDiaryRouter({ pool, config }) {
         );
         mediaRow = mediaRows[0] || null;
       }
-      res.json({ ok: true, data: themePayload(row, mediaRow) });
+      res.json({ ok: true, data: themePayload(row, mediaRow, userId) });
     } catch (error) {
       next(error);
     }
@@ -1245,6 +1380,7 @@ function createDiaryRouter({ pool, config }) {
     try {
       const userId = ensureUserId(req.userId);
       const payload = req.body || {};
+      rejectForgedAuthority(payload);
       const expectedVersion = parseExpectedVersion(payload.expectedVersion);
 
       const hasTemplate = payload.templateId !== undefined && payload.templateId !== null;
@@ -1281,6 +1417,9 @@ function createDiaryRouter({ pool, config }) {
           throw new ApiError(409, "NO_RELATIONSHIP", "绑定伴侣后才能设置小记背景");
         }
 
+        if (String(payload.relationshipVersion || "") !== String(ctx.cycleId)) {
+          throw new ApiError(409, "RELATIONSHIP_CHANGED", "关系状态已变化，请重新打开背景设置");
+        }
         const [rows] = await conn.execute(
           "SELECT space_id, kind, template_id, media_id, overlay, version FROM space_diary_theme WHERE space_id = ? LIMIT 1 FOR UPDATE",
           [ctx.spaceId]
@@ -1288,19 +1427,20 @@ function createDiaryRouter({ pool, config }) {
         const existing = rows[0] || null;
         // 行不存在时无并发可冲突（UPSERT 原子），首次保存接受任意版本号；
         // 行存在时严格乐观锁。
-        if (existing && expectedVersion !== Number(existing.version)) {
+        if (expectedVersion !== (existing ? Number(existing.version) : 0)) {
           throw versionConflict(Number(existing.version));
         }
 
         let mediaRow = null;
         if (hasMedia) {
           const [mediaRows] = await conn.execute(
-            "SELECT media_id, owner_id, purpose, status, auth_version FROM diary_media WHERE media_id = ? LIMIT 1",
+            "SELECT media_id, owner_id, purpose, status, space_id, auth_version FROM diary_media WHERE media_id = ? LIMIT 1 FOR UPDATE",
             [payload.mediaId]
           );
           mediaRow = mediaRows[0];
           if (!mediaRow
             || mediaRow.status !== "ready"
+            || mediaRow.space_id !== ctx.spaceId
             || mediaRow.purpose !== "background"
             || !ctx.memberIds.includes(Number(mediaRow.owner_id))) {
             throw new ApiError(422, "VALIDATION_FAILED", "字段校验失败", {
@@ -1350,7 +1490,7 @@ function createDiaryRouter({ pool, config }) {
 
         return themePayload(
           { kind, template_id: templateId, media_id: mediaId, overlay: effectiveOverlay, version: (existing ? Number(existing.version) : 0) + 1 },
-          mediaRow
+          mediaRow, userId
         );
       });
 
@@ -1383,13 +1523,13 @@ async function rebindPostMedia(conn, userId, diaryId, spaceId, nextMediaIds) {
 
   for (const mediaId of nextMediaIds) {
     if (!currentIds.includes(mediaId)) {
-      await assertMediaBindable(conn, userId, mediaId, diaryId);
+      await assertMediaBindable(conn, userId, mediaId, diaryId, spaceId);
     }
   }
   for (const mediaId of currentIds) {
     if (!nextMediaIds.includes(mediaId)) {
       await conn.execute(
-        "UPDATE diary_media SET diary_id = NULL, space_id = NULL, auth_version = auth_version + 1 WHERE media_id = ?",
+        "UPDATE diary_media SET diary_id = NULL, auth_version = auth_version + 1 WHERE media_id = ?",
         [mediaId]
       );
     }

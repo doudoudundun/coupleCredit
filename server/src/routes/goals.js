@@ -49,8 +49,8 @@ function goalNotFound() {
 
 /** 宽松解析整数：接受 number 或纯数字字符串，非法返回 null。 */
 function parseInteger(value) {
-  if (typeof value === "number" && Number.isInteger(value)) return value;
-  if (typeof value === "string" && /^-?\d+$/.test(value.trim())) return Number(value.trim());
+  if (typeof value === "number" && Number.isSafeInteger(value)) return value;
+  if (typeof value === "string" && /^-?\d+$/.test(value.trim()) && Number.isSafeInteger(Number(value))) return Number(value);
   return null;
 }
 
@@ -266,7 +266,7 @@ function createGoalsRouter({ pool }) {
         data: {
           goal: goalRows.length > 0 ? serializeGoal(goalRows[0]) : null,
           relationship: ctx.scope === "couple"
-            ? { status: "active", id: ctx.relationshipId, version: ctx.relationshipId }
+            ? { status: "active", id: ctx.relationshipId, version: ctx.cycleId }
             : { status: "none", id: null, version: 0 },
           recentActivity: events.map((event) => ({
             id: Number(event.event_id),
@@ -502,7 +502,7 @@ function createGoalsRouter({ pool }) {
         fieldErrors.type = "type 必须为 increase 或 decrease";
       }
       const amountFen = parseInteger(body.amountFen);
-      if (amountFen === null || amountFen < 1) fieldErrors.amountFen = "金额应为正整数（分）";
+      if (amountFen === null || amountFen < 1 || amountFen > MAX_TARGET_AMOUNT_FEN) fieldErrors.amountFen = "金额应为 1–99,999,999 的整数（分）";
       const [note, noteError] = normalizeText(body.note);
       if (noteError) fieldErrors.note = noteError;
       let occurredSql = null;
@@ -539,6 +539,10 @@ function createGoalsRouter({ pool }) {
           const current = Number(goal.current_amount_fen);
           if (type === "decrease" && amountFen > current) {
             throw validationError({ amountFen: "超出当前净额" });
+          }
+          const next = current + (type === "increase" ? amountFen : -amountFen);
+          if (!Number.isSafeInteger(next) || next < 0 || next > MAX_TARGET_AMOUNT_FEN) {
+            throw validationError({ amountFen: "目标净额应在 0–99,999,999 分之间" });
           }
           const entryId = crypto.randomUUID();
           await conn.execute(
@@ -593,7 +597,7 @@ function createGoalsRouter({ pool }) {
           const entry = entryRows[0];
           if (!entry) throw new ApiError(404, "NOT_FOUND", "流水不存在");
           const goal = await lockGoalById(conn, entry.goal_id);
-          if (!goal) throw goalNotFound();
+          if (!goal || !(await isGoalSpaceMember(conn, goal.space_id, userId))) throw goalNotFound();
           if (Number(entry.actor_id) !== userId) {
             throw new ApiError(403, "FORBIDDEN", "只能冲正本人记录的流水");
           }
@@ -605,11 +609,13 @@ function createGoalsRouter({ pool }) {
 
           const amount = Number(entry.amount_fen);
           const current = Number(goal.current_amount_fen);
-          // 反向调整余额：冲正 increase 后余额可以合法变负（后续 decrease 仍受
-          // 记账时「超出当前净额」校验约束），绝不能 clamp 到 0——否则与有效流水合计不一致。
+          // 冲正也必须满足净额上下限，拒绝非法撤销并保留原流水。
           const nextAmount = entry.type === "increase"
             ? current - amount
             : current + amount;
+          if (!Number.isSafeInteger(nextAmount) || nextAmount < 0 || nextAmount > MAX_TARGET_AMOUNT_FEN) {
+            throw validationError({ amountFen: "冲正后净额超出允许范围，请先纠正相关流水" });
+          }
           await conn.execute(
             "UPDATE couple_goal_entries SET status = 'reversed' WHERE entry_id = ?",
             [entryId]

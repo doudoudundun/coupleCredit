@@ -20,6 +20,12 @@ db_backup_*
 docs/superpowers/
 local.properties
 server/.env
+# set-wechat-secret.sh 会在写入前留一份 .env 备份，内容与 .env 等密，务必不入库
+server/.env.bak.*
+server/.env.*.bak
+# 备份脚本的凭据文件含明文口令；示例文件保留入库
+server/scripts/*.env
+!server/scripts/*.env.example
 server/eng.traineddata
 server/firebase-service-account.json
 server/launchd/
@@ -27,3 +33,4 @@ server/node_modules/
 server/public/
 server/test*.cjs
 server/uploads/
+server/media/

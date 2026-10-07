@@ -126,9 +126,9 @@ app.use((req, res, next) => {
   res.on("finish", () => {
     const ms = Date.now() - start;
     if (ms > 500) {
-      console.warn(`SLOW ${req.method} ${req.originalUrl} ${ms}ms ${res.statusCode}`);
+      console.warn(`SLOW ${req.method} ${req.path} ${ms}ms ${res.statusCode}`);
     } else {
-      console.log(`${req.method} ${req.originalUrl} ${ms}ms ${res.statusCode}`);
+      console.log(`${req.method} ${req.path} ${ms}ms ${res.statusCode}`);
     }
   });
   next();
@@ -169,7 +169,7 @@ app.use("/api", createGoalsRouter({ pool }));
 app.use("/api", createRelationshipsRouter({ pool }));
 app.use("/api", createDiaryRouter({ pool, config }));
 app.use((error, _req, res, _next) => {
-  console.error("Unhandled error:", error);
+  console.error("Unhandled error:", { code: error.code || "INTERNAL_ERROR", status: error.status || 500 });
   sendError(res, error, _req.requestId);
 });
 

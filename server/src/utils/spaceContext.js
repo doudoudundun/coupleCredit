@@ -11,9 +11,9 @@ const {
 } = require("./houseworkLifecycle");
 
 /** active 关系（不用缓存版：写路径必须事务内复核）。executor 为 pool 或 conn。 */
-async function loadActiveRelationshipFresh(executor, userId) {
+async function loadActiveRelationshipFresh(executor, userId, forUpdate = false) {
   const [rows] = await executor.execute(
-    "SELECT relationship_id, user_id_1, user_id_2 FROM couple_relationships WHERE status = 'active' AND (user_id_1 = ? OR user_id_2 = ?) ORDER BY relationship_id DESC LIMIT 1",
+    "SELECT relationship_id, user_id_1, user_id_2 FROM couple_relationships WHERE status = 'active' AND (user_id_1 = ? OR user_id_2 = ?) ORDER BY relationship_id DESC LIMIT 1" + (forUpdate ? " FOR UPDATE" : ""),
     [userId, userId]
   );
   return rows.length > 0 ? rows[0] : null;
@@ -24,7 +24,7 @@ async function loadActiveRelationshipFresh(executor, userId) {
  * forUpdate 时锁定关系行与空间行（写事务内使用；调用方需先按锁顺序锁 users 行）。
  */
 async function loadCoupleSpaceContext(executor, userId, { forUpdate = false } = {}) {
-  const rel = await loadActiveRelationshipFresh(executor, userId);
+  const rel = await loadActiveRelationshipFresh(executor, userId, forUpdate);
   if (!rel) return null;
   const lock = forUpdate ? " FOR UPDATE" : "";
   const [rows] = await executor.execute(
@@ -40,8 +40,8 @@ async function loadCoupleSpaceContext(executor, userId, { forUpdate = false } = 
   const u2 = Number(rel.user_id_2);
   return {
     relationshipId: Number(rel.relationship_id),
-    // 契约的 relationship.version：前端发布小记时回传 relationshipId 作乐观校验
-    relationship: { id: Number(rel.relationship_id), version: Number(rel.relationship_id) },
+    // 每次重绑都有新 cycle_id；关系行 ID 可复用，不能作为发布 epoch。
+    relationship: { id: Number(rel.relationship_id), version: rows[0].cycle_id },
     memberIds: [u1, u2],
     partnerId: u1 === Number(userId) ? u2 : u1,
     spaceId: rows[0].space_id,

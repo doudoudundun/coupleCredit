@@ -1,4 +1,5 @@
 const express = require("express");
+const { revokeDiaryUpdates } = require("../utils/diaryUpdates");
 const crypto = require("crypto");
 const { ApiError } = require("../errors");
 const { cache } = require("../cache");
@@ -259,7 +260,7 @@ function createCoupleRouter({ pool }) {
              FROM housework_relationship_cycles c
              JOIN housework_spaces s ON s.cycle_id = c.cycle_id
             WHERE c.relationship_id = ? AND c.ended_at IS NULL AND s.status = 'active'
-            LIMIT 1`,
+            LIMIT 1 FOR UPDATE`,
           [rel.relationship_id]
         );
         const sharedSpaceId = spaceRows.length > 0 ? spaceRows[0].space_id : null;
@@ -281,15 +282,17 @@ function createCoupleRouter({ pool }) {
               [goalId, sharedSpaceId, userId]
             );
           }
-          await conn.execute(
-            "UPDATE goal_invitations SET status = 'revoked' WHERE inviter_id IN (?, ?) AND status = 'active'",
-            [rel.user_id_1, rel.user_id_2]
-          );
+          await revokeDiaryUpdates(conn, "space_id", sharedSpaceId);
           await conn.execute(
             "UPDATE diary_media SET auth_version = auth_version + 1 WHERE space_id = ?",
             [sharedSpaceId]
           );
         }
+
+          await conn.execute(
+            "UPDATE goal_invitations SET status = 'revoked' WHERE inviter_id IN (?, ?) AND status = 'active'",
+            [rel.user_id_1, rel.user_id_2]
+          );
 
         await conn.execute(
           "UPDATE users SET couple_status = 'single' WHERE id IN (?, ?)",
