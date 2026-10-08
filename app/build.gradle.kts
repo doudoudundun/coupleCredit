@@ -86,12 +86,6 @@ dependencies {
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     
-    // MySQL JDBC驱动
-    // 使用更老版本的MySQL驱动，避免Java 8+ API依赖
-    implementation("mysql:mysql-connector-java:5.1.47")
-    // 添加Android兼容的数据库连接池
-    implementation("com.zaxxer:HikariCP-java7:2.4.13")
-    
     // MultiDex支持
     implementation("androidx.multidex:multidex:2.0.1")
     // 在dependencies块中添加

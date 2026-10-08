@@ -34,3 +34,4 @@ server/public/
 server/test*.cjs
 server/uploads/
 server/media/
+.zcode/
