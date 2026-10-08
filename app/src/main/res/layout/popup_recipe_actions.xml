@@ -25,7 +25,7 @@
         android:paddingHorizontal="14dp"
         android:paddingVertical="10dp"
         android:text="删除菜谱"
-        android:textColor="#E53935"
+        android:textColor="@color/expense_red"
         android:textSize="13sp" />
 
 </LinearLayout>

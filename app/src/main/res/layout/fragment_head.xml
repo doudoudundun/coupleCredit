@@ -44,6 +44,8 @@
         android:background="@drawable/segment_container_background"
         app:tabBackground="@drawable/segment_tab_background"
         app:tabTextAppearance="@style/SegmentTabTextStyle"
+        app:tabTextColor="@color/text_muted"
+        app:tabSelectedTextColor="@color/white"
         app:tabIndicatorHeight="0dp"
         app:tabGravity="fill"
         app:tabMode="fixed"

@@ -344,7 +344,7 @@ public class TodoFragment extends Fragment implements TodoAdapter.TodoActionList
     @Override
     public void onDelete(AuthApiModels.TodoItemData item) {
         new AlertDialog.Builder(requireContext(), R.style.CustomDialogStyle)
-                .setTitle("删除代办")
+                .setTitle("删除待办")
                 .setMessage("确定删除\"" + item.title + "\"吗？")
                 .setPositiveButton("删除", (dialog, which) -> {
                     int userId = UserInfoManager.getCurrentUserId(requireContext());
@@ -422,7 +422,7 @@ public class TodoFragment extends Fragment implements TodoAdapter.TodoActionList
         imageChanged = false;
 
         if (existing != null) {
-            tvDialogTitle.setText("编辑代办");
+            tvDialogTitle.setText("编辑待办");
             btnSave.setText("保存修改");
             etTitle.setText(existing.title);
             etFuzzyDate.setText(existing.fuzzyDateText != null ? existing.fuzzyDateText : "");

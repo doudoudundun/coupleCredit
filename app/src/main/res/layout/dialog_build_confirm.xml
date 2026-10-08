@@ -37,7 +37,7 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="8dp"
         android:text="部分颜色库存不足"
-        android:textColor="#DC2626"
+        android:textColor="@color/expense_red"
         android:textSize="13sp"
         android:visibility="gone" />
 

@@ -35,7 +35,7 @@
             android:layout_height="wrap_content"
             android:text="确认"
             android:textSize="16sp"
-            android:textColor="#4A90E2"
+            android:textColor="@color/bill_blue"
             android:padding="10dp"
             android:clickable="true"
             android:background="?android:attr/selectableItemBackground" />
@@ -46,7 +46,7 @@
     <View
         android:layout_width="match_parent"
         android:layout_height="1dp"
-        android:background="#E0E0E0"
+        android:background="@color/border_color"
         android:layout_marginTop="10dp"
         android:layout_marginBottom="20dp" />
 

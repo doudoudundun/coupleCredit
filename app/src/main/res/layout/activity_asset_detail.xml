@@ -25,7 +25,7 @@
             android:contentDescription="返回"
             android:padding="6dp"
             android:src="@drawable/ic_arrow_back"
-            android:tint="#FFFFFF" />
+            android:tint="@color/white" />
 
         <TextView
             android:layout_width="0dp"
@@ -33,7 +33,7 @@
             android:layout_weight="1"
             android:gravity="center"
             android:text="资产详情"
-            android:textColor="#FFFFFF"
+            android:textColor="@color/white"
             android:textSize="18sp"
             android:textStyle="bold" />
 
@@ -63,7 +63,7 @@
                 android:id="@+id/iv_asset_image"
                 android:layout_width="match_parent"
                 android:layout_height="250dp"
-                android:background="#EEEEEE"
+                android:background="@color/border_light"
                 android:scaleType="centerCrop" />
 
             <!-- Stats Cards -->
@@ -89,7 +89,7 @@
                         android:layout_height="wrap_content"
                         android:gravity="center"
                         android:text="0"
-                        android:textColor="#1976D2"
+                        android:textColor="@color/bill_blue"
                         android:textSize="22sp"
                         android:textStyle="bold" />
 
@@ -149,7 +149,7 @@
                         android:layout_height="wrap_content"
                         android:gravity="center"
                         android:text="¥0"
-                        android:textColor="#2E7D32"
+                        android:textColor="@color/brand_green"
                         android:textSize="22sp"
                         android:textStyle="bold" />
 
@@ -195,7 +195,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="1dp"
                     android:layout_marginTop="16dp"
-                    android:background="#EEEEEE" />
+                    android:background="@color/border_light" />
 
                 <LinearLayout
                     android:layout_width="match_parent"
@@ -304,7 +304,7 @@
                     android:background="@drawable/button_primary_background"
                     app:backgroundTint="@null"
                     android:text="标记闲置"
-                    android:textColor="#FFFFFF"
+                    android:textColor="@color/white"
                     android:textSize="14sp" />
             </LinearLayout>
         </LinearLayout>

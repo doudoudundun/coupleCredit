@@ -12,7 +12,7 @@
         android:layout_height="wrap_content"
         android:layout_marginBottom="20dp"
         android:gravity="center"
-        android:text="添加代办"
+        android:text="添加待办"
         android:textColor="@color/text_title"
         android:textSize="20sp"
         android:textStyle="bold" />

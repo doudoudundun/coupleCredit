@@ -33,10 +33,10 @@
                 android:id="@+id/tv_platform_initial"
                 android:layout_width="48dp"
                 android:layout_height="48dp"
-                android:background="#FF9E9E9E"
+                android:background="@color/border_color"
                 android:gravity="center"
                 android:text="?"
-                android:textColor="#FFFFFF"
+                android:textColor="@color/white"
                 android:textSize="20sp"
                 android:textStyle="bold" />
         </FrameLayout>
@@ -74,7 +74,7 @@
                     android:paddingHorizontal="8dp"
                     android:paddingVertical="2dp"
                     android:text="其他"
-                    android:textColor="#666666"
+                    android:textColor="@color/text_muted"
                     android:textSize="10sp" />
             </LinearLayout>
 
@@ -99,6 +99,6 @@
             android:contentDescription="复制账号"
             android:padding="6dp"
             android:src="@drawable/ic_copy1"
-            android:tint="#999999" />
+            android:tint="@color/text_disabled" />
     </LinearLayout>
 </androidx.cardview.widget.CardView>

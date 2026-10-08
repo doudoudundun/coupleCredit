@@ -11,7 +11,7 @@
         android:id="@+id/view_meal_color"
         android:layout_width="4dp"
         android:layout_height="match_parent"
-        android:background="#07C160" />
+        android:background="@color/brand_green" />
 
     <LinearLayout
         android:layout_width="0dp"
@@ -70,7 +70,7 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
             android:text="删除"
-            android:textColor="#E53935"
+            android:textColor="@color/expense_red"
             android:textSize="12sp"
             android:visibility="gone" />
     </LinearLayout>

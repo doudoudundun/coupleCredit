@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/period_root"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@drawable/bg_period_page"
-    android:fitsSystemWindows="true"
     android:orientation="vertical">
 
     <!-- Top App Bar -->
@@ -26,7 +26,7 @@
             android:contentDescription="返回"
             android:padding="8dp"
             android:src="@drawable/ic_arrow_back"
-            android:tint="#FFFFFFFF" />
+            android:tint="@color/white" />
 
         <TextView
             android:layout_width="0dp"
@@ -34,7 +34,7 @@
             android:layout_weight="1"
             android:gravity="center"
             android:text="🌸 经期小日记"
-            android:textColor="#FFFFFFFF"
+            android:textColor="@color/white"
             android:textSize="19sp"
             android:textStyle="bold" />
 
@@ -309,7 +309,7 @@
                     android:background="@drawable/bg_period_btn_start"
                     app:backgroundTint="@null"
                     android:text="🌸 开始记录"
-                    android:textColor="#FFFFFFFF"
+                    android:textColor="@color/white"
                     android:textSize="14sp"
                     android:textStyle="bold" />
 

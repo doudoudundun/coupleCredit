@@ -11,6 +11,7 @@ import android.os.Bundle;
 import android.util.Log;
 
 import androidx.activity.EdgeToEdge;
+import androidx.activity.OnBackPressedCallback;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
@@ -63,6 +64,7 @@ public class MainActivity extends AppCompatActivity {
     private Fragment currentFragment;
     private Fragment lastTabFragment;
     private volatile ChatRepository chatRepository;
+    private boolean hasResumedOnce;
 
     private static final String KEY_CURRENT_FRAGMENT_TAG = "currentFragmentTag";
     private static final String KEY_LAST_TAB_FRAGMENT_TAG = "lastTabFragmentTag";
@@ -118,9 +120,20 @@ public class MainActivity extends AppCompatActivity {
             return insets;
         });
 
-        PollingManager.getInstance().setAppContext(this);
-
         fragmentManager = getSupportFragmentManager();
+        getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
+            @Override
+            public void handleOnBackPressed() {
+                if (currentFragment instanceof EatOutFragment) {
+                    navigateToLastTab();
+                    return;
+                }
+                // Let FragmentManager/AppCompat handle regular back-stack entries and activity finish.
+                setEnabled(false);
+                getOnBackPressedDispatcher().onBackPressed();
+                setEnabled(true);
+            }
+        });
 
         Intent intent = getIntent();
         String username = intent.getStringExtra("username");
@@ -266,6 +279,8 @@ public class MainActivity extends AppCompatActivity {
         }
         if (fragment == currentFragment) {
             syncBottomNavigationSelection(fragment);
+            configurePollingForFragment(fragment);
+            refreshFragmentData(fragment);
             return;
         }
 
@@ -275,6 +290,7 @@ public class MainActivity extends AppCompatActivity {
             fragmentManager.popBackStackImmediate(null, FragmentManager.POP_BACK_STACK_INCLUSIVE);
         }
 
+        boolean wasAdded = fragment.isAdded();
         FragmentTransaction transaction = fragmentManager.beginTransaction().setReorderingAllowed(true);
 
         // 懒加载：尚未 add 的 Fragment 先 add
@@ -294,23 +310,38 @@ public class MainActivity extends AppCompatActivity {
         }
 
         currentFragment = fragment;
+        if (wasAdded) {
+            // A newly created page loads from onViewCreated; returning to an existing page needs one active refresh.
+            transaction.runOnCommit(() -> refreshFragmentData(fragment));
+        }
         transaction.commit();
         syncBottomNavigationSelection(fragment);
+        configurePollingForFragment(fragment);
+    }
 
+    private void configurePollingForFragment(Fragment fragment) {
+        PollingManager.getInstance().setRefreshAction(getRefreshAction(fragment));
+    }
+
+    private Runnable getRefreshAction(Fragment fragment) {
         if (fragment instanceof InventoryFragment) {
-            ((InventoryFragment) fragment).refreshInventoryData();
-            PollingManager.getInstance().setRefreshAction(((InventoryFragment) fragment)::refreshInventoryData);
+            return ((InventoryFragment) fragment)::refreshInventoryData;
         } else if (fragment instanceof RecipeFragment) {
-            ((RecipeFragment) fragment).refreshData();
-            PollingManager.getInstance().setRefreshAction(((RecipeFragment) fragment)::refreshData);
+            return ((RecipeFragment) fragment)::refreshData;
         } else if (fragment instanceof EatOutFragment) {
-            ((EatOutFragment) fragment).refreshData();
-            PollingManager.getInstance().setRefreshAction(((EatOutFragment) fragment)::refreshData);
+            return ((EatOutFragment) fragment)::refreshData;
         } else if (fragment instanceof TodoFragment) {
-            ((TodoFragment) fragment).refreshData();
-            PollingManager.getInstance().setRefreshAction(((TodoFragment) fragment)::refreshData);
-        } else {
-            PollingManager.getInstance().setRefreshAction(null);
+            return ((TodoFragment) fragment)::refreshData;
+        } else if (fragment instanceof MyFragment) {
+            return ((MyFragment) fragment)::refreshData;
+        }
+        return null;
+    }
+
+    private void refreshFragmentData(Fragment fragment) {
+        Runnable refreshAction = getRefreshAction(fragment);
+        if (refreshAction != null) {
+            refreshAction.run();
         }
     }
 
@@ -371,6 +402,7 @@ public class MainActivity extends AppCompatActivity {
 
         lastTabFragment = currentFragment;
 
+        boolean wasAdded = eatOut.isAdded();
         FragmentTransaction transaction = fragmentManager.beginTransaction().setReorderingAllowed(true);
         if (!eatOut.isAdded()) {
             transaction.add(R.id.fragment_container, eatOut, TAG_EATOUT);
@@ -381,9 +413,12 @@ public class MainActivity extends AppCompatActivity {
             }
         }
         transaction.show(eatOut);
+        if (wasAdded) {
+            transaction.runOnCommit(eatOut::refreshData);
+        }
         transaction.commit();
         currentFragment = eatOut;
-        eatOut.refreshData();
+        configurePollingForFragment(eatOut);
     }
 
     public void navigateToLastTab() {
@@ -429,6 +464,7 @@ public class MainActivity extends AppCompatActivity {
         if (todo instanceof TodoFragment) {
             ((TodoFragment) todo).refreshData();
         }
+
     }
 
     private void refreshAllFragmentsLoginState() {
@@ -471,15 +507,6 @@ public class MainActivity extends AppCompatActivity {
     }
 
     @Override
-    public void onBackPressed() {
-        if (currentFragment instanceof EatOutFragment) {
-            navigateToLastTab();
-        } else {
-            super.onBackPressed();
-        }
-    }
-
-    @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         setIntent(intent);
@@ -506,6 +533,11 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
+        configurePollingForFragment(currentFragment);
+        if (hasResumedOnce) {
+            refreshFragmentData(currentFragment);
+        }
+        hasResumedOnce = true;
         PollingManager.getInstance().start();
     }
 

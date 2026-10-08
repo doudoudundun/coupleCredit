@@ -24,6 +24,7 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.example.couplecredit.R;
 import com.example.couplecredit.api.AuthApiClient;
 import com.example.couplecredit.api.AuthApiModels;
+import com.example.couplecredit.utils.SystemBarUtils;
 import com.example.couplecredit.utils.UserInfoManager;
 
 import java.time.LocalDate;
@@ -65,6 +66,7 @@ public class PeriodActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_period);
+        SystemBarUtils.apply(this, findViewById(R.id.period_root), true);
 
         currentUserId = UserInfoManager.getCurrentUserId(this);
         if (currentUserId == -1) {

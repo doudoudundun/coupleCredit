@@ -170,7 +170,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
                     android:text="点击右下角按钮创建第一个小钱包"
-                    android:textColor="#C0C4CC"
+                    android:textColor="@color/text_disabled"
                     android:textSize="14sp" />
             </LinearLayout>
         </LinearLayout>

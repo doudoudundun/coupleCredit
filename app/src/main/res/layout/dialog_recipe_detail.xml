@@ -35,7 +35,7 @@
                 android:paddingHorizontal="8dp"
                 android:paddingVertical="6dp"
                 android:text="编辑"
-                android:textColor="#07C160"
+                android:textColor="@color/brand_green"
                 android:textSize="14sp" />
 
             <TextView
@@ -45,7 +45,7 @@
                 android:paddingHorizontal="8dp"
                 android:paddingVertical="6dp"
                 android:text="删除"
-                android:textColor="#E53935"
+                android:textColor="@color/expense_red"
                 android:textSize="14sp" />
 
             <TextView

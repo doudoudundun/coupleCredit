@@ -34,7 +34,7 @@
         android:id="@+id/tv_stock_status"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:textColor="#DC2626"
+        android:textColor="@color/expense_red"
         android:textSize="12sp"
         android:visibility="gone" />
 </LinearLayout>

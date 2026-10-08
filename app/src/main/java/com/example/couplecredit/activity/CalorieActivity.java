@@ -25,6 +25,7 @@ import com.example.couplecredit.api.AuthApiModels;
 import com.example.couplecredit.utils.CalorieFormatUtils;
 import com.example.couplecredit.utils.DataRefreshBus;
 import com.example.couplecredit.utils.DialogHelper;
+import com.example.couplecredit.utils.SystemBarUtils;
 import com.example.couplecredit.utils.UserInfoManager;
 
 import java.time.LocalDate;
@@ -54,6 +55,7 @@ public class CalorieActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_calorie);
+        SystemBarUtils.apply(this, findViewById(R.id.calorie_root), true);
 
         ImageButton btnBack = findViewById(R.id.btn_calorie_back);
         TextView btnGoal = findViewById(R.id.btn_calorie_goal);

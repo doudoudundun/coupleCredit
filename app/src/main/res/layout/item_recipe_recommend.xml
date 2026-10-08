@@ -16,7 +16,7 @@
             android:id="@+id/iv_recommend_image"
             android:layout_width="match_parent"
             android:layout_height="140dp"
-            android:background="#F0F0F0"
+            android:background="@color/border_light"
             android:scaleType="centerCrop" />
 
         <LinearLayout
@@ -47,7 +47,7 @@
                 android:paddingEnd="6dp"
                 android:paddingBottom="2dp"
                 android:text="食材齐全"
-                android:textColor="#2E7D32"
+                android:textColor="@color/brand_green"
                 android:textSize="10sp" />
 
             <TextView
@@ -86,7 +86,7 @@
                     android:contentDescription="加入购物车"
                     android:padding="2dp"
                     android:src="@drawable/ic_add"
-                    app:tint="#07C160" />
+                    app:tint="@color/brand_green" />
             </LinearLayout>
         </LinearLayout>
     </LinearLayout>

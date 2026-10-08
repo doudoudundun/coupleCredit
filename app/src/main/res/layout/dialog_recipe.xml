@@ -82,7 +82,7 @@
             android:paddingStart="8dp"
             android:paddingEnd="8dp"
             android:text="自动计算"
-            android:textColor="#07C160"
+            android:textColor="@color/brand_green"
             android:textSize="13sp" />
     </LinearLayout>
 
@@ -156,7 +156,7 @@
         android:gravity="center"
         android:text="+ 添加食材"
         android:textSize="13sp"
-        android:textColor="#07C160"
+        android:textColor="@color/brand_green"
         android:background="@drawable/category_tag_background"
         android:layout_marginBottom="16dp" />
 

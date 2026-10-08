@@ -101,7 +101,7 @@
                 android:paddingEnd="12dp"
                 android:paddingBottom="8dp"
                 android:text="删除"
-                android:textColor="#E53935"
+                android:textColor="@color/expense_red"
                 android:textSize="12sp"
                 android:textStyle="bold" />
         </LinearLayout>

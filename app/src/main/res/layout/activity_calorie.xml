@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/calorie_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@color/bg_page"
@@ -38,7 +39,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="目标"
-            android:textColor="#07C160"
+            android:textColor="@color/brand_green"
             android:textSize="14sp" />
     </LinearLayout>
 
@@ -103,7 +104,7 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="4dp"
             android:text="目标 2000 kcal"
-            android:textColor="#07C160"
+            android:textColor="@color/brand_green"
             android:textSize="13sp" />
 
         <ProgressBar
@@ -151,7 +152,7 @@
                 android:background="@drawable/button_outline_background"
                 android:gravity="center"
                 android:text="手动记录"
-                android:textColor="#07C160"
+                android:textColor="@color/brand_green"
                 android:textSize="14sp" />
         </LinearLayout>
     </LinearLayout>

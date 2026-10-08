@@ -79,7 +79,7 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="4dp"
             android:text="今日已吃 0 / 2000 kcal"
-            android:textColor="#07C160"
+            android:textColor="@color/brand_green"
             android:textSize="13sp" />
     </LinearLayout>
 
@@ -115,7 +115,7 @@
             android:layout_height="wrap_content"
             android:text="去菜谱页添加想做的菜吧"
             android:textSize="13sp"
-            android:textColor="#BBBBBB" />
+            android:textColor="@color/text_disabled" />
     </LinearLayout>
 
     <!-- Bottom buttons -->
@@ -136,7 +136,7 @@
             android:gravity="center"
             android:text="加菜"
             android:textSize="16sp"
-            android:textColor="#07C160"
+            android:textColor="@color/brand_green"
             android:textStyle="bold"
             android:background="@drawable/button_outline_background"
             android:clickable="true"

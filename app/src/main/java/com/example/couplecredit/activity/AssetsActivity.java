@@ -4,6 +4,8 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.view.View;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
@@ -19,6 +21,7 @@ import com.example.couplecredit.R;
 import com.example.couplecredit.adapter.AssetAdapter;
 import com.example.couplecredit.api.AuthApiClient;
 import com.example.couplecredit.api.AuthApiModels;
+import com.example.couplecredit.utils.SystemBarUtils;
 import com.example.couplecredit.utils.UserInfoManager;
 
 import java.util.ArrayList;
@@ -42,11 +45,18 @@ public class AssetsActivity extends AppCompatActivity implements AssetAdapter.On
     private long lastLoadAssetsTs = 0;
     private long lastLoadStatsTs = 0;
     private static final long LOAD_THROTTLE_MS = 2000; // 2 秒内不重复请求同一接口
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
+    private Runnable scheduledAssetsRequest;
+    private long assetsRequestGeneration = 0;
+    private String lastRequestCategory;
+    private String lastRequestStatus;
+    private static final long FILTER_DEBOUNCE_MS = 150;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_assets);
+        SystemBarUtils.apply(this, findViewById(R.id.assets_root), true);
 
         currentUserId = UserInfoManager.getCurrentUserId(this);
         if (currentUserId == -1) {
@@ -179,9 +189,13 @@ public class AssetsActivity extends AppCompatActivity implements AssetAdapter.On
 
     private void setupCategoryFilters(List<String> categories) {
         llCategoryFilters.removeAllViews();
-        addCategoryChip("全部", true);
-        for (String category : categories) {
-            addCategoryChip(category, false);
+        addCategoryChip("全部", selectedCategory == null);
+        if (categories != null) {
+            for (String category : categories) {
+                if (category != null && !category.isEmpty()) {
+                    addCategoryChip(category, category.equals(selectedCategory));
+                }
+            }
         }
     }
 
@@ -209,6 +223,7 @@ public class AssetsActivity extends AppCompatActivity implements AssetAdapter.On
         chip.setOnClickListener(v -> {
             selectedCategory = text.equals("全部") ? null : text;
             refreshCategorySelection();
+            swipeRefresh.setRefreshing(true);
             loadAssets();
         });
 
@@ -252,7 +267,10 @@ public class AssetsActivity extends AppCompatActivity implements AssetAdapter.On
             params.setMargins(0, 0, dpToPx(6), 0);
             chip.setLayoutParams(params);
 
-            boolean isSelected = (selectedStatus == statusValues[i]);
+            String statusValue = statusValues[i];
+            boolean isSelected = statusValue == null
+                    ? selectedStatus == null
+                    : statusValue.equals(selectedStatus);
             if (isSelected) {
                 chip.setBackgroundResource(R.drawable.bg_chip_selected);
                 chip.setTextColor(Color.WHITE);
@@ -261,10 +279,10 @@ public class AssetsActivity extends AppCompatActivity implements AssetAdapter.On
                 chip.setTextColor(Color.parseColor("#666666"));
             }
 
-            final String statusValue = statusValues[i];
             chip.setOnClickListener(v -> {
                 selectedStatus = statusValue;
                 setupStatusFilters();
+                swipeRefresh.setRefreshing(true);
                 loadAssets();
             });
 
@@ -304,24 +322,63 @@ public class AssetsActivity extends AppCompatActivity implements AssetAdapter.On
     }
 
     private void loadAssets() {
-        // 节流：2 秒内不重复请求（防止 onResume/筛选重建连锁触发）
-        long now = System.currentTimeMillis();
-        if (now - lastLoadAssetsTs < LOAD_THROTTLE_MS) {
+        final long requestGeneration = ++assetsRequestGeneration;
+        final String requestCategory = selectedCategory;
+        final String requestStatus = selectedStatus;
+        if (scheduledAssetsRequest != null) {
+            mainHandler.removeCallbacks(scheduledAssetsRequest);
+        }
+
+        long elapsed = lastLoadAssetsTs == 0 ? LOAD_THROTTLE_MS
+                : System.currentTimeMillis() - lastLoadAssetsTs;
+        boolean sameFilter = isSameFilter(requestCategory, lastRequestCategory)
+                && isSameFilter(requestStatus, lastRequestStatus);
+        long delay = lastLoadAssetsTs == 0
+                ? 0
+                : sameFilter
+                        ? Math.max(0, LOAD_THROTTLE_MS - elapsed)
+                        : FILTER_DEBOUNCE_MS;
+        scheduledAssetsRequest = () -> {
+            scheduledAssetsRequest = null;
+            if (requestGeneration != assetsRequestGeneration) {
+                return;
+            }
+            startAssetsRequest(requestGeneration, requestCategory, requestStatus);
+        };
+        if (delay == 0) {
+            mainHandler.post(scheduledAssetsRequest);
+        } else {
+            mainHandler.postDelayed(scheduledAssetsRequest, delay);
+        }
+    }
+
+    private void startAssetsRequest(long requestGeneration, String requestCategory, String requestStatus) {
+        if (requestGeneration != assetsRequestGeneration) {
             return;
         }
-        lastLoadAssetsTs = now;
-        AuthApiClient.getAssetsByFilter(this, currentUserId, selectedCategory, selectedStatus,
+        lastLoadAssetsTs = System.currentTimeMillis();
+        lastRequestCategory = requestCategory;
+        lastRequestStatus = requestStatus;
+        AuthApiClient.getAssetsByFilter(this, currentUserId, requestCategory, requestStatus,
                 new AuthApiClient.AssetListCallback() {
                     @Override
                     public void onSuccess(AuthApiModels.AssetListResponse response) {
                         runOnUiThread(() -> {
+                            if (requestGeneration != assetsRequestGeneration
+                                    || !isCurrentAssetFilter(requestCategory, requestStatus)) {
+                                return;
+                            }
                             swipeRefresh.setRefreshing(false);
-                            if (response.data != null && response.data.items != null) {
+                            if (response != null && response.data != null && response.data.items != null) {
                                 saveListCache(response);
                                 adapter.updateData(response.data.items);
                                 boolean empty = response.data.items.isEmpty();
                                 tvEmpty.setVisibility(empty ? View.VISIBLE : View.GONE);
                                 rvAssets.setVisibility(empty ? View.GONE : View.VISIBLE);
+                            } else {
+                                adapter.updateData(new ArrayList<>());
+                                tvEmpty.setVisibility(View.VISIBLE);
+                                rvAssets.setVisibility(View.GONE);
                             }
                         });
                     }
@@ -329,13 +386,25 @@ public class AssetsActivity extends AppCompatActivity implements AssetAdapter.On
                     @Override
                     public void onError(String message) {
                         runOnUiThread(() -> {
-                            swipeRefresh.setRefreshing(false);
-                            if (!swipeRefresh.isRefreshing()) {
-                                Toast.makeText(AssetsActivity.this, "加载资产失败", Toast.LENGTH_SHORT).show();
+                            if (requestGeneration != assetsRequestGeneration
+                                    || !isCurrentAssetFilter(requestCategory, requestStatus)) {
+                                return;
                             }
+                            swipeRefresh.setRefreshing(false);
+                            Toast.makeText(AssetsActivity.this, "加载资产失败", Toast.LENGTH_SHORT).show();
                         });
                     }
                 });
+    }
+
+    private boolean isCurrentAssetFilter(String requestCategory, String requestStatus) {
+        boolean categoryMatches = isSameFilter(requestCategory, selectedCategory);
+        boolean statusMatches = isSameFilter(requestStatus, selectedStatus);
+        return categoryMatches && statusMatches;
+    }
+
+    private boolean isSameFilter(String first, String second) {
+        return first == null ? second == null : first.equals(second);
     }
 
     @Override
@@ -351,6 +420,16 @@ public class AssetsActivity extends AppCompatActivity implements AssetAdapter.On
         setupStatusFilters();
         loadStats();
         loadAssets();
+    }
+
+    @Override
+    protected void onDestroy() {
+        assetsRequestGeneration++;
+        if (scheduledAssetsRequest != null) {
+            mainHandler.removeCallbacks(scheduledAssetsRequest);
+            scheduledAssetsRequest = null;
+        }
+        super.onDestroy();
     }
 
     private int dpToPx(int dp) {

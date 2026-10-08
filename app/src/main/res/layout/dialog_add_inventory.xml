@@ -97,7 +97,7 @@
                 android:paddingStart="8dp"
                 android:paddingEnd="8dp"
                 android:text="📷 选择图片"
-                android:textColor="#07C160"
+                android:textColor="@color/brand_green"
                 android:textSize="13sp" />
 
             <LinearLayout

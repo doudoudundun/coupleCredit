@@ -58,7 +58,7 @@
                     android:ellipsize="end"
                     android:maxLines="1"
                     android:text="火锅"
-                    android:textColor="#07C160"
+                    android:textColor="@color/brand_green"
                     android:textSize="10sp"
                     android:visibility="gone" />
             </LinearLayout>

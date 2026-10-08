@@ -24,7 +24,7 @@
             android:contentDescription="返回"
             android:padding="6dp"
             android:src="@drawable/ic_arrow_back"
-            android:tint="#FFFFFF" />
+            android:tint="@color/white" />
 
         <TextView
             android:layout_width="0dp"
@@ -32,7 +32,7 @@
             android:layout_weight="1"
             android:gravity="center"
             android:text="账号详情"
-            android:textColor="#FFFFFF"
+            android:textColor="@color/white"
             android:textSize="18sp"
             android:textStyle="bold" />
 
@@ -44,7 +44,7 @@
             android:contentDescription="编辑"
             android:padding="6dp"
             android:src="@drawable/ic_edit"
-            android:tint="#FFFFFF" />
+            android:tint="@color/white" />
 
         <ImageButton
             android:id="@+id/iv_delete"
@@ -55,7 +55,7 @@
             android:contentDescription="删除"
             android:padding="6dp"
             android:src="@drawable/ic_delete_white"
-            android:tint="#FFFFFF" />
+            android:tint="@color/white" />
     </LinearLayout>
 
     <androidx.core.widget.NestedScrollView
@@ -94,10 +94,10 @@
                         android:id="@+id/tv_platform_initial"
                         android:layout_width="56dp"
                         android:layout_height="56dp"
-                        android:background="#FF9E9E9E"
+                        android:background="@color/border_color"
                         android:gravity="center"
                         android:text="?"
-                        android:textColor="#FFFFFF"
+                        android:textColor="@color/white"
                         android:textSize="24sp"
                         android:textStyle="bold" />
                 </FrameLayout>
@@ -127,7 +127,7 @@
                         android:paddingHorizontal="8dp"
                         android:paddingVertical="2dp"
                         android:text="其他"
-                        android:textColor="#666666"
+                        android:textColor="@color/text_muted"
                         android:textSize="11sp" />
                 </LinearLayout>
             </LinearLayout>
@@ -190,7 +190,7 @@
                         android:contentDescription="复制密码"
                         android:padding="6dp"
                         android:src="@drawable/ic_copy1"
-                        android:tint="#666666" />
+                        android:tint="@color/text_muted" />
                 </LinearLayout>
             </LinearLayout>
 

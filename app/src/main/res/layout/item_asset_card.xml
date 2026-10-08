@@ -67,7 +67,7 @@
                     android:ellipsize="end"
                     android:maxLines="1"
                     android:text="¥0"
-                    android:textColor="#1976D2"
+                    android:textColor="@color/bill_blue"
                     android:textSize="11sp"
                     android:textStyle="bold" />
 
@@ -79,7 +79,7 @@
                     android:paddingHorizontal="4dp"
                     android:paddingVertical="1dp"
                     android:text="在用"
-                    android:textColor="#4CAF50"
+                    android:textColor="@color/brand_green"
                     android:textSize="8sp" />
             </LinearLayout>
         </LinearLayout>

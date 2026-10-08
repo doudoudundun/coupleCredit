@@ -24,7 +24,7 @@
             android:paddingStart="14dp"
             android:paddingEnd="14dp"
             android:text="推荐"
-            android:textColor="#FFFFFF"
+            android:textColor="@color/white"
             android:textSize="13sp" />
 
         <TextView
@@ -92,7 +92,7 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="4dp"
             android:text="添加菜谱和库存食材后即可获得推荐"
-            android:textColor="#BBBBBB"
+            android:textColor="@color/text_disabled"
             android:textSize="12sp" />
     </LinearLayout>
 </LinearLayout>

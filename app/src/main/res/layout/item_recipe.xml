@@ -56,7 +56,7 @@
                     android:contentDescription="更多操作"
                     android:padding="2dp"
                     android:src="@android:drawable/ic_menu_more"
-                    app:tint="#999999" />
+                    app:tint="@color/text_disabled" />
             </LinearLayout>
 
             <TextView
@@ -92,7 +92,7 @@
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
                     android:text="3 种食材"
-                    android:textColor="#07C160"
+                    android:textColor="@color/brand_green"
                     android:textSize="12sp" />
 
                 <ImageButton
@@ -103,7 +103,7 @@
                     android:contentDescription="加入购物车"
                     android:padding="2dp"
                     android:src="@drawable/ic_add"
-                    app:tint="#07C160" />
+                    app:tint="@color/brand_green" />
             </LinearLayout>
         </LinearLayout>
     </LinearLayout>

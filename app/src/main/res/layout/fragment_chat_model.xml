@@ -4,7 +4,7 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#EDEDED">
+    android:background="@color/bg_page">
 
     <!-- 顶部工具栏 -->
     <LinearLayout
@@ -39,7 +39,7 @@
                 android:paddingStart="14dp"
                 android:paddingEnd="14dp"
                 android:textSize="14sp"
-                android:textColorHint="#BBBBBB"
+                android:textColorHint="@color/text_disabled"
                 android:textColor="@color/text_body"
                 android:inputType="text"
                 android:imeOptions="actionSearch"
@@ -51,7 +51,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginStart="10dp"
                 android:text="取消"
-                android:textColor="#07C160"
+                android:textColor="@color/brand_green"
                 android:textSize="14sp"
                 android:padding="4dp" />
         </LinearLayout>
@@ -103,7 +103,7 @@
                 android:layout_height="wrap_content"
                 android:text="加载新消息..."
                 android:textSize="12sp"
-                android:textColor="#66BB6A" />
+                android:textColor="@color/brand_green" />
         </LinearLayout>
 
         <!-- 加载历史消息指示器 -->
@@ -130,7 +130,7 @@
                 android:layout_height="wrap_content"
                 android:text="加载历史消息..."
                 android:textSize="12sp"
-                android:textColor="#66BB6A" />
+                android:textColor="@color/brand_green" />
         </LinearLayout>
     </FrameLayout>
 
@@ -194,7 +194,7 @@
                 android:scrollbars="vertical"
                 android:textSize="15sp"
                 android:textColor="@color/text_body"
-                android:textColorHint="#BBBBBB" />
+                android:textColorHint="@color/text_disabled" />
 
             <!-- 发送按钮（有输入时显示） -->
             <ImageView
