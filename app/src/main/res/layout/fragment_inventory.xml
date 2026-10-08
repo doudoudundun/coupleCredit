@@ -16,43 +16,64 @@
             android:layout_height="wrap_content"
             android:orientation="vertical"
             android:background="@color/white"
-            android:paddingStart="16dp"
+            android:paddingStart="@dimen/page_padding_h"
             android:paddingTop="16dp"
             android:paddingEnd="16dp"
             android:paddingBottom="8dp">
 
-            <TextView
-                android:id="@+id/tv_title"
-                android:layout_width="wrap_content"
+            <LinearLayout
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="家庭物资"
-                android:textColor="@android:color/black"
-                android:textSize="22sp"
-                android:textStyle="bold" />
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:id="@+id/tv_title"
+                    style="@style/Text.Title.Large"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="家庭物资"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/btn_bead_entry"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:background="@drawable/bg_chip_gray"
+                    android:paddingStart="10dp"
+                    android:paddingTop="5dp"
+                    android:paddingEnd="10dp"
+                    android:paddingBottom="5dp"
+                    android:text="拼豆库存 ›"
+                    android:textColor="@color/text_muted"
+                    android:textSize="12sp" />
+            </LinearLayout>
 
             <TextView
                 android:id="@+id/tv_subtitle"
+                style="@style/Text.Caption"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="2dp"
                 android:text="管理家具用品与日常库存，和记账一样重要。"
-                android:textColor="@color/text_muted"
-                android:textSize="12sp" />
+                android:visibility="gone" />
 
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
-                android:orientation="horizontal">
+                android:background="@drawable/rounded_card_background"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:padding="8dp">
 
                 <LinearLayout
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:layout_marginEnd="6dp"
-                    android:background="@drawable/rounded_card_background"
-                    android:orientation="vertical"
-                    android:padding="10dp">
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
 
                     <TextView
                         android:layout_width="wrap_content"
@@ -65,7 +86,7 @@
                         android:id="@+id/tv_total_count"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="2dp"
+                        android:layout_marginStart="6dp"
                         android:text="0"
                         android:textColor="@android:color/black"
                         android:textSize="18sp"
@@ -77,10 +98,8 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:layout_marginEnd="6dp"
-                    android:background="@drawable/rounded_card_background"
-                    android:orientation="vertical"
-                    android:padding="10dp">
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
 
                     <TextView
                         android:layout_width="wrap_content"
@@ -93,9 +112,9 @@
                         android:id="@+id/tv_low_stock_count"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="2dp"
+                        android:layout_marginStart="6dp"
                         android:text="0"
-                        android:textColor="#D14343"
+                        android:textColor="@color/expense_red"
                         android:textSize="18sp"
                         android:textStyle="bold" />
                 </LinearLayout>
@@ -105,9 +124,8 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:background="@drawable/rounded_card_background"
-                    android:orientation="vertical"
-                    android:padding="10dp">
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
 
                     <TextView
                         android:layout_width="wrap_content"
@@ -120,7 +138,7 @@
                         android:id="@+id/tv_expiration_count"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="2dp"
+                        android:layout_marginStart="6dp"
                         android:text="0"
                         android:textColor="#F59E0B"
                         android:textSize="18sp"
@@ -144,7 +162,7 @@
                     android:layout_height="18dp"
                     android:layout_marginEnd="8dp"
                     android:src="@drawable/ic_warning"
-                    android:tint="#D14343" />
+                    android:tint="@color/expense_red" />
 
                 <TextView
                     android:id="@+id/tv_alert_message"
@@ -152,7 +170,7 @@
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
                     android:text="有存货告急！"
-                    android:textColor="#D14343"
+                    android:textColor="@color/expense_red"
                     android:textSize="12sp" />
 
                 <TextView
@@ -207,16 +225,15 @@
             </HorizontalScrollView>
         </LinearLayout>
 
-        <androidx.core.widget.NestedScrollView
+        <FrameLayout
             android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:fillViewport="true">
+            android:layout_height="0dp"
+            android:layout_weight="1">
 
             <LinearLayout
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:paddingBottom="88dp">
+                android:layout_height="match_parent"
+                android:orientation="vertical">
 
                 <LinearLayout
                     android:id="@+id/layout_login_prompt"
@@ -273,13 +290,13 @@
                 <LinearLayout
                     android:id="@+id/layout_content"
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
+                    android:layout_height="match_parent"
                     android:orientation="vertical">
 
                     <LinearLayout
                         android:id="@+id/layout_recent_activity_section"
                         android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
+                        android:layout_height="match_parent"
                         android:orientation="vertical"
                         android:visibility="gone">
 
@@ -297,98 +314,33 @@
                         <androidx.recyclerview.widget.RecyclerView
                             android:id="@+id/rv_recent_activity"
                             android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
+                            android:layout_height="0dp"
+                            android:layout_weight="1"
                             android:layout_marginTop="6dp"
-                            android:nestedScrollingEnabled="false"
+                            android:nestedScrollingEnabled="true"
                             android:paddingStart="8dp"
                             android:paddingEnd="8dp" />
                     </LinearLayout>
 
                     <LinearLayout
-                        android:id="@+id/card_bead_inventory"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginStart="16dp"
-                        android:layout_marginTop="12dp"
-                        android:layout_marginEnd="16dp"
-                        android:background="@drawable/rounded_card_background"
-                        android:clickable="true"
-                        android:focusable="true"
-                        android:foreground="?android:attr/selectableItemBackground"
-                        android:gravity="center_vertical"
-                        android:minHeight="76dp"
-                        android:orientation="horizontal"
-                        android:padding="16dp">
-
-                        <TextView
-                            android:layout_width="48dp"
-                            android:layout_height="48dp"
-                            android:background="@drawable/circle_bg_teal"
-                            android:gravity="center"
-                            android:text="豆"
-                            android:textColor="@android:color/white"
-                            android:textSize="18sp"
-                            android:textStyle="bold" />
-
-                        <LinearLayout
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_marginStart="12dp"
-                            android:layout_weight="1"
-                            android:orientation="vertical">
-
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="拼豆库存"
-                                android:textColor="@android:color/black"
-                                android:textSize="16sp"
-                                android:textStyle="bold" />
-
-                            <TextView
-                                android:id="@+id/tv_bead_inventory_summary"
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:layout_marginTop="4dp"
-                                android:ellipsize="end"
-                                android:maxLines="1"
-                                android:text="221 色库存、告急与图纸消耗统计"
-                                android:textColor="@color/text_muted"
-                                android:textSize="13sp" />
-                        </LinearLayout>
-
-                        <ImageView
-                            android:layout_width="24dp"
-                            android:layout_height="24dp"
-                            android:contentDescription="进入拼豆库存"
-                            android:src="@drawable/ic_add"
-                            android:tint="@color/primary_color" />
-                    </LinearLayout>
-
-                    <LinearLayout
                         android:id="@+id/layout_inventory_section"
                         android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="vertical">
+                        android:layout_height="match_parent"
+                        android:orientation="vertical"
+                        android:gravity="center">
 
-                        <TextView
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="8dp"
-                            android:paddingStart="16dp"
-                            android:paddingEnd="16dp"
-                            android:text="物资列表"
-                            android:textColor="@android:color/black"
-                            android:textSize="16sp"
-                            android:textStyle="bold" />
-
-                        <androidx.recyclerview.widget.RecyclerView
+                        <com.example.couplecredit.view.InventoryDeckRecyclerView
                             android:id="@+id/rv_inventory_list"
                             android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:nestedScrollingEnabled="false"
+                            android:layout_height="0dp"
+                            android:layout_weight="1"
+                            android:layout_marginTop="4dp"
+                            android:nestedScrollingEnabled="true"
+                            android:clipToPadding="false"
+                            android:overScrollMode="never"
+                            android:paddingTop="4dp"
+                            android:paddingBottom="12dp"
                             android:paddingStart="8dp"
-                            android:paddingTop="6dp"
                             android:paddingEnd="8dp" />
 
                         <LinearLayout
@@ -419,13 +371,13 @@
                                 android:layout_height="wrap_content"
                                 android:layout_marginTop="8dp"
                                 android:text="点击右下角按钮添加第一个物资"
-                                android:textColor="#C0C4CC"
+                                android:textColor="@color/text_disabled"
                                 android:textSize="14sp" />
                         </LinearLayout>
                     </LinearLayout>
                 </LinearLayout>
             </LinearLayout>
-        </androidx.core.widget.NestedScrollView>
+        </FrameLayout>
     </LinearLayout>
 
     <com.google.android.material.floatingactionbutton.FloatingActionButton
@@ -433,12 +385,13 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom|end"
-        android:layout_marginEnd="16dp"
-        android:layout_marginBottom="88dp"
+        android:layout_marginEnd="88dp"
+        android:layout_marginBottom="20dp"
         android:backgroundTint="@android:color/white"
         android:contentDescription="刷新物资"
         android:src="@drawable/ic_refresh"
         app:elevation="6dp"
+        app:fabCustomSize="48dp"
         app:fabSize="mini"
         app:tint="@color/primary_color" />
 
@@ -447,11 +400,13 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom|end"
-        android:layout_margin="16dp"
+        android:layout_marginEnd="16dp"
+        android:layout_marginBottom="16dp"
         android:src="@drawable/ic_add"
+        android:contentDescription="添加物资"
         android:backgroundTint="@color/primary_color"
         app:elevation="6dp"
-        app:fabSize="mini"
+        app:fabSize="normal"
         app:tint="@color/white" />
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

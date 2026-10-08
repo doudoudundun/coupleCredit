@@ -3,6 +3,7 @@ package com.example.couplecredit.adapter;
 import android.content.Context;
 import android.graphics.Color;
 import android.graphics.drawable.GradientDrawable;
+import android.os.Build;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -24,6 +25,7 @@ import com.example.couplecredit.fragment.InventoryFragment.InventoryItem;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
+import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 
@@ -61,9 +63,15 @@ public class InventoryAdapter extends RecyclerView.Adapter<InventoryAdapter.View
     @Override
     public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
         InventoryItem item = items.get(position);
+        resetCardPresentation(holder);
+
+        String categoryText = buildCategoryText(item);
         holder.tvName.setText(item.name);
-        holder.tvCategory.setText(item.category);
-        holder.tvQuantity.setText(String.format(Locale.getDefault(), "%s %s", trimQuantity(item.quantity), item.unit));
+        holder.tvCategory.setText(categoryText);
+        String quantityText = buildQuantityText(item);
+        holder.tvQuantity.setText(quantityText);
+        holder.tvCompactName.setText(item.name);
+        holder.tvCompactQuantity.setText(quantityText);
         holder.tvLastConsumed.setText(buildStatusText(item));
         bindExpirationStatus(holder, item);
 
@@ -77,9 +85,14 @@ public class InventoryAdapter extends RecyclerView.Adapter<InventoryAdapter.View
             holder.tvNote.setVisibility(View.VISIBLE);
             holder.tvNote.setText(item.note);
         } else {
+            // The note shares a fixed-height metadata line; GONE lets the other
+            // metadata use that line's width without changing card geometry.
+            holder.tvNote.setText(null);
             holder.tvNote.setVisibility(View.GONE);
         }
 
+        // A recycled holder may still be loading the previous item's image.
+        Glide.with(holder.ivImage.getContext()).clear(holder.ivImage);
         if (item.imageUrl != null && !item.imageUrl.isEmpty()) {
             Glide.with(holder.ivImage.getContext())
                     .load(ApiConfigManager.resolveResourceUrl(context, item.imageUrl))
@@ -106,7 +119,40 @@ public class InventoryAdapter extends RecyclerView.Adapter<InventoryAdapter.View
         holder.btnMore.setOnClickListener(v -> showMoreMenu(v, item));
     }
 
+    @Override
+    public void onViewRecycled(@NonNull ViewHolder holder) {
+        Glide.with(holder.ivImage.getContext()).clear(holder.ivImage);
+        holder.ivImage.setImageResource(R.drawable.ic_inventory_placeholder);
+        resetCardPresentation(holder);
+        super.onViewRecycled(holder);
+    }
+
+    private void resetCardPresentation(@NonNull ViewHolder holder) {
+        // Layout managers may temporarily swap these layers while a row is in
+        // the roller.  Rebinding/recycling must restore the ordinary list
+        // presentation for LinearLayoutManager and TalkBack.
+        holder.itemView.setClipBounds(null);
+        holder.itemView.setTranslationX(0f);
+        holder.itemView.setTranslationY(0f);
+        holder.itemView.setScaleX(1f);
+        holder.itemView.setScaleY(1f);
+        holder.itemView.setAlpha(1f);
+        holder.itemView.setRotationX(0f);
+        holder.itemView.setTranslationZ(0f);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            holder.itemView.setRenderEffect(null);
+        }
+        holder.layoutInventoryCard.setAlpha(1f);
+        holder.layoutInventoryCard.setImportantForAccessibility(
+                View.IMPORTANT_FOR_ACCESSIBILITY_YES);
+        holder.layoutInventoryCompact.setAlpha(0f);
+        holder.layoutInventoryCompact.setImportantForAccessibility(
+                View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);
+    }
+
     private void bindExpirationStatus(ViewHolder holder, InventoryItem item) {
+        // The status row itself has a fixed height; an absent expiry can yield
+        // its horizontal space to the date without changing deck geometry.
         holder.tvExpirationStatus.setVisibility(View.GONE);
         holder.tvExpirationStatus.setText(null);
         holder.tvExpirationStatus.setTextColor(Color.parseColor("#F59E0B"));
@@ -172,10 +218,10 @@ public class InventoryAdapter extends RecyclerView.Adapter<InventoryAdapter.View
 
     private String buildStatusText(InventoryItem item) {
         if (item.lastConsumedAt != null && !item.lastConsumedAt.isEmpty()) {
-            return "最近消耗: " + formatDate(item.lastConsumedAt);
+            return "消耗 " + formatDate(item.lastConsumedAt);
         }
         if (item.updatedAt != null && !item.updatedAt.isEmpty()) {
-            return "最近更新: " + formatDate(item.updatedAt);
+            return "更新 " + formatDate(item.updatedAt);
         }
         return "最近更新: 暂无记录";
     }
@@ -242,15 +288,25 @@ public class InventoryAdapter extends RecyclerView.Adapter<InventoryAdapter.View
     }
 
     private String formatDate(String dateStr) {
-        if (dateStr == null) {
+        if (dateStr == null || dateStr.trim().isEmpty()) {
             return "";
         }
-        String normalized = dateStr.replace('T', ' ');
+        String normalized = dateStr.trim().replace('T', ' ');
         if (normalized.contains(".")) {
             normalized = normalized.substring(0, normalized.indexOf('.'));
         }
+        try {
+            SimpleDateFormat parser = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault());
+            parser.setLenient(false);
+            Date parsed = parser.parse(normalized);
+            if (parsed != null) {
+                return new SimpleDateFormat("M/d HH:mm", Locale.getDefault()).format(parsed);
+            }
+        } catch (ParseException ignored) {
+            // 兼容服务端返回的非标准日期文本，下面保留可读的短形式。
+        }
         if (normalized.length() >= 16) {
-            return normalized.substring(0, 16);
+            return normalized.substring(5, 16);
         }
         return normalized;
     }
@@ -262,16 +318,33 @@ public class InventoryAdapter extends RecyclerView.Adapter<InventoryAdapter.View
         return String.format(Locale.getDefault(), "%.1f", value);
     }
 
+    private String buildCategoryText(InventoryItem item) {
+        if (item.category == null || item.category.trim().isEmpty()) {
+            return "未分类";
+        }
+        return item.category;
+    }
+
+    private String buildQuantityText(InventoryItem item) {
+        String quantity = trimQuantity(item.quantity);
+        String unit = item.unit == null ? "" : item.unit.trim();
+        return unit.isEmpty() ? quantity : quantity + " " + unit;
+    }
+
     @Override
     public int getItemCount() {
         return items != null ? items.size() : 0;
     }
 
     static class ViewHolder extends RecyclerView.ViewHolder {
+        View layoutInventoryCard;
+        View layoutInventoryCompact;
         ImageView ivImage;
         TextView tvName;
         TextView tvCategory;
         TextView tvQuantity;
+        TextView tvCompactName;
+        TextView tvCompactQuantity;
         TextView tvLowStockBadge;
         TextView tvLastConsumed;
         TextView tvExpirationStatus;
@@ -282,10 +355,14 @@ public class InventoryAdapter extends RecyclerView.Adapter<InventoryAdapter.View
 
         ViewHolder(View itemView) {
             super(itemView);
+            layoutInventoryCard = itemView.findViewById(R.id.layout_inventory_card);
+            layoutInventoryCompact = itemView.findViewById(R.id.layout_inventory_compact);
             ivImage = itemView.findViewById(R.id.iv_inventory_image);
             tvName = itemView.findViewById(R.id.tv_inventory_name);
             tvCategory = itemView.findViewById(R.id.tv_inventory_category);
             tvQuantity = itemView.findViewById(R.id.tv_quantity);
+            tvCompactName = itemView.findViewById(R.id.tv_inventory_compact_name);
+            tvCompactQuantity = itemView.findViewById(R.id.tv_inventory_compact_quantity);
             tvLowStockBadge = itemView.findViewById(R.id.tv_low_stock_badge);
             tvLastConsumed = itemView.findViewById(R.id.tv_last_consumed);
             tvExpirationStatus = itemView.findViewById(R.id.tv_expiration_status);

@@ -19,6 +19,7 @@ import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.accessibility.AccessibilityManager;
 import android.widget.ArrayAdapter;
 import android.widget.EditText;
 import android.widget.ProgressBar;
@@ -56,6 +57,7 @@ import com.example.couplecredit.utils.DataRefreshBus;
 import com.example.couplecredit.utils.UserInfoManager;
 import com.example.couplecredit.viewmodel.BeadInventoryViewModel;
 import com.example.couplecredit.viewmodel.InventoryViewModel;
+import com.example.couplecredit.view.InventoryDeckLayoutManager;
 
 import java.io.ByteArrayInputStream;
 import java.io.File;
@@ -92,13 +94,14 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
     private TextView tvLowStockCount;
     private LinearLayout cardExpiration;
     private TextView tvExpirationCount;
-    private LinearLayout cardBeadInventory;
-    private TextView tvBeadInventorySummary;
+    private TextView btnBeadEntry;
     private View fabAddInventory;
     private View fabRefreshInventory;
 
     private InventoryAdapter inventoryAdapter;
     private RecentActivityAdapter recentActivityAdapter;
+    private AccessibilityManager inventoryAccessibility;
+    private AccessibilityManager.TouchExplorationStateChangeListener explorationListener;
     private final List<InventoryItem> inventoryList = new ArrayList<>();
     private final List<InventoryItem> lowStockList = new ArrayList<>();
     private final List<InventoryItem> recentActivityList = new ArrayList<>();
@@ -208,9 +211,8 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
         setupSummaryCards();
 
         viewModel.getDataVersion().observe(getViewLifecycleOwner(), version -> {
-            if (viewModel.hasData()) {
-                restoreFromViewModel();
-            }
+            // 空响应也代表服务端已确认没有库存；必须清掉旧列表和卡片，不能继续显示上一份数据。
+            restoreFromViewModel();
         });
 
         viewModel.getErrorMessage().observe(getViewLifecycleOwner(), error -> {
@@ -219,8 +221,6 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
                 viewModel.clearError();
             }
         });
-
-        beadViewModel.getDataVersion().observe(getViewLifecycleOwner(), version -> updateBeadEntrySummary());
 
         beadViewModel.getErrorMessage().observe(getViewLifecycleOwner(), error -> {
             if (error != null && !error.isEmpty()) {
@@ -240,6 +240,14 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
     @Override
     public void onDestroyView() {
         DataRefreshBus.unsubscribe(refreshListener);
+        if (inventoryAccessibility != null && explorationListener != null) {
+            inventoryAccessibility.removeTouchExplorationStateChangeListener(explorationListener);
+        }
+        if (rvInventoryList != null) {
+            rvInventoryList.stopScroll();
+            rvInventoryList.setAdapter(null);
+            rvInventoryList.setLayoutManager(null);
+        }
         super.onDestroyView();
     }
 
@@ -315,20 +323,44 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
         tvLowStockCount = view.findViewById(R.id.tv_low_stock_count);
         cardExpiration = view.findViewById(R.id.card_expiration);
         tvExpirationCount = view.findViewById(R.id.tv_expiration_count);
-        cardBeadInventory = view.findViewById(R.id.card_bead_inventory);
-        tvBeadInventorySummary = view.findViewById(R.id.tv_bead_inventory_summary);
+        btnBeadEntry = view.findViewById(R.id.btn_bead_entry);
         fabAddInventory = view.findViewById(R.id.fab_add_inventory);
         fabRefreshInventory = view.findViewById(R.id.fab_refresh_inventory);
     }
 
     private void setupRecyclerViews() {
-        rvInventoryList.setLayoutManager(new LinearLayoutManager(getContext()));
-        rvRecentActivity.setLayoutManager(new androidx.recyclerview.widget.GridLayoutManager(getContext(), 2));
+        inventoryAccessibility = (AccessibilityManager) requireContext().getSystemService(Context.ACCESSIBILITY_SERVICE);
+        configureInventoryLayout(inventoryAccessibility != null && inventoryAccessibility.isTouchExplorationEnabled());
+        explorationListener = this::configureInventoryLayout;
+        if (inventoryAccessibility != null) inventoryAccessibility.addTouchExplorationStateChangeListener(explorationListener);
+        rvInventoryList.setItemAnimator(null);
+        rvRecentActivity.setLayoutManager(new LinearLayoutManager(requireContext()));
         inventoryAdapter = new InventoryAdapter(requireContext(), filteredInventoryList, this);
         recentActivityAdapter = new RecentActivityAdapter(requireContext(), recentActivityList);
         recentActivityAdapter.setOnItemClickListener(this::showInventoryDialog);
         rvInventoryList.setAdapter(inventoryAdapter);
         rvRecentActivity.setAdapter(recentActivityAdapter);
+    }
+
+    private void configureInventoryLayout(boolean accessibleList) {
+        if (!isAdded() || rvInventoryList == null) return;
+        int position = RecyclerView.NO_POSITION;
+        RecyclerView.LayoutManager previous = rvInventoryList.getLayoutManager();
+        if (previous instanceof InventoryDeckLayoutManager) {
+            InventoryDeckLayoutManager deck = (InventoryDeckLayoutManager) previous;
+            position = Math.max(0, deck.getFocusedRow()) * deck.getSpanCount();
+        } else if (previous != null && previous.getChildCount() > 0) {
+            position = previous.getPosition(previous.getChildAt(0));
+        }
+        rvInventoryList.stopScroll();
+        if (accessibleList) {
+            rvInventoryList.setLayoutManager(new LinearLayoutManager(requireContext()));
+        } else {
+            InventoryDeckLayoutManager deck = new InventoryDeckLayoutManager(requireContext(), 1);
+            rvInventoryList.setLayoutManager(deck);
+            deck.attachToRecyclerView(rvInventoryList);
+        }
+        if (position >= 0) rvInventoryList.scrollToPosition(position);
     }
 
     private void setupFilters() {
@@ -545,19 +577,6 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
         cardExpiration.setBackground(expirationBg);
     }
 
-    private void updateBeadEntrySummary() {
-        if (tvBeadInventorySummary == null || beadViewModel == null) {
-            return;
-        }
-        BeadInventoryViewModel.BeadSummary summary = beadViewModel.getSummary();
-        if (summary.totalColors <= 0) {
-            tvBeadInventorySummary.setText("221 色库存、告急与图纸消耗统计");
-            return;
-        }
-        tvBeadInventorySummary.setText(String.format(Locale.getDefault(), "%d 色 · %d 色告急 · 理论消耗 %d 颗",
-                summary.totalColors, summary.lowStockCount, summary.totalConsumptionReference));
-    }
-
 
     private void setupActions() {
         fabAddInventory.setOnClickListener(v -> {
@@ -569,7 +588,7 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
         });
         fabRefreshInventory.setOnClickListener(v -> refreshInventoryData());
 
-        cardBeadInventory.setOnClickListener(v -> {
+        btnBeadEntry.setOnClickListener(v -> {
             if (!isLoggedIn) {
                 openLoginPage();
                 return;
@@ -671,6 +690,8 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
     }
 
     private void applyFilters() {
+        List<Integer> previousIds = new ArrayList<>();
+        for (InventoryItem item : filteredInventoryList) previousIds.add(item.id);
         filteredInventoryList.clear();
         String keyword = etSearch.getText() == null ? "" : etSearch.getText().toString().trim().toLowerCase(Locale.getDefault());
 
@@ -692,9 +713,16 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
         }
 
         inventoryAdapter.updateData(filteredInventoryList);
+        List<Integer> currentIds = new ArrayList<>();
+        for (InventoryItem item : filteredInventoryList) currentIds.add(item.id);
+        if (!previousIds.equals(currentIds)) {
+            rvInventoryList.stopScroll();
+            rvInventoryList.scrollToPosition(0);
+        }
         layoutRecentActivitySection.setVisibility(showRecentActivity ? View.VISIBLE : View.GONE);
         layoutInventorySection.setVisibility(showRecentActivity ? View.GONE : View.VISIBLE);
         llEmptyState.setVisibility(!showRecentActivity && filteredInventoryList.isEmpty() && isLoggedIn ? View.VISIBLE : View.GONE);
+        rvInventoryList.setVisibility(filteredInventoryList.isEmpty() ? View.GONE : View.VISIBLE);
         rebuildActiveFilterTags();
     }
 
@@ -1091,9 +1119,16 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
 
             if (imageChanged && pendingImageUrl != null) {
                 btnSubmit.setEnabled(false);
-                btnSubmit.setText("上传图片中...");
-                uploadAndSave(dialog, name, category, quantity, unit, threshold, expirationMode, expirationDate,
-                        productionDate, shelfLifeDays, note, aiPrompt, existingItem);
+                if (isRemoteImageReference(pendingImageUrl)) {
+                    // AI 生成图已经是服务端可访问的 URL，直接随库存变更保存，避免把 HTTP URL 当本地 Uri 压缩。
+                    btnSubmit.setText("保存中...");
+                    saveInventoryItem(dialog, name, category, quantity, unit, threshold, expirationMode, expirationDate,
+                            productionDate, shelfLifeDays, pendingImageUrl, note, aiPrompt, existingItem);
+                } else {
+                    btnSubmit.setText("上传图片中...");
+                    uploadAndSave(dialog, name, category, quantity, unit, threshold, expirationMode, expirationDate,
+                            productionDate, shelfLifeDays, note, aiPrompt, existingItem);
+                }
             } else {
                 String finalImageUrl = imageChanged ? null : pendingImageUrl;
                 saveInventoryItem(dialog, name, category, quantity, unit, threshold, expirationMode, expirationDate,
@@ -1425,10 +1460,20 @@ public class InventoryFragment extends Fragment implements InventoryAdapter.Inve
         if (imageUrl == null || imageUrl.isEmpty()) {
             return null;
         }
-        if (imageUrl.startsWith("http://") || imageUrl.startsWith("https://") || imageUrl.startsWith("content://") || imageUrl.startsWith("file://")) {
+        if (imageUrl.startsWith("http://") || imageUrl.startsWith("https://") || imageUrl.startsWith("content://")
+                || imageUrl.startsWith("file://") || imageUrl.startsWith("data:")) {
             return imageUrl;
         }
         return ApiConfigManager.getBaseUrl(requireContext()) + imageUrl;
+    }
+
+    private boolean isRemoteImageReference(String imageUrl) {
+        if (imageUrl == null || imageUrl.trim().isEmpty()) {
+            return false;
+        }
+        String normalized = imageUrl.trim().toLowerCase(java.util.Locale.ROOT);
+        return normalized.startsWith("http://") || normalized.startsWith("https://")
+                || normalized.startsWith("data:") || normalized.startsWith("/");
     }
 
     private void clearInventoryData() {
