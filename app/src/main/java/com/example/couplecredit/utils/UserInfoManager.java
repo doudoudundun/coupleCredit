@@ -22,6 +22,7 @@ public class UserInfoManager {
     private static final String KEY_ACCESS_TOKEN = "accessToken";
     private static final String KEY_REFRESH_TOKEN = "refreshToken";
     private static final long CACHE_TTL_MS = 300_000; // 5分钟
+    private static long sessionGeneration;
 
     /**
      * 用户信息回调接口
@@ -52,7 +53,7 @@ public class UserInfoManager {
 
     private static UserInfoCache cachedUserInfo = null;
 
-    public static boolean saveUserInfo(Context context, String username, int userId) {
+    public static synchronized boolean saveUserInfo(Context context, String username, int userId) {
         if (context == null || username == null || username.trim().isEmpty() || userId <= 0) {
             Log.e(TAG, "保存用户登录信息失败，参数无效: username=" + username + ", userId=" + userId);
             return false;
@@ -71,6 +72,7 @@ public class UserInfoManager {
             Log.e(TAG, "保存用户登录信息失败");
             return false;
         }
+        sessionGeneration++;
 
         if (cachedUserInfo != null && cachedUserInfo.userId == userId) {
             cachedUserInfo.username = normalizedUsername;
@@ -199,18 +201,19 @@ public class UserInfoManager {
     /**
      * 保存 JWT token（登录或刷新成功后调用）
      */
-    public static void saveTokens(Context context, String accessToken, String refreshToken) {
+    public static synchronized void saveTokens(Context context, String accessToken, String refreshToken) {
         if (context == null) return;
         SharedPreferences.Editor editor = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit();
         if (accessToken != null) editor.putString(KEY_ACCESS_TOKEN, accessToken);
         if (refreshToken != null) editor.putString(KEY_REFRESH_TOKEN, refreshToken);
         editor.apply();
+        sessionGeneration++;
     }
 
     /**
      * 仅更新 access token（refresh 接口返回时调用）
      */
-    public static void saveAccessToken(Context context, String accessToken) {
+    public static synchronized void saveAccessToken(Context context, String accessToken) {
         if (context == null || accessToken == null) return;
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
                 .edit().putString(KEY_ACCESS_TOKEN, accessToken).apply();
@@ -254,12 +257,37 @@ public class UserInfoManager {
     /**
      * 清除用户登录信息
      */
-    public static void clearUserInfo(Context context) {
+    public static synchronized void clearUserInfo(Context context) {
         SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
         prefs.edit().clear().apply();
 
         cachedUserInfo = null;
+        sessionGeneration++;
 
         Log.d(TAG, "用户信息和缓存已清除");
+    }
+
+    public static synchronized com.example.couplecredit.api.SessionRefreshCoordinator.Session authSession(Context context) {
+        return new com.example.couplecredit.api.SessionRefreshCoordinator.Session(sessionGeneration,
+                getAccessToken(context), getRefreshToken(context),
+                com.example.couplecredit.config.ApiConfigManager.getBaseUrl(context));
+    }
+
+    public static synchronized boolean replaceSessionTokens(Context context,
+            com.example.couplecredit.api.SessionRefreshCoordinator.Session expected,
+            String accessToken, String refreshToken) {
+        if (!expected.sameCredentials(authSession(context))) return false;
+        SharedPreferences.Editor editor = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit();
+        editor.putString(KEY_ACCESS_TOKEN, accessToken);
+        if (refreshToken != null) editor.putString(KEY_REFRESH_TOKEN, refreshToken);
+        editor.apply();
+        return true;
+    }
+
+    public static synchronized boolean clearSessionIfCurrent(Context context,
+            com.example.couplecredit.api.SessionRefreshCoordinator.Session expected) {
+        if (!expected.sameCredentials(authSession(context))) return false;
+        clearUserInfo(context);
+        return true;
     }
 }

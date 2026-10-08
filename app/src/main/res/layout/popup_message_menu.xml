@@ -27,14 +27,14 @@
                 android:layout_width="24dp"
                 android:layout_height="24dp"
                 android:src="@drawable/ic_copy1"
-                app:tint="#E0E0E0" />
+                app:tint="@color/border_color" />
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="4dp"
                 android:text="复制"
-                android:textColor="#E0E0E0"
+                android:textColor="@color/border_color"
                 android:textSize="10sp" />
         </LinearLayout>
 
@@ -53,14 +53,14 @@
                 android:layout_width="24dp"
                 android:layout_height="24dp"
                 android:src="@drawable/ic_delete"
-                app:tint="#E0E0E0" />
+                app:tint="@color/border_color" />
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="4dp"
                 android:text="删除"
-                android:textColor="#E0E0E0"
+                android:textColor="@color/border_color"
                 android:textSize="10sp" />
         </LinearLayout>
 
@@ -78,14 +78,14 @@
                 android:layout_width="24dp"
                 android:layout_height="24dp"
                 android:src="@drawable/ic_billing"
-                app:tint="#E0E0E0" />
+                app:tint="@color/border_color" />
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="4dp"
                 android:text="记账"
-                android:textColor="#E0E0E0"
+                android:textColor="@color/border_color"
                 android:textSize="10sp" />
         </LinearLayout>
 

@@ -799,63 +799,7 @@ public class ChatModelFragment extends Fragment {
             }
         });
         
-        // 观察加载状态
-        viewModel.getIsLoading().observe(getViewLifecycleOwner(), isLoading -> {
-            // 可以在这里显示/隐藏加载指示器
-            // 例如：progressBar.setVisibility(isLoading ? View.VISIBLE : View.GONE);
-        });
-        
-        // ==================== 新增：云端同步功能监听 ====================
-        
-        // 观察云端同步开关状态
-        viewModel.getIsCloudSyncEnabled().observe(getViewLifecycleOwner(), isEnabled -> {
-            // 可以在这里更新UI显示同步状态
-            // 例如：显示同步开关状态、更新菜单项等
-        });
-        
-        // 观察网络状态
-        viewModel.getIsNetworkAvailable().observe(getViewLifecycleOwner(), isAvailable -> {
-            if (!isAvailable) {
-                // Toast.makeText(getContext(), "网络连接不可用，已切换到离线模式", Toast.LENGTH_SHORT).show();
-            }
-        });
-        
-        // 观察云端同步状态
-        viewModel.getSyncStatusMessage().observe(getViewLifecycleOwner(), syncStatus -> {
-            if (syncStatus != null) {
-                switch (syncStatus) {
-                    case "SYNCING":
-                        // 显示同步中状态
-                        break;
-                    case "SYNCED":
-                        // 显示同步完成状态
-                        break;
-                    case "SYNC_FAILED":
-                        // 显示同步失败状态
-                        break;
-                    case "OFFLINE":
-                        // 显示离线状态
-                        break;
-                }
-            }
-        });
-        
-        // 观察同步进度
-        viewModel.getSyncProgress().observe(getViewLifecycleOwner(), progress -> {
-            // 可以在这里更新进度条显示
-            // 例如：progressBar.setProgress(progress);
-            if (progress != null && progress > 0 && progress < 100) {
-                // 显示同步进度
-                // Toast.makeText(getContext(), "同步进度: " + progress + "%", Toast.LENGTH_SHORT).show();
-            }
-        });
-        
-        // 观察同步错误
-        viewModel.getSyncError().observe(getViewLifecycleOwner(), errorMsg -> {
-            if (errorMsg != null && !errorMsg.isEmpty()) {
-                //Toast.makeText(getContext(), "同步错误: " + errorMsg, Toast.LENGTH_LONG).show();
-            }
-        });
+        // 加载状态和同步状态目前没有对应的可见控件，不再注册空观察者。
 
         messageAdapter.setOnAiExtractionListener(new ChatMessageAdapter.OnAiExtractionListener() {
             @Override public void onConfirm(int extractionId) {
@@ -1346,4 +1290,3 @@ public class ChatModelFragment extends Fragment {
     }
     
 }
-

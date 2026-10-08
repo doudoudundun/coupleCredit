@@ -14,6 +14,7 @@ import androidx.room.PrimaryKey;
     tableName = "chat_messages",
     indices = {
         @Index("createdAt"),         // 排序用，几乎所有查询都 ORDER BY createdAt
+        @Index("relationshipId"),    // 本地展示与待同步队列必须按情侣关系隔离
         @Index("cloudMessageId"),    // 云端消息去重/查询
         @Index("username")           // 按用户筛选消息
     }

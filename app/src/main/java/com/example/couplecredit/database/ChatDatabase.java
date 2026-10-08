@@ -15,7 +15,7 @@ import androidx.annotation.NonNull;
  */
 @Database(
     entities = {ChatMessageEntity.class},  // 数据库包含的实体类
-    version = 7,                           // 数据库版本号
+    version = 8,                           // 数据库版本号
     exportSchema = false                   // 不导出数据库架构
 )
 public abstract class ChatDatabase extends RoomDatabase {
@@ -295,6 +295,17 @@ public abstract class ChatDatabase extends RoomDatabase {
     };
 
     /**
+     * 数据库迁移：从版本7到版本8
+     * 为按情侣关系隔离的本地消息查询添加索引。
+     */
+    static final Migration MIGRATION_7_8 = new Migration(7, 8) {
+        @Override
+        public void migrate(@NonNull SupportSQLiteDatabase database) {
+            database.execSQL("CREATE INDEX IF NOT EXISTS `index_chat_messages_relationshipId` ON `chat_messages` (`relationshipId`)");
+        }
+    };
+
+    /**
      * 获取聊天消息DAO
      * @return ChatMessageDao实例
      */
@@ -314,7 +325,7 @@ public abstract class ChatDatabase extends RoomDatabase {
                         ChatDatabase.class,
                         DATABASE_NAME
                     )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)  // 添加数据库迁移策略
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)  // 添加数据库迁移策略
                     .fallbackToDestructiveMigration()  // 仅 dev 兜底：迁移失败时清库（生产环境长期应移除）
                     .build();
                 }

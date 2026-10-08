@@ -14,7 +14,7 @@
         android:layout_height="wrap_content"
         app:cardCornerRadius="8dp"
         app:cardElevation="0.5dp"
-        app:cardBackgroundColor="#FFFFFF">
+        app:cardBackgroundColor="@color/white">
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -35,7 +35,7 @@
                     android:id="@+id/view_type_indicator"
                     android:layout_width="3dp"
                     android:layout_height="16dp"
-                    android:background="#3B82F6" />
+                    android:background="@color/bill_blue" />
 
                 <TextView
                     android:id="@+id/tv_type_label"
@@ -54,7 +54,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginStart="9dp"
                 android:layout_marginTop="4dp"
-                android:textColor="#555555"
+                android:textColor="@color/text_muted"
                 android:textSize="13sp"
                 android:lineSpacingExtra="1dp" />
 
@@ -88,7 +88,7 @@
                     android:paddingStart="14dp"
                     android:paddingEnd="14dp"
                     android:text="编辑"
-                    android:textColor="#555555"
+                    android:textColor="@color/text_muted"
                     android:textSize="12sp" />
 
                 <TextView
@@ -110,7 +110,7 @@
                     android:layout_height="28dp"
                     android:gravity="center"
                     android:text="✓ 已记录"
-                    android:textColor="#10B981"
+                    android:textColor="@color/brand_green"
                     android:textSize="12sp"
                     android:textStyle="bold"
                     android:visibility="gone" />

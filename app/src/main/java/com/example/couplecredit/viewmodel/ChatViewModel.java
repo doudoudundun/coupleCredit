@@ -13,10 +13,7 @@ import com.example.couplecredit.model.ChatMessage;
 import com.example.couplecredit.api.AuthApiClient;
 import com.example.couplecredit.api.AuthApiModels;
 import com.example.couplecredit.repository.ChatRepository;
-import com.example.couplecredit.service.ChatSyncService;
 import com.example.couplecredit.utils.NetworkStateManager;
-import com.example.couplecredit.service.OfflineCacheManager;
-import com.example.couplecredit.service.OfflineService;
 import com.example.couplecredit.utils.UserInfoManager;
 
 import java.text.SimpleDateFormat;
@@ -29,17 +26,14 @@ import java.util.Locale;
  * 聊天界面ViewModel
  * 负责管理聊天界面的业务逻辑和UI状态
  * 实现MVVM架构中的ViewModel层，连接View和Repository
- * 支持云端数据库同步功能、网络状态检测和离线缓存
+ * 负责本地消息缓存、云端补偿同步和网络状态检测
  */
 public class ChatViewModel extends AndroidViewModel {
     
     // ==================== 成员变量 ====================
     
     private final ChatRepository chatRepository;
-    private ChatSyncService syncService;
     private NetworkStateManager networkStateManager;
-    private OfflineCacheManager offlineCacheManager;
-    private OfflineService offlineService;
     
     // UI状态相关的LiveData
     private final MutableLiveData<Boolean> isSearchMode = new MutableLiveData<>(false);
@@ -49,16 +43,7 @@ public class ChatViewModel extends AndroidViewModel {
     private final MutableLiveData<String> errorMessage = new MutableLiveData<>();
     private final MutableLiveData<String> successMessage = new MutableLiveData<>();
     
-    // 云端同步相关的LiveData
-    private final MutableLiveData<Boolean> isCloudSyncEnabled = new MutableLiveData<>(true);
     private final MutableLiveData<Boolean> isNetworkAvailable = new MutableLiveData<>(true);
-    private final MutableLiveData<String> syncStatusMessage = new MutableLiveData<>();
-    private final MutableLiveData<Integer> syncProgress = new MutableLiveData<>(0);
-    
-    // 离线缓存相关的LiveData
-    private final MutableLiveData<Integer> pendingMessagesCount = new MutableLiveData<>(0);
-    private final MutableLiveData<Integer> failedMessagesCount = new MutableLiveData<>(0);
-    private final MutableLiveData<String> offlineStatusMessage = new MutableLiveData<>();
     
     // 用户信息
     private int currentUserId = -1; // 从UserInfoManager获取
@@ -101,23 +86,12 @@ public class ChatViewModel extends AndroidViewModel {
      * @param application 应用程序实例
      */
     private void initializeCommonComponents(@NonNull Application application) {
-        this.syncService = new ChatSyncService(chatRepository.getChatMessageDao(), chatRepository.getCloudRepository());
-        
-        // 使用单例模式
         this.networkStateManager = NetworkStateManager.getInstance(application);
         this.networkStateManager.startNetworkMonitoring();
-        this.offlineCacheManager = OfflineCacheManager.getInstance(application);
-        this.offlineService = new OfflineService(application, syncService, offlineCacheManager);
         
         // 从UserInfoManager获取用户信息
         initializeUserInfoFromManager(application);
-        
-        // 监听同步状态
-        observeSyncStatus();
-        
-        // 监听网络状态和离线缓存状态
-        observeNetworkAndOfflineStatus();
-        
+        observeNetworkStatus();
         // 注意：不在构造函数中自动初始化数据，由Fragment根据登录状态决定是否调用
     }
     
@@ -187,64 +161,6 @@ public class ChatViewModel extends AndroidViewModel {
         return successMessage;
     }
     
-    // ==================== 云端同步相关方法 ====================
-    
-    /**
-     * 获取云端同步启用状态
-     * @return 云端同步启用状态的LiveData
-     */
-    public LiveData<Boolean> getIsCloudSyncEnabled() {
-        return isCloudSyncEnabled;
-    }
-    
-    /**
-     * 获取网络可用状态
-     * @return 网络可用状态的LiveData
-     */
-    public LiveData<Boolean> getIsNetworkAvailable() {
-        return isNetworkAvailable;
-    }
-    
-    /**
-     * 获取同步状态消息
-     * @return 同步状态消息的LiveData
-     */
-    public LiveData<String> getSyncStatusMessage() {
-        return syncStatusMessage;
-    }
-    
-    /**
-     * 获取同步进度
-     * @return 同步进度的LiveData
-     */
-    public LiveData<Integer> getSyncProgress() {
-        return syncProgress;
-    }
-    
-    /**
-     * 获取同步服务的状态LiveData
-     * @return 同步状态的LiveData
-     */
-    public LiveData<ChatSyncService.SyncStatus> getSyncStatus() {
-        return syncService.getSyncStatusLiveData();
-    }
-    
-    /**
-     * 获取同步服务的进度LiveData
-     * @return 同步进度的LiveData
-     */
-    public LiveData<ChatSyncService.SyncProgress> getSyncProgressDetail() {
-        return syncService.getSyncProgressLiveData();
-    }
-    
-    /**
-     * 获取同步错误LiveData
-     * @return 同步错误的LiveData
-     */
-    public LiveData<String> getSyncError() {
-        return syncService.getSyncErrorLiveData();
-    }
-    
     // ==================== 业务逻辑方法 ====================
     
     /**
@@ -273,11 +189,6 @@ public class ChatViewModel extends AndroidViewModel {
         // 检查网络状态
         checkNetworkStatus();
         
-        // 如果启用云端同步，执行增量同步
-        if (Boolean.TRUE.equals(isCloudSyncEnabled.getValue()) && 
-            Boolean.TRUE.equals(isNetworkAvailable.getValue())) {
-            performIncrementalSync();
-        }
     }
     
     /**
@@ -286,7 +197,6 @@ public class ChatViewModel extends AndroidViewModel {
     public void loadMessages() {
         isLoading.postValue(true);
         chatRepository.loadAllMessages();
-        // 已移除默认消息加载：chatRepository.saveDefaultMessages();
         isLoading.postValue(false);
     }
     
@@ -297,11 +207,8 @@ public class ChatViewModel extends AndroidViewModel {
         isLoading.postValue(true);
         // 重新加载所有消息
         chatRepository.loadAllMessages();
-        // 模拟网络延迟，提供更好的用户体验
-        new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
-            isLoading.postValue(false);
-            successMessage.postValue("消息已刷新");
-        }, 1000);
+        isLoading.postValue(false);
+        successMessage.postValue("消息已刷新");
     }
     
     /**
@@ -309,13 +216,9 @@ public class ChatViewModel extends AndroidViewModel {
      */
     public void loadNewerMessages() {
         isLoading.postValue(true);
-        // 获取当前最新消息的时间戳作为分页参数
         chatRepository.loadNewerMessages();
-        // 模拟网络延迟
-        new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
-            isLoading.postValue(false);
-            successMessage.postValue("新消息加载完成");
-        }, 800);
+        isLoading.postValue(false);
+        successMessage.postValue("新消息加载完成");
     }
     
     /**
@@ -323,13 +226,9 @@ public class ChatViewModel extends AndroidViewModel {
      */
     public void loadOlderMessages() {
         isLoading.postValue(true);
-        // 获取当前最老消息的时间戳作为分页参数
         chatRepository.loadOlderMessages();
-        // 模拟网络延迟
-        new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
-            isLoading.postValue(false);
-            successMessage.postValue("历史消息加载完成");
-        }, 800);
+        isLoading.postValue(false);
+        successMessage.postValue("历史消息加载完成");
     }
     
     /**
@@ -339,6 +238,10 @@ public class ChatViewModel extends AndroidViewModel {
     public void sendMessage(String content) {
         if (!isValidMessageContent(content)) {
             errorMessage.postValue("消息内容不能为空");
+            return;
+        }
+        if (currentUserId <= 0 || currentRelationshipId <= 0) {
+            errorMessage.postValue("请先绑定情侣并刷新聊天信息");
             return;
         }
         
@@ -361,36 +264,20 @@ public class ChatViewModel extends AndroidViewModel {
             message.setRelationshipId(currentRelationshipId);
             message.setMessageType("text");
             
-            // 检查网络状态
-            Boolean networkAvailable = isNetworkAvailable.getValue();
-            if (networkAvailable != null && networkAvailable && isCloudSyncEnabled.getValue() != null && isCloudSyncEnabled.getValue()) {
-                // 网络可用且启用云端同步，直接发送到云端
-                chatRepository.insertMessage(message, new ChatRepository.InsertCallback() {
-                    @Override
-                    public void onSuccess(long id) {
-                        successMessage.postValue("消息发送成功");
-                    }
-                    
-                    @Override
-                    public void onError(Exception e) {
-                        errorMessage.postValue("发送消息失败: " + e.getMessage());
-                    }
-                });
-            } else {
-                // 网络不可用或未启用云端同步，缓存到本地
-                chatRepository.insertMessage(message, new ChatRepository.InsertCallback() {
-                    @Override
-                    public void onSuccess(long id) {
-                        offlineCacheManager.addPendingMessage(message);
-                        successMessage.postValue("消息已缓存，网络恢复后将自动同步");
-                    }
-                    
-                    @Override
-                    public void onError(Exception e) {
-                        errorMessage.postValue("发送消息失败: " + e.getMessage());
-                    }
-                });
-            }
+            // 统一由Repository负责本地落盘和云端补偿同步，避免重复维护SharedPreferences离线队列。
+            chatRepository.insertMessage(message, new ChatRepository.InsertCallback() {
+                @Override
+                public void onSuccess(long id) {
+                    Boolean networkAvailable = isNetworkAvailable.getValue();
+                    successMessage.postValue(Boolean.TRUE.equals(networkAvailable)
+                            ? "消息发送成功" : "消息已保存，网络恢复后将自动同步");
+                }
+
+                @Override
+                public void onError(Exception e) {
+                    errorMessage.postValue("发送消息失败: " + e.getMessage());
+                }
+            });
             
             // 清空输入框
                 messageInput.postValue("");
@@ -457,134 +344,6 @@ public class ChatViewModel extends AndroidViewModel {
         });
     }
     
-    // ==================== 云端同步操作方法 ====================
-    
-    /**
-     * 执行完整数据迁移
-     */
-    public void performFullMigration() {
-        if (!Boolean.TRUE.equals(isNetworkAvailable.getValue())) {
-            errorMessage.postValue("网络不可用，无法执行数据迁移");
-            return;
-        }
-        
-        syncStatusMessage.postValue("正在执行数据迁移...");
-        
-        syncService.performFullMigration(new ChatSyncService.MigrationCallback() {
-            @Override
-            public void onSuccess(int migratedCount) {
-                syncStatusMessage.postValue(String.format("数据迁移完成，成功迁移 %d 条消息", migratedCount));
-                successMessage.postValue("数据迁移成功");
-            }
-            
-            @Override
-            public void onPartialSuccess(int successCount, int failureCount) {
-                syncStatusMessage.postValue(String.format("数据迁移部分成功：成功 %d 条，失败 %d 条", successCount, failureCount));
-                errorMessage.postValue("数据迁移部分失败");
-            }
-            
-            @Override
-            public void onError(String error) {
-                syncStatusMessage.postValue("数据迁移失败");
-                errorMessage.postValue("迁移失败: " + error);
-            }
-        });
-    }
-    
-    /**
-     * 执行增量同步
-     */
-    public void performIncrementalSync() {
-        if (!Boolean.TRUE.equals(isNetworkAvailable.getValue())) {
-            return; // 静默失败，不显示错误
-        }
-        
-        syncService.performIncrementalSync(new ChatSyncService.SyncCallback() {
-            @Override
-            public void onSuccess(ChatSyncService.SyncResult result) {
-                String message = String.format("同步完成：上传 %d 条，下载 %d 条，解决冲突 %d 条", 
-                    result.uploadedCount, result.downloadedCount, result.conflictCount);
-                syncStatusMessage.postValue(message);
-                
-                // 重新加载消息以显示最新数据
-                loadMessages();
-            }
-            
-            @Override
-            public void onError(String error) {
-                syncStatusMessage.postValue("同步失败: " + error);
-            }
-        });
-    }
-    
-    /**
-     * 手动同步到云端
-     */
-    public void syncToCloud() {
-        if (!Boolean.TRUE.equals(isNetworkAvailable.getValue())) {
-            errorMessage.postValue("网络不可用，无法同步到云端");
-            return;
-        }
-        
-        syncStatusMessage.postValue("正在同步到云端...");
-        chatRepository.syncToCloud(new ChatRepository.SyncCallback() {
-            @Override
-            public void onSuccess(String message) {
-                syncStatusMessage.postValue("同步到云端成功");
-                successMessage.postValue("数据已同步到云端");
-            }
-            
-            @Override
-            public void onError(Exception e) {
-                syncStatusMessage.postValue("同步到云端失败");
-                errorMessage.postValue("同步失败: " + e.getMessage());
-            }
-        });
-    }
-    
-    /**
-     * 从云端拉取数据
-     */
-    public void pullFromCloud() {
-        if (!Boolean.TRUE.equals(isNetworkAvailable.getValue())) {
-            errorMessage.postValue("网络不可用，无法从云端拉取数据");
-            return;
-        }
-        
-        syncStatusMessage.postValue("正在从云端拉取数据...");
-        chatRepository.pullFromCloud(new ChatRepository.SyncCallback() {
-            @Override
-            public void onSuccess(String message) {
-                syncStatusMessage.postValue("从云端拉取数据成功");
-                successMessage.postValue("已获取最新数据");
-                loadMessages(); // 重新加载消息
-            }
-            
-            @Override
-            public void onError(Exception e) {
-                syncStatusMessage.postValue("从云端拉取数据失败");
-                errorMessage.postValue("拉取失败: " + e.getMessage());
-            }
-        });
-    }
-    
-    /**
-     * 切换云端同步开关
-     * @param enabled 是否启用云端同步
-     */
-    public void setCloudSyncEnabled(boolean enabled) {
-        isCloudSyncEnabled.postValue(enabled);
-        chatRepository.setCloudSyncEnabled(enabled);
-        
-        if (enabled && Boolean.TRUE.equals(isNetworkAvailable.getValue())) {
-            // 启用同步时执行一次增量同步
-            performIncrementalSync();
-        }
-        
-        String message = enabled ? "云端同步已启用" : "云端同步已禁用";
-        successMessage.postValue(message);
-    }
-    
     /**
      * 从UserInfoManager初始化用户信息
      */
@@ -598,38 +357,35 @@ public class ChatViewModel extends AndroidViewModel {
                     @Override
                     public void onUserInfoLoaded(int userId, String username, Integer relationshipId) {
                         currentUsername = username;
-                        currentRelationshipId = relationshipId != null ? relationshipId : 1;
+                        currentRelationshipId = relationshipId != null && relationshipId > 0
+                                ? relationshipId : -1;
                         android.util.Log.d("ChatViewModel", "从UserInfoManager获取用户信息: userId=" + userId + ", username=" + username + ", relationshipId=" + currentRelationshipId);
                         
-                        // 更新syncService和chatRepository的用户信息
-                        if (syncService != null) {
-                            syncService.setCurrentUserInfo(currentUserId, currentRelationshipId);
-                        }
-                        if (chatRepository != null) {
-                            chatRepository.setCurrentUserId(currentUserId);
-                        }
+                        chatRepository.setCurrentUserId(currentUserId);
+                        chatRepository.setCurrentRelationshipId(currentRelationshipId);
                     }
                     
                     @Override
                     public void onError(String error) {
-                        android.util.Log.w("ChatViewModel", "获取用户信息失败: " + error + "，使用默认relationshipId");
-                        currentRelationshipId = 1;
+                        android.util.Log.w("ChatViewModel", "获取用户信息失败: " + error);
+                        currentRelationshipId = -1;
+                        chatRepository.setCurrentRelationshipId(currentRelationshipId);
                     }
                 });
             } else {
-                android.util.Log.w("ChatViewModel", "UserInfoManager中没有有效的用户ID，使用默认值");
-                this.currentUserId = 1;
-                this.currentRelationshipId = 1;
+                android.util.Log.w("ChatViewModel", "UserInfoManager中没有有效的用户ID");
+                this.currentUserId = -1;
+                this.currentRelationshipId = -1;
             }
         } else {
-            android.util.Log.w("ChatViewModel", "用户未登录，使用默认值");
-            this.currentUserId = 1;
-            this.currentRelationshipId = 1;
+            android.util.Log.w("ChatViewModel", "用户未登录");
+            this.currentUserId = -1;
+            this.currentRelationshipId = -1;
         }
         
-        // 立即设置基本用户信息到相关组件
-        syncService.setCurrentUserInfo(currentUserId, currentRelationshipId);
+        // 立即设置基本用户信息到云端Repository
         chatRepository.setCurrentUserId(currentUserId);
+        chatRepository.setCurrentRelationshipId(currentRelationshipId);
     }
     
     /**
@@ -641,9 +397,9 @@ public class ChatViewModel extends AndroidViewModel {
         this.currentUserId = userId;
         this.currentRelationshipId = relationshipId;
         
-        // 更新Repository和SyncService
+        // 更新云端Repository
         chatRepository.setCurrentUserId(userId);
-        syncService.setCurrentUserInfo(userId, relationshipId);
+        chatRepository.setCurrentRelationshipId(relationshipId);
     }
     
     /**
@@ -659,7 +415,8 @@ public class ChatViewModel extends AndroidViewModel {
                 UserInfoManager.getCurrentUserInfo(application, new UserInfoManager.UserInfoCallback() {
                     @Override
                     public void onUserInfoLoaded(int userId, String username, Integer relationshipId) {
-                        long relId = relationshipId != null ? relationshipId : 1;
+                        long relId = relationshipId != null && relationshipId > 0
+                                ? relationshipId : -1;
                         
                         // 更新用户信息
                         setUserInfo(userId, relId);
@@ -683,26 +440,6 @@ public class ChatViewModel extends AndroidViewModel {
     // ==================== 私有辅助方法 ====================
     
     /**
-     * 监听同步状态
-     */
-    private void observeSyncStatus() {
-        syncServiceProgressObserver = progress -> {
-            if (progress != null) {
-                syncProgress.postValue(progress.getPercentage());
-                syncStatusMessage.postValue(progress.message);
-            }
-        };
-        syncService.getSyncProgressLiveData().observeForever(syncServiceProgressObserver);
-
-        syncServiceErrorObserver = error -> {
-            if (error != null && !error.isEmpty()) {
-                syncStatusMessage.postValue("SYNC_FAILED");
-            }
-        };
-        syncService.getSyncErrorLiveData().observeForever(syncServiceErrorObserver);
-    }
-    
-    /**
      * 检查网络状态
      */
     private void checkNetworkStatus() {
@@ -711,9 +448,6 @@ public class ChatViewModel extends AndroidViewModel {
         boolean networkAvailable = chatRepository.isNetworkAvailable();
         isNetworkAvailable.setValue(networkAvailable);
         
-        if (!networkAvailable) {
-            syncStatusMessage.setValue("网络不可用，已切换到离线模式");
-        }
     }
     
     // ==================== 原有方法保持不变 ====================
@@ -773,14 +507,6 @@ public class ChatViewModel extends AndroidViewModel {
         errorMessage.postValue(null);
         successMessage.postValue(null);
         
-        // 重置同步状态
-        syncStatusMessage.postValue(null);
-        syncProgress.postValue(0);
-        
-        // 重置离线状态
-        pendingMessagesCount.postValue(0);
-        failedMessagesCount.postValue(0);
-        offlineStatusMessage.postValue(null);
     }
     
     /**
@@ -815,55 +541,20 @@ public class ChatViewModel extends AndroidViewModel {
      */
     public void cleanup() {
         try {
-            // 移除所有observeForever监听器
             if (networkStateManager != null && networkObserver != null) {
                 networkStateManager.getNetworkAvailability().removeObserver(networkObserver);
             }
-            if (offlineService != null && offlineStatusObserver != null) {
-                offlineService.getOfflineStatus().removeObserver(offlineStatusObserver);
-            }
-            if (offlineCacheManager != null && cacheStatsObserver != null) {
-                offlineCacheManager.getCacheStats().removeObserver(cacheStatsObserver);
-            }
-            if (offlineService != null && syncProgressObserver != null) {
-                offlineService.getSyncProgress().removeObserver(syncProgressObserver);
-            }
-            if (syncService != null && syncServiceProgressObserver != null) {
-                syncService.getSyncProgressLiveData().removeObserver(syncServiceProgressObserver);
-            }
-            if (syncService != null && syncServiceErrorObserver != null) {
-                syncService.getSyncErrorLiveData().removeObserver(syncServiceErrorObserver);
-            }
-            
-            // 清理同步服务
-            if (syncService != null) {
-                syncService.cleanup();
-            }
-            
-            // 清理网络状态管理器
             if (networkStateManager != null) {
                 networkStateManager.stopNetworkMonitoring();
             }
-            
-            // 清理离线服务
-            if (offlineService != null) {
-                offlineService.cleanup();
-            }
-            
-            // 清理离线缓存管理器
-            if (offlineCacheManager != null) {
-                offlineCacheManager.cleanup();
-            }
-            
-            // 清空所有LiveData
+
+            chatRepository.cleanup();
             isSearchMode.postValue(false);
             searchKeyword.postValue("");
             messageInput.postValue("");
             isLoading.postValue(false);
             errorMessage.postValue(null);
             successMessage.postValue(null);
-            syncStatusMessage.postValue(null);
-            offlineStatusMessage.postValue(null);
             
         } catch (Exception e) {
             // 忽略清理过程中的异常
@@ -911,15 +602,6 @@ public class ChatViewModel extends AndroidViewModel {
     }
     
     /**
-     * 检查云端同步是否启用
-     * @return 是否启用云端同步
-     */
-    public boolean isCloudSyncEnabled() {
-        Boolean enabled = isCloudSyncEnabled.getValue();
-        return enabled != null && enabled;
-    }
-    
-    /**
      * 检查网络是否可用
      * @return 网络是否可用
      */
@@ -964,179 +646,19 @@ public class ChatViewModel extends AndroidViewModel {
     }
 
     /**
-     * 监听网络状态和离线缓存状态
+     * 监听网络状态；网络恢复时复用Repository的单一同步入口。
      */
-    // 存储Observer引用以便清理
     private androidx.lifecycle.Observer<Boolean> networkObserver;
-    private androidx.lifecycle.Observer<OfflineService.OfflineStatus> offlineStatusObserver;
-    private androidx.lifecycle.Observer<OfflineCacheManager.CacheStats> cacheStatsObserver;
-    private androidx.lifecycle.Observer<OfflineService.SyncProgress> syncProgressObserver;
-    private androidx.lifecycle.Observer<ChatSyncService.SyncProgress> syncServiceProgressObserver;
-    private androidx.lifecycle.Observer<String> syncServiceErrorObserver;
-    
-    private void observeNetworkAndOfflineStatus() {
-        // 监听网络状态变化
+
+    private void observeNetworkStatus() {
         networkObserver = isConnected -> {
             isNetworkAvailable.postValue(isConnected);
-            
-            if (isConnected) {
-                syncStatusMessage.postValue("网络已连接，正在同步数据...");
-                // 网络恢复时自动同步
-                if (isCloudSyncEnabled.getValue() != null && isCloudSyncEnabled.getValue()) {
-                    // 检查OfflineService是否仍然可用
-                    try {
-                        offlineService.syncPendingMessages();
-                    } catch (Exception e) {
-                        // 忽略已关闭的ExecutorService异常
-                    }
-                }
-            } else {
-                syncStatusMessage.postValue("网络已断开，消息将缓存到本地");
+            if (Boolean.TRUE.equals(isConnected)
+                    && UserInfoManager.isUserLoggedIn(getApplication())) {
+                chatRepository.loadAllMessages();
             }
         };
         networkStateManager.getNetworkAvailability().observeForever(networkObserver);
-        
-        // 监听离线服务状态
-        offlineStatusObserver = status -> {
-            switch (status.getStatus()) {
-                case ONLINE:
-                    offlineStatusMessage.postValue("在线模式");
-                    break;
-                case OFFLINE:
-                    offlineStatusMessage.postValue("离线模式 - 消息已缓存");
-                    break;
-                case SYNCING:
-                    offlineStatusMessage.postValue("正在同步缓存的消息...");
-                    break;
-                case SYNC_FAILED:
-                    offlineStatusMessage.postValue("同步失败: " + status.getErrorMessage());
-                    break;
-            }
-        };
-        offlineService.getOfflineStatus().observeForever(offlineStatusObserver);
-        
-        // 监听缓存统计信息
-        cacheStatsObserver = stats -> {
-            pendingMessagesCount.postValue(stats.getPendingCount());
-            failedMessagesCount.postValue(stats.getFailedCount());
-        };
-        offlineCacheManager.getCacheStats().observeForever(cacheStatsObserver);
-        
-        // 监听同步进度
-        syncProgressObserver = progress -> {
-            syncProgress.postValue(progress.getProgressPercentage());
-            if (progress.getCurrentOperation() != null) {
-                syncStatusMessage.postValue(progress.getCurrentOperation());
-            }
-        };
-        offlineService.getSyncProgress().observeForever(syncProgressObserver);
-    }
-    
-    /**
-     * 获取待同步消息数量的LiveData
-     * @return 待同步消息数量
-     */
-    public LiveData<Integer> getPendingMessagesCount() {
-        return pendingMessagesCount;
-    }
-    
-    /**
-     * 获取同步失败消息数量的LiveData
-     * @return 同步失败消息数量
-     */
-    public LiveData<Integer> getFailedMessagesCount() {
-        return failedMessagesCount;
-    }
-    
-    /**
-     * 获取离线状态消息的LiveData
-     * @return 离线状态消息
-     */
-    public LiveData<String> getOfflineStatusMessage() {
-        return offlineStatusMessage;
-    }
-    
-    /**
-     * 获取网络状态的LiveData
-     * @return 网络状态
-     */
-    public LiveData<Boolean> getNetworkState() {
-        return networkStateManager.getNetworkAvailability();
-    }
-    
-    /**
-     * 获取离线服务状态的LiveData
-     * @return 离线服务状态
-     */
-    public LiveData<OfflineService.OfflineStatus> getOfflineServiceStatus() {
-        return offlineService.getOfflineStatus();
-    }
-    
-    /**
-     * 获取缓存统计信息的LiveData
-     * @return 缓存统计信息
-     */
-    public LiveData<OfflineCacheManager.CacheStats> getCacheStats() {
-        return offlineCacheManager.getCacheStats();
-    }
-    
-    /**
-     * 重试失败的同步操作
-     */
-    public void retryFailedSync() {
-        if (isNetworkAvailable.getValue() != null && isNetworkAvailable.getValue()) {
-            offlineService.retryFailedMessages();
-            successMessage.postValue("正在重试失败的消息同步...");
-        } else {
-            errorMessage.postValue("网络不可用，无法重试同步");
-        }
-    }
-    
-    /**
-     * 清除离线缓存
-     */
-    public void clearCache() {
-        offlineCacheManager.clearCache();
-        successMessage.postValue("缓存已清除");
-    }
-    
-    /**
-     * 获取缓存大小
-     * @return 缓存大小（字节）
-     */
-    public long getCacheSize() {
-        return offlineCacheManager.getCacheSize();
-    }
-    
-    /**
-     * 设置自动同步开关
-     * @param enabled 是否启用自动同步
-     */
-    public void setAutoSyncEnabled(boolean enabled) {
-        offlineService.setAutoSyncEnabled(enabled);
-        if (enabled) {
-            successMessage.postValue("自动同步已启用");
-        } else {
-            successMessage.postValue("自动同步已禁用");
-        }
-    }
-    
-    /**
-     * 检查是否有待同步的消息
-     * @return 是否有待同步的消息
-     */
-    public boolean hasPendingMessages() {
-        Integer count = pendingMessagesCount.getValue();
-        return count != null && count > 0;
-    }
-    
-    /**
-     * 检查是否有同步失败的消息
-     * @return 是否有同步失败的消息
-     */
-    public boolean hasFailedMessages() {
-        Integer count = failedMessagesCount.getValue();
-        return count != null && count > 0;
     }
 
     public LiveData<List<AuthApiModels.AiExtractionItem>> getAiExtractions() { return aiExtractions; }

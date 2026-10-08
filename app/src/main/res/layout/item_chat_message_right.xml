@@ -18,7 +18,7 @@
         android:layout_marginBottom="2dp"
         android:text="12:30"
         android:textSize="11sp"
-        android:textColor="#B0B0B0"
+        android:textColor="@color/text_disabled"
         android:visibility="gone" />
 
     <!-- 消息行 -->

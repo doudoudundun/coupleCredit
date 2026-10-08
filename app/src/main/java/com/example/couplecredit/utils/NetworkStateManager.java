@@ -22,6 +22,7 @@ public class NetworkStateManager {
     private final MutableLiveData<Boolean> isNetworkAvailable = new MutableLiveData<>(false);
     private final MutableLiveData<String> networkType = new MutableLiveData<>("NONE");
     private NetworkCallback networkCallback;
+    private boolean monitoring;
     
     private NetworkStateManager(Context context) {
         this.context = context.getApplicationContext();
@@ -146,13 +147,14 @@ public class NetworkStateManager {
      * 开始监听网络状态变化
      */
     public void startNetworkMonitoring() {
-        if (connectivityManager == null) {
+        if (connectivityManager == null || monitoring) {
             return;
         }
         
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && networkCallback != null) {
             NetworkRequest.Builder builder = new NetworkRequest.Builder();
             connectivityManager.registerNetworkCallback(builder.build(), networkCallback);
+            monitoring = true;
         }
     }
     
@@ -160,11 +162,14 @@ public class NetworkStateManager {
      * 停止监听网络状态变化
      */
     public void stopNetworkMonitoring() {
+        if (!monitoring) return;
         if (connectivityManager != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && networkCallback != null) {
             try {
                 connectivityManager.unregisterNetworkCallback(networkCallback);
             } catch (Exception e) {
                 // 忽略取消注册时的异常
+            } finally {
+                monitoring = false;
             }
         }
     }

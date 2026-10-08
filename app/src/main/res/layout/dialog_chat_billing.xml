@@ -36,7 +36,7 @@
             android:background="?android:attr/selectableItemBackgroundBorderless"
             android:padding="4dp"
             android:src="@drawable/ic_close"
-            app:tint="#666666" />
+            app:tint="@color/text_muted" />
     </LinearLayout>
 
     <!-- 收支类型切换 -->
@@ -56,7 +56,7 @@
             android:background="@drawable/tab_selected_background"
             android:gravity="center"
             android:text="支出"
-            android:textColor="#FFFFFF"
+            android:textColor="@color/white"
             android:textSize="14sp" />
 
         <TextView
@@ -182,7 +182,7 @@
                 android:layout_width="20dp"
                 android:layout_height="20dp"
                 android:src="@drawable/ic_calendar"
-                app:tint="#666666" />
+                app:tint="@color/text_muted" />
         </LinearLayout>
     </LinearLayout>
 
@@ -223,7 +223,7 @@
                 android:layout_width="20dp"
                 android:layout_height="20dp"
                 android:src="@drawable/ic_time"
-                app:tint="#666666" />
+                app:tint="@color/text_muted" />
         </LinearLayout>
     </LinearLayout>
 
@@ -256,7 +256,7 @@
                 android:background="@drawable/payer_selected_background"
                 android:gravity="center"
                 android:text="自己"
-                android:textColor="#FFFFFF"
+                android:textColor="@color/white"
                 android:textSize="14sp" />
 
             <TextView
@@ -342,7 +342,7 @@
             android:background="@drawable/button_primary_background"
             app:backgroundTint="@null"
             android:text="保存"
-            android:textColor="#FFFFFF"
+            android:textColor="@color/white"
             android:textSize="16sp" />
     </LinearLayout>
 

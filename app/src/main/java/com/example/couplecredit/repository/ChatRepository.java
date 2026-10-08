@@ -17,6 +17,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicLong;
 
 public class ChatRepository {
 
@@ -27,26 +28,23 @@ public class ChatRepository {
     private final ExecutorService databaseExecutor;
     private final MutableLiveData<List<ChatMessage>> allMessagesLiveData;
     private final MutableLiveData<List<ChatMessage>> searchResultsLiveData;
-    private final MutableLiveData<Boolean> syncStatusLiveData;
-    private final MutableLiveData<String> syncErrorLiveData;
     private final Context context;
 
-    private boolean isCloudSyncEnabled = true;
     private int currentUserId = -1;
+    private volatile long currentRelationshipId = -1;
+    private final AtomicLong relationshipGeneration = new AtomicLong();
 
     public ChatRepository(Context context) {
         this.context = context.getApplicationContext();
         ChatDatabase database = ChatDatabase.getInstance(context);
         chatMessageDao = database.chatMessageDao();
         cloudChatRepository = new CloudChatRepository(context);
-        databaseExecutor = Executors.newFixedThreadPool(4);
+        // 本地写入、同步状态更新和云端缓存刷新共享同一条队列，避免并发覆盖离线消息。
+        databaseExecutor = Executors.newSingleThreadExecutor();
         allMessagesLiveData = new MutableLiveData<>();
         searchResultsLiveData = new MutableLiveData<>();
-        syncStatusLiveData = new MutableLiveData<>();
-        syncErrorLiveData = new MutableLiveData<>();
 
         initializeUserInfoFromManager();
-        testCloudConnection();
     }
 
     public LiveData<List<ChatMessage>> getAllMessages() {
@@ -57,19 +55,11 @@ public class ChatRepository {
         return searchResultsLiveData;
     }
 
-    public LiveData<Boolean> getSyncStatus() {
-        return syncStatusLiveData;
-    }
-
-    public LiveData<String> getSyncError() {
-        return syncErrorLiveData;
-    }
-
     public void loadAllMessages() {
         if (databaseExecutor.isShutdown() || databaseExecutor.isTerminated()) return;
 
-        if (isNetworkAvailable() && isCloudSyncEnabled) {
-            loadMessagesFromCloud();
+        if (isNetworkAvailable()) {
+            syncPendingMessages(this::loadMessagesFromCloud);
         } else {
             loadMessagesFromLocal();
         }
@@ -80,28 +70,35 @@ public class ChatRepository {
             if (callback != null) callback.onError(new Exception("DatabaseExecutor已关闭"));
             return;
         }
+        if (message == null || currentRelationshipId <= 0
+                || message.getRelationshipId() != currentRelationshipId) {
+            if (callback != null) callback.onError(new Exception("当前情侣关系无效，请刷新后重试"));
+            return;
+        }
 
         databaseExecutor.execute(() -> {
             try {
+                if (message.getRelationshipId() != currentRelationshipId) {
+                    if (callback != null) callback.onError(new Exception("情侣关系已变化，消息未发送"));
+                    return;
+                }
                 ChatMessageEntity entity = convertMessageToEntity(message);
                 long localId = chatMessageDao.insertMessage(entity);
+                message.setId(localId);
                 Log.d(TAG, "消息已保存到本地数据库，ID: " + localId);
 
                 loadMessagesFromLocal();
 
-                if (isNetworkAvailable() && isCloudSyncEnabled) {
+                if (isNetworkAvailable()) {
                     syncMessageToCloud(message, new CloudSyncCallback() {
                         @Override
                         public void onSuccess() {
-                            syncStatusLiveData.postValue(true);
                             if (callback != null) callback.onSuccess(localId);
                         }
 
                         @Override
                         public void onError(Exception e) {
                             Log.w(TAG, "消息同步到云端失败，但本地保存成功", e);
-                            syncStatusLiveData.postValue(false);
-                            syncErrorLiveData.postValue("云端同步失败: " + e.getMessage());
                             if (callback != null) callback.onSuccess(localId);
                         }
                     });
@@ -116,10 +113,6 @@ public class ChatRepository {
         });
     }
 
-    public void updateMessage(ChatMessage message, UpdateCallback callback) {
-        if (callback != null) callback.onSuccess();
-    }
-
     public void deleteMessage(ChatMessage message, DeleteCallback callback) {
         if (databaseExecutor.isShutdown() || databaseExecutor.isTerminated()) {
             if (callback != null) callback.onError(new Exception("DatabaseExecutor已关闭"));
@@ -128,10 +121,15 @@ public class ChatRepository {
 
         databaseExecutor.execute(() -> {
             try {
+                if (currentRelationshipId <= 0
+                        || message.getRelationshipId() != currentRelationshipId) {
+                    if (callback != null) callback.onError(new Exception("无权删除其他关系的消息"));
+                    return;
+                }
                 if (message.getId() > 0) {
-                    chatMessageDao.deleteById(message.getId());
+                    chatMessageDao.deleteById(message.getId(), currentRelationshipId);
                 } else if (message.getCloudMessageId() != null && message.getCloudMessageId() != 0) {
-                    chatMessageDao.deleteByCloudId(message.getCloudMessageId());
+                    chatMessageDao.deleteByCloudId(message.getCloudMessageId(), currentRelationshipId);
                 } else {
                     Log.e(TAG, "无法删除消息：缺少消息ID, content=" + message.getContent());
                     if (callback != null) callback.onError(new Exception("无法删除消息：缺少消息ID"));
@@ -140,21 +138,19 @@ public class ChatRepository {
 
                 loadMessagesFromLocal();
 
-                if (isNetworkAvailable() && isCloudSyncEnabled) {
+                if (isNetworkAvailable()
+                        && message.getCloudMessageId() != null && message.getCloudMessageId() > 0) {
                     long cloudMessageId = (message.getCloudMessageId() != null && message.getCloudMessageId() != 0)
                             ? message.getCloudMessageId() : 0;
                     cloudChatRepository.deleteMessage(cloudMessageId, message.getContent(),
                             message.getTimestamp(), new CloudChatRepository.DeleteCallback() {
                                 @Override
                                 public void onSuccess() {
-                                    syncStatusLiveData.postValue(true);
                                 }
 
                                 @Override
                                 public void onError(Exception e) {
                                     Log.w(TAG, "消息删除同步到云端失败", e);
-                                    syncStatusLiveData.postValue(false);
-                                    syncErrorLiveData.postValue("删除同步失败: " + e.getMessage());
                                 }
                             });
                 }
@@ -169,20 +165,31 @@ public class ChatRepository {
     }
 
     public void searchMessages(String keyword) {
-        if (keyword == null || keyword.trim().isEmpty()) {
-            searchResultsLiveData.postValue(allMessagesLiveData.getValue());
+        final long relationshipId = currentRelationshipId;
+        final long generation = relationshipGeneration.get();
+        if (!isCurrentRelationship(relationshipId, generation)) {
+            searchResultsLiveData.postValue(new ArrayList<>());
             return;
         }
 
-        if (isNetworkAvailable() && isCloudSyncEnabled) {
+        if (keyword == null || keyword.trim().isEmpty()) {
+            searchResultsLiveData.postValue(filterMessagesForRelationship(
+                    allMessagesLiveData.getValue(), relationshipId));
+            return;
+        }
+
+        if (isNetworkAvailable()) {
             cloudChatRepository.searchMessages(keyword.trim(), new CloudChatRepository.QueryCallback() {
                 @Override
                 public void onSuccess(List<ChatMessage> messages) {
-                    searchResultsLiveData.postValue(messages);
+                    if (!isCurrentRelationship(relationshipId, generation)) return;
+                    searchResultsLiveData.postValue(
+                            filterMessagesForRelationship(messages, relationshipId));
                 }
 
                 @Override
                 public void onError(Exception e) {
+                    if (!isCurrentRelationship(relationshipId, generation)) return;
                     Log.w(TAG, "云端搜索失败，使用本地搜索", e);
                     searchMessagesFromLocal(keyword.trim());
                 }
@@ -192,100 +199,72 @@ public class ChatRepository {
         }
     }
 
-    public void syncToCloud(SyncCallback callback) {
+    private void syncPendingMessages(Runnable onComplete) {
         if (!isNetworkAvailable()) {
-            if (callback != null) callback.onError(new Exception("网络不可用"));
+            if (onComplete != null) onComplete.run();
             return;
         }
         if (databaseExecutor.isShutdown() || databaseExecutor.isTerminated()) {
-            if (callback != null) callback.onError(new Exception("DatabaseExecutor已关闭"));
+            if (onComplete != null) onComplete.run();
+            return;
+        }
+        final long relationshipId = currentRelationshipId;
+        if (relationshipId <= 0) {
+            if (onComplete != null) onComplete.run();
             return;
         }
 
         databaseExecutor.execute(() -> {
             try {
-                syncStatusLiveData.postValue(true);
-
-                List<ChatMessageEntity> localEntities = chatMessageDao.getAllMessages();
-                List<ChatMessage> localMessages = convertEntitiesToMessages(localEntities);
-
-                int successCount = 0;
-                int errorCount = 0;
-
-                for (ChatMessage message : localMessages) {
-                    try {
-                        syncMessageToCloudSync(message);
-                        successCount++;
-                    } catch (Exception e) {
-                        Log.w(TAG, "同步消息失败: " + message.getContent(), e);
-                        errorCount++;
-                    }
-                }
-
-                syncStatusLiveData.postValue(false);
-
-                if (callback != null) {
-                    if (errorCount == 0) {
-                        callback.onSuccess("同步成功：" + successCount + " 条消息");
-                    } else {
-                        callback.onError(new Exception("部分同步失败：成功 " + successCount + " 条，失败 " + errorCount + " 条"));
-                    }
-                }
-
+                syncPendingAt(chatMessageDao.getPendingMessages(relationshipId), 0, relationshipId, onComplete);
             } catch (Exception e) {
                 Log.e(TAG, "同步过程中发生错误", e);
-                syncStatusLiveData.postValue(false);
-                if (callback != null) callback.onError(e);
+                if (onComplete != null) onComplete.run();
             }
         });
     }
 
-    public void pullFromCloud(SyncCallback callback) {
-        if (!isNetworkAvailable()) {
-            if (callback != null) callback.onError(new Exception("网络不可用"));
+    private void syncPendingAt(List<ChatMessageEntity> pendingEntities, int index,
+                               long relationshipId, Runnable onComplete) {
+        if (index >= pendingEntities.size()) {
+            if (onComplete != null) onComplete.run();
+            return;
+        }
+        if (relationshipId <= 0 || relationshipId != currentRelationshipId) {
+            if (onComplete != null) onComplete.run();
             return;
         }
 
-        cloudChatRepository.getBatchChatData(new CloudChatRepository.BatchDataCallback() {
+        ChatMessageEntity entity = pendingEntities.get(index);
+        if (entity.getRelationshipId() != relationshipId) {
+            syncPendingAt(pendingEntities, index + 1, relationshipId, onComplete);
+            return;
+        }
+        ChatMessage message = convertEntitiesToMessages(java.util.Collections.singletonList(entity)).get(0);
+        syncMessageToCloud(message, new CloudSyncCallback() {
             @Override
-            public void onSuccess(CloudChatRepository.BatchChatData batchData) {
-                databaseExecutor.execute(() -> {
-                    try {
-                        chatMessageDao.deleteAllMessages();
-
-                        List<ChatMessageEntity> entities = new ArrayList<>();
-                        for (ChatMessage message : batchData.messages) {
-                            entities.add(convertMessageToEntity(message));
-                        }
-
-                        if (!entities.isEmpty()) {
-                            chatMessageDao.insertMessages(entities);
-                        }
-
-                        loadMessagesFromLocal();
-                        Log.d(TAG, "从云端拉取了 " + batchData.messages.size() + " 条消息");
-
-                        if (callback != null) {
-                            callback.onSuccess("拉取成功：" + batchData.messages.size() + " 条消息");
-                        }
-
-                    } catch (Exception e) {
-                        Log.e(TAG, "保存云端数据到本地失败", e);
-                        if (callback != null) callback.onError(e);
-                    }
-                });
+            public void onSuccess() {
+                databaseExecutor.execute(() -> syncPendingAt(
+                        pendingEntities, index + 1, relationshipId, onComplete));
             }
 
             @Override
             public void onError(Exception e) {
-                Log.e(TAG, "从云端拉取数据失败", e);
-                if (callback != null) callback.onError(e);
+                Log.w(TAG, "同步消息失败: " + message.getContent(), e);
+                databaseExecutor.execute(() -> {
+                    try {
+                        ChatMessageEntity failed = chatMessageDao.getMessageById(entity.getId(), relationshipId);
+                        if (failed != null) {
+                            failed.markSyncFailed();
+                            chatMessageDao.updateMessage(failed);
+                        }
+                    } catch (Exception updateError) {
+                        Log.w(TAG, "更新消息同步状态失败", updateError);
+                    }
+                    syncPendingAt(pendingEntities, index + 1, relationshipId, onComplete);
+                });
             }
         });
-    }
-
-    public void setCloudSyncEnabled(boolean enabled) {
-        this.isCloudSyncEnabled = enabled;
     }
 
     private void initializeUserInfoFromManager() {
@@ -294,10 +273,10 @@ public class ChatRepository {
             if (userId > 0) {
                 this.currentUserId = userId;
             } else {
-                this.currentUserId = 1;
+                this.currentUserId = -1;
             }
         } else {
-            this.currentUserId = 1;
+            this.currentUserId = -1;
         }
 
         if (cloudChatRepository != null) {
@@ -310,62 +289,95 @@ public class ChatRepository {
         cloudChatRepository.initializeUserInfo();
     }
 
-    public void saveDefaultMessages() {}
+    public void setCurrentRelationshipId(long relationshipId) {
+        long normalizedRelationshipId = relationshipId > 0 ? relationshipId : -1;
+        if (this.currentRelationshipId != normalizedRelationshipId) {
+            this.currentRelationshipId = normalizedRelationshipId;
+            relationshipGeneration.incrementAndGet();
+            allMessagesLiveData.postValue(new ArrayList<>());
+            searchResultsLiveData.postValue(new ArrayList<>());
+        }
+        cloudChatRepository.setCurrentRelationshipId((int) this.currentRelationshipId);
+    }
+
+    private boolean isCurrentRelationship(long relationshipId, long generation) {
+        return relationshipId > 0
+                && relationshipId == currentRelationshipId
+                && generation == relationshipGeneration.get();
+    }
 
     private void loadMessagesFromLocal() {
         if (databaseExecutor.isShutdown() || databaseExecutor.isTerminated()) return;
+        final long relationshipId = currentRelationshipId;
+        final long generation = relationshipGeneration.get();
+        if (!isCurrentRelationship(relationshipId, generation)) {
+            allMessagesLiveData.postValue(new ArrayList<>());
+            return;
+        }
 
         databaseExecutor.execute(() -> {
             try {
-                List<ChatMessageEntity> entities = chatMessageDao.getAllMessages();
+                List<ChatMessageEntity> entities = chatMessageDao.getMessagesForRelationship(relationshipId);
                 List<ChatMessage> messages = convertEntitiesToMessages(entities);
+                if (!isCurrentRelationship(relationshipId, generation)) return;
                 allMessagesLiveData.postValue(messages);
             } catch (Exception e) {
                 Log.e(TAG, "从本地加载消息失败", e);
-                allMessagesLiveData.postValue(new ArrayList<>());
+                if (isCurrentRelationship(relationshipId, generation)) {
+                    allMessagesLiveData.postValue(new ArrayList<>());
+                }
             }
         });
     }
 
     private void loadMessagesFromCloud() {
+        final long relationshipId = currentRelationshipId;
+        final long generation = relationshipGeneration.get();
+        if (!isCurrentRelationship(relationshipId, generation)) return;
         cloudChatRepository.getBatchChatData(new CloudChatRepository.BatchDataCallback() {
             @Override
             public void onSuccess(CloudChatRepository.BatchChatData batchData) {
-                allMessagesLiveData.postValue(batchData.messages);
-                syncStatusLiveData.postValue(true);
-                updateLocalCache(batchData.messages);
+                if (!isCurrentRelationship(relationshipId, generation)) return;
+                updateLocalCache(relationshipId, generation, batchData.messages,
+                        ChatRepository.this::loadMessagesFromLocal);
             }
 
             @Override
             public void onError(Exception e) {
+                if (!isCurrentRelationship(relationshipId, generation)) return;
                 Log.w(TAG, "从云端加载消息失败，使用本地数据", e);
-                syncStatusLiveData.postValue(false);
-                syncErrorLiveData.postValue("云端加载失败: " + e.getMessage());
                 loadMessagesFromLocal();
             }
         });
     }
 
     private void loadNewerMessagesFromCloud() {
+        final long relationshipId = currentRelationshipId;
+        final long generation = relationshipGeneration.get();
+        if (!isCurrentRelationship(relationshipId, generation)) return;
         cloudChatRepository.getAllMessages(new CloudChatRepository.QueryCallback() {
             @Override
             public void onSuccess(List<ChatMessage> newMessages) {
+                if (!isCurrentRelationship(relationshipId, generation)) return;
                 if (newMessages == null || newMessages.isEmpty()) return;
 
                 List<ChatMessage> allMessages = allMessagesLiveData.getValue();
                 if (allMessages == null) allMessages = new ArrayList<>();
 
-                List<ChatMessage> updatedMessages = new ArrayList<>(allMessages);
-                for (ChatMessage newMsg : newMessages) {
+                List<ChatMessage> updatedMessages = filterMessagesForRelationship(
+                        allMessages, relationshipId);
+                for (ChatMessage newMsg : filterMessagesForRelationship(newMessages, relationshipId)) {
                     if (!updatedMessages.contains(newMsg)) {
                         updatedMessages.add(newMsg);
                     }
                 }
+                if (!isCurrentRelationship(relationshipId, generation)) return;
                 allMessagesLiveData.postValue(updatedMessages);
             }
 
             @Override
             public void onError(Exception e) {
+                if (!isCurrentRelationship(relationshipId, generation)) return;
                 Log.w(TAG, "从云端加载新消息失败", e);
                 loadNewerMessagesFromLocal();
             }
@@ -373,26 +385,33 @@ public class ChatRepository {
     }
 
     private void loadOlderMessagesFromCloud() {
+        final long relationshipId = currentRelationshipId;
+        final long generation = relationshipGeneration.get();
+        if (!isCurrentRelationship(relationshipId, generation)) return;
         cloudChatRepository.getAllMessages(new CloudChatRepository.QueryCallback() {
             @Override
             public void onSuccess(List<ChatMessage> olderMessages) {
+                if (!isCurrentRelationship(relationshipId, generation)) return;
                 if (olderMessages == null || olderMessages.isEmpty()) return;
 
                 List<ChatMessage> allMessages = allMessagesLiveData.getValue();
                 if (allMessages == null) allMessages = new ArrayList<>();
+                allMessages = filterMessagesForRelationship(allMessages, relationshipId);
 
                 List<ChatMessage> updatedMessages = new ArrayList<>();
-                for (ChatMessage olderMsg : olderMessages) {
+                for (ChatMessage olderMsg : filterMessagesForRelationship(olderMessages, relationshipId)) {
                     if (!allMessages.contains(olderMsg)) {
                         updatedMessages.add(olderMsg);
                     }
                 }
                 updatedMessages.addAll(allMessages);
+                if (!isCurrentRelationship(relationshipId, generation)) return;
                 allMessagesLiveData.postValue(updatedMessages);
             }
 
             @Override
             public void onError(Exception e) {
+                if (!isCurrentRelationship(relationshipId, generation)) return;
                 Log.w(TAG, "从云端加载历史消息失败", e);
                 loadOlderMessagesFromLocal();
             }
@@ -400,11 +419,18 @@ public class ChatRepository {
     }
 
     private void loadNewerMessagesFromLocal() {
+        final long relationshipId = currentRelationshipId;
+        final long generation = relationshipGeneration.get();
+        if (!isCurrentRelationship(relationshipId, generation)) {
+            allMessagesLiveData.postValue(new ArrayList<>());
+            return;
+        }
         databaseExecutor.execute(() -> {
             try {
-                List<ChatMessageEntity> entities = chatMessageDao.getAllMessages();
+                List<ChatMessageEntity> entities = chatMessageDao.getMessagesForRelationship(relationshipId);
                 List<ChatMessage> messages = convertEntitiesToMessages(entities);
                 List<ChatMessage> currentMessages = allMessagesLiveData.getValue();
+                if (!isCurrentRelationship(relationshipId, generation)) return;
                 if (currentMessages == null || messages.size() > currentMessages.size()) {
                     allMessagesLiveData.postValue(messages);
                 }
@@ -415,9 +441,16 @@ public class ChatRepository {
     }
 
     private void loadOlderMessagesFromLocal() {
+        final long relationshipId = currentRelationshipId;
+        final long generation = relationshipGeneration.get();
+        if (!isCurrentRelationship(relationshipId, generation)) {
+            allMessagesLiveData.postValue(new ArrayList<>());
+            return;
+        }
         databaseExecutor.execute(() -> {
             try {
-                List<ChatMessageEntity> entities = chatMessageDao.getAllMessages();
+                List<ChatMessageEntity> entities = chatMessageDao.getMessagesForRelationship(relationshipId);
+                if (!isCurrentRelationship(relationshipId, generation)) return;
                 allMessagesLiveData.postValue(convertEntitiesToMessages(entities));
             } catch (Exception e) {
                 Log.e(TAG, "从本地加载历史消息失败", e);
@@ -430,14 +463,23 @@ public class ChatRepository {
             searchResultsLiveData.postValue(new ArrayList<>());
             return;
         }
+        final long relationshipId = currentRelationshipId;
+        final long generation = relationshipGeneration.get();
+        if (!isCurrentRelationship(relationshipId, generation)) {
+            searchResultsLiveData.postValue(new ArrayList<>());
+            return;
+        }
 
         databaseExecutor.execute(() -> {
             try {
-                List<ChatMessageEntity> entities = chatMessageDao.searchMessages(keyword);
+                List<ChatMessageEntity> entities = chatMessageDao.searchMessages(relationshipId, keyword);
+                if (!isCurrentRelationship(relationshipId, generation)) return;
                 searchResultsLiveData.postValue(convertEntitiesToMessages(entities));
             } catch (Exception e) {
                 Log.e(TAG, "本地搜索失败", e);
-                searchResultsLiveData.postValue(new ArrayList<>());
+                if (isCurrentRelationship(relationshipId, generation)) {
+                    searchResultsLiveData.postValue(new ArrayList<>());
+                }
             }
         });
     }
@@ -449,7 +491,8 @@ public class ChatRepository {
                 if (message.getId() > 0) {
                     databaseExecutor.execute(() -> {
                         try {
-                            ChatMessageEntity entity = chatMessageDao.getMessageById(message.getId());
+                            ChatMessageEntity entity = chatMessageDao.getMessageById(
+                                    message.getId(), message.getRelationshipId());
                             if (entity != null) {
                                 entity.setCloudMessageId(cloudMessageId);
                                 entity.setSyncStatus(1);
@@ -471,49 +514,37 @@ public class ChatRepository {
         });
     }
 
-    private void syncMessageToCloudSync(ChatMessage message) throws Exception {
-        final Exception[] syncException = {null};
-        final boolean[] syncCompleted = {false};
-
-        syncMessageToCloud(message, new CloudSyncCallback() {
-            @Override
-            public void onSuccess() { syncCompleted[0] = true; }
-
-            @Override
-            public void onError(Exception e) {
-                syncException[0] = e;
-                syncCompleted[0] = true;
-            }
-        });
-
-        while (!syncCompleted[0]) {
-            try {
-                Thread.sleep(100);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                throw new Exception("同步被中断", e);
-            }
-        }
-
-        if (syncException[0] != null) throw syncException[0];
-    }
-
-    private void updateLocalCache(List<ChatMessage> cloudMessages) {
+    private void updateLocalCache(long relationshipId, long generation,
+                                  List<ChatMessage> cloudMessages, Runnable onComplete) {
         if (databaseExecutor.isShutdown() || databaseExecutor.isTerminated()) return;
+        if (!isCurrentRelationship(relationshipId, generation)) {
+            if (onComplete != null) onComplete.run();
+            return;
+        }
 
         databaseExecutor.execute(() -> {
             try {
+                if (!isCurrentRelationship(relationshipId, generation)) {
+                    if (onComplete != null) onComplete.run();
+                    return;
+                }
                 ChatDatabase database = ChatDatabase.getInstance(context);
                 database.runInTransaction(() -> {
-                    chatMessageDao.deleteAllMessages();
+                    // 云端结果只替换已同步缓存，离线待上传消息必须保留。
+                    chatMessageDao.deleteSyncedMessages(relationshipId);
                     List<ChatMessageEntity> entities = new ArrayList<>();
                     for (ChatMessage message : cloudMessages) {
-                        entities.add(convertMessageToEntity(message));
+                        if (message.getRelationshipId() == relationshipId) {
+                            entities.add(convertMessageToEntity(message));
+                        }
                     }
                     if (!entities.isEmpty()) {
                         chatMessageDao.insertMessages(entities);
                     }
                 });
+                if (onComplete != null && isCurrentRelationship(relationshipId, generation)) {
+                    onComplete.run();
+                }
             } catch (Exception e) {
                 Log.e(TAG, "更新本地缓存失败", e);
                 if (e.getMessage() != null &&
@@ -529,19 +560,6 @@ public class ChatRepository {
                 }
             }
         });
-    }
-
-    private void testCloudConnection() {
-        if (isNetworkAvailable()) {
-            cloudChatRepository.testConnection(new CloudChatRepository.ConnectionTestCallback() {
-                @Override
-                public void onSuccess(boolean connected, String message) {
-                    syncStatusLiveData.postValue(true);
-                }
-            });
-        } else {
-            syncStatusLiveData.postValue(false);
-        }
     }
 
     public boolean isNetworkAvailable() {
@@ -573,6 +591,18 @@ public class ChatRepository {
         return messages;
     }
 
+    private List<ChatMessage> filterMessagesForRelationship(List<ChatMessage> messages,
+                                                             long relationshipId) {
+        List<ChatMessage> filtered = new ArrayList<>();
+        if (messages == null) return filtered;
+        for (ChatMessage message : messages) {
+            if (message != null && message.getRelationshipId() == relationshipId) {
+                filtered.add(message);
+            }
+        }
+        return filtered;
+    }
+
     private ChatMessageEntity convertMessageToEntity(ChatMessage message) {
         ChatMessageEntity entity = new ChatMessageEntity();
         entity.setUsername(message.getUsername());
@@ -584,16 +614,19 @@ public class ChatRepository {
         entity.setSentByMe(message.isSentByMe());
         entity.setMessageType(message.getMessageType());
         entity.setRelationshipId(message.getRelationshipId());
-        if (message.getId() > 0) entity.setId(message.getId());
         if (message.getCloudMessageId() != null && message.getCloudMessageId() > 0) {
             entity.setCloudMessageId(message.getCloudMessageId());
+            entity.setSyncStatus(1);
+            // 云端 id 只存到 cloudMessageId，Room 本地主键交给自动递增，避免与离线消息撞 ID。
+        } else if (message.getId() > 0) {
+            entity.setId(message.getId());
         }
         return entity;
     }
 
     public void loadNewerMessages() {
         if (databaseExecutor.isShutdown() || databaseExecutor.isTerminated()) return;
-        if (isNetworkAvailable() && isCloudSyncEnabled) {
+        if (isNetworkAvailable()) {
             loadNewerMessagesFromCloud();
         } else {
             loadNewerMessagesFromLocal();
@@ -602,7 +635,7 @@ public class ChatRepository {
 
     public void loadOlderMessages() {
         if (databaseExecutor.isShutdown() || databaseExecutor.isTerminated()) return;
-        if (isNetworkAvailable() && isCloudSyncEnabled) {
+        if (isNetworkAvailable()) {
             loadOlderMessagesFromCloud();
         } else {
             loadOlderMessagesFromLocal();
@@ -616,13 +649,12 @@ public class ChatRepository {
     public void clearAllMessages(boolean clearDatabase) {
         allMessagesLiveData.postValue(new ArrayList<>());
         searchResultsLiveData.postValue(new ArrayList<>());
-        syncStatusLiveData.postValue(false);
-        syncErrorLiveData.postValue(null);
 
         if (clearDatabase) {
             databaseExecutor.execute(() -> {
                 try {
-                    chatMessageDao.deleteAllMessages();
+                    // 该分支只由退出登录调用，刻意擦除本机所有账号/关系的聊天缓存。
+                    chatMessageDao.deleteAllMessagesForLogout();
                 } catch (Exception e) {
                     Log.e(TAG, "清空本地数据库失败", e);
                 }
@@ -639,31 +671,13 @@ public class ChatRepository {
         }
     }
 
-    public ChatMessageDao getChatMessageDao() {
-        return chatMessageDao;
-    }
-
-    public CloudChatRepository getCloudRepository() {
-        return cloudChatRepository;
-    }
-
     public interface InsertCallback {
         void onSuccess(long id);
         void onError(Exception e);
     }
 
-    public interface UpdateCallback {
-        void onSuccess();
-        void onError(Exception e);
-    }
-
     public interface DeleteCallback {
         void onSuccess();
-        void onError(Exception e);
-    }
-
-    public interface SyncCallback {
-        void onSuccess(String message);
         void onError(Exception e);
     }
 

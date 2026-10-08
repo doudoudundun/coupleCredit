@@ -55,6 +55,9 @@ public class CloudChatRepository {
                 }
             });
         } else {
+            currentUserId = -1;
+            currentUsername = null;
+            currentRelationshipId = -1;
             relationshipResolved = true;
         }
     }
@@ -75,8 +78,15 @@ public class CloudChatRepository {
     }
 
     public void insertMessage(ChatMessage message, int userId, InsertCallback callback) {
+        final long messageRelationshipId = message != null ? message.getRelationshipId() : -1;
         executeWhenReady(() -> {
-            AuthApiClient.insertChatMessage(context, currentRelationshipId, userId,
+            if (messageRelationshipId <= 0 || messageRelationshipId != currentRelationshipId) {
+                if (callback != null) {
+                    mainHandler.post(() -> callback.onError(new Exception("情侣关系已变化，消息未上传")));
+                }
+                return;
+            }
+            AuthApiClient.insertChatMessage(context, (int) messageRelationshipId, userId,
                     message.getContent(), "text", message.getTimestamp(), message.isLiked(),
                     new AuthApiClient.ChatInsertCallback() {
                         @Override
@@ -105,8 +115,13 @@ public class CloudChatRepository {
     public void insertMessage(long relationshipId, int userId, String content,
                               String messageType, String displayTime, boolean isLiked, InsertCallback callback) {
         executeWhenReady(() -> {
-            int relId = relationshipId > 0 ? (int) relationshipId : currentRelationshipId;
-            AuthApiClient.insertChatMessage(context, relId, userId,
+            if (relationshipId <= 0 || relationshipId != currentRelationshipId) {
+                if (callback != null) {
+                    mainHandler.post(() -> callback.onError(new Exception("情侣关系已变化，消息未上传")));
+                }
+                return;
+            }
+            AuthApiClient.insertChatMessage(context, (int) relationshipId, userId,
                     content, messageType, displayTime, isLiked,
                     new AuthApiClient.ChatInsertCallback() {
                         @Override
@@ -252,7 +267,7 @@ public class CloudChatRepository {
     }
 
     public void setCurrentRelationshipId(int relationshipId) {
-        this.currentRelationshipId = relationshipId;
+        this.currentRelationshipId = relationshipId > 0 ? relationshipId : -1;
     }
 
     public void setCurrentUserInfo(int userId, String username) {
@@ -263,15 +278,8 @@ public class CloudChatRepository {
     public void setCurrentUserInfo(int userId, String username, Integer relationshipId) {
         this.currentUserId = userId;
         this.currentUsername = username;
-        if (relationshipId != null) {
-            this.currentRelationshipId = relationshipId;
-        }
-    }
-
-    public void testConnection(ConnectionTestCallback callback) {
-        if (callback != null) {
-            callback.onSuccess(true, "HTTP API mode");
-        }
+        this.currentRelationshipId = relationshipId != null && relationshipId > 0
+                ? relationshipId : -1;
     }
 
     public void cleanup() {
@@ -315,7 +323,4 @@ public class CloudChatRepository {
         }
     }
 
-    public interface ConnectionTestCallback {
-        void onSuccess(boolean connected, String message);
-    }
 }
