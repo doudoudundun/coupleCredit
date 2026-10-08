@@ -26,6 +26,7 @@ import androidx.fragment.app.FragmentTransaction;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
 import com.example.couplecredit.R;
+import com.example.couplecredit.api.AuthApiClient;
 import com.example.couplecredit.utils.DataRefreshBus;
 import com.example.couplecredit.utils.NotificationHelper;
 import com.example.couplecredit.utils.PollingManager;
@@ -539,6 +540,8 @@ public class MainActivity extends AppCompatActivity {
         }
         hasResumedOnce = true;
         PollingManager.getInstance().start();
+        // 回到前台时静默续期临期 token，避免首个请求先吃 401
+        AuthApiClient.warmupSession(this);
     }
 
     @Override

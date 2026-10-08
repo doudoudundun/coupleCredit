@@ -31,6 +31,8 @@ public class AuthApiClient {
     public static final Gson GSON = new Gson();
     private static final int CONNECT_TIMEOUT_MS = 5000;
     private static final int READ_TIMEOUT_MS = 8000;
+    // access token 剩余有效期不足 2 分钟时主动续期（服务端默认签发 15 分钟）
+    private static final long PROACTIVE_REFRESH_WINDOW_MS = 120_000L;
     private static final String DEFAULT_ERROR = "服务器连接失败，请稍后重试";
 
     public interface Callback {
@@ -713,6 +715,12 @@ public class AuthApiClient {
                     }
                     byte[] payload = bytes.toByteArray();
                     SessionRefreshCoordinator.Session session = UserInfoManager.authSession(context);
+                    // 上传前同样主动续期临期 token，避免大图传输先白跑一轮 401
+                    if (session.refreshToken != null && SessionExpiry.expiresWithin(session.accessToken,
+                            System.currentTimeMillis(), PROACTIVE_REFRESH_WINDOW_MS)) {
+                        refreshSession(context, session);
+                        session = UserInfoManager.authSession(context);
+                    }
                     RequestResult result = uploadImageOnce(payload, fileName, session);
                     if (result.statusCode == 401) {
                         SessionRefreshCoordinator.Result refresh = refreshSession(context, session);
@@ -1821,9 +1829,16 @@ public class AuthApiClient {
             @Override
             protected RequestResult doInBackground(Void... voids) {
                 SessionRefreshCoordinator.Session session = UserInfoManager.authSession(context);
+                // 主动续期：access token 临期先静默刷新再发请求，避免每个请求先吃一次 401。
+                // 失败不致命（临时失败/凭证被拒都继续用原 session 试），401 被动路径兜底。
+                if (!isCredentialPath(path) && session.refreshToken != null
+                        && SessionExpiry.expiresWithin(session.accessToken,
+                                System.currentTimeMillis(), PROACTIVE_REFRESH_WINDOW_MS)) {
+                    refreshSession(context, session);
+                    session = UserInfoManager.authSession(context);
+                }
                 RequestResult result = executeOnce(method, path, bodyJson, readTimeout, session);
-                if (result.statusCode == 401 && !path.equals("/api/auth/login")
-                        && !path.equals("/api/auth/register") && !path.equals("/api/auth/refresh")) {
+                if (result.statusCode == 401 && !isCredentialPath(path)) {
                     SessionRefreshCoordinator.Result refresh = refreshSession(context, session);
                     if (refresh.state == SessionRefreshCoordinator.State.READY) {
                         result = executeOnce(method, path, bodyJson, readTimeout, refresh.session);
@@ -1909,6 +1924,30 @@ public class AuthApiClient {
                 return UserInfoManager.clearSessionIfCurrent(context, expected);
             }
         }, AuthApiClient::exchangeRefreshToken);
+    }
+
+    private static boolean isCredentialPath(String path) {
+        return path.equals("/api/auth/login") || path.equals("/api/auth/register")
+                || path.equals("/api/auth/refresh");
+    }
+
+    /**
+     * 前台预热：access token 临期（剩余不足 PROACTIVE_REFRESH_WINDOW_MS）时在后台静默续期。
+     * 未登录/凭证齐全且新鲜时是纯本地判断，不发请求；续期失败静默，由请求的 401 路径兜底。
+     */
+    public static void warmupSession(Context context) {
+        final Context appContext = context.getApplicationContext();
+        new AsyncTask<Void, Void, Void>() {
+            @Override
+            protected Void doInBackground(Void... voids) {
+                SessionRefreshCoordinator.Session session = UserInfoManager.authSession(appContext);
+                if (session.refreshToken != null && SessionExpiry.expiresWithin(session.accessToken,
+                        System.currentTimeMillis(), PROACTIVE_REFRESH_WINDOW_MS)) {
+                    refreshSession(appContext, session);
+                }
+                return null;
+            }
+        }.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR);
     }
 
     private static RequestResult refreshFailure(SessionRefreshCoordinator.State state) {
