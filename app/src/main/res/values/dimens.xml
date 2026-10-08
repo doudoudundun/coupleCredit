@@ -4,4 +4,22 @@
     <dimen name="chat_search_top_margin">8dp</dimen>
     <dimen name="chat_search_padding_top">8dp</dimen>
     <dimen name="segmented_tab_margin_top">5dp</dimen>
+
+    <!-- ===== 间距梯度 ===== -->
+    <dimen name="space_xs">4dp</dimen>
+    <dimen name="space_s">8dp</dimen>
+    <dimen name="space_m">12dp</dimen>
+    <dimen name="space_l">16dp</dimen>
+    <dimen name="space_xl">20dp</dimen>
+    <dimen name="space_xxl">24dp</dimen>
+
+    <!-- ===== 圆角 ===== -->
+    <dimen name="radius_card">20dp</dimen>        <!-- 彩色描边卡 -->
+    <dimen name="radius_card_small">12dp</dimen>  <!-- 小组件/输入框 -->
+    <dimen name="radius_button">14dp</dimen>      <!-- 胶囊按钮 -->
+
+    <!-- ===== 页面标准 ===== -->
+    <dimen name="page_padding_h">20dp</dimen>     <!-- 页面水平边距 -->
+    <dimen name="card_margin_h">12dp</dimen>      <!-- 卡片水平外边距 -->
+    <dimen name="card_margin_v">8dp</dimen>       <!-- 卡片垂直外边距 -->
 </resources>

@@ -27,4 +27,33 @@
         <item name="textAllCaps">false</item>
     </style>
 
+    <!-- ===== 统一文字样式梯度 ===== -->
+    <style name="Text.Title.Large" parent="">
+        <item name="android:textSize">22sp</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:textColor">@color/text_title</item>
+    </style>
+
+    <style name="Text.Title.Medium" parent="">
+        <item name="android:textSize">16sp</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:textColor">@color/text_title</item>
+    </style>
+
+    <style name="Text.Body" parent="">
+        <item name="android:textSize">14sp</item>
+        <item name="android:textColor">@color/text_body</item>
+    </style>
+
+    <style name="Text.Caption" parent="">
+        <item name="android:textSize">12sp</item>
+        <item name="android:textColor">@color/text_muted</item>
+    </style>
+
+    <style name="Text.Amount" parent="">
+        <item name="android:textSize">16sp</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:textColor">@color/text_title</item>
+    </style>
+
 </resources>

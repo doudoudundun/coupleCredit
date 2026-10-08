@@ -32,4 +32,20 @@
 
     <!-- 统一页面背景 -->
     <color name="bg_page">#F5F5F5</color>
+
+    <!-- ===== 品牌层（蓝绿分工：绿=操作/导航，蓝=记账数据，橙=收入/金额，粉=情侣点缀） ===== -->
+    <color name="brand_green">#07C160</color>        <!-- 操作按钮/导航选中/发送 -->
+    <color name="bill_blue">#1976D2</color>         <!-- 记账数据/记一笔流程 -->
+    <color name="income_orange">#F57C00</color>     <!-- 收入与金额高亮（统一 #FF9500 与 #F57C00） -->
+    <color name="couple_pink">#FF4081</color>       <!-- 点赞/情侣互动点缀 -->
+    <color name="expense_red">#E53935</color>       <!-- 支出/删除/错误（统一 8 种红） -->
+
+    <!-- ===== 模块层：彩色描边卡描边色（20dp 圆角白卡 + 模块色 1dp 描边） ===== -->
+    <color name="module_blue">#D6E7FF</color>       <!-- 财务 -->
+    <color name="module_green">#CDEDDC</color>      <!-- 健康/饮食 -->
+    <color name="module_orange">#F6DEC4</color>     <!-- 生活/库存（gold #F1E5B6 并入此色） -->
+    <color name="module_rose">#F3D6E1</color>       <!-- 情侣/关系 -->
+    <color name="module_indigo">#C5CAE9</color>     <!-- 计划 -->
+    <color name="module_teal">#D1ECE7</color>       <!-- 待办 -->
+    <color name="module_neutral">#E6EBF2</color>    <!-- 默认 -->
 </resources>

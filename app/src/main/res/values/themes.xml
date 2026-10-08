@@ -1,8 +1,16 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
     <!-- Base application theme. -->
     <style name="Base.Theme.Couplecredit" parent="Theme.Material3.DayNight.NoActionBar">
-        <!-- Customize your light theme here. -->
-        <!-- <item name="colorPrimary">@color/my_light_primary</item> -->
+        <!-- 主色：绿管全局操作，消灭 Material3 默认紫色泄漏（波纹/控件着色） -->
+        <item name="colorPrimary">@color/brand_green</item>
+        <item name="colorOnPrimary">@color/white</item>
+        <item name="colorSecondary">@color/brand_green</item>
+        <item name="colorOnSecondary">@color/white</item>
+        <!-- 底部导航选中底衬等容器色：默认薰衣草紫，改为浅绿 -->
+        <item name="colorPrimaryContainer">@color/module_green</item>
+        <item name="colorOnPrimaryContainer">@color/text_title</item>
+        <item name="colorSecondaryContainer">@color/module_green</item>
+        <item name="colorOnSecondaryContainer">@color/text_title</item>
     </style>
 
     <style name="Theme.Couplecredit" parent="Base.Theme.Couplecredit" />
