@@ -64,10 +64,18 @@ public class ReportFragment extends Fragment {
     private RecyclerView rvCategoryList;
     private CategoryDetailAdapter categoryDetailAdapter;
     private View fabRefreshReport;
+    private View llEmptyState;
     private int income_type = 0;
     private String currentChartFilter = "all";
     private String currentPieFilter = "all";
+    private float expenseTotalAmount;
+    private float incomeTotalAmount;
     private final List<Map<String, Object>> monthlyBills = new ArrayList<>();
+    private final List<MonthlyDataCallback> monthlyDataCallbacks = new ArrayList<>();
+    private String loadedMonthlyBillsKey;
+    private boolean monthlyBillsRequestInFlight;
+    private String monthlyBillsRequestKey;
+    private long monthlyBillsRequestGeneration;
     private final Gson gson = new Gson();
 
     private interface MonthlyDataCallback {
@@ -83,26 +91,12 @@ public class ReportFragment extends Fragment {
             int position = tab.getPosition();
             if (position == 0) {
                 income_type = 0;
-                if (tv_trend_title != null) {
-                    tv_trend_title.setText("支出趋势");
-                }
-                loadTrendData();
-                refreshPieChart();
-                getRemainer(new RemainingCallback() {
-                    @Override
-                    public void onResult(double remaining) {
-                        if (getActivity() != null && tv_remainer != null) {
-                            getActivity().runOnUiThread(() -> tv_remainer.setText("结余：￥" + String.format("%.2f", remaining)));
-                        }
-                    }
-                });
+                updateReportTypeLabels();
+                refreshChartData();
             } else if (position == 1) {
                 income_type = 1;
-                if (tv_trend_title != null) {
-                    tv_trend_title.setText("收入趋势");
-                }
-                loadTrendData();
-                refreshPieChart();
+                updateReportTypeLabels();
+                refreshChartData();
             }
         }
 
@@ -138,6 +132,7 @@ public class ReportFragment extends Fragment {
         tv_remainer = view.findViewById(R.id.tv_remainer);
         rvReportContent = view.findViewById(R.id.rv_report_content);
         fabRefreshReport = view.findViewById(R.id.fab_refresh_report);
+        llEmptyState = view.findViewById(R.id.ll_empty_state);
         rvReportContent.setLayoutManager(new LinearLayoutManager(getContext()));
 
         reportAdapter = new ReportAdapter(new ReportAdapter.ChartViewHolderCallback() {
@@ -152,6 +147,7 @@ public class ReportFragment extends Fragment {
                 TrendChart = holder.trendChart;
                 TrendContainer = holder.llTrendContainer;
 
+                updateReportTypeLabels();
                 setupFilterButtons();
                 setupTrendChart();
                 selectChartFilter("all", tv_filter_all);
@@ -167,6 +163,7 @@ public class ReportFragment extends Fragment {
                 tv_filter_partner_pie = holder.tvFilterPartnerPie;
                 tv_filter_shared_pie = holder.tvFilterSharedPie;
 
+                updateReportTypeLabels();
                 setupPieFilterButtons();
                 setupPieChart(holder.pieChartCategory);
                 setupCategoryList();
@@ -184,8 +181,7 @@ public class ReportFragment extends Fragment {
                 if (categoryDetailAdapter != null) {
                     categoryDetailAdapter.updateYearMonth(currentYear, currentMonth);
                 }
-                loadTrendData();
-                refreshPieChart();
+                refreshChartData();
             }));
         }
 
@@ -201,6 +197,8 @@ public class ReportFragment extends Fragment {
         }
 
         DataRefreshBus.subscribe(refreshListener);
+        updateReportTypeLabels();
+        refreshChartData();
     }
 
     @Override
@@ -243,14 +241,17 @@ public class ReportFragment extends Fragment {
         if (categoryDetailAdapter != null) {
             categoryDetailAdapter.updateYearMonth(currentYear, currentMonth);
         }
+        boolean tabChanged = false;
         if (segmentedTab != null) {
             TabLayout.Tab targetTab = "income".equals(type) ? segmentedTab.getTabAt(1) : segmentedTab.getTabAt(0);
             if (targetTab != null) {
+                tabChanged = !targetTab.isSelected();
                 targetTab.select();
             }
         }
-        loadTrendData();
-        refreshPieChart();
+        if (!tabChanged) {
+            refreshChartData();
+        }
     }
 
     private void setupSegmentedTab() {
@@ -267,6 +268,7 @@ public class ReportFragment extends Fragment {
             defaultTab.select();
         }
         segmentedTab.addOnTabSelectedListener(onTabSelectedListener);
+        updateReportTypeLabels();
     }
 
     private void setupFilterButtons() {
@@ -298,6 +300,7 @@ public class ReportFragment extends Fragment {
             selectedView.setElevation(8f);
         }
         currentChartFilter = filterType;
+        updateReportTypeLabels();
         loadTrendData();
     }
 
@@ -364,10 +367,11 @@ public class ReportFragment extends Fragment {
         UserInfoManager.getCurrentUserInfo(getContext(), new UserInfoManager.UserInfoCallback() {
             @Override
             public void onUserInfoLoaded(int userId, String username, Integer relationshipId) {
-                loadMonthlyBillsData(userId, relationshipId, new MonthlyDataCallback() {
+                loadMonthlyBillsData(userId, new MonthlyDataCallback() {
                     @Override
                     public void onDataLoaded() {
                         loadMonthlyTrendData();
+                        updateRemainingFromLoadedBills();
                     }
 
                     @Override
@@ -402,7 +406,7 @@ public class ReportFragment extends Fragment {
         float[] dailyAmounts = new float[daysInMonth + 1];
 
         for (Map<String, Object> bill : monthlyBills) {
-            if (!shouldIncludeBillWithFilter(bill, currentChartFilter)) {
+            if (!isBillOfCurrentType(bill) || !shouldIncludeBillWithFilter(bill, currentChartFilter)) {
                 continue;
             }
             String dateStr = (String) bill.get("date");
@@ -443,6 +447,9 @@ public class ReportFragment extends Fragment {
             getActivity().runOnUiThread(() -> {
                 updateChart(buildEmptyMonthEntries());
                 updateTotalAmount(0f);
+                if (tv_remainer != null) {
+                    tv_remainer.setText("结余：￥0.00");
+                }
             });
         }
     }
@@ -477,24 +484,94 @@ public class ReportFragment extends Fragment {
     }
 
     private void updateTotalAmount(float totalAmount) {
+        if (income_type == 0) {
+            expenseTotalAmount = totalAmount;
+        } else {
+            incomeTotalAmount = totalAmount;
+        }
         if (tv_total_amount != null) {
             String typeText = income_type == 0 ? "支出" : "收入";
             tv_total_amount.setText(typeText + ":￥" + String.format("%.2f", totalAmount));
         }
     }
 
+    private void updateReportTypeLabels() {
+        String trendTitle = income_type == 0 ? "支出趋势" : "收入趋势";
+        String categoryTitle = income_type == 0 ? "支出分类" : "收入分类";
+        if (tv_trend_title != null) {
+            tv_trend_title.setText(trendTitle);
+        }
+        if (currentTitleView != null) {
+            currentTitleView.setText(categoryTitle);
+        }
+        // Rebind the last total for the selected type when a ViewHolder is recreated.
+        float storedTotal = income_type == 0 ? expenseTotalAmount : incomeTotalAmount;
+        if (tv_total_amount != null) {
+            String typeText = income_type == 0 ? "支出" : "收入";
+            tv_total_amount.setText(typeText + ":￥" + String.format("%.2f", storedTotal));
+        }
+    }
+
     public void refreshChartData() {
-        loadTrendData();
-        refreshPieChart();
-        if (income_type == 0) {
-            getRemainer(new RemainingCallback() {
-                @Override
-                public void onResult(double remaining) {
-                    if (getActivity() != null && tv_remainer != null) {
-                        getActivity().runOnUiThread(() -> tv_remainer.setText("结余：￥" + String.format("%.2f", remaining)));
+        updateReportTypeLabels();
+        // 明确刷新时清除内存命中，下面的三张图共享同一次账单请求。
+        loadedMonthlyBillsKey = null;
+        monthlyBills.clear();
+        if (!UserInfoManager.isUserLoggedIn(getContext())) {
+            handleTrendDataError();
+            if (currentPieChart != null) {
+                currentPieChart.clear();
+                currentPieChart.invalidate();
+            }
+            if (tv_remainer != null) {
+                tv_remainer.setText("结余：￥0.00");
+            }
+            updateEmptyState();
+            return;
+        }
+
+        UserInfoManager.getCurrentUserInfo(getContext(), new UserInfoManager.UserInfoCallback() {
+            @Override
+            public void onUserInfoLoaded(int userId, String username, Integer relationshipId) {
+                loadMonthlyBillsData(userId, new MonthlyDataCallback() {
+                    @Override
+                    public void onDataLoaded() {
+                        loadMonthlyTrendData();
+                        if (currentPieChart != null && currentTitleView != null) {
+                            loadCategoryData(currentPieChart, currentTitleView);
+                        }
+                        updateRemainingFromLoadedBills();
                     }
-                }
-            });
+
+                    @Override
+                    public void onError(String error) {
+                        handleTrendDataError();
+                        if (tv_remainer != null) {
+                            tv_remainer.setText("结余：￥0.00");
+                        }
+                    }
+                });
+            }
+
+            @Override
+            public void onError(String error) {
+                handleTrendDataError();
+            }
+        });
+    }
+
+    private void updateRemainingFromLoadedBills() {
+        double income = 0;
+        double expense = 0;
+        for (Map<String, Object> bill : monthlyBills) {
+            Double amount = (Double) bill.get("amount");
+            Integer type = (Integer) bill.get("incomeType");
+            if (amount == null || type == null) continue;
+            if (type == 1) income += amount;
+            else expense += amount;
+        }
+        if (tv_remainer != null) {
+            tv_remainer.setText("结余：￥" + String.format("%.2f", income - expense));
         }
     }
 
@@ -600,7 +677,7 @@ public class ReportFragment extends Fragment {
         UserInfoManager.getCurrentUserInfo(getContext(), new UserInfoManager.UserInfoCallback() {
             @Override
             public void onUserInfoLoaded(int userId, String username, Integer relationshipId) {
-                loadMonthlyBillsData(userId, relationshipId, new MonthlyDataCallback() {
+                loadMonthlyBillsData(userId, new MonthlyDataCallback() {
                     @Override
                     public void onDataLoaded() {
                         if (currentPieChart != null && currentTitleView != null) {
@@ -633,7 +710,7 @@ public class ReportFragment extends Fragment {
         float totalAmount = 0f;
 
         for (Map<String, Object> bill : monthlyBills) {
-            if (!shouldIncludeBillWithFilter(bill, currentPieFilter)) {
+            if (!isBillOfCurrentType(bill) || !shouldIncludeBillWithFilter(bill, currentPieFilter)) {
                 continue;
             }
             String type = (String) bill.get("type");
@@ -700,7 +777,8 @@ public class ReportFragment extends Fragment {
     private int countBillsByCategory(String category) {
         int count = 0;
         for (Map<String, Object> bill : monthlyBills) {
-            if (category.equals(bill.get("type")) && shouldIncludeBillWithFilter(bill, currentPieFilter)) {
+            if (category.equals(bill.get("type")) && isBillOfCurrentType(bill)
+                    && shouldIncludeBillWithFilter(bill, currentPieFilter)) {
                 count++;
             }
         }
@@ -722,6 +800,11 @@ public class ReportFragment extends Fragment {
             return currentUserRole == 1 ? owner == 2 : owner == 1;
         }
         return true;
+    }
+
+    private boolean isBillOfCurrentType(Map<String, Object> bill) {
+        Integer type = (Integer) bill.get("incomeType");
+        return type == null || type == income_type;
     }
 
     private Map<String, Object> toBillMap(AuthApiModels.BillData bill) {
@@ -749,96 +832,104 @@ public class ReportFragment extends Fragment {
         return map;
     }
 
-    private void loadMonthlyBillsData(int userId, Integer relationshipId, MonthlyDataCallback callback) {
-        String cacheKey = "report_bills_" + userId + "_" + currentYear + "_" + currentMonth + "_" + income_type;
+    private void loadMonthlyBillsData(int userId, MonthlyDataCallback callback) {
+        String cacheKey = "report_bills_v2_" + userId + "_" + currentYear + "_" + currentMonth;
 
-        if (monthlyBills.isEmpty()) {
-            String cached = DataLocalCache.get(requireContext(), cacheKey);
-            if (cached != null) {
-                try {
-                    AuthApiModels.BillsQueryResponse r = gson.fromJson(cached, AuthApiModels.BillsQueryResponse.class);
-                    if (r != null && r.data != null && r.data.bills != null) {
-                        for (AuthApiModels.BillData bill : r.data.bills) {
-                            if (bill == null || bill.incomeType != income_type) continue;
-                            monthlyBills.add(toBillMap(bill));
-                        }
-                        if (callback != null) callback.onDataLoaded();
+        if (cacheKey.equals(loadedMonthlyBillsKey) && !monthlyBillsRequestInFlight) {
+            if (callback != null) callback.onDataLoaded();
+            return;
+        }
+
+        if (monthlyBillsRequestInFlight) {
+            if (cacheKey.equals(monthlyBillsRequestKey)) {
+                if (callback != null) {
+                    monthlyDataCallbacks.add(callback);
+                }
+                return;
+            }
+            // A month change supersedes the old request. Its callback may still arrive,
+            // but the generation check below prevents it from publishing old-month data.
+            monthlyDataCallbacks.clear();
+            monthlyBillsRequestInFlight = false;
+        }
+
+        if (callback != null) {
+            monthlyDataCallbacks.add(callback);
+        }
+
+        monthlyBillsRequestInFlight = true;
+        monthlyBillsRequestKey = cacheKey;
+        final long requestGeneration = ++monthlyBillsRequestGeneration;
+        final int requestYear = currentYear;
+        final int requestMonth = currentMonth;
+        monthlyBills.clear();
+        String cached = DataLocalCache.get(requireContext(), cacheKey);
+        if (cached != null) {
+            try {
+                AuthApiModels.BillsQueryResponse cachedResponse =
+                        gson.fromJson(cached, AuthApiModels.BillsQueryResponse.class);
+                if (cachedResponse != null && cachedResponse.data != null
+                        && cachedResponse.data.bills != null) {
+                    for (AuthApiModels.BillData bill : cachedResponse.data.bills) {
+                        if (bill != null) monthlyBills.add(toBillMap(bill));
                     }
-                } catch (Exception ignored) {}
+                }
+            } catch (Exception ignored) {
+                monthlyBills.clear();
             }
         }
 
-        AuthApiClient.queryBills(requireContext(), userId, currentYear, currentMonth, new AuthApiClient.BillsQueryCallback() {
+        AuthApiClient.queryBills(requireContext(), userId, requestYear, requestMonth, new AuthApiClient.BillsQueryCallback() {
             @Override
             public void onSuccess(AuthApiModels.BillsQueryResponse response) {
+                if (requestGeneration != monthlyBillsRequestGeneration
+                        || !cacheKey.equals(monthlyBillsRequestKey)) {
+                    return;
+                }
                 monthlyBills.clear();
                 if (response != null && response.data != null && response.data.bills != null) {
                     for (AuthApiModels.BillData bill : response.data.bills) {
-                        if (bill == null || bill.incomeType != income_type) {
-                            continue;
-                        }
-                        monthlyBills.add(toBillMap(bill));
+                        if (bill != null) monthlyBills.add(toBillMap(bill));
                     }
                 }
                 DataLocalCache.put(requireContext(), cacheKey, gson.toJson(response));
-                if (callback != null) {
-                    callback.onDataLoaded();
-                }
+                loadedMonthlyBillsKey = cacheKey;
+                monthlyBillsRequestInFlight = false;
+                notifyMonthlyDataCallbacks(null);
             }
 
             @Override
             public void onError(String message) {
-                monthlyBills.clear();
-                if (callback != null) {
-                    callback.onError(message);
+                if (requestGeneration != monthlyBillsRequestGeneration
+                        || !cacheKey.equals(monthlyBillsRequestKey)) {
+                    return;
                 }
+                loadedMonthlyBillsKey = cacheKey;
+                monthlyBillsRequestInFlight = false;
+                notifyMonthlyDataCallbacks(monthlyBills.isEmpty() ? message : null);
             }
         });
     }
 
-    private interface RemainingCallback {
-        void onResult(double remaining);
+    private void notifyMonthlyDataCallbacks(String error) {
+        List<MonthlyDataCallback> callbacks = new ArrayList<>(monthlyDataCallbacks);
+        monthlyDataCallbacks.clear();
+        for (MonthlyDataCallback dataCallback : callbacks) {
+            if (error == null) dataCallback.onDataLoaded();
+            else dataCallback.onError(error);
+        }
+        updateEmptyState();
     }
 
-    private void getRemainer(RemainingCallback callback) {
-        if (!UserInfoManager.isUserLoggedIn(getContext())) {
-            callback.onResult(0);
+    private void updateEmptyState() {
+        if (llEmptyState == null || rvReportContent == null || getActivity() == null) {
             return;
         }
-        UserInfoManager.getCurrentUserInfo(getContext(), new UserInfoManager.UserInfoCallback() {
-            @Override
-            public void onUserInfoLoaded(int userId, String username, Integer relationshipId) {
-                AuthApiClient.queryBills(requireContext(), userId, currentYear, currentMonth, new AuthApiClient.BillsQueryCallback() {
-                    @Override
-                    public void onSuccess(AuthApiModels.BillsQueryResponse response) {
-                        double income = 0;
-                        double expense = 0;
-                        if (response != null && response.data != null && response.data.bills != null) {
-                            for (AuthApiModels.BillData bill : response.data.bills) {
-                                if (bill == null) {
-                                    continue;
-                                }
-                                if (bill.incomeType == 1) {
-                                    income += bill.amount;
-                                } else {
-                                    expense += bill.amount;
-                                }
-                            }
-                        }
-                        callback.onResult(income - expense);
-                    }
-
-                    @Override
-                    public void onError(String message) {
-                        callback.onResult(0);
-                    }
-                });
-            }
-
-            @Override
-            public void onError(String error) {
-                callback.onResult(0);
-            }
+        final boolean empty = monthlyBills.isEmpty();
+        getActivity().runOnUiThread(() -> {
+            llEmptyState.setVisibility(empty ? View.VISIBLE : View.GONE);
+            rvReportContent.setVisibility(empty ? View.GONE : View.VISIBLE);
         });
     }
+
 }

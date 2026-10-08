@@ -10,7 +10,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_margin="10dp"
-        android:background="@drawable/rounded_card_background"
+        android:background="@drawable/bg_my_card_neutral"
         android:orientation="vertical"
         android:padding="8dp">
         
@@ -23,7 +23,7 @@
                 android:id="@+id/tv_additional_title"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="支出类目占比"
+                android:text="支出分类"
                 android:textColor="@color/text_body"
                 android:textSize="16sp"
                 android:textStyle="bold"

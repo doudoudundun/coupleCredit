@@ -11,6 +11,14 @@
         android:orientation="vertical"
         android:padding="2dp">
 
+        <TextView
+            style="@style/Text.Title.Large"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:paddingStart="@dimen/page_padding_h"
+            android:paddingTop="@dimen/space_xl"
+            android:text="统计" />
+
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -23,7 +31,7 @@
                 android:layout_height="wrap_content"
                 android:text="2025年7月 >"
                 android:textColor="@color/text_body"
-                android:textSize="12dp"
+                android:textSize="12sp"
                 android:textStyle="bold" />
 
             <View
@@ -35,9 +43,9 @@
                 android:id="@+id/tv_remainer"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="结余："
+                android:text="结余：￥0.00"
                 android:textColor="@color/text_body"
-                android:textSize="12dp"
+                android:textSize="12sp"
                 android:textStyle="bold" />
 
         </LinearLayout>
@@ -47,15 +55,49 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_margin="10dp"
-            android:background="@android:color/white" />
+            android:background="@android:color/white"
+            app:tabIndicatorColor="@color/bill_blue"
+            app:tabSelectedTextColor="@color/bill_blue"
+            app:tabTextAppearance="@style/SegmentTabTextStyle"
+            app:tabTextColor="@color/text_muted" />
 
-        <androidx.recyclerview.widget.RecyclerView
-            android:id="@+id/rv_report_content"
+        <FrameLayout
             android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:clipToPadding="false"
-            android:orientation="vertical"
-            android:paddingBottom="64dp" />
+            android:layout_height="match_parent">
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/rv_report_content"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:clipToPadding="false"
+                android:orientation="vertical"
+                android:paddingBottom="64dp" />
+
+            <LinearLayout
+                android:id="@+id/ll_empty_state"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:gravity="center"
+                android:orientation="vertical"
+                android:padding="32dp"
+                android:visibility="gone">
+
+                <ImageView
+                    android:layout_width="80dp"
+                    android:layout_height="80dp"
+                    android:alpha="0.5"
+                    android:src="@drawable/ic_empty_inventory" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="16dp"
+                    android:text="本月暂无数据"
+                    android:textColor="@color/text_disabled"
+                    android:textSize="16sp" />
+            </LinearLayout>
+        </FrameLayout>
 
     </LinearLayout>
 
