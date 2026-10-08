@@ -67,7 +67,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="确认"
-            android:textColor="#FFFFFF"
+            android:textColor="@color/white"
             android:background="@color/nav_selected"
             android:minWidth="80dp" />
 

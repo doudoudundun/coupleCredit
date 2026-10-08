@@ -46,7 +46,7 @@
                     android:layout_gravity="center_vertical"
                     android:layout_weight="1"
                     android:text="点我立即登录"
-                    android:textColor="#151515"
+                    android:textColor="@color/text_title"
                     android:textSize="16sp" />
 
                 <ImageView
@@ -57,6 +57,16 @@
                     android:src="@drawable/ic_arrow_right" />
 
             </LinearLayout>
+
+            <!-- 头像审核状态提示（审核中/未通过时可见） -->
+            <TextView
+                android:id="@+id/tv_avatar_status"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:textSize="13sp"
+                android:textColor="@color/income_orange"
+                android:visibility="gone" />
 
             <LinearLayout
                 android:id="@+id/ll_couple_info"
@@ -72,7 +82,7 @@
                     android:id="@+id/tv_couple_info"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:textColor="#686868"
+                    android:textColor="@color/text_muted"
                     android:textSize="13sp" />
             </LinearLayout>
         </LinearLayout>
@@ -83,8 +93,7 @@
             android:layout_marginTop="20dp"
             android:layout_marginBottom="8dp"
             android:text="管理中心"
-            android:textColor="#8D95A6"
-            android:textSize="12sp" />
+            style="@style/Text.Caption" />
 
         <LinearLayout
             android:id="@+id/ll_calorie_entry"
@@ -109,7 +118,7 @@
                     android:layout_height="match_parent"
                     android:contentDescription="热量管理"
                     android:src="@drawable/ic_restaurant"
-                    android:tint="#07C160" />
+                    android:tint="@color/brand_green" />
             </FrameLayout>
 
             <LinearLayout
@@ -141,7 +150,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
                     android:text="今日 0 / 2000 kcal"
-                    android:textColor="#07C160"
+                    android:textColor="@color/brand_green"
                     android:textSize="13sp" />
             </LinearLayout>
 
@@ -176,7 +185,7 @@
                     android:layout_height="match_parent"
                     android:contentDescription="经期管理"
                     android:src="@drawable/ic_calendar"
-                    android:tint="#E91E63" />
+                    android:tint="@color/couple_pink" />
             </FrameLayout>
 
             <LinearLayout
@@ -208,7 +217,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
                     android:text="登录后查看经期信息"
-                    android:textColor="#E91E63"
+                    android:textColor="@color/couple_pink"
                     android:textSize="13sp" />
             </LinearLayout>
 
@@ -225,8 +234,7 @@
             android:layout_marginTop="20dp"
             android:layout_marginBottom="8dp"
             android:text="生活概览"
-            android:textColor="#8D95A6"
-            android:textSize="12sp" />
+            style="@style/Text.Caption" />
 
         <GridLayout
             android:layout_width="match_parent"
@@ -414,7 +422,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
                     android:text="登录后查看资产统计"
-                    android:textColor="#3F51B5"
+                    android:textColor="@color/bill_blue"
                     android:textSize="13sp" />
             </LinearLayout>
 
@@ -450,7 +458,7 @@
                     android:layout_height="match_parent"
                     android:contentDescription="账号保险箱"
                     android:src="@drawable/ic_vault_lock"
-                    android:tint="#1976D2" />
+                    android:tint="@color/bill_blue" />
             </FrameLayout>
 
             <LinearLayout
@@ -490,8 +498,7 @@
             android:layout_marginTop="20dp"
             android:layout_marginBottom="8dp"
             android:text="快捷直达"
-            android:textColor="#8D95A6"
-            android:textSize="12sp" />
+            style="@style/Text.Caption" />
 
         <GridLayout
             android:layout_width="match_parent"
@@ -538,7 +545,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="4dp"
                     android:text="直接进入记账页"
-                    android:textColor="#777777"
+                    android:textColor="@color/text_muted"
                     android:textSize="12sp" />
             </LinearLayout>
 
@@ -548,7 +555,7 @@
                 android:layout_height="wrap_content"
                 android:layout_columnWeight="1"
                 android:layout_margin="6dp"
-                android:background="@drawable/bg_my_card_gold"
+                android:background="@drawable/bg_my_card_orange"
                 android:clickable="true"
                 android:focusable="true"
                 android:minHeight="112dp"
@@ -558,7 +565,7 @@
                 <FrameLayout
                     android:layout_width="38dp"
                     android:layout_height="38dp"
-                    android:background="@drawable/bg_my_chip_gold"
+                    android:background="@drawable/bg_my_chip_orange"
                     android:padding="8dp">
 
                     <ImageView
@@ -582,7 +589,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="4dp"
                     android:text="跳到支出统计"
-                    android:textColor="#777777"
+                    android:textColor="@color/text_muted"
                     android:textSize="12sp" />
             </LinearLayout>
 
@@ -627,7 +634,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="4dp"
                     android:text="去补货、看余量"
-                    android:textColor="#777777"
+                    android:textColor="@color/text_muted"
                     android:textSize="12sp" />
             </LinearLayout>
 
@@ -671,7 +678,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="4dp"
                     android:text="回到双方计划"
-                    android:textColor="#777777"
+                    android:textColor="@color/text_muted"
                     android:textSize="12sp" />
             </LinearLayout>
 
@@ -715,7 +722,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="4dp"
                     android:text="看做饭热量和清单"
-                    android:textColor="#777777"
+                    android:textColor="@color/text_muted"
                     android:textSize="12sp" />
             </LinearLayout>
 
@@ -759,7 +766,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="4dp"
                     android:text="继续记录堂食热量"
-                    android:textColor="#777777"
+                    android:textColor="@color/text_muted"
                     android:textSize="12sp" />
             </LinearLayout>
         </GridLayout>
@@ -770,8 +777,7 @@
             android:layout_marginTop="20dp"
             android:layout_marginBottom="8dp"
             android:text="账号与偏好"
-            android:textColor="#8D95A6"
-            android:textSize="12sp" />
+            style="@style/Text.Caption" />
 
         <LinearLayout
             android:layout_width="match_parent"

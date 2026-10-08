@@ -21,7 +21,7 @@ public class ApiConfigManager {
     private static final String TAG = "ApiConfigManager";
     private static final String PREFS_NAME = "api_config";
     private static final String KEY_CUSTOM_BASE_URL = "custom_base_url";
-    private static final String STABLE_BASE_URL = "https://api.datafun.online";
+    private static final String STABLE_BASE_URL = "https://api.couplecredit.top";
 
     public interface ConnectionTestCallback {
         void onSuccess(String url);
@@ -99,7 +99,8 @@ public class ApiConfigManager {
     public static String resolveResourceUrl(Context context, String resourceUrl) {
         if (resourceUrl == null || resourceUrl.isEmpty()) return null;
         if (resourceUrl.startsWith("http://") || resourceUrl.startsWith("https://")
-                || resourceUrl.startsWith("content://") || resourceUrl.startsWith("file://")) {
+                || resourceUrl.startsWith("content://") || resourceUrl.startsWith("file://")
+                || resourceUrl.startsWith("data:")) {
             return resourceUrl;
         }
         return getBaseUrl(context) + resourceUrl;
@@ -111,7 +112,26 @@ public class ApiConfigManager {
      * @param callback 回调
      */
     public static void testConnection(Context context, ConnectionTestCallback callback) {
-        String url = getBaseUrl(context);
+        testConnection(context, getBaseUrl(context), callback);
+    }
+
+    /**
+     * 测试指定地址，不修改当前 API 配置。设置页面可以用输入框中的临时地址做探测，
+     * 而不让测试请求改变正在使用的服务端地址。
+     */
+    public static void testConnection(Context context, String testUrl, ConnectionTestCallback callback) {
+        String url = testUrl == null ? "" : testUrl.trim();
+        if (url.isEmpty() || (!url.startsWith("http://") && !url.startsWith("https://"))) {
+            if (callback != null) {
+                callback.onError("请输入有效的服务器地址");
+            }
+            return;
+        }
+        executeConnectionTest(url, callback);
+    }
+
+    private static void executeConnectionTest(String url, ConnectionTestCallback callback) {
+        String normalizedUrl = url.endsWith("/") ? url.substring(0, url.length() - 1) : url;
         new AsyncTask<Void, Void, Boolean>() {
             private String errorMessage = "连接失败";
 
@@ -119,7 +139,7 @@ public class ApiConfigManager {
             protected Boolean doInBackground(Void... voids) {
                 HttpURLConnection connection = null;
                 try {
-                    URL testUrl = new URL(url + "/api/auth/healthz");
+                    URL testUrl = new URL(normalizedUrl + "/api/auth/healthz");
                     connection = (HttpURLConnection) testUrl.openConnection();
                     connection.setRequestMethod("GET");
                     connection.setConnectTimeout(5000);
@@ -152,7 +172,7 @@ public class ApiConfigManager {
             protected void onPostExecute(Boolean success) {
                 if (callback != null) {
                     if (success) {
-                        callback.onSuccess(url);
+                        callback.onSuccess(normalizedUrl);
                     } else {
                         callback.onError(errorMessage);
                     }

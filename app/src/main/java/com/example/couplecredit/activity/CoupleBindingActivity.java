@@ -4,8 +4,6 @@ import android.app.Dialog;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
-import android.content.Intent;
-import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.Button;
@@ -19,12 +17,11 @@ import androidx.appcompat.app.AppCompatActivity;
 
 import com.example.couplecredit.R;
 import com.example.couplecredit.api.AuthApiClient;
+import com.example.couplecredit.utils.UserInfoManager;
 
 public class CoupleBindingActivity extends AppCompatActivity {
     private Button btnGenerateInvite, btnInputInvite;
-    private SharedPreferences sharedPreferences;
     private int currentUserId;
-    private String currentUsername;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -42,39 +39,11 @@ public class CoupleBindingActivity extends AppCompatActivity {
     }
 
     private void initData() {
-        // 从Intent获取用户信息
-        Intent intent = getIntent();
-        String intentUserId = intent.getStringExtra("userId");
-        currentUsername = intent.getStringExtra("username");
-        
-        // 如果Intent中没有username，则从SharedPreferences获取
-        if (currentUsername == null || currentUsername.isEmpty()) {
-            sharedPreferences = getSharedPreferences("user_prefs", MODE_PRIVATE);
-            currentUsername = sharedPreferences.getString("username", "");
-        }
-
-        if (currentUsername == null || currentUsername.isEmpty()) {
+        currentUserId = UserInfoManager.getCurrentUserId(this);
+        if (currentUserId <= 0) {
             Toast.makeText(this, "用户信息异常，请重新登录", Toast.LENGTH_SHORT).show();
             finish();
-            return;
         }
-        
-        // 通过username查询真正的用户ID
-        AuthApiClient.resolveUsername(this, currentUsername, new AuthApiClient.SimpleIdCallback() {
-            @Override
-            public void onSuccess(int userId) {
-                currentUserId = userId;
-                // 用户ID获取成功，可以继续后续操作
-            }
-
-            @Override
-            public void onError(String message) {
-                runOnUiThread(() -> {
-                    Toast.makeText(CoupleBindingActivity.this, "获取用户信息失败: " + message, Toast.LENGTH_SHORT).show();
-                    finish();
-                });
-            }
-        });
     }
 
     private void setupListeners() {
@@ -171,7 +140,7 @@ public class CoupleBindingActivity extends AppCompatActivity {
             public void onFound(int userId, String username, String nickname) {
                 runOnUiThread(() -> {
                     String displayName = (nickname != null && !nickname.isEmpty()) ? nickname : username;
-                    showBindConfirmDialog(userId, displayName, dialog, btnConfirm);
+                    showBindConfirmDialog(inviteCode, displayName, dialog, btnConfirm);
                 });
             }
 
@@ -186,14 +155,14 @@ public class CoupleBindingActivity extends AppCompatActivity {
         });
     }
 
-    private void showBindConfirmDialog(int inviterId, String inviterUsername, AlertDialog inputDialog, Button btnConfirm) {
+    private void showBindConfirmDialog(String inviteCode, String inviterUsername, AlertDialog inputDialog, Button btnConfirm) {
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
         builder.setTitle("确认绑定");
         builder.setMessage("确定要与 " + inviterUsername + " 建立情侣关系吗？");
         
         builder.setPositiveButton("确定", (confirmDialog, which) -> {
             // 创建情侣关系
-            AuthApiClient.bindCouple(CoupleBindingActivity.this, inviterId, currentUserId, new AuthApiClient.SimpleIdCallback() {
+            AuthApiClient.bindCouple(CoupleBindingActivity.this, inviteCode, new AuthApiClient.SimpleIdCallback() {
                 @Override
                 public void onSuccess(int relationshipId) {
                     runOnUiThread(() -> {

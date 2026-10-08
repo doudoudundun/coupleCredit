@@ -16,12 +16,12 @@ public class AvatarUploadApi {
     private static final ExecutorService executor = Executors.newCachedThreadPool();
 
     public interface AvatarUploadCallback {
-        void onUploadSuccess(String avatarUrl);
+        void onUploadSuccess(String avatarUrl, String avatarStatus);
         void onUploadError(String error);
     }
 
     public interface UploadCallback {
-        void onSuccess(String avatarUrl);
+        void onSuccess(String avatarUrl, String avatarStatus);
         void onError(String error);
     }
 
@@ -43,10 +43,10 @@ public class AvatarUploadApi {
                 String fileName = "avatar_" + userId + "_" + System.currentTimeMillis() + ".jpg";
                 AuthApiClient.uploadImage(context, compressed, fileName, new AuthApiClient.ImageUploadCallback() {
                     @Override public void onSuccess(String imageUrl) {
-                        AuthApiClient.updateAvatar(context, userId, imageUrl, new AuthApiClient.SimpleCallback() {
-                            @Override public void onSuccess() {
-                                Log.d(TAG, "Avatar uploaded and saved: " + imageUrl);
-                                if (callback != null) callback.onUploadSuccess(imageUrl);
+                        AuthApiClient.updateAvatar(context, userId, imageUrl, new AuthApiClient.AvatarUpdateCallback() {
+                            @Override public void onSuccess(String avatarStatus, String message) {
+                                Log.d(TAG, "Avatar uploaded and saved: " + imageUrl + " status=" + avatarStatus);
+                                if (callback != null) callback.onUploadSuccess(imageUrl, avatarStatus);
                             }
                             @Override public void onError(String e) {
                                 Log.w(TAG, "Avatar uploaded but profile update failed: " + e);
@@ -68,8 +68,8 @@ public class AvatarUploadApi {
 
     public static void uploadAvatar(Context context, int userId, Uri imageUri, UploadCallback callback) {
         uploadAvatar(context, userId, imageUri, new AvatarUploadCallback() {
-            @Override public void onUploadSuccess(String avatarUrl) {
-                if (callback != null) callback.onSuccess(avatarUrl);
+            @Override public void onUploadSuccess(String avatarUrl, String avatarStatus) {
+                if (callback != null) callback.onSuccess(avatarUrl, avatarStatus);
             }
             @Override public void onUploadError(String error) {
                 if (callback != null) callback.onError(error);

@@ -4,12 +4,16 @@ import android.app.AlertDialog;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.Context;
+import android.graphics.Color;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
+import android.text.Editable;
+import android.text.TextWatcher;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
-import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
@@ -33,6 +37,7 @@ import com.example.couplecredit.api.AuthApiClient;
 import com.example.couplecredit.api.AuthApiModels;
 import com.example.couplecredit.api.AvatarUploadApi;
 import com.example.couplecredit.utils.NicknameCache;
+import com.example.couplecredit.utils.NotificationHelper;
 import com.example.couplecredit.utils.UserInfoManager;
 import com.example.couplecredit.utils.AvatarCacheManager;
 import com.example.couplecredit.utils.AvatarUpdateManager;
@@ -54,12 +59,16 @@ public class UserSettingsActivity extends AppCompatActivity {
     private LinearLayout llLogout;         // 注销用户选项
     private LinearLayout llCoupleInfo, llUnbindCouple;
     private TextView tvCoupleInfo, tvCoupleHint;
+    private TextView tvAvatarStatus;
     private ImageView ivUserAvatar, ivCoupleAvatar;
-    
+
     // 用户信息
     private String username;
     private String userId;
-    
+
+    // 内容安全 scene：1=资料（服务端 SCENE.PROFILE，覆盖用户名/昵称）
+    private static final int CONTENT_SCENE_PROFILE = 1;
+
     // 权限和图片选择相关常量
     private static final int REQUEST_PERMISSION_READ_EXTERNAL_STORAGE = 1001;
     private static final int REQUEST_IMAGE_PICK = 1002;
@@ -107,9 +116,12 @@ public class UserSettingsActivity extends AppCompatActivity {
 
         // 加载情侣信息
         loadCoupleInfo();
-        
+
         // 加载保存的头像
         loadSavedAvatar();
+
+        // 加载头像审核状态
+        loadAvatarSecurityStatus();
     }
 
     @Override
@@ -127,6 +139,7 @@ public class UserSettingsActivity extends AppCompatActivity {
         tvCoupleHint = findViewById(R.id.tv_couple_hint);
         llCoupleInfo = findViewById(R.id.ll_couple_info);
         tvCoupleInfo = findViewById(R.id.tv_couple_info);
+        tvAvatarStatus = findViewById(R.id.tv_avatar_status);
         ivCoupleAvatar = findViewById(R.id.iv_couple_avatar);
         llUnbindCouple = findViewById(R.id.ll_unbind_couple);
         llCoupleBinding = findViewById(R.id.ll_couple_binding);
@@ -427,6 +440,9 @@ public class UserSettingsActivity extends AppCompatActivity {
      * 执行退出登录操作
      */
     private void performSignOut() {
+        // 删除服务端推送 token（需要登录态，必须在清空本地登录态之前）
+        NotificationHelper.clearRegisteredToken(this);
+
         // 使用UserInfoManager清除用户信息
         UserInfoManager.clearUserInfo(this);
 
@@ -459,6 +475,9 @@ public class UserSettingsActivity extends AppCompatActivity {
             @Override
             public void onSuccess() {
                 runOnUiThread(() -> {
+                    // 删除服务端推送 token（需要登录态，必须在清空本地登录态之前）
+                    NotificationHelper.clearRegisteredToken(UserSettingsActivity.this);
+
                     // 使用UserInfoManager清空用户登录状态
                     UserInfoManager.clearUserInfo(UserSettingsActivity.this);
 
@@ -487,17 +506,70 @@ public class UserSettingsActivity extends AppCompatActivity {
     
     /**
      * 显示修改昵称对话框
+     *
+     * 昵称属 UGC，走 /api/security/check-text 审核（scene=资料）：
+     * 输入时防抖预检并内联提示；点确定后再做一次终检，未通过不关闭对话框。
      */
     private void showChangeNicknameDialog() {
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
         builder.setTitle("修改昵称");
-        
-        // 创建输入框
+
+        int pad = (int) (20 * getResources().getDisplayMetrics().density);
+        LinearLayout container = new LinearLayout(this);
+        container.setOrientation(LinearLayout.VERTICAL);
+        container.setPadding(pad, pad / 2, pad, 0);
+
         final EditText input = new EditText(this);
         input.setHint("请输入新昵称");
-        builder.setView(input);
-        
-        builder.setPositiveButton("确定", (dialog, which) -> {
+        container.addView(input);
+
+        final TextView securityHint = new TextView(this);
+        securityHint.setTextSize(12);
+        securityHint.setVisibility(View.GONE);
+        container.addView(securityHint);
+
+        builder.setView(container);
+        builder.setPositiveButton("确定", null);
+        builder.setNegativeButton("取消", null);
+
+        final AlertDialog dialog = builder.create();
+        final Handler debounceHandler = new Handler(Looper.getMainLooper());
+        final int[] checkSeq = {0};
+
+        input.addTextChangedListener(new TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+            @Override public void onTextChanged(CharSequence s, int start, int before, int count) {}
+
+            @Override
+            public void afterTextChanged(Editable s) {
+                String text = s.toString().trim();
+                debounceHandler.removeCallbacksAndMessages(null);
+                if (text.isEmpty() || text.length() > 20) {
+                    securityHint.setVisibility(View.GONE);
+                    return;
+                }
+                final int seq = ++checkSeq[0];
+                debounceHandler.postDelayed(() -> AuthApiClient.checkTextContent(UserSettingsActivity.this, text,
+                        CONTENT_SCENE_PROFILE, new AuthApiClient.SecurityCheckCallback() {
+                            @Override
+                            public void onResult(boolean pass, boolean degraded, String message) {
+                                if (seq != checkSeq[0]) return;
+                                showSecurityHint(securityHint, pass, message);
+                            }
+
+                            @Override
+                            public void onError(String m) {
+                                // 预检失败不打扰用户，提交时的终检兜底
+                                if (seq != checkSeq[0]) return;
+                                securityHint.setVisibility(View.GONE);
+                            }
+                        }), 600);
+            }
+        });
+
+        dialog.show();
+        // 覆盖默认点击行为：终检未通过时保持对话框打开，让用户直接改
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
             String newNickname = input.getText().toString().trim();
             if (newNickname.isEmpty()) {
                 Toast.makeText(this, "昵称不能为空", Toast.LENGTH_SHORT).show();
@@ -507,13 +579,42 @@ public class UserSettingsActivity extends AppCompatActivity {
                 Toast.makeText(this, "昵称长度不能超过20个字符", Toast.LENGTH_SHORT).show();
                 return;
             }
-            updateNickname(newNickname);
+            final int seq = ++checkSeq[0];
+            securityHint.setTextColor(Color.GRAY);
+            securityHint.setText("正在检查内容…");
+            securityHint.setVisibility(View.VISIBLE);
+            AuthApiClient.checkTextContent(this, newNickname, CONTENT_SCENE_PROFILE,
+                    new AuthApiClient.SecurityCheckCallback() {
+                        @Override
+                        public void onResult(boolean pass, boolean degraded, String message) {
+                            if (seq != checkSeq[0]) return;
+                            if (pass) {
+                                debounceHandler.removeCallbacksAndMessages(null);
+                                dialog.dismiss();
+                                updateNickname(newNickname);
+                            } else {
+                                showSecurityHint(securityHint, false, message);
+                            }
+                        }
+
+                        @Override
+                        public void onError(String m) {
+                            // 审核服务不可用时不阻断用户（与服务端 fail-open 口径一致）
+                            if (seq != checkSeq[0]) return;
+                            debounceHandler.removeCallbacksAndMessages(null);
+                            dialog.dismiss();
+                            updateNickname(newNickname);
+                        }
+                    });
         });
-        
-        builder.setNegativeButton("取消", null);
-        builder.show();
     }
-    
+
+    private void showSecurityHint(TextView hint, boolean pass, String message) {
+        hint.setTextColor(pass ? Color.rgb(56, 142, 60) : Color.rgb(211, 47, 47));
+        hint.setText(message);
+        hint.setVisibility(View.VISIBLE);
+    }
+
     /**
      * 更新用户昵称
      */
@@ -550,6 +651,35 @@ public class UserSettingsActivity extends AppCompatActivity {
     }
     
     /**
+     * 加载头像审核状态：pending=审核中，rejected=未通过。失败时静默隐藏提示。
+     */
+    private void loadAvatarSecurityStatus() {
+        AuthApiClient.getAvatarSecurityStatus(this, new AuthApiClient.AvatarStatusCallback() {
+            @Override
+            public void onLoaded(String avatarStatus, boolean shouldNotify) {
+                runOnUiThread(() -> applyAvatarStatusHint(avatarStatus));
+            }
+
+            @Override
+            public void onError(String message) {
+                runOnUiThread(() -> tvAvatarStatus.setVisibility(View.GONE));
+            }
+        });
+    }
+
+    private void applyAvatarStatusHint(String avatarStatus) {
+        if ("pending".equals(avatarStatus)) {
+            tvAvatarStatus.setText("头像审核中，审核通过前对方暂时看不到");
+            tvAvatarStatus.setVisibility(View.VISIBLE);
+        } else if ("rejected".equals(avatarStatus)) {
+            tvAvatarStatus.setText("头像审核未通过，请更换头像");
+            tvAvatarStatus.setVisibility(View.VISIBLE);
+        } else {
+            tvAvatarStatus.setVisibility(View.GONE);
+        }
+    }
+
+    /**
      * 上传头像到服务器
      * @param imageUri 图片URI
      */
@@ -558,22 +688,28 @@ public class UserSettingsActivity extends AppCompatActivity {
             Toast.makeText(this, "用户信息异常，无法上传头像", Toast.LENGTH_SHORT).show();
             return;
         }
-        
+
         try {
             int userIdInt = Integer.parseInt(userId);
             AvatarUploadApi.uploadAvatar(this, userIdInt, imageUri, new AvatarUploadApi.AvatarUploadCallback() {
                 @Override
-                 public void onUploadSuccess(String avatarUrl) {
+                 public void onUploadSuccess(String avatarUrl, String avatarStatus) {
                     runOnUiThread(() -> {
                         AvatarCacheManager.getInstance(UserSettingsActivity.this).clearUserAvatarCache(userIdInt);
                         SharedPreferences prefs = getSharedPreferences("user_avatars", Context.MODE_PRIVATE);
                         prefs.edit().putString(DatabaseConfig.PREF_AVATAR_URI + userId, avatarUrl).apply();
                         AvatarUpdateManager.notifyAvatarUpdated(UserSettingsActivity.this, userIdInt, avatarUrl);
                         AvatarCacheManager.getInstance(UserSettingsActivity.this).loadAvatar(UserSettingsActivity.this, ivUserAvatar, userIdInt, avatarUrl);
-                        Toast.makeText(UserSettingsActivity.this, "头像上传成功", Toast.LENGTH_SHORT).show();
+                        if ("pending".equals(avatarStatus)) {
+                            Toast.makeText(UserSettingsActivity.this, "头像已提交审核，审核通过前对方暂时看不到", Toast.LENGTH_LONG).show();
+                            applyAvatarStatusHint("pending");
+                        } else {
+                            Toast.makeText(UserSettingsActivity.this, "头像上传成功", Toast.LENGTH_SHORT).show();
+                            applyAvatarStatusHint(avatarStatus);
+                        }
                     });
                 }
-                
+
                 @Override
                 public void onUploadError(String error) {
                     runOnUiThread(() -> {
@@ -618,17 +754,16 @@ public class UserSettingsActivity extends AppCompatActivity {
 
         // 显示当前地址
         String currentUrl = ApiConfigManager.getBaseUrl(this);
-        boolean isCustom = ApiConfigManager.hasCustomUrl(this);
         String defaultUrl = ApiConfigManager.getDefaultUrl();
 
         // 创建输入框
         final EditText input = new EditText(this);
         input.setText(currentUrl);
-        input.setHint("输入服务器地址（默认：https://api.datafun.online）");
+        input.setHint("输入服务器地址（默认：https://api.couplecredit.top）");
 
         // 创建提示文本
         TextView tvHint = new TextView(this);
-        tvHint.setText("默认地址: " + defaultUrl + "\n优先使用稳定域名 https://api.datafun.online\n只有在你明确切换到其他服务器时，才需要手动修改这里。");
+        tvHint.setText("默认地址: " + defaultUrl + "\n优先使用稳定域名 https://api.couplecredit.top\n只有在你明确切换到其他服务器时，才需要手动修改这里。");
         tvHint.setTextSize(12);
         tvHint.setPadding(50, 10, 50, 10);
 
@@ -667,13 +802,11 @@ public class UserSettingsActivity extends AppCompatActivity {
             }
             Toast.makeText(this, "正在测试连接...", Toast.LENGTH_SHORT).show();
 
-            // 临时保存并测试
-            ApiConfigManager.setCustomBaseUrl(this, testUrl);
-            ApiConfigManager.testConnection(this, new ApiConfigManager.ConnectionTestCallback() {
+            // 仅探测输入地址，不改变当前配置；保存按钮才负责持久化地址。
+            ApiConfigManager.testConnection(this, testUrl, new ApiConfigManager.ConnectionTestCallback() {
                 @Override
                 public void onSuccess(String url) {
                     runOnUiThread(() -> {
-                        updateServerUrlDisplay();
                         Toast.makeText(UserSettingsActivity.this, "连接成功！", Toast.LENGTH_SHORT).show();
                     });
                 }
@@ -687,21 +820,8 @@ public class UserSettingsActivity extends AppCompatActivity {
             });
         });
 
-        if (isCustom) {
-            // 添加恢复默认选项
-            builder.setNeutralButton("测试连接", null);
-            // 在对话框显示后设置按钮点击
-        }
-
         AlertDialog dialog = builder.create();
         dialog.show();
-
-        // 如果有自定义URL，添加第四个按钮
-        if (isCustom) {
-            Button restoreButton = dialog.getButton(AlertDialog.BUTTON_NEUTRAL);
-            // 我们需要重新设置对话框以包含三个按钮：保存、取消、恢复默认
-            // 简化处理：不在这里添加恢复默认
-        }
     }
 
     /**

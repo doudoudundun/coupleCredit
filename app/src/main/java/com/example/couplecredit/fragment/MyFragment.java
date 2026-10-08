@@ -82,6 +82,7 @@ public class MyFragment extends Fragment {
     private LinearLayout llCoupleInfo;
     private TextView tvLoginText;
     private TextView tvCoupleInfo;
+    private TextView tvAvatarStatus;
     private TextView tvCalorieEntrySummary;
     private TextView tvPeriodEntrySummary;
     private TextView tvOverviewBillSummary;
@@ -175,6 +176,7 @@ public class MyFragment extends Fragment {
         llCoupleInfo = view.findViewById(R.id.ll_couple_info);
         tvLoginText = view.findViewById(R.id.tv_login_text);
         tvCoupleInfo = view.findViewById(R.id.tv_couple_info);
+        tvAvatarStatus = view.findViewById(R.id.tv_avatar_status);
         tvCalorieEntrySummary = view.findViewById(R.id.tv_calorie_entry_summary);
         tvPeriodEntrySummary = view.findViewById(R.id.tv_period_entry_summary);
         tvOverviewBillSummary = view.findViewById(R.id.tv_overview_bill_summary);
@@ -327,15 +329,20 @@ public class MyFragment extends Fragment {
 
                 AvatarUploadApi.uploadAvatar(getContext(), userIdInt, imageUri, new AvatarUploadApi.UploadCallback() {
                     @Override
-                    public void onSuccess(String avatarUrl) {
+                    public void onSuccess(String avatarUrl, String avatarStatus) {
                         if (getActivity() != null) {
                             getActivity().runOnUiThread(() -> {
-                                Toast.makeText(getContext(), "头像上传成功", Toast.LENGTH_SHORT).show();
+                                if ("pending".equals(avatarStatus)) {
+                                    Toast.makeText(getContext(), "头像已提交审核，审核通过前对方暂时看不到", Toast.LENGTH_LONG).show();
+                                } else {
+                                    Toast.makeText(getContext(), "头像上传成功", Toast.LENGTH_SHORT).show();
+                                }
                                 SharedPreferences prefs = requireContext().getSharedPreferences("user_avatars", Context.MODE_PRIVATE);
                                 prefs.edit().putString(DatabaseConfig.PREF_AVATAR_URI + userId, avatarUrl).apply();
                                 AvatarCacheManager.getInstance(requireContext()).clearUserAvatarCache(userIdInt);
                                 AvatarUpdateManager.notifyAvatarUpdated(getContext(), userIdInt, avatarUrl);
                                 AvatarCacheManager.getInstance(requireContext()).loadAvatar(requireContext(), ivUserAvatar, userIdInt, avatarUrl);
+                                applyAvatarStatusHint(avatarStatus);
                             });
                         }
                     }
@@ -460,6 +467,44 @@ public class MyFragment extends Fragment {
         }
     }
 
+    /**
+     * 加载头像审核状态：pending=审核中，rejected=未通过。仅登录后查询，失败时静默隐藏提示。
+     */
+    private void loadAvatarSecurityStatus() {
+        if (!isLoggedIn || getContext() == null) {
+            if (tvAvatarStatus != null) tvAvatarStatus.setVisibility(View.GONE);
+            return;
+        }
+        AuthApiClient.getAvatarSecurityStatus(getContext(), new AuthApiClient.AvatarStatusCallback() {
+            @Override
+            public void onLoaded(String avatarStatus, boolean shouldNotify) {
+                if (getActivity() == null) return;
+                getActivity().runOnUiThread(() -> applyAvatarStatusHint(avatarStatus));
+            }
+
+            @Override
+            public void onError(String message) {
+                if (getActivity() == null) return;
+                getActivity().runOnUiThread(() -> {
+                    if (tvAvatarStatus != null) tvAvatarStatus.setVisibility(View.GONE);
+                });
+            }
+        });
+    }
+
+    private void applyAvatarStatusHint(String avatarStatus) {
+        if (tvAvatarStatus == null) return;
+        if ("pending".equals(avatarStatus)) {
+            tvAvatarStatus.setText("头像审核中，审核通过前对方暂时看不到");
+            tvAvatarStatus.setVisibility(View.VISIBLE);
+        } else if ("rejected".equals(avatarStatus)) {
+            tvAvatarStatus.setText("头像审核未通过，请更换头像");
+            tvAvatarStatus.setVisibility(View.VISIBLE);
+        } else {
+            tvAvatarStatus.setVisibility(View.GONE);
+        }
+    }
+
     @Override
     public void onResume() {
         super.onResume();
@@ -475,7 +520,22 @@ public class MyFragment extends Fragment {
         super.onDestroyView();
     }
 
+    /**
+     * Refreshes the visible overview when returning to the tab or from a child page.
+     * The active tab is restored by MainActivity after PollingManager.stop() clears its action.
+     */
+    public void refreshData() {
+        if (!isAdded() || getView() == null) {
+            return;
+        }
+        checkUserLoginStatus(true);
+    }
+
     private void checkUserLoginStatus() {
+        checkUserLoginStatus(false);
+    }
+
+    private void checkUserLoginStatus(boolean forceOverview) {
         if (UserInfoManager.isUserLoggedIn(requireContext())) {
             String currentUsername = UserInfoManager.getCurrentUsername(requireContext());
             int currentUserIdInt = UserInfoManager.getCurrentUserId(requireContext());
@@ -498,9 +558,10 @@ public class MyFragment extends Fragment {
 
         updateLoginUI();
         loadSavedAvatar();
+        loadAvatarSecurityStatus();
         loadSummaryFromCache();
         // 7 个分散请求合并为 1 个聚合请求；15s 节流避免 onResume 高频重发
-        loadOverviewAggregated();
+        loadOverviewAggregated(forceOverview);
     }
 
     private static final long OVERVIEW_FETCH_MIN_INTERVAL_MS = 15_000L;
@@ -578,57 +639,45 @@ public class MyFragment extends Fragment {
         }
 
         // 3. 账单
-        if (data.bills != null && data.bills.data != null && data.bills.data.bills != null) {
-            List<AuthApiModels.BillData> bills = data.bills.data.bills;
-            if (bills.isEmpty()) {
+        if (data.billSummary != null && data.billSummary.data != null) {
+            AuthApiModels.OverviewBillSummaryData bills = data.billSummary.data;
+            if (bills.billCount <= 0) {
                 tvOverviewBillSummary.setText("本月暂无账单");
             } else {
-                double expense = 0;
-                double income = 0;
-                for (AuthApiModels.BillData bill : bills) {
-                    if (bill.incomeType == 1) income += bill.amount;
-                    else expense += bill.amount;
-                }
-                String text = "支出 ¥" + CalorieFormatUtils.formatNumber(expense) + " · 收入 ¥" + CalorieFormatUtils.formatNumber(income);
+                String text = "支出 ¥" + CalorieFormatUtils.formatNumber(bills.expense)
+                        + " · 收入 ¥" + CalorieFormatUtils.formatNumber(bills.income);
                 tvOverviewBillSummary.setText(text);
                 saveCache("bill", text);
             }
         }
 
         // 4. Todo
-        if (data.todos != null && data.todos.data != null && data.todos.data.items != null) {
-            List<AuthApiModels.TodoItemData> items = data.todos.data.items;
-            if (items.isEmpty()) {
+        if (data.todoSummary != null && data.todoSummary.data != null) {
+            AuthApiModels.OverviewTodoSummaryData todos = data.todoSummary.data;
+            if (todos.openCount + todos.doneCount + todos.missedCount <= 0) {
                 tvOverviewTodoSummary.setText("暂无待办事项");
             } else {
-                int openCount = 0, doneCount = 0, missedCount = 0;
-                for (AuthApiModels.TodoItemData item : items) {
-                    if ("done".equals(item.status)) doneCount++;
-                    else if ("missed".equals(item.status)) missedCount++;
-                    else openCount++;
-                }
-                String suffix = missedCount > 0 ? " · 逾期 " + missedCount : "";
-                String text = "待处理 " + openCount + " · 已完成 " + doneCount + suffix;
+                String suffix = todos.missedCount > 0 ? " · 逾期 " + todos.missedCount : "";
+                String text = "待处理 " + todos.openCount + " · 已完成 " + todos.doneCount + suffix;
                 tvOverviewTodoSummary.setText(text);
                 saveCache("todo", text);
             }
         }
 
         // 5. 库存
-        if (data.inventory != null && data.inventory.data != null && data.inventory.data.items != null) {
-            List<AuthApiModels.InventoryItemData> items = data.inventory.data.items;
-            if (items.isEmpty()) {
+        if (data.inventorySummary != null && data.inventorySummary.data != null) {
+            AuthApiModels.OverviewInventorySummaryData inventory = data.inventorySummary.data;
+            if (inventory.itemCount <= 0) {
                 tvOverviewInventorySummary.setText("家里还没有库存记录");
             } else {
-                int lowStockCount = 0, expiringCount = 0;
-                for (AuthApiModels.InventoryItemData item : items) {
-                    if (item.isLowStock) lowStockCount++;
-                    if (item.isExpired || item.isExpiring) expiringCount++;
-                }
                 StringBuilder summary = new StringBuilder();
-                summary.append(items.size()).append(" 项物资");
-                if (lowStockCount > 0) summary.append(" · ").append(lowStockCount).append(" 项偏低");
-                if (expiringCount > 0) summary.append(" · ").append(expiringCount).append(" 项临期");
+                summary.append(inventory.itemCount).append(" 项物资");
+                if (inventory.lowStockCount > 0) {
+                    summary.append(" · ").append(inventory.lowStockCount).append(" 项偏低");
+                }
+                if (inventory.expiringCount > 0) {
+                    summary.append(" · ").append(inventory.expiringCount).append(" 项临期");
+                }
                 String text = summary.toString();
                 tvOverviewInventorySummary.setText(text);
                 saveCache("inventory", text);
