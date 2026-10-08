@@ -69,6 +69,28 @@ public class AddBillFragment extends Fragment {
     private EditText etNote;// 备注输入框
     private TextView tvDate, tvSelf, tvPartner, tvShared;
     private AdaptiveGridLayout gridCategories;
+    private com.example.couplecredit.view.BillImageStripView billImageStrip;
+
+    // 待选图的类型（照片/小票），选图回调里据此归位
+    private int pendingImageType = com.example.couplecredit.view.BillImageStripView.TYPE_PHOTO;
+
+    private final androidx.activity.result.ActivityResultLauncher<android.content.Intent> imagePickerLauncher =
+            registerForActivityResult(new androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult(), result -> {
+                if (result.getResultCode() == Activity.RESULT_OK && result.getData() != null && result.getData().getData() != null) {
+                    if (billImageStrip != null) {
+                        billImageStrip.onImagePicked(result.getData().getData(), pendingImageType);
+                    }
+                }
+            });
+
+    private final androidx.activity.result.ActivityResultLauncher<String> mediaPermissionLauncher =
+            registerForActivityResult(new androidx.activity.result.contract.ActivityResultContracts.RequestPermission(), granted -> {
+                if (granted) {
+                    launchImagePicker();
+                } else {
+                    Toast.makeText(getContext(), "需要存储权限才能选择图片", Toast.LENGTH_SHORT).show();
+                }
+            });
 
     private TabLayout mTabLayout;
 
@@ -126,6 +148,7 @@ public class AddBillFragment extends Fragment {
         tvPartner = null;
         tvShared = null;
         tvWallet = null;
+        billImageStrip = null;
 
         super.onDestroyView();
     }
@@ -153,7 +176,15 @@ public class AddBillFragment extends Fragment {
         // 金额显示和备注
         tvAmountDisplay = view.findViewById(R.id.tv_amount_display);
         etNote = view.findViewById(R.id.et_note);
-        
+
+        // 账单图片（照片/小票）：记账页本身就是编辑场景
+        billImageStrip = view.findViewById(R.id.bill_image_strip);
+        billImageStrip.setEditMode(true);
+        billImageStrip.setOnPickImageListener(type -> {
+            pendingImageType = type;
+            ensureMediaPermissionThenPick();
+        });
+
         // 底部操作按钮
         tvDate = view.findViewById(R.id.tv_date);
 
@@ -175,8 +206,7 @@ public class AddBillFragment extends Fragment {
 
     private void setupListeners() {
         // 支出/收入切换
-        mTabLayout.addOnTabSelectedListener(new TabLayout.OnTabSelectedListener() {
-            @Override
+        mTabLayout.addOnTabSelectedListener(new TabLayout.OnTabSelectedListener() {            @Override
             public void onTabSelected(TabLayout.Tab tab) {
                 tab.getPosition();
                 switch (tab.getPosition()) {
@@ -212,6 +242,28 @@ public class AddBillFragment extends Fragment {
         tvShared.setOnClickListener(v -> selectOwner("共同", tvShared));
     }
     
+    private void ensureMediaPermissionThenPick() {
+        String permission = android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU
+                ? android.Manifest.permission.READ_MEDIA_IMAGES
+                : android.Manifest.permission.READ_EXTERNAL_STORAGE;
+        if (ContextCompat.checkSelfPermission(requireContext(), permission)
+                != PackageManager.PERMISSION_GRANTED) {
+            mediaPermissionLauncher.launch(permission);
+            return;
+        }
+        launchImagePicker();
+    }
+
+    private void launchImagePicker() {
+        Intent intent = new Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
+        intent.setType("image/*");
+        if (intent.resolveActivity(requireActivity().getPackageManager()) != null) {
+            imagePickerLauncher.launch(intent);
+        } else {
+            Toast.makeText(getContext(), "没有找到可用的图片选择应用", Toast.LENGTH_SHORT).show();
+        }
+    }
+
     private void switchToExpense() {
         isExpense = true;
         billType = "支出";
@@ -686,6 +738,10 @@ public class AddBillFragment extends Fragment {
             }
 
             // 使用新版本的BillUtils.insertBill方法，自动获取当前用户信息
+            if (billImageStrip != null && billImageStrip.isUploading()) {
+                CustomToast.show(getActivity(), "图片还在上传，请稍候再保存");
+                return;
+            }
             BillUtils.insertBill(getContext(),
                 note.isEmpty() ? selectedCategory : note, // 如果没有备注就用分类作为标题
                 selectedCategory,
@@ -695,6 +751,8 @@ public class AddBillFragment extends Fragment {
                 incomeType,
                 billOwner, // 传递账单归属信息
                 sharedPlanId, // 小钱包ID
+                billImageStrip != null ? billImageStrip.getPhotos() : null,
+                billImageStrip != null ? billImageStrip.getReceipts() : null,
                 new BillUtils.BillInsertCallback() {
                     @Override
                     public void onInsertSuccess(long id) {
@@ -731,15 +789,21 @@ public class AddBillFragment extends Fragment {
         currentAmount = new StringBuilder("0");
         etNote.setText("");
         updateAmountDisplay();
+        if (billImageStrip != null) {
+            billImageStrip.clear();
+        }
         Toast.makeText(getActivity(), "已清空，可继续记账", Toast.LENGTH_SHORT).show();
     }
-    
+
     private void clearInputs() {
         currentAmount = new StringBuilder("0");
         etNote.setText("");
         selectedCategory = "";
         billOwner = "自己";
         selectedSharedPlanIndex = -1;
+        if (billImageStrip != null) {
+            billImageStrip.clear();
+        }
 
         // 重置UI状态
         updateAmountDisplay();

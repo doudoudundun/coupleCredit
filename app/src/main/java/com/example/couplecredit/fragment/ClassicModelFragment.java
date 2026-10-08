@@ -1,6 +1,9 @@
 package com.example.couplecredit.fragment;
 
+import android.app.Activity;
+import android.content.Intent;
 import android.os.Bundle;
+import android.text.TextUtils;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -13,14 +16,18 @@ import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.Spinner;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AlertDialog;
+import androidx.core.content.ContextCompat;
 import androidx.fragment.app.Fragment;
 import androidx.lifecycle.ViewModelProvider;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
+
+import android.content.pm.PackageManager;
 
 import com.example.couplecredit.model.BillBean;
 import com.example.couplecredit.R;
@@ -47,12 +54,58 @@ public class ClassicModelFragment extends Fragment implements BillAdapter.OnItem
     private int currentYear;
     private int currentMonth;
     private TextView tvLoginPrompt;
+    private LinearLayout llEmptyState;
     private View fabQuickAddBill;
     private TextView tvExpenseAmount;
     private TextView tvIncomeAmount;
     private AlertDialog mDialog;
     private View dialogView;
     private ClassicViewModel viewModel;
+
+    // 账单图片（照片/小票）编辑条，绑定当前弹窗里的 bill_image_strip
+    private com.example.couplecredit.view.BillImageStripView dialogImageStrip;
+    private BillBean dialogBill;
+    private int pendingImageType = com.example.couplecredit.view.BillImageStripView.TYPE_PHOTO;
+
+    private final androidx.activity.result.ActivityResultLauncher<android.content.Intent> imagePickerLauncher =
+            registerForActivityResult(new androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult(), result -> {
+                if (result.getResultCode() == Activity.RESULT_OK && result.getData() != null && result.getData().getData() != null) {
+                    if (dialogImageStrip != null) {
+                        dialogImageStrip.onImagePicked(result.getData().getData(), pendingImageType);
+                    }
+                }
+            });
+
+    private final androidx.activity.result.ActivityResultLauncher<String> mediaPermissionLauncher =
+            registerForActivityResult(new androidx.activity.result.contract.ActivityResultContracts.RequestPermission(), granted -> {
+                if (granted) {
+                    launchImagePicker();
+                } else {
+                    Toast.makeText(requireContext(), "需要存储权限才能选择图片", Toast.LENGTH_SHORT).show();
+                }
+            });
+
+    private void ensureMediaPermissionThenPick() {
+        String permission = android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU
+                ? android.Manifest.permission.READ_MEDIA_IMAGES
+                : android.Manifest.permission.READ_EXTERNAL_STORAGE;
+        if (ContextCompat.checkSelfPermission(requireContext(), permission)
+                != PackageManager.PERMISSION_GRANTED) {
+            mediaPermissionLauncher.launch(permission);
+            return;
+        }
+        launchImagePicker();
+    }
+
+    private void launchImagePicker() {
+        Intent intent = new Intent(Intent.ACTION_PICK, android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
+        intent.setType("image/*");
+        if (intent.resolveActivity(requireActivity().getPackageManager()) != null) {
+            imagePickerLauncher.launch(intent);
+        } else {
+            Toast.makeText(requireContext(), "没有找到可用的图片选择应用", Toast.LENGTH_SHORT).show();
+        }
+    }
 
     @Nullable
     @Override
@@ -73,6 +126,7 @@ public class ClassicModelFragment extends Fragment implements BillAdapter.OnItem
         tvExpenseAmount = view.findViewById(R.id.tv_expense_amount);
         tvIncomeAmount = view.findViewById(R.id.tv_income_amount);
         tvLoginPrompt = view.findViewById(R.id.tv_login_prompt);
+        llEmptyState = view.findViewById(R.id.ll_empty_state);
         fabQuickAddBill = view.findViewById(R.id.fab_quick_add_bill);
 
         LinearLayout llExpenseCard = view.findViewById(R.id.ll_expense_card);
@@ -97,6 +151,7 @@ public class ClassicModelFragment extends Fragment implements BillAdapter.OnItem
             if (billAdapter != null) {
                 billAdapter.notifyDataSetChanged();
             }
+            updateEmptyState();
         });
         viewModel.getTotalIncome().observe(getViewLifecycleOwner(), income -> {
             if (tvIncomeAmount != null && income != null) {
@@ -114,6 +169,7 @@ public class ClassicModelFragment extends Fragment implements BillAdapter.OnItem
             } else {
                 showLoginPrompt();
             }
+            updateEmptyState();
         });
         viewModel.getMonthTitle().observe(getViewLifecycleOwner(), title -> {
             if (tvMonthTitle != null && title != null) {
@@ -206,6 +262,19 @@ public class ClassicModelFragment extends Fragment implements BillAdapter.OnItem
         ImageButton btnConfirm = dialogView.findViewById(R.id.btn_confirm);
         ImageButton btnCancel = dialogView.findViewById(R.id.btn_cancel);
         LinearLayout llNoteCard = dialogView.findViewById(R.id.ll_note_card);
+        com.example.couplecredit.view.BillImageStripView imageStrip = dialogView.findViewById(R.id.bill_image_strip);
+
+        // 账单图片：弹窗初始为查看态，进入编辑后允许增删
+        dialogImageStrip = imageStrip;
+        dialogBill = bill;
+        if (imageStrip != null) {
+            imageStrip.setEditMode(false);
+            imageStrip.setImages(bill.getPhotos(), bill.getReceipts());
+            imageStrip.setOnPickImageListener(type -> {
+                pendingImageType = type;
+                ensureMediaPermissionThenPick();
+            });
+        }
 
         // 初始化种类 Spinner
         boolean isExpense = bill.getIncomeType() != 1;
@@ -255,30 +324,69 @@ public class ClassicModelFragment extends Fragment implements BillAdapter.OnItem
             btnDelete.setOnClickListener(v -> showWarningDialog(bill));
         }
         if (btnEdit != null) {
-            btnEdit.setOnClickListener(v -> BillUtils.enterEditMode(getContext(), mDialog, tvDate, tvFare, tvNoteContent,
-                    etFare, etNoteContent, btnEdit, btnDelete, btnConfirm, btnCancel, tvCategoryName, spinnerCategory));
+            btnEdit.setOnClickListener(v -> {
+                BillUtils.enterEditMode(getContext(), mDialog, tvDate, tvFare, tvNoteContent,
+                        etFare, etNoteContent, btnEdit, btnDelete, btnConfirm, btnCancel, tvCategoryName, spinnerCategory);
+                if (imageStrip != null) {
+                    imageStrip.setEditMode(true);
+                }
+            });
         }
         if (btnConfirm != null) {
             btnConfirm.setOnClickListener(v -> {
+                if (imageStrip != null && imageStrip.isUploading()) {
+                    Toast.makeText(requireContext(), "图片还在上传，请稍候再保存", Toast.LENGTH_SHORT).show();
+                    return;
+                }
                 String currentDate = tvDate.getText().toString();
                 String fareText = etFare.getText().toString();
-                double currentFare = fareText.startsWith("￥") ? Double.parseDouble(fareText.substring(1)) : Double.parseDouble(fareText);
+                String normalizedFare = fareText == null ? "" : fareText.trim();
+                if (normalizedFare.startsWith("￥") || normalizedFare.startsWith("¥")) {
+                    normalizedFare = normalizedFare.substring(1).trim();
+                }
+                if (TextUtils.isEmpty(normalizedFare)) {
+                    Toast.makeText(requireContext(), "请输入金额", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                final double currentFare;
+                try {
+                    currentFare = Double.parseDouble(normalizedFare);
+                } catch (NumberFormatException e) {
+                    Toast.makeText(requireContext(), "金额格式不正确", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                if (Double.isNaN(currentFare) || Double.isInfinite(currentFare) || currentFare <= 0) {
+                    Toast.makeText(requireContext(), "金额必须大于 0", Toast.LENGTH_SHORT).show();
+                    return;
+                }
                 String currentNoteContent = etNoteContent.getText().toString();
                 String currentTime = new SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(new Date());
                 String selectedCategory = (spinnerCategory != null && spinnerCategory.getSelectedItem() != null)
                         ? spinnerCategory.getSelectedItem().toString() : null;
 
-                BillUtils.updateBill(getContext(), bill, currentDate, currentFare, currentNoteContent, currentTime, selectedCategory, null, new BillUtils.UpdateBillCallback() {
+                BillUtils.updateBill(getContext(), bill, currentDate, currentFare, currentNoteContent, currentTime, selectedCategory, null,
+                        imageStrip != null ? imageStrip.getPhotos() : null,
+                        imageStrip != null ? imageStrip.getReceipts() : null,
+                        new BillUtils.UpdateBillCallback() {
                     @Override
                     public void onUpdateSuccess(int rowsAffected) {
                         if (getActivity() != null) {
                             getActivity().runOnUiThread(() -> {
                                 if (rowsAffected > 0) {
+                                    // 本地同步图片状态，避免等列表刷新前仍显示旧数据
+                                    bill.setPhotos(imageStrip != null ? imageStrip.getPhotos() : null);
+                                    bill.setReceipts(imageStrip != null ? imageStrip.getReceipts() : null);
                                     refreshBillData();
                                     if (getActivity() instanceof MainActivity) {
                                         HeadFragment hf = ((MainActivity) getActivity()).getHeadFragment();
                                         com.example.couplecredit.fragment.ReportFragment rf = hf != null ? hf.getReportFragment() : null;
                                         if (rf != null) { rf.refreshChartData(); }
+                                    }
+                                    BillUtils.exitEditMode(mDialog, tvDate, tvFare, tvNoteContent,
+                                            etFare, etNoteContent, btnEdit, btnDelete, btnConfirm, btnCancel,
+                                            tvCategoryName, spinnerCategory, incomeType);
+                                    if (imageStrip != null) {
+                                        imageStrip.setEditMode(false);
                                     }
                                     mDialog.dismiss();
                                 }
@@ -293,8 +401,6 @@ public class ClassicModelFragment extends Fragment implements BillAdapter.OnItem
                         }
                     }
                 });
-                BillUtils.exitEditMode(mDialog, tvDate, tvFare, tvNoteContent,
-                        etFare, etNoteContent, btnEdit, btnDelete, btnConfirm, btnCancel, tvCategoryName, spinnerCategory, incomeType);
             });
         }
         if (btnCancel != null) {
@@ -314,6 +420,11 @@ public class ClassicModelFragment extends Fragment implements BillAdapter.OnItem
                 if (spinnerCategory != null) {
                     int idx = categories.indexOf(categoryName);
                     spinnerCategory.setSelection(idx >= 0 ? idx : 0);
+                }
+                if (imageStrip != null) {
+                    // 取消编辑：还原为该账单原有的图片并回到查看态
+                    imageStrip.setImages(bill.getPhotos(), bill.getReceipts());
+                    imageStrip.setEditMode(false);
                 }
                 BillUtils.exitEditMode(mDialog, tvDate, tvFare, tvNoteContent,
                         etFare, etNoteContent, btnEdit, btnDelete, btnConfirm, btnCancel, tvCategoryName, spinnerCategory, incomeType);
@@ -361,6 +472,18 @@ public class ClassicModelFragment extends Fragment implements BillAdapter.OnItem
         }
         if (rvBillList != null) {
             rvBillList.setVisibility(View.GONE);
+        }
+    }
+
+    private void updateEmptyState() {
+        if (llEmptyState == null || rvBillList == null || viewModel == null) {
+            return;
+        }
+        boolean loggedIn = Boolean.TRUE.equals(viewModel.getIsLoggedIn().getValue());
+        boolean empty = displayItems == null || displayItems.isEmpty();
+        llEmptyState.setVisibility(loggedIn && empty ? View.VISIBLE : View.GONE);
+        if (loggedIn) {
+            rvBillList.setVisibility(empty ? View.GONE : View.VISIBLE);
         }
     }
 

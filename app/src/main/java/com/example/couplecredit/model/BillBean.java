@@ -27,6 +27,8 @@ public final class BillBean {
     private String title; // 备注
     private int isHelp; // 0=正常记录，1=帮助记录
     private String sharedPlanName; // 关联的小钱包名称
+    private java.util.List<String> photos; // 照片（/uploads/... 或 https）
+    private java.util.List<String> receipts; // 小票凭证
 
     public BillBean(long billId, double fare, int year, int month, int day, int userId, String categoryName,
                     String categoryDesc, int iconResId, int incomeType, String time, String title) {
@@ -199,5 +201,30 @@ public final class BillBean {
 
     public void setSharedPlanName(String sharedPlanName) {
         this.sharedPlanName = sharedPlanName;
+    }
+
+    /** 账单图片：照片 / 小票凭证，元素为 /uploads/... 相对路径或 https 绝对地址 */
+    public java.util.List<String> getPhotos() {
+        return photos;
+    }
+
+    public void setPhotos(java.util.List<String> photos) {
+        this.photos = photos;
+    }
+
+    public java.util.List<String> getReceipts() {
+        return receipts;
+    }
+
+    public void setReceipts(java.util.List<String> receipts) {
+        this.receipts = receipts;
+    }
+
+    /** 图片总数（照片+小票），用于列表角标 */
+    public int getImageCount() {
+        int count = 0;
+        if (photos != null) count += photos.size();
+        if (receipts != null) count += receipts.size();
+        return count;
     }
 }

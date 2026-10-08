@@ -255,10 +255,20 @@ public class BillAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
                 TextView tvMoney = billView.findViewById(R.id.tv_amount);
                 TextView tvOwner = billView.findViewById(R.id.tv_owner);
                 ImageView ivIcon = billView.findViewById(R.id.iv_category_icon);
-                
+                LinearLayout llImageBadge = billView.findViewById(R.id.ll_image_badge);
+                TextView tvImageCount = billView.findViewById(R.id.tv_image_count);
+
                 tvKind.setText(bill.getTitle());
                 tvMoney.setText(String.format("%.2f", bill.getFare()));
                 setOwnerText(tvOwner, bill);
+
+                int imageCount = bill.getImageCount();
+                if (llImageBadge != null) {
+                    llImageBadge.setVisibility(imageCount > 0 ? View.VISIBLE : View.GONE);
+                }
+                if (tvImageCount != null) {
+                    tvImageCount.setText(String.valueOf(imageCount));
+                }
                 
                 // 设置分类图标
                 ivIcon.setImageResource(bill.getIconResId());

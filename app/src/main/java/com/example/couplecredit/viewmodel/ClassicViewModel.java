@@ -198,6 +198,8 @@ public class ClassicViewModel extends AndroidViewModel {
                     bill.type, bill.title, iconResId, bill.incomeType, bill.time, bill.title, bill.isHelp
                 );
                 bean.setSharedPlanName(bill.sharedPlanName);
+                bean.setPhotos(bill.photos);
+                bean.setReceipts(bill.receipts);
                 billItems.add(bean);
             } catch (Exception e) {
                 Log.e("ClassicViewModel", "解析账单失败: " + e.getMessage(), e);

@@ -33,12 +33,10 @@
 
             <TextView
                 android:id="@+id/tv_month_title"
+                style="@style/Text.Title.Medium"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="我们的7月 >"
-                android:textColor="@color/text_body"
-                android:textSize="16sp"
-                android:textStyle="bold" />
+                android:text="我们的7月 >" />
 
         </LinearLayout>
 
@@ -58,7 +56,7 @@
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:layout_marginEnd="8dp"
-                android:background="@drawable/card_expense_background"
+                android:background="@drawable/bg_my_card_blue"
                 android:clickable="true"
                 android:focusable="true"
                 android:gravity="center"
@@ -70,7 +68,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="¥ 14435.65"
-                    android:textColor="#1976D2"
+                    android:textColor="@color/bill_blue"
                     android:textSize="18sp"
                     android:textStyle="bold" />
 
@@ -90,7 +88,7 @@
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:layout_marginStart="8dp"
-                android:background="@drawable/card_income_background"
+                android:background="@drawable/bg_my_card_orange"
                 android:clickable="true"
                 android:focusable="true"
                 android:gravity="center"
@@ -102,7 +100,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="¥ 16414.00"
-                    android:textColor="#F57C00"
+                    android:textColor="@color/income_orange"
                     android:textSize="18sp"
                     android:textStyle="bold" />
 
@@ -128,6 +126,40 @@
             android:textColor="@color/text_muted"
             android:textSize="16sp"
             android:visibility="gone" />
+
+        <LinearLayout
+            android:id="@+id/ll_empty_state"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:background="@color/bg_page"
+            android:gravity="center"
+            android:orientation="vertical"
+            android:padding="32dp"
+            android:visibility="gone">
+
+            <ImageView
+                android:layout_width="80dp"
+                android:layout_height="80dp"
+                android:alpha="0.5"
+                android:src="@drawable/ic_empty_inventory" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:text="还没有账单"
+                android:textColor="@color/text_disabled"
+                android:textSize="16sp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="记一笔，开始你们的第一笔账"
+                android:textColor="@color/text_disabled"
+                android:textSize="14sp" />
+        </LinearLayout>
 
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/rv_bill_list"

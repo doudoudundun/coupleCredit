@@ -13,7 +13,10 @@
         android:id="@+id/slide_tab"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:background="@android:color/white" />
+        android:background="@android:color/white"
+        app:tabSelectedTextColor="@color/bill_blue"
+        app:tabTextAppearance="@style/SegmentTabTextStyle"
+        app:tabTextColor="@color/text_muted" />
     <!-- 分类选择区域 -->
     <ScrollView
         android:layout_width="match_parent"
@@ -243,17 +246,26 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="¥0.00"
-                android:textColor="#FF9500"
+                android:textColor="@color/income_orange"
                 android:textSize="22sp"
                 android:textStyle="bold" />
 
         </LinearLayout>
 
+        <!-- 账单图片：照片 / 小票凭证（最多各4张） -->
+        <com.example.couplecredit.view.BillImageStripView
+            android:id="@+id/bill_image_strip"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingLeft="8dp"
+            android:paddingRight="8dp"
+            android:paddingBottom="4dp" />
+
         <!-- 数字键盘 -->
         <GridLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:background="#F0F0F0"
+            android:background="@color/border_light"
             android:columnCount="4"
             android:rowCount="4">
 
@@ -261,7 +273,7 @@
             <TextView
                 android:id="@+id/key_1"
                 android:layout_width="0dp"
-                android:layout_height="45dp"
+                android:layout_height="48dp"
                 android:layout_columnWeight="1"
                 android:layout_margin="1dp"
                 android:background="@android:color/white"
@@ -273,7 +285,7 @@
             <TextView
                 android:id="@+id/key_2"
                 android:layout_width="0dp"
-                android:layout_height="45dp"
+                android:layout_height="48dp"
                 android:layout_columnWeight="1"
                 android:layout_margin="1dp"
                 android:background="@android:color/white"
@@ -285,7 +297,7 @@
             <TextView
                 android:id="@+id/key_3"
                 android:layout_width="0dp"
-                android:layout_height="45dp"
+                android:layout_height="48dp"
                 android:layout_columnWeight="1"
                 android:layout_margin="1dp"
                 android:background="@android:color/white"
@@ -297,7 +309,7 @@
             <TextView
                 android:id="@+id/key_delete"
                 android:layout_width="0dp"
-                android:layout_height="45dp"
+                android:layout_height="48dp"
                 android:layout_columnWeight="1"
                 android:layout_margin="1dp"
                 android:background="@android:color/white"
@@ -310,7 +322,7 @@
             <TextView
                 android:id="@+id/key_4"
                 android:layout_width="0dp"
-                android:layout_height="45dp"
+                android:layout_height="48dp"
                 android:layout_columnWeight="1"
                 android:layout_margin="1dp"
                 android:background="@android:color/white"
@@ -322,7 +334,7 @@
             <TextView
                 android:id="@+id/key_5"
                 android:layout_width="0dp"
-                android:layout_height="45dp"
+                android:layout_height="48dp"
                 android:layout_columnWeight="1"
                 android:layout_margin="1dp"
                 android:background="@android:color/white"
@@ -334,7 +346,7 @@
             <TextView
                 android:id="@+id/key_6"
                 android:layout_width="0dp"
-                android:layout_height="45dp"
+                android:layout_height="48dp"
                 android:layout_columnWeight="1"
                 android:layout_margin="1dp"
                 android:background="@android:color/white"
@@ -346,7 +358,7 @@
             <TextView
                 android:id="@+id/key_plus"
                 android:layout_width="0dp"
-                android:layout_height="45dp"
+                android:layout_height="48dp"
                 android:layout_columnWeight="1"
                 android:layout_margin="1dp"
                 android:background="@android:color/white"
@@ -359,7 +371,7 @@
             <TextView
                 android:id="@+id/key_7"
                 android:layout_width="0dp"
-                android:layout_height="45dp"
+                android:layout_height="48dp"
                 android:layout_columnWeight="1"
                 android:layout_margin="1dp"
                 android:background="@android:color/white"
@@ -371,7 +383,7 @@
             <TextView
                 android:id="@+id/key_8"
                 android:layout_width="0dp"
-                android:layout_height="45dp"
+                android:layout_height="48dp"
                 android:layout_columnWeight="1"
                 android:layout_margin="1dp"
                 android:background="@android:color/white"
@@ -383,7 +395,7 @@
             <TextView
                 android:id="@+id/key_9"
                 android:layout_width="0dp"
-                android:layout_height="45dp"
+                android:layout_height="48dp"
                 android:layout_columnWeight="1"
                 android:layout_margin="1dp"
                 android:background="@android:color/white"
@@ -395,7 +407,7 @@
             <TextView
                 android:id="@+id/key_minus"
                 android:layout_width="0dp"
-                android:layout_height="45dp"
+                android:layout_height="48dp"
                 android:layout_columnWeight="1"
                 android:layout_margin="1dp"
                 android:background="@android:color/white"
@@ -408,7 +420,7 @@
             <TextView
                 android:id="@+id/key_again"
                 android:layout_width="0dp"
-                android:layout_height="50dp"
+                android:layout_height="48dp"
                 android:layout_columnWeight="1"
                 android:layout_margin="1dp"
                 android:background="@android:color/white"
@@ -420,7 +432,7 @@
             <TextView
                 android:id="@+id/key_0"
                 android:layout_width="0dp"
-                android:layout_height="50dp"
+                android:layout_height="48dp"
                 android:layout_columnWeight="1"
                 android:layout_margin="1dp"
                 android:background="@android:color/white"
@@ -432,7 +444,7 @@
             <TextView
                 android:id="@+id/key_dot"
                 android:layout_width="0dp"
-                android:layout_height="50dp"
+                android:layout_height="48dp"
                 android:layout_columnWeight="1"
                 android:layout_margin="1dp"
                 android:background="@android:color/white"
@@ -444,7 +456,7 @@
             <TextView
                 android:id="@+id/key_save"
                 android:layout_width="0dp"
-                android:layout_height="50dp"
+                android:layout_height="48dp"
                 android:layout_columnWeight="1"
                 android:layout_margin="1dp"
                 android:background="@drawable/key_save_background"

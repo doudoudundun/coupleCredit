@@ -14,7 +14,7 @@
         android:id="@+id/iv_category_icon"
         android:layout_width="48dp"
         android:layout_height="48dp"
-        android:src="@android:drawable/ic_menu_gallery"
+        android:src="@drawable/img_category_other"
         android:background="@android:drawable/btn_default"
         android:scaleType="centerInside"
         android:layout_marginRight="12dp" />
@@ -44,6 +44,33 @@
             android:textColor="@color/text_disabled"
             android:layout_marginTop="2dp" />
 
+        <LinearLayout
+            android:id="@+id/ll_image_badge"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginTop="2dp"
+            android:visibility="gone">
+
+            <ImageView
+                android:layout_width="12dp"
+                android:layout_height="12dp"
+                android:src="@drawable/ic_image"
+                android:tint="@color/text_disabled"
+                android:contentDescription="账单图片" />
+
+            <TextView
+                android:id="@+id/tv_image_count"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginLeft="2dp"
+                android:text="1"
+                android:textSize="11sp"
+                android:textColor="@color/text_disabled" />
+
+        </LinearLayout>
+
     </LinearLayout>
     
     <!-- 金额和箭头 -->
@@ -65,9 +92,9 @@
         <ImageView
             android:layout_width="16dp"
             android:layout_height="16dp"
-            android:src="@android:drawable/ic_media_play"
-            android:layout_marginLeft="8dp"
-            android:rotation="270" />
+            android:src="@drawable/ic_arrow_right"
+            android:tint="@color/text_disabled"
+            android:layout_marginLeft="8dp" />
 
     </LinearLayout>
 

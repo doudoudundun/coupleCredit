@@ -17,6 +17,7 @@ import com.example.couplecredit.model.BillBean;
 import com.example.couplecredit.api.AuthApiClient;
 import com.example.couplecredit.R;
 import com.example.couplecredit.utils.CategoryIconMapper;
+import com.example.couplecredit.config.ApiConfigManager;
 
 import androidx.appcompat.app.AlertDialog;
 
@@ -39,6 +40,11 @@ public final class BillUtils {
     }
 
     public static void insertBill(Context context, String title, String type, double amount, String date, String time, int incomeType, String billOwner, Integer sharedPlanId, BillInsertCallback callback) {
+        insertBill(context, title, type, amount, date, time, incomeType, billOwner, sharedPlanId, null, null, callback);
+    }
+
+    /** photos/receipts：账单图片（/uploads/... 相对路径），null = 不传 */
+    public static void insertBill(Context context, String title, String type, double amount, String date, String time, int incomeType, String billOwner, Integer sharedPlanId, java.util.List<String> photos, java.util.List<String> receipts, BillInsertCallback callback) {
         if (context == null) {
             if (callback != null) {
                 callback.onInsertError("页面状态异常，请重新进入记账页");
@@ -63,7 +69,7 @@ public final class BillUtils {
             return;
         }
 
-        AuthApiClient.createBill(context, userId, billOwner, sharedPlanId, title, type, amount, date, time, incomeType, new AuthApiClient.BillCallback() {
+        AuthApiClient.createBill(context, userId, billOwner, sharedPlanId, title, type, amount, date, time, incomeType, photos, receipts, new AuthApiClient.BillCallback() {
             @Override
             public void onSuccess(com.example.couplecredit.api.AuthApiModels.BillResponse response) {
                 if (response == null || response.data == null) {
@@ -112,6 +118,24 @@ public final class BillUtils {
         }
     }
 
+    /**
+     * 把服务端返回的图片地址转成可加载的绝对地址。
+     * /uploads/... 相对路径拼当前 baseUrl；已是 http(s) 的原样返回；空值返回 null。
+     */
+    public static String absoluteImageUrl(Context context, String url) {
+        if (url == null || url.trim().isEmpty()) return null;
+        String trimmed = url.trim();
+        if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) return trimmed;
+        String base = ApiConfigManager.getBaseUrl(context);
+        if (base.endsWith("/") && trimmed.startsWith("/")) {
+            return base + trimmed.substring(1);
+        }
+        if (!base.endsWith("/") && !trimmed.startsWith("/")) {
+            return base + "/" + trimmed;
+        }
+        return base + trimmed;
+    }
+
     public interface DeleteBillCallback {
         void onDeleteSuccess(int rowsDeleted);
         void onDeleteError(String error);
@@ -148,6 +172,13 @@ public final class BillUtils {
     }
 
     public static void updateBill(Context context, BillBean bill, String newDate, double newFare, String newNoteContent, String newTime, String newCategory, Integer isHelp, UpdateBillCallback callback) {
+        updateBill(context, bill, newDate, newFare, newNoteContent, newTime, newCategory, isHelp, null, null, callback);
+    }
+
+    /**
+     * photos/receipts 语义：null = 不传（服务端保留原图），空数组 = 清空，非空 = 整体替换。
+     */
+    public static void updateBill(Context context, BillBean bill, String newDate, double newFare, String newNoteContent, String newTime, String newCategory, Integer isHelp, java.util.List<String> photos, java.util.List<String> receipts, UpdateBillCallback callback) {
         String titleToUpdate = (newNoteContent == null || newNoteContent.trim().isEmpty()) ? bill.getCategoryName() : newNoteContent;
         String categoryToUpdate = (newCategory == null || newCategory.trim().isEmpty()) ? bill.getCategoryName() : newCategory;
         int userId = UserInfoManager.getCurrentUserId(context);
@@ -159,7 +190,7 @@ public final class BillUtils {
         }
 
         Integer incomeType = bill.getIncomeType();
-        AuthApiClient.updateBill(context, (int) bill.getBillId(), userId, titleToUpdate, categoryToUpdate, newFare, newDate, newTime, incomeType, new AuthApiClient.UpdateBillCallback() {
+        AuthApiClient.updateBill(context, (int) bill.getBillId(), userId, titleToUpdate, categoryToUpdate, newFare, newDate, newTime, incomeType, photos, receipts, new AuthApiClient.UpdateBillCallback() {
             @Override
             public void onSuccess() {
                 if (callback != null) {

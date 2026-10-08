@@ -71,7 +71,7 @@
             android:layout_height="wrap_content"
             android:text="分类"
             android:textSize="16sp"
-            android:textColor="#FF9800"
+            android:textColor="@color/income_orange"
             android:textStyle="bold"
             android:layout_marginBottom="12dp" />
 
@@ -85,7 +85,7 @@
                 android:id="@+id/iv_category_icon"
                 android:layout_width="40dp"
                 android:layout_height="40dp"
-                android:background="#4CAF50"
+                android:background="@color/brand_green"
                 android:layout_marginEnd="12dp" />
             
             <TextView
@@ -118,7 +118,7 @@
             android:layout_height="wrap_content"
             android:text="账单"
             android:textSize="16sp"
-            android:textColor="#FF9800"
+            android:textColor="@color/income_orange"
             android:textStyle="bold"
             android:layout_marginBottom="16dp" />
 
@@ -143,7 +143,7 @@
                 android:layout_height="wrap_content"
                 android:text="¥1.00"
                 android:textSize="18sp"
-                android:textColor="#2196F3"
+                android:textColor="@color/bill_blue"
                 android:textStyle="bold" />
 
             <EditText
@@ -152,7 +152,7 @@
                 android:layout_height="wrap_content"
                 android:text="1.00"
                 android:textSize="18sp"
-                android:textColor="#2196F3"
+                android:textColor="@color/bill_blue"
                 android:textStyle="bold"
                 android:background="@android:color/transparent"
                 android:inputType="numberDecimal"
@@ -225,5 +225,12 @@
             android:visibility="gone" />
 
     </LinearLayout>
+
+    <!-- 账单图片：查看态只读预览，编辑态可增删（照片/小票各最多4张） -->
+    <com.example.couplecredit.view.BillImageStripView
+        android:id="@+id/bill_image_strip"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp" />
 
 </LinearLayout>

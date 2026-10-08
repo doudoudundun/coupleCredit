@@ -40,6 +40,8 @@ public class AuthApiModels {
         public String time;
         public int incomeType;
         public int isHelp;
+        public List<String> photos;
+        public List<String> receipts;
     }
 
     public static class InventoryItemData {
@@ -216,6 +218,46 @@ public class AuthApiModels {
         public ErrorBody error;
     }
 
+    public static class SecurityCheckResponse {
+        public boolean ok;
+        public String message;
+        public SecurityCheckData data;
+        public ErrorBody error;
+    }
+
+    public static class SecurityCheckData {
+        public boolean pass;
+        public String suggest;
+        public String label;
+        public boolean degraded;
+        public String reason;
+    }
+
+    public static class AvatarStatusResponse {
+        public boolean ok;
+        public String message;
+        public AvatarStatusData data;
+        public ErrorBody error;
+    }
+
+    public static class AvatarStatusData {
+        public String avatarStatus;
+        public boolean shouldNotify;
+    }
+
+    public static class AvatarUpdateResponse {
+        public boolean ok;
+        public String message;
+        public AvatarUpdateData data;
+        public ErrorBody error;
+    }
+
+    public static class AvatarUpdateData {
+        public String avatarStatus;
+        public boolean degraded;
+        public String reason;
+    }
+
     public static class UpdateBillRequest {
         public final int userId;
         public final String title;
@@ -224,8 +266,15 @@ public class AuthApiModels {
         public final String date;
         public final String time;
         public final Integer incomeType;
+        // null = 不传（服务端保留原值）；空数组 = 传 []（服务端明确清空）
+        public final List<String> photos;
+        public final List<String> receipts;
 
         public UpdateBillRequest(int userId, String title, String type, double amount, String date, String time, Integer incomeType) {
+            this(userId, title, type, amount, date, time, incomeType, null, null);
+        }
+
+        public UpdateBillRequest(int userId, String title, String type, double amount, String date, String time, Integer incomeType, List<String> photos, List<String> receipts) {
             this.userId = userId;
             this.title = title;
             this.type = type;
@@ -233,6 +282,8 @@ public class AuthApiModels {
             this.date = date;
             this.time = time;
             this.incomeType = incomeType;
+            this.photos = photos;
+            this.receipts = receipts;
         }
     }
 
@@ -602,8 +653,14 @@ public class AuthApiModels {
         public final String date;
         public final String time;
         public final int incomeType;
+        public final List<String> photos;
+        public final List<String> receipts;
 
         public CreateBillRequest(int userId, String billOwner, Integer sharedPlanId, String title, String type, double amount, String date, String time, int incomeType) {
+            this(userId, billOwner, sharedPlanId, title, type, amount, date, time, incomeType, null, null);
+        }
+
+        public CreateBillRequest(int userId, String billOwner, Integer sharedPlanId, String title, String type, double amount, String date, String time, int incomeType, List<String> photos, List<String> receipts) {
             this.userId = userId;
             this.billOwner = billOwner;
             this.sharedPlanId = sharedPlanId;
@@ -613,6 +670,8 @@ public class AuthApiModels {
             this.date = date;
             this.time = time;
             this.incomeType = incomeType;
+            this.photos = photos;
+            this.receipts = receipts;
         }
     }
 
@@ -826,6 +885,7 @@ public class AuthApiModels {
         @SerializedName("created_at")
         public long createdAt;
         @SerializedName("is_liked")
+        @com.google.gson.annotations.JsonAdapter(CompatibleBooleanAdapter.class)
         public boolean isLiked;
     }
 
@@ -1414,8 +1474,7 @@ public class AuthApiModels {
     }
 
     /**
-     * /api/me/overview 聚合响应。
-     * 每个子字段复用对应接口的 response 类型；后端某子查询失败时该字段为 null。
+     * /api/me/overview 聚合响应。账单、Todo、库存只返回首页所需的统计值。
      */
     public static class OverviewResponse {
         public boolean ok;
@@ -1426,13 +1485,57 @@ public class AuthApiModels {
     public static class OverviewData {
         public int year;
         public int month;
-        public BillsQueryResponse bills;
-        public TodoListResponse todos;
-        public InventoryListResponse inventory;
+        public OverviewBillSummaryResponse billSummary;
+        public OverviewTodoSummaryResponse todoSummary;
+        public OverviewInventorySummaryResponse inventorySummary;
         public AssetStatsResponse assetStats;
         public PeriodListResponse period;
         public CoupleInfoResponse coupleInfo;
         public CalorieSummaryResponse calorie;
+
+        public boolean hasCompleteSummaries() {
+            return billSummary != null && billSummary.ok && billSummary.data != null
+                    && todoSummary != null && todoSummary.ok && todoSummary.data != null
+                    && inventorySummary != null && inventorySummary.ok && inventorySummary.data != null;
+        }
+    }
+
+    public static class OverviewBillSummaryResponse {
+        public boolean ok;
+        public OverviewBillSummaryData data;
+    }
+
+    public static class OverviewBillSummaryData {
+        public int billCount;
+        public double income;
+        public double expense;
+        public Integer relationshipId;
+        public int year;
+        public int month;
+    }
+
+    public static class OverviewTodoSummaryResponse {
+        public boolean ok;
+        public OverviewTodoSummaryData data;
+    }
+
+    public static class OverviewTodoSummaryData {
+        public int openCount;
+        public int doneCount;
+        public int missedCount;
+        public Integer relationshipId;
+    }
+
+    public static class OverviewInventorySummaryResponse {
+        public boolean ok;
+        public OverviewInventorySummaryData data;
+    }
+
+    public static class OverviewInventorySummaryData {
+        public int itemCount;
+        public int lowStockCount;
+        public int expiringCount;
+        public Integer relationshipId;
     }
 
     /**
