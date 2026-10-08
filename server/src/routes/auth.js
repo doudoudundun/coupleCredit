@@ -189,7 +189,10 @@ function createAuthRouter({
       const session = await loadActiveUserSession(pool, decoded);
       if (!session) throw new ApiError(401, "UNAUTHORIZED", "用户不存在、已停用或会话已撤销");
       const accessToken = signToken({ userId: session.id, sessionVersion: session.sessionVersion });
-      res.json({ ok: true, message: "刷新成功", data: { accessToken } });
+      // 滑动续期：每次刷新同时签发新 refresh token，登录态随使用自动延续。
+      // 旧 refresh token 在其自身有效期内仍可用（JWT 无状态，不做服务端吊销表）。
+      const nextRefreshToken = signRefreshToken({ userId: session.id, sessionVersion: session.sessionVersion });
+      res.json({ ok: true, message: "刷新成功", data: { accessToken, refreshToken: nextRefreshToken } });
     } catch (error) {
       next(error);
     }

@@ -6,7 +6,9 @@ const { readConfig } = require("../config");
 const config = readConfig();
 const SECRET = config.jwtSecret;
 const ACCESS_EXPIRES = process.env.JWT_ACCESS_EXPIRES || "15m";
-const REFRESH_EXPIRES = process.env.JWT_REFRESH_EXPIRES || "7d";
+// refresh token 默认 30 天；/api/auth/refresh 每次签发新 refresh token（滑动续期），
+// 活跃用户不会掉线，连续 30 天未使用才需要重新登录
+const REFRESH_EXPIRES = process.env.JWT_REFRESH_EXPIRES || "30d";
 const ALGORITHM = "HS256";
 const ACCESS_TOKEN_TYPE = "access";
 const REFRESH_TOKEN_TYPE = "refresh";
