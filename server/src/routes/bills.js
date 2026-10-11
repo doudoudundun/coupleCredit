@@ -13,6 +13,7 @@ const {
 const { withTransaction } = require("../utils/transactions");
 const { parseIncomeType } = require("../utils/dataValidation");
 const { resolveWritableCategory } = require("../utils/categoryScope");
+const { materializeRecurringTemplates } = require("../utils/recurringBills");
 
 // 账单图片（照片 / 小票凭证）。
 // 契约：最多 MAX_BILL_IMAGES 张，只接受站内上传路径（/uploads/...）或 https 绝对地址。
@@ -156,6 +157,19 @@ async function resolveBillOwnership(pool, reqBody, userId) {
   throw new ApiError(400, "INVALID_REQUEST", `不支持的billOwner类型或缺少情侣关系: ${billOwner}`);
 }
 
+/** 账单相关缓存失效（列表/月报/总览），供周期记账 confirm 等复用。 */
+function invalidateBillCaches(userId, relationship) {
+  const ids = new Set([userId]);
+  if (relationship) {
+    ids.add(relationship.user_id_1);
+    ids.add(relationship.user_id_2);
+  }
+  for (const id of ids) {
+    cache.delPrefix(`bills:${id}:`);
+  }
+  invalidateOverviewForUser(cache, userId, relationship);
+}
+
 function createBillsRouter({ pool }) {
   const router = express.Router();
 
@@ -258,18 +272,6 @@ function createBillsRouter({ pool }) {
     if (result.affectedRows === 0) {
       throw new ApiError(400, "INSUFFICIENT_BALANCE", "小钱包余额不足");
     }
-  }
-
-  function invalidateBillCaches(userId, relationship) {
-    const ids = new Set([userId]);
-    if (relationship) {
-      ids.add(relationship.user_id_1);
-      ids.add(relationship.user_id_2);
-    }
-    for (const id of ids) {
-      cache.delPrefix(`bills:${id}:`);
-    }
-    invalidateOverviewForUser(cache, userId, relationship);
   }
 
   // 列表读路径（spec 9）：返回 categoryId + 保存时快照 + 分类当前信息；
@@ -429,6 +431,16 @@ function createBillsRouter({ pool }) {
         throw new ApiError(400, "INVALID_REQUEST", "缺少年月参数");
       }
 
+      // 周期记账懒物化（F1）：列表是最常被打开的读路径，顺带把到期的周期期次补成
+      // pending 实例。只生成实例不写 bills，失败不阻塞列表本身。
+      // 关系解析提前到这里（内存缓存 300s，命中无 DB 开销），物化与列表共用。
+      const relationship = await loadActiveRelationship(pool, userId);
+      try {
+        await materializeRecurringTemplates(pool, userId, { relationship });
+      } catch (error) {
+        console.warn(`[bills] recurring materialize failed for user ${userId}: ${error.message}`);
+      }
+
       const cached = cache.get(Keys.bills(userId, year, month));
       if (cached) return res.json(cached);
 
@@ -436,8 +448,6 @@ function createBillsRouter({ pool }) {
       const dateStart = `${year}-${monthStr}-01`;
       const dateEnd = month === 12 ? `${Number(year) + 1}-01-01` : `${year}-${String(Number(month) + 1).padStart(2, '0')}-01`;
 
-      // 获取情侣关系
-      const relationship = await loadActiveRelationship(pool, userId);
       const relationshipId = relationship ? relationship.relationship_id : null;
 
       let query;
@@ -824,4 +834,4 @@ function createBillsRouter({ pool }) {
   return router;
 }
 
-module.exports = { createBillsRouter };
+module.exports = { createBillsRouter, resolveBillOwnership, invalidateBillCaches, decimalStringToCents };

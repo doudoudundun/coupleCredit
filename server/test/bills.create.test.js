@@ -16,7 +16,17 @@ async function readJsonOrText(response) {
 }
 
 async function registerUser(suffix) {
-  const username = `api_bill_${suffix}`;
+  // base36 时间戳混排字母（毫秒时间戳纯数字会命中内容安全手机号正则），
+  // v→w 规避导流正则，并用服务端同一组正则复核（与 housework.flows 同一约定）。
+  const { TEXT_PROMO_PATTERNS } = require("../src/services/contentSecurity");
+  const tag = String(suffix).replace(/[^a-zA-Z]/g, '') || 'x';
+  let username = "";
+  for (let attempt = 0; attempt < 10 && !username; attempt += 1) {
+    const stem = `${Date.now().toString(36).replace(/v/g, "w")}${tag}${Math.floor(Math.random() * 46656).toString(36).replace(/v/g, "w")}`;
+    const candidate = `api_bill_${stem}`;
+    if (!TEXT_PROMO_PATTERNS.some((p) => p.re.test(candidate))) username = candidate;
+  }
+  if (!username) throw new Error("无法生成合法测试用户名");
   const password = "secret123";
   const registerResponse = await fetch(`${baseUrl}/api/auth/register`, {
     method: "POST",
@@ -25,7 +35,7 @@ async function registerUser(suffix) {
     },
     body: JSON.stringify({
       username,
-      email: `api_bill_${suffix}@example.com`,
+      email: `${username}@example.com`,
       password,
       inviteCode
     })

@@ -949,6 +949,8 @@ test("couple unbind clears relationship-scoped caches for both former partners",
     if (call.sql.includes("UPDATE housework_relationship_cycles") || call.sql.includes("UPDATE housework_spaces")) {
       return [{ affectedRows: 1 }];
     }
+    // v0.2 解绑补丁：撤销进行中的目标邀请（couple.js unbind 事务内的固定语句）
+    if (call.sql.includes("UPDATE goal_invitations")) return [{ affectedRows: 0 }];
     if (call.sql.includes("UPDATE users")) return [{ affectedRows: 2 }];
     throw new Error(`Unexpected query: ${call.sql}`);
   });
