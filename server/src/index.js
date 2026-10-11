@@ -65,6 +65,7 @@ const { createDiaryMediaRouter } = require("./routes/diaryMedia");
 const { createRecurringBillsRouter } = require("./routes/recurringBills");
 const { createBudgetsRouter } = require("./routes/budgets");
 const { createActivityRouter } = require("./routes/activity");
+const { createHabitsRouter } = require("./routes/habits");
 const { createWechatAccessTokenProvider } = require("./utils/wechatAccessToken");
 const { createContentSecurityService } = require("./services/contentSecurity");
 const { initializeApp: initFcm } = require("./services/fcmService");
@@ -144,6 +145,8 @@ app.use("/api/recurring-bills", createRecurringBillsRouter({ pool }));
 app.use("/api/budgets", createBudgetsRouter({ pool }));
 // 活动中心动态流（F4/M2）
 app.use("/api/activity", createActivityRouter({ pool }));
+// 情侣打卡 / 习惯共建（要求登录，挂在全局鉴权之后）
+app.use("/api/habits", createHabitsRouter({ pool }));
 // Expensive image generation is throttled at its concrete route.  This keeps
 // ordinary /api endpoints out of the AI quota while preserving the existing
 // /api/image-gen URL handled by createImageGenRouter().

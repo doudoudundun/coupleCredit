@@ -6,7 +6,8 @@ const TITLE_SNAPSHOT_MAX = 64;
 const EVENT_TYPES = new Set([
   "bill.created", "bill.deleted",
   "goal.entry", "goal.reversed",
-  "plan.entry", "housework.recorded", "recurring.confirmed"
+  "plan.entry", "housework.recorded", "recurring.confirmed",
+  "habit.checkin"
 ]);
 
 /** 按 VARCHAR(64) 字符数截断（按 Unicode 码位切，不劈开代理对）。 */
