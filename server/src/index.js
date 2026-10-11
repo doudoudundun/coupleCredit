@@ -64,6 +64,7 @@ const { createDiaryRouter } = require("./routes/diary");
 const { createDiaryMediaRouter } = require("./routes/diaryMedia");
 const { createRecurringBillsRouter } = require("./routes/recurringBills");
 const { createBudgetsRouter } = require("./routes/budgets");
+const { createActivityRouter } = require("./routes/activity");
 const { createWechatAccessTokenProvider } = require("./utils/wechatAccessToken");
 const { createContentSecurityService } = require("./services/contentSecurity");
 const { initializeApp: initFcm } = require("./services/fcmService");
@@ -141,6 +142,8 @@ app.use("/api/bills", createBillsRouter({ pool }));
 // 周期自动记账（F1）与预算（F2）：挂在全局鉴权之后
 app.use("/api/recurring-bills", createRecurringBillsRouter({ pool }));
 app.use("/api/budgets", createBudgetsRouter({ pool }));
+// 活动中心动态流（F4/M2）
+app.use("/api/activity", createActivityRouter({ pool }));
 // Expensive image generation is throttled at its concrete route.  This keeps
 // ordinary /api endpoints out of the AI quota while preserving the existing
 // /api/image-gen URL handled by createImageGenRouter().

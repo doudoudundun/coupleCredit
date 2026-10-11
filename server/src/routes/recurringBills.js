@@ -18,7 +18,8 @@ const {
 } = require("../utils/queryHelpers");
 const { parseIncomeType } = require("../utils/dataValidation");
 const { resolveWritableCategory } = require("../utils/categoryScope");
-const { resolveBillOwnership, invalidateBillCaches } = require("./bills");
+const { resolveBillOwnership, invalidateBillCaches, decimalStringToCents } = require("./bills");
+const { enqueueActivityEvent } = require("../utils/activityEvents");
 const {
   isDateString,
   todayDateString,
@@ -464,6 +465,26 @@ function createRecurringBillsRouter({ pool }) {
           "UPDATE recurring_bill_instances SET status = 'confirmed', bill_id = ?, confirmed_at = CURRENT_TIMESTAMP WHERE id = ?",
           [inserted.insertId, instanceId]
         );
+
+        // 活动中心（F4）：周期账单确认成正式账单，通知伴侣；私人模板无伴侣静默跳过
+        if (row.relationship_id != null && relationship) {
+          try {
+            const partnerId = Number(relationship.user_id_1) === Number(userId)
+              ? Number(relationship.user_id_2)
+              : Number(relationship.user_id_1);
+            await enqueueActivityEvent(conn, {
+              relationshipId: Number(row.relationship_id),
+              actorId: userId,
+              recipientId: partnerId,
+              eventType: "recurring.confirmed",
+              resourceId: String(inserted.insertId),
+              amountCents: decimalStringToCents(String(row.amount)),
+              titleSnapshot: row.title
+            });
+          } catch (activityError) {
+            console.warn(`[recurring] activity event failed (instance=${instanceId}): ${activityError.message}`);
+          }
+        }
         return {
           instanceId,
           status: "confirmed",

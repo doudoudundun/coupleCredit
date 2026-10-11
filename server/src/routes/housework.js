@@ -20,6 +20,7 @@ const crypto = require("crypto");
 
 const { ApiError } = require("../errors");
 const { withTransaction } = require("../utils/transactions");
+const { enqueueActivityEvent } = require("../utils/activityEvents");
 const {
   uuid,
   normalizeName,
@@ -3269,6 +3270,27 @@ function createHouseworkRouter({ pool, config }) {
               beforeJson: null,
               afterJson: recordApi
             });
+            // 活动中心（F4）：共享空间记录创建给伴侣发动态；个人空间/数据异常静默跳过
+            if (auth.space.scope === "couple" && auth.space.cycle_relationship_id) {
+              try {
+                const partnerId = Number(auth.space.rel_u1) === Number(userId)
+                  ? Number(auth.space.rel_u2)
+                  : Number(auth.space.rel_u1);
+                if (partnerId && partnerId !== Number(userId)) {
+                  await enqueueActivityEvent(conn, {
+                    relationshipId: Number(auth.space.cycle_relationship_id),
+                    actorId: userId,
+                    recipientId: partnerId,
+                    eventType: "housework.recorded",
+                    resourceId: recordId,
+                    amountCents: null,
+                    titleSnapshot: sourceInfo.snapshot.name
+                  });
+                }
+              } catch (activityError) {
+                console.warn(`[housework] activity event failed (record=${recordId}): ${activityError.message}`);
+              }
+            }
             const revision = await bumpSpaceRevision(conn, spaceId);
             const result = {
               operation: OPERATIONS.RECORDS_CREATE,

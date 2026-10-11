@@ -1,5 +1,6 @@
 const express = require("express");
 const { revokeDiaryUpdates } = require("../utils/diaryUpdates");
+const { revokeActivityEvents } = require("../utils/activityEvents");
 const crypto = require("crypto");
 const { ApiError } = require("../errors");
 const { cache } = require("../cache");
@@ -293,6 +294,9 @@ function createCoupleRouter({ pool }) {
             "UPDATE goal_invitations SET status = 'revoked' WHERE inviter_id IN (?, ?) AND status = 'active'",
             [rel.user_id_1, rel.user_id_2]
           );
+
+        // 活动中心（F4）：解绑按关系整体 revoke，双方收件箱即刻清空
+        await revokeActivityEvents(conn, "relationship_id", rel.relationship_id);
 
         await conn.execute(
           "UPDATE users SET couple_status = 'single' WHERE id IN (?, ?)",

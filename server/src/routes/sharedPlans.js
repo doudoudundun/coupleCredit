@@ -9,6 +9,9 @@ const {
   parseRequiredFloat,
   invalidateForUser
 } = require("../utils/queryHelpers");
+const { withTransaction } = require("../utils/transactions");
+const { enqueueActivityEvent, resolveCouplePartner } = require("../utils/activityEvents");
+const { decimalStringToCents } = require("./bills");
 
 function createSharedPlansRouter({ pool }) {
   const router = express.Router();
@@ -112,6 +115,29 @@ function createSharedPlansRouter({ pool }) {
           [amount, planId]
         );
       }
+
+      // 活动中心（F4）：共同小钱包收支给伴侣发动态；个人计划静默跳过，
+      // 失败只 warn 不影响主流程（主写入已在上方完成）。
+      if (plan.relationship_id != null) {
+        try {
+          await withTransaction(pool, async (conn) => {
+            const recipientId = await resolveCouplePartner(conn, plan.relationship_id, userId);
+            if (recipientId == null) return;
+            await enqueueActivityEvent(conn, {
+              relationshipId: plan.relationship_id,
+              actorId: userId,
+              recipientId,
+              eventType: "plan.entry",
+              resourceId: String(planId),
+              amountCents: decimalStringToCents(String(amount)),
+              titleSnapshot: plan.name
+            });
+          });
+        } catch (activityError) {
+          console.warn(`[sharedPlans] activity event failed (plan=${planId}): ${activityError.message}`);
+        }
+      }
+
       invalidateSharedPlans(userId, relationship);
       res.json({ ok: true, message: "计划余额已更新" });
     } catch (error) {

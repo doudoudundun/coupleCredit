@@ -16,6 +16,7 @@ const {
   todayInTimezone,
   parseDateOnly
 } = require("../utils/spaceContext");
+const { enqueueActivityEvent, resolveCouplePartner } = require("../utils/activityEvents");
 
 const GOAL_SELECT = `SELECT goal_id, space_id, relationship_id, created_by, title, description,
        target_amount_fen, current_amount_fen, currency,
@@ -560,6 +561,21 @@ function createGoalsRouter({ pool }) {
              VALUES (?, ?, ?, 'entry', ?, ?)`,
             [goalId, goal.space_id, userId, entryId, JSON.stringify({ type, amountFen })]
           );
+          // 活动中心（F4）：共享空间目标记账给伴侣发动态；个人空间/无关系静默跳过
+          if (goal.relationship_id != null) {
+            try {
+              const recipientId = await resolveCouplePartner(conn, goal.relationship_id, userId);
+              if (recipientId != null) {
+                await enqueueActivityEvent(conn, {
+                  relationshipId: goal.relationship_id, actorId: userId, recipientId,
+                  eventType: "goal.entry", resourceId: entryId,
+                  amountCents: amountFen, titleSnapshot: goal.title
+                });
+              }
+            } catch (activityError) {
+              console.warn(`[goals] activity event failed (entry=${entryId}): ${activityError.message}`);
+            }
+          }
           const [entryRows] = await conn.execute(
             `${ENTRY_SELECT} WHERE entry_id = ? LIMIT 1`,
             [entryId]
@@ -633,6 +649,21 @@ function createGoalsRouter({ pool }) {
             "UPDATE couple_goal_entries SET reversal_event_id = ? WHERE entry_id = ?",
             [eventResult.insertId, entryId]
           );
+          // 活动中心（F4）：冲正同样通知伴侣（负向事件，金额取原流水）
+          if (goal.relationship_id != null) {
+            try {
+              const recipientId = await resolveCouplePartner(conn, goal.relationship_id, userId);
+              if (recipientId != null) {
+                await enqueueActivityEvent(conn, {
+                  relationshipId: goal.relationship_id, actorId: userId, recipientId,
+                  eventType: "goal.reversed", resourceId: entryId,
+                  amountCents: amount, titleSnapshot: goal.title
+                });
+              }
+            } catch (activityError) {
+              console.warn(`[goals] activity event failed (reverse=${entryId}): ${activityError.message}`);
+            }
+          }
           const [freshRows] = await conn.execute(
             `${ENTRY_SELECT} WHERE entry_id = ? LIMIT 1`,
             [entryId]

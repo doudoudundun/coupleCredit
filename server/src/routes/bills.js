@@ -14,6 +14,7 @@ const { withTransaction } = require("../utils/transactions");
 const { parseIncomeType } = require("../utils/dataValidation");
 const { resolveWritableCategory } = require("../utils/categoryScope");
 const { materializeRecurringTemplates } = require("../utils/recurringBills");
+const { enqueueActivityEvent } = require("../utils/activityEvents");
 
 // 账单图片（照片 / 小票凭证）。
 // 契约：最多 MAX_BILL_IMAGES 张，只接受站内上传路径（/uploads/...）或 https 绝对地址。
@@ -170,6 +171,15 @@ function invalidateBillCaches(userId, relationship) {
   invalidateOverviewForUser(cache, userId, relationship);
 }
 
+/** RFC4180 字段转义：含逗号/引号/换行时包引号并把引号翻倍。 */
+function csvEscape(value) {
+  const text = value === null || value === undefined ? "" : String(value);
+  if (/[",\r\n]/.test(text)) {
+    return `"${text.replace(/"/g, '""')}"`;
+  }
+  return text;
+}
+
 function createBillsRouter({ pool }) {
   const router = express.Router();
 
@@ -271,6 +281,32 @@ function createBillsRouter({ pool }) {
     );
     if (result.affectedRows === 0) {
       throw new ApiError(400, "INSUFFICIENT_BALANCE", "小钱包余额不足");
+    }
+  }
+
+  function partnerIdOf(relationship, userId) {
+    if (!relationship) return null;
+    return Number(relationship.user_id_1) === Number(userId)
+      ? Number(relationship.user_id_2)
+      : Number(relationship.user_id_1);
+  }
+
+  // 活动中心（F4）：关系账单的创建/删除给伴侣发动态。私人账单（relationship_id
+  // NULL）不进伴侣收件箱；任何失败只 warn，绝不影响主流程/所在事务。
+  async function tryEnqueueBillActivity(conn, { relationshipId, relationship, userId, eventType, billId, title, amount }) {
+    if (relationshipId == null || !relationship) return;
+    try {
+      await enqueueActivityEvent(conn, {
+        relationshipId,
+        actorId: userId,
+        recipientId: partnerIdOf(relationship, userId),
+        eventType,
+        resourceId: String(billId),
+        amountCents: decimalStringToCents(String(amount)),
+        titleSnapshot: title
+      });
+    } catch (error) {
+      console.warn(`[bills] activity event failed (${eventType} bill=${billId}): ${error.message}`);
     }
   }
 
@@ -376,6 +412,11 @@ function createBillsRouter({ pool }) {
           } else {
             await conn.execute("UPDATE shared_plans SET current_balance = current_balance + ? WHERE plan_id = ?", [amount, sharedPlanId]);
           }
+
+          await tryEnqueueBillActivity(conn, {
+            relationshipId, relationship, userId, eventType: "bill.created",
+            billId: insertId, title, amount
+          });
         });
         if (relationship) {
           cache.del(Keys.sharedPlans(relationship.user_id_1));
@@ -389,6 +430,17 @@ function createBillsRouter({ pool }) {
           [relationshipId, sharedPlanId, owner, userId, title, type, amount, date, time, incomeType, isHelp, serializeBillImages(photos), serializeBillImages(receipts), categoryId, categorySnapshot ? categorySnapshot.name : null, categorySnapshot ? categorySnapshot.icon_value : null]
         );
         insertId = result.insertId;
+        // 关系账单创建成功后给伴侣发动态（独立小事务，失败不影响主流程）
+        if (relationshipId) {
+          try {
+            await withTransaction(pool, (conn) => tryEnqueueBillActivity(conn, {
+              relationshipId, relationship, userId, eventType: "bill.created",
+              billId: insertId, title, amount
+            }));
+          } catch (error) {
+            console.warn(`[bills] activity event failed (bill.created bill=${insertId}): ${error.message}`);
+          }
+        }
       }
 
       invalidateBillCaches(userId, relationship);
@@ -694,6 +746,86 @@ function createBillsRouter({ pool }) {
     }
   });
 
+  // 账单导出 CSV（F3）。查询口径与 GET / 完全一致（active 关系账单 ∪ 本人私人账单，
+  // 含分类快照与归属信息）；UTF-8 BOM + RFC4180 转义，Excel 可直接打开。
+  // 必须注册在 /:id 路由之前。
+  router.get("/export", async (req, res, next) => {
+    try {
+      const userId = parseRequiredInteger(req.userId);
+      const year = parseInt(req.query.year);
+      const month = parseInt(req.query.month);
+      if (!year || !month) {
+        throw new ApiError(400, "INVALID_REQUEST", "缺少年月参数");
+      }
+
+      const relationship = await loadActiveRelationship(pool, userId);
+      const relationshipId = relationship ? relationship.relationship_id : null;
+      const monthStr = String(month).padStart(2, "0");
+      const dateStart = `${year}-${monthStr}-01`;
+      const dateEnd = month === 12 ? `${Number(year) + 1}-01-01` : `${year}-${String(Number(month) + 1).padStart(2, "0")}-01`;
+
+      const where = relationshipId
+        ? "(b.relationship_id = ? OR (b.user_id = ? AND b.relationship_id IS NULL))"
+        : "b.user_id = ? AND b.relationship_id IS NULL";
+      const params = relationshipId
+        ? [relationshipId, userId, dateStart, dateEnd]
+        : [userId, dateStart, dateEnd];
+      const [rows] = await pool.execute(
+        `SELECT DATE_FORMAT(b.date, '%Y-%m-%d') as date, b.time, b.income_type as incomeType,
+                b.title, b.amount, b.owner, b.relationship_id as billRelationshipId,
+                b.is_help as isHelp, sp.name as sharedPlanName,
+                COALESCE(ic.name, b.category_name_snapshot, b.type) as categoryName
+         FROM bills b
+         LEFT JOIN shared_plans sp ON sp.plan_id = b.shared_plan_id
+         ${BILL_CATEGORY_JOIN}
+         WHERE ${where} AND b.date >= ? AND b.date < ?
+         ORDER BY b.date DESC, b.bill_id DESC`,
+        params
+      );
+
+      // 归属按请求者在关系中的位次换算（无关系时 owner=1 即自己），与月报口径一致
+      const selfOwner = relationship
+        ? (Number(relationship.user_id_1) === Number(userId) ? 1 : 2)
+        : 1;
+      const ownerLabel = (owner, billRelationshipId) => {
+        const value = Number(owner);
+        if (value === 3) return "共同";
+        const billSelfOwner = billRelationshipId == null ? 1 : selfOwner;
+        return value === billSelfOwner ? "自己" : "对方";
+      };
+      const remarkOf = (row) => {
+        const remarks = [];
+        if (Number(row.isHelp) === 1) remarks.push("代记");
+        if (row.sharedPlanName) remarks.push(`小钱包·${row.sharedPlanName}`);
+        return remarks.join("，");
+      };
+
+      const lines = [["日期", "时间", "类型", "标题", "金额(元)", "归属", "分类", "备注"].map(csvEscape).join(",")];
+      for (const row of rows) {
+        lines.push([
+          row.date,
+          row.time,
+          Number(row.incomeType) === 1 ? "收入" : "支出",
+          row.title,
+          Number(row.amount).toFixed(2),
+          ownerLabel(row.owner, row.billRelationshipId),
+          row.categoryName || "",
+          remarkOf(row)
+        ].map(csvEscape).join(","));
+      }
+      const csv = `\uFEFF${lines.join("\r\n")}\r\n`;
+      const fileMonth = `${year}-${monthStr}`;
+      res.setHeader("Content-Type", "text/csv; charset=utf-8");
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename="bills-${fileMonth}.csv"; filename*=UTF-8''bills-${fileMonth}.csv`
+      );
+      res.send(csv);
+    } catch (error) {
+      next(error);
+    }
+  });
+
   router.delete("/:id", async (req, res, next) => {
     try {
       const billId = parseRequiredInteger(parseInt(req.params.id, 10));
@@ -717,6 +849,11 @@ function createBillsRouter({ pool }) {
         if (result.affectedRows === 0) {
           throw new ApiError(404, "NOT_FOUND", "账单不存在或无权删除");
         }
+
+        await tryEnqueueBillActivity(conn, {
+          relationshipId: bill.relationship_id, relationship, userId, eventType: "bill.deleted",
+          billId, title: bill.title, amount: bill.amount
+        });
       });
 
       if (sharedPlanId) {
