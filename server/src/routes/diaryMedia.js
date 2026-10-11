@@ -29,7 +29,7 @@ if (!fs.existsSync(MEDIA_DIR)) {
   fs.mkdirSync(MEDIA_DIR, { recursive: true });
 }
 
-const PURPOSES = new Set(["diary", "background"]);
+const PURPOSES = new Set(["diary", "background", "comment"]);
 const ALLOWED_MIME = new Set(["image/jpeg", "image/png", "image/webp"]);
 // 与前端约定一致：单张原图 ≤20MB，解码后 ≤40MP（防像素炸弹）。
 const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
@@ -115,6 +115,16 @@ async function canReadMedia(pool, media, viewerId) {
   if (!members.length) return false;
   if (owner) return true;
   if (media.diary_id) return true;
+  if (media.comment_id) {
+    // 评论配图：评论及其所属帖子都还可见时，空间成员可读（与帖子配图同口径）
+    const [comments] = await pool.execute(
+      "SELECT c.status AS comment_status, p.status AS post_status FROM diary_comments c " +
+      "JOIN diary_posts p ON p.diary_id = c.diary_id WHERE c.comment_id = ? LIMIT 1",
+      [media.comment_id]);
+    return Boolean(comments[0])
+      && comments[0].comment_status === "visible"
+      && comments[0].post_status === "visible";
+  }
   if (media.purpose === "background") {
     const [themes] = await pool.execute("SELECT 1 FROM space_diary_theme WHERE space_id = ? AND media_id = ? AND kind = 'media' LIMIT 1", [media.space_id, media.media_id]);
     return themes.length > 0;
@@ -141,7 +151,7 @@ function createDiaryMediaRouter({ pool, config, requireAuth: suppliedRequireAuth
       const fieldErrors = {};
 
       if (!PURPOSES.has(body.purpose)) {
-        fieldErrors.purpose = "purpose 必须是 diary 或 background";
+        fieldErrors.purpose = "purpose 必须是 diary、background 或 comment";
       }
       if (!ALLOWED_MIME.has(body.mime)) {
         fieldErrors.mime = "仅支持 image/jpeg、image/png、image/webp";
@@ -286,7 +296,7 @@ function createDiaryMediaRouter({ pool, config, requireAuth: suppliedRequireAuth
     try {
       const mediaId = req.params.id;
       const [rows] = await pool.execute(
-        "SELECT media_id, owner_id, space_id, diary_id, purpose, status, width, height, auth_version FROM diary_media WHERE media_id = ? LIMIT 1",
+        "SELECT media_id, owner_id, space_id, diary_id, comment_id, purpose, status, width, height, auth_version FROM diary_media WHERE media_id = ? LIMIT 1",
         [mediaId]
       );
       const media = rows[0];
@@ -347,7 +357,7 @@ function createDiaryMediaRouter({ pool, config, requireAuth: suppliedRequireAuth
       const variant = req.query.variant === "thumb" ? "thumb" : "full";
 
       const [rows] = await pool.execute(
-        "SELECT media_id, owner_id, space_id, diary_id, purpose, status, storage_path, thumb_path, auth_version " +
+        "SELECT media_id, owner_id, space_id, diary_id, comment_id, purpose, status, storage_path, thumb_path, auth_version " +
           "FROM diary_media WHERE media_id = ? LIMIT 1",
         [mediaId]
       );
