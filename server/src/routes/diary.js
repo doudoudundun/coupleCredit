@@ -800,7 +800,9 @@ function createDiaryRouter({ pool, config }) {
       }
 
       const mediaByPost = await loadReadyMedia(pool, [post.diary_id]);
-      const authors = await loadAuthors(pool, [post.author_id]);
+      const latestMap = await loadLatestComments(pool, [post.diary_id]);
+      const latest = latestMap.get(post.diary_id) || null;
+      const authors = await loadAuthors(pool, [post.author_id, ...(latest ? [latest.authorId] : [])]);
       const reactions = (await loadReactions(pool, [post.diary_id])).get(post.diary_id) || new Map();
       // 空间里只有两名成员可回应：排除自己的一条即为伴侣贴纸（空间关闭后不再展示）
       const partnerEmoji = post.spaceActive
@@ -816,7 +818,12 @@ function createDiaryRouter({ pool, config }) {
           commentCount: post.spaceActive ? Number(post.comment_count || 0) : 0,
           canComment: post.spaceActive,
           reaction: { mine: reactions.get(userId) || null, partner: partnerEmoji },
-          partnerSeenAt: post.isAuthor ? (post.partner_seen_at || null) : null
+          partnerSeenAt: post.isAuthor ? (post.partner_seen_at || null) : null,
+          lastComment: latest && post.spaceActive ? {
+            nickname: (authors.get(latest.authorId) || unknownAuthor(latest.authorId)).nickname,
+            preview: latest.preview,
+            hasImage: latest.hasImage
+          } : null
         }
       });
     } catch (error) {
